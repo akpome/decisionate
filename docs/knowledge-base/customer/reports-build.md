@@ -44,8 +44,10 @@ Open an existing decision and choose Assess business impact, or select Decision
 to review in the report builder. This is one searchable dropdown: type a decision
 name to filter its choices, then select the decision. Typing alone does not change
 the selected decision. The decision's action and outcome metric are
-reused, not entered as a second decision. If no outcome metric was recorded,
-choose it in Decision Details first. Confirm when the action actually started;
+reused, not entered as a second decision. The Edit decision pencil beside the
+selected decision opens its Decision Details. Use it to update the original action
+or outcome metric; it appears only after a decision is selected. If no outcome
+metric was recorded, choose it in Decision Details first. Confirm when the action actually started;
 the decision creation date is not assumed to be the implementation date.
 When did you implement the change? means the real action date, not the date you
 expect results. Do not shift it to make the result look better.
@@ -60,6 +62,9 @@ zero delay. Old snapshots without these checks cannot supply a verified delay.
 If several earlier relationships qualify, choose which one informed the decision.
 There is no numeric lag input. Unknown or inconsistent timing produces an
 explanation and no impact amount, not an assumed immediate effect.
+When a specific earlier report is linked, Open the earlier analysis opens that
+evidence. Missing timing still shows its warning, without a generic relationship
+navigation link.
 
 The setup is arranged around choosing the decision, choosing one fair comparison,
 and checking the analysis. The recorded action
@@ -70,8 +75,9 @@ can retain its deliberate study choices and extra results.
 
 Choose Comparison dataset and Comparison metric directly from the available
 approved dataset results; there is no separate metric-checkbox selection first.
-If you do not have a fair comparison, Explore relationships instead switches back
-to Explore relationships without creating a decision or inventing an impact amount.
+Without a fair comparison, the impact estimate remains unavailable. The form has
+no shortcut that clears the assessment and switches to relationship analysis;
+use the analysis-type tabs to deliberately change workflows.
 Missing choices are named beside Check this decision. If a selected result or
 date is unavailable, review that dataset or choose another comparison.
 

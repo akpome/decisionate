@@ -113,7 +113,7 @@ test("plain-language comparison controls use available datasets without a second
   const changes = []
   const datasets = [1, 2, 3].map(dataset_id => ({ dataset_id, dataset_label: `Store ${dataset_id}`, metrics: [{ metric_key: "orders", label: "Orders", aggregation: "sum" }],
     date_columns: ["date"], availability: { date: { start: "2023-01-01", end: "2026-01-01" } } }))
-  const props = { study, metrics, datasets, onChange: value => changes.push(value), onComparisonChange() {}, onRetryDataset() {}, onExplore() {} }
+  const props = { study, metrics, datasets, onChange: value => changes.push(value), onComparisonChange() {}, onRetryDataset() {} }
   const html = renderToStaticMarkup(React.createElement(ImpactSetup, props))
   assert.match(html, /Comparison dataset/)
   assert.match(html, /Comparison metric/)
@@ -126,7 +126,7 @@ test("plain-language comparison controls use available datasets without a second
   assert.match(change, /Outcome metric/)
   assert.match(change, /When did you implement the change/)
   assert.match(change, /Desired improvement/)
-  assert.match(change, /Edit the action or result in Decision Details/)
+  assert.doesNotMatch(change, /Edit the action or result in Decision Details|Explore relationships/)
   assert.doesNotMatch(change, /value="Extended opening hours"|What ongoing change did you make/)
   const elements = []
   const visit = node => {

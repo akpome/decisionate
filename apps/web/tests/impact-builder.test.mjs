@@ -119,9 +119,41 @@ test("the impact builder keeps the comparison date column beside its one dimensi
 test("the first view starts with one decision choice and does not ask for a comparison prematurely", () => {
   const html = render({ definition: { ...definition, metrics: [], impact: { ...definition.impact, decision_id: null, comparison: null, outcome: null } } })
   assert.match(html, /Which decision are you checking/)
-  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date column|Minimum history/)
+  assert.doesNotMatch(html, /Comparison dataset|History starts|Other selected results|Date column|Minimum history|Edit decision/)
   assert.equal(dimensionProps.size, 0)
   assert.match(html, /Choose the decision you want to check/)
+})
+
+test("one accessible edit icon follows the selected decision, with no duplicate navigation in the assessment", () => {
+  for (const decision_id of [7, 12]) {
+    const html = render({ definition: { ...definition, impact: { ...definition.impact, decision_id } } })
+    assert.match(html, new RegExp(`href="/dashboard/decisions/${decision_id}#decision-title"`))
+    const link = html.match(/<a[^>]*aria-label="Edit decision"[^>]*>[\s\S]*?<\/a>/)?.[0]
+    assert.ok(link)
+    assert.match(link, /title="Edit decision"/)
+    assert.match(link, /h-10 w-10 shrink-0/)
+    assert.match(link, /focus-visible:outline/)
+    assert.match(link, /<svg[^>]*aria-hidden="true"/)
+    assert.equal((html.match(/aria-label="Edit decision"/g) || []).length, 1)
+    assert.ok(html.indexOf('aria-label="Decision to review"') < html.indexOf(link))
+    assert.ok(html.indexOf(link) < html.indexOf('aria-label="Decision data period"'))
+    assert.doesNotMatch(html, /Edit the action or result in Decision Details|Explore relationships|href="\/dashboard\/reports"/)
+  }
+})
+
+test("missing comparison and timing retain their warnings without a shortcut that clears the study", () => {
+  const original = { ...definition, metrics: [outcome], impact: { ...definition.impact, comparison: null, timing_evidence: null } }
+  const before = structuredClone(original)
+  const html = render({ definition: original, onChange: () => assert.fail("Rendering must not change the draft") })
+  assert.match(html, /Choose a comparison dataset and result/)
+  assert.match(html, /No verified timing is linked to this decision/)
+  assert.match(html, /A delay will not be assumed/)
+  assert.match(html, /Comparison dataset/)
+  assert.match(html, /Comparison metric/)
+  assert.doesNotMatch(html, /No fair comparison|Explore relationships|href="\/dashboard\/reports"/)
+  assert.deepEqual(original, before)
+  const source = readFileSync(new URL("../features/reports/impact-builder.tsx", import.meta.url), "utf8")
+  assert.doesNotMatch(source, /onExplore|onChange\(\{ impact: null \}\)/)
 })
 
 test("the decision fixes the outcome without adding a second dataset filter picker", () => {

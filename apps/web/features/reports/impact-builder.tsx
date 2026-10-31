@@ -1,7 +1,8 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { CheckCircle2, CircleHelp, RefreshCw, X } from "lucide-react"
+import Link from "next/link"
+import { CheckCircle2, CircleHelp, Pencil, RefreshCw, X } from "lucide-react"
 import type { CatalogDataset } from "@/features/relationships/types"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import type { ReportDefinition } from "./types"
@@ -38,7 +39,10 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
   return <section aria-label="Check a decision" className="min-w-0 space-y-6">
     <section aria-labelledby="impact-decision-heading" className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
       <h2 id="impact-decision-heading" className="text-base font-semibold">1. Which decision are you checking?</h2>
-      {decisionPicker}
+      <div className="flex min-w-0 items-end gap-2">
+        <div className="min-w-0 flex-1">{decisionPicker}</div>
+        {study.decision_id && <Link href={`/dashboard/decisions/${study.decision_id}#decision-title`} aria-label="Edit decision" title="Edit decision" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"><Pencil size={16} aria-hidden="true" /></Link>}
+      </div>
       {study.decision_id && !weekly && <p aria-label="Decision data period" className="text-sm text-gray-600">Analysis period: {definition.date_range.start && definition.date_range.end ? `${definition.date_range.start} to ${definition.date_range.end}` : "Not available"}.</p>}
       {study.decision_id && <ImpactChange study={study} datasets={datasets} onChange={onStudyChange}
         outcomeDate={study.outcome && (outcomeSource ? <label className="min-w-0 text-xs font-medium text-gray-600">Date column<select aria-label="Outcome date column" className={input} required value={outcomeColumn} onChange={event => onChange({ metrics: definition.metrics.map(metric => metric.dataset_id === outcomeSource.dataset_id ? { ...metric, date_column: event.target.value } : metric) })}>
@@ -59,7 +63,7 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
         comparisonFilter={study.comparison && <DatasetDimensionFilter key={`${userId}:${workspaceId}:${study.comparison.dataset_id}`} datasetId={study.comparison.dataset_id} userId={userId} workspaceId={workspaceId} embedded singleValue value={definition.dimension_filters?.find(filter => filter.dataset_id === study.comparison?.dataset_id)} onChange={filter => onChange({ dimension_filters: [
           ...(definition.dimension_filters || []).filter(item => item.dataset_id !== study.comparison?.dataset_id), ...(filter ? [{ dataset_id: study.comparison!.dataset_id, ...filter }] : []),
         ] })} />}
-        onExplore={() => onChange({ impact: null })} loading={loading} retryingDataset={retryingDataset} />
+        loading={loading} retryingDataset={retryingDataset} />
       {footer}
     </section>}
     {study.decision_id && study.comparison && <section aria-labelledby="impact-history-heading" className="min-w-0 space-y-4 border-t border-gray-200 pt-5">

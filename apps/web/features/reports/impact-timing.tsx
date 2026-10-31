@@ -22,7 +22,6 @@ export function ImpactTiming({ study, onChange }: { study: ImpactStudy; onChange
       <p className="text-gray-600">Historical timing may differ from this action&apos;s actual response. Both early and later results count.</p>
     </> : <p className="text-amber-900">{evidence?.message || "No verified timing is linked to this decision. A delay will not be assumed."}</p>}
     {overlaps && <p role="status" className="text-amber-900">Timing must come from history before implementation. This analysis includes later dates.</p>}
-    {evidence?.report_id ? <Link className="inline-flex min-h-10 items-center text-blue-700 underline" href={`/dashboard/reports?report=${encodeURIComponent(evidence.report_id)}`}>Open the earlier analysis</Link>
-      : <Link className="inline-flex min-h-10 items-center text-blue-700 underline" href="/dashboard/reports">Explore relationships</Link>}
+    {evidence?.report_id && <Link className="inline-flex min-h-10 items-center text-blue-700 underline" href={`/dashboard/reports?report=${encodeURIComponent(evidence.report_id)}`}>Open the earlier analysis</Link>}
   </div>
 }

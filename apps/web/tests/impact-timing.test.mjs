@@ -32,6 +32,8 @@ test("a single supported historical relationship supplies advice without a numer
   assert.match(html, /Both early and later results count/)
   assert.match(html, /actual response/)
   assert.match(html, /\/dashboard\/reports\?report=source/)
+  assert.match(html, /Open the earlier analysis/)
+  assert.doesNotMatch(html, /Explore relationships/)
   assert.doesNotMatch(html, /type="number"|<select|type="date"/)
 })
 
@@ -42,6 +44,18 @@ test("missing timing never claims a zero delay and post-action timing receives a
   const zero = render({ ...study, timing_evidence: { ...evidence, lag: 0, choices: [] } })
   assert.match(zero, /within the same grouped week/)
   assert.doesNotMatch(zero, /led the result by 0/)
+})
+
+test("missing source reports keep timing guidance without generic navigation, while evidence links remain specific", () => {
+  for (const timing_evidence of [null, { status: "unavailable", message: "No usable timing evidence." }, { ...evidence, report_id: null }]) {
+    const html = render({ ...study, timing_evidence })
+    assert.match(html, /Timing from earlier analysis/)
+    assert.doesNotMatch(html, /<a|Explore relationships|Open the earlier analysis/)
+  }
+  const html = render({ ...study, timing_evidence: { ...evidence, status: "unavailable", report_id: "source & report", choices: [], message: "Earlier history could not support a delay." } })
+  assert.match(html, /Earlier history could not support a delay/)
+  assert.match(html, /href="\/dashboard\/reports\?report=source%20%26%20report"/)
+  assert.match(html, /Open the earlier analysis/)
 })
 
 test("multiple supported drivers are chosen by relationship identity, not by a user-entered lag", () => {
