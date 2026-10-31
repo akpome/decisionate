@@ -72,6 +72,9 @@ shared positive baseline. Missing observations remain gaps in either view.
 
 ## Save and update
 
+Success confirmations disappear after five seconds. The saved-report status,
+delivery status, errors and delivery warnings remain visible independently.
+
 On Analysis, Save snapshot stores the server-generated completed analysis. Reopening it does
 not silently recalculate the data or update its narrative. Editing the settings
 starts an unsaved analysis; preview again and save a new snapshot. Generated

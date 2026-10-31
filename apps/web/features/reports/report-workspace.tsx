@@ -127,6 +127,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly ? "Preview report" : definition.impact ? busy ? "Checking decision..." : "Check this decision" : "Preview analysis")}</button>
 
   useEffect(() => {
+    if (!message) return
+    const timer = window.setTimeout(() => setMessage(current => current === message ? "" : current), 5000)
+    return () => window.clearTimeout(timer)
+  }, [message])
+
+  useEffect(() => {
     const controller = new AbortController()
     const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
     const timer = setTimeout(() => { void loadReportCatalogPage(request, catalogOffset, controller.signal, page => {

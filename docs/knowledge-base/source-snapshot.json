@@ -1,11 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-30",
-  "base_git_revision": "02495a4092d38a4d7c2a7b36096b0cc3a59da5e2",
+  "base_git_revision": "57f6a6cdae0d83dbb91ccf969a9c9a7eeda58eef",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/features/reports/report-workspace.tsx",
-    "apps/web/features/reports/weekly-decision-update.tsx"
+    "apps/web/features/reports/report-workspace.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -116,7 +114,7 @@
     "apps/web/features/reports/report-metric-picker.tsx": "e7b6d66134ca4f1dedf4914b0a7e9367c59fcd85d68eafb9377317bec0605a20",
     "apps/web/features/reports/report-metric-trends.tsx": "40536cb7b2a04a2bdb559d68f50b2a3c88d715e7ad26d60ba9890c32f2aaab90",
     "apps/web/features/reports/report-pair-directions.tsx": "7968b6cf47aa861d89d5dc825b5c90f4db6c7b4693d3674337cb8ded6fa4a403",
-    "apps/web/features/reports/report-workspace.tsx": "0be80f2afd7d8707a2525acc8292a56d60644182944f17c839b62a7594ddd4dd",
+    "apps/web/features/reports/report-workspace.tsx": "85ac7150694dc0134db79f2015a9b4263da7e04f7ae377fca8a438ba6fd20f32",
     "apps/web/features/reports/types.ts": "ae5c3d9bf0ba59ad58f2fcfb54052c3a9aada9fe26a4fbcf64cb4d3e2ffbc290",
     "apps/web/features/reports/weekly-decision-update.tsx": "2425fa35ef08a87e91c479ac2d643fdd3d304a9d4697892146bc7835c5602a8e",
     "apps/web/features/reports/weekly-settings.ts": "79507a575853b8c43373aea5bba1a19e2c22249ccdd3d093eefbd5ffc7046f14",
@@ -144,7 +142,7 @@
     "customer/dimension-filters.md": "2d87942dbb013019b371259d2a53ddf97119cb0c177dc56f41a830116b1e904a",
     "customer/dashboards.md": "dba8922d9e0fc15211788cfe5c59a47ce180372f8a393f2b28fa1388a1abf6b3",
     "customer/reports-build.md": "ed768ed4242aedb28cc80201a2475da330e3a4e00f2ba20659760927fd4af639",
-    "customer/reports-read-save.md": "0762e1fe47f63e17bf9aa30f09ee55e0bd7359cb864b6ea23e3f20f61df7e5fc",
+    "customer/reports-read-save.md": "7550d5894a9d77082f580edab9ec5ecb33775f1c3201b683394be651dffe6801",
     "customer/relationship-evidence.md": "2a756a958c7f16d43a08a892baefd39ad66684609fcd83cdd5e019300fad58ed",
     "customer/lag-observations.md": "5872aa25a7c411f09f27e463273722a83439df4f3058a59f396790bac1d53479",
     "customer/relationship-monitors.md": "11876880420e287b336bc8dc049f7e97dcc06c549e575a90d8f86ef2fc5ab0ea",
