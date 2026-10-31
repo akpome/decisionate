@@ -42,6 +42,17 @@ def configured(key="test-key"):
 
 
 class GuidanceTests(unittest.TestCase):
+    def test_historical_return_and_profit_questions_retrieve_their_own_workflow(self):
+        for question in ("Which advertising platform gave me more revenue per dollar spent?",
+                         "Which products or services leave the most money after costs?",
+                         "Are my customers coming back to buy again?",
+                         "Where are potential sales being lost?",
+                         "When might cash run short?"):
+            with self.subTest(question=question):
+                records = knowledge.retrieve(question)
+                self.assertEqual(records[0]["article_id"], "performance-analysis")
+                self.assertNotEqual(records[0]["article_id"], "connector-catalog")
+
     def test_budget_question_retrieves_workflow_instead_of_connector_inventory(self):
         question = "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store"
         records = knowledge.retrieve(question)

@@ -6,6 +6,7 @@ from sqlalchemy import inspect
 
 from app.db.models import WeeklyReportPreference
 from app.modules.budget_planner.models import BudgetPlan
+from app.modules.performance.models import PerformanceAnalysis
 from .models import BusinessReport, CurrentWeeklyReport, DecisionImpactReview, ReportAnalysisJob
 
 
@@ -22,6 +23,12 @@ def delete_reports(db, identities):
 
 
 def cleanup_source(db, dataset_id):
+    if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):
+        for analysis in db.query(PerformanceAnalysis):
+            definition = json.loads(analysis.definition)
+            sources = [definition["source"]] if "source" in definition else [source for item in definition["items"] for source in [item["revenue"], *item["costs"]]]
+            if any(source["dataset_id"] == dataset_id for source in sources):
+                db.delete(analysis)
     if inspect(db.connection()).has_table(BudgetPlan.__tablename__):
         for plan in db.query(BudgetPlan):
             definition = json.loads(plan.definition)
@@ -60,6 +67,8 @@ def cleanup_source(db, dataset_id):
 
 
 def cleanup_workspace(db, workspace_id):
+    if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):
+        db.query(PerformanceAnalysis).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(BudgetPlan.__tablename__):
         db.query(BudgetPlan).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(CurrentWeeklyReport.__tablename__):

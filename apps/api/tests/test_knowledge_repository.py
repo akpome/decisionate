@@ -41,11 +41,11 @@ class KnowledgeRepositoryTests(unittest.TestCase):
 
     def test_repository_and_committed_customer_export_are_consistent(self):
         summary = knowledge.check(self.root)
-        self.assertEqual(summary["articles"], 35)
-        self.assertEqual(summary["customer_articles"], 29)
+        self.assertEqual(summary["articles"], 36)
+        self.assertEqual(summary["customer_articles"], 30)
         self.assertEqual(summary["operator_articles"], 6)
         self.assertEqual(summary["connectors"], 27)
-        self.assertEqual(summary["evaluation_cases"], 36)
+        self.assertEqual(summary["evaluation_cases"], 41)
         self.assertGreater(summary["customer_chunks"], 100)
 
     def test_default_export_contains_only_customer_content_and_safe_metadata(self):

@@ -20,6 +20,7 @@ from app.modules.datasets.router import (
 from app.modules.correlation.router import router as correlation_router
 from app.modules.reports.router import router as reports_router
 from app.modules.budget_planner.router import router as budget_planner_router
+from app.modules.performance.router import router as performance_router
 
 from app.modules.organizations.router import (
     router as organization_router,
@@ -1669,6 +1670,7 @@ async def enforce_product_route_auth(
         "/ai",
         "/marketing",
         "/api/v2/budget-plans",
+        "/api/v2/performance-analyses",
     )
 
     if (
@@ -1771,6 +1773,7 @@ app.include_router(
 app.include_router(correlation_router)
 app.include_router(reports_router)
 app.include_router(budget_planner_router)
+app.include_router(performance_router)
 
 app.include_router(
     organization_router,

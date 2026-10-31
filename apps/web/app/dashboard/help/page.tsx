@@ -79,6 +79,22 @@ const gettingStartedItems = [
 
 const faqItems = [
   {
+    question: "How can I tell whether customers are coming back?",
+    answer: "Open Business Analysis and choose Customer retention. Select completed purchase records, the date, customer ID and purchase ID columns. Choose the dates and give customers 30, 60 or 90 days to return. Only customers with enough follow-up enter the repeat-purchase rate; newer customers are shown as too early to tell. The first purchase means first in the available filtered history, not necessarily first-ever. Customer identifiers are not shown in the result.",
+  },
+  {
+    question: "Where are potential sales being lost?",
+    answer: "Use Sales conversion within Business Analysis. Select counts for the same group at two to five steps, such as Enquiries, Quotes and Sales. Each person or opportunity must be counted once per step under the same follow-up window. The result shows how many reach the final step and the largest drop-off. It does not automatically match people across systems or prove why they stopped. Independent sessions, orders and customer totals are not interchangeable.",
+  },
+  {
+    question: "Can I plan when cash might run short?",
+    answer: "Use Cash flow planning within Business Analysis. Select a schedule of expected receipts and payments, enter starting cash and choose 4, 8, 13 or 26 weeks. Optional what-if changes adjust amounts or delay receipts without changing your data. The result compares planned weekly cash with the original schedule and flags a gap below your chosen minimum. This is a payment-schedule scenario, not a guaranteed forecast. Include all relevant obligations; weekly balances can hide a shortfall within a week.",
+  },
+  {
+    question: "Which advertising platform gave me better value for past spending?",
+    answer: "Open Business Analysis, then Return on spend. Choose historical dates, revenue and spending, and compare channels in one dataset or named comparisons from separate datasets. Revenue per dollar uses total recorded revenue divided by total spend. Sales must be assigned once using the same rule for a fair ranking; platform-reported sales are shown without an overall winner. Missing amounts are not zero, and the tool does not infer attribution from total store revenue. Preview before saving. For products or services, Profitability shows money left after selected costs, not automatically net profit.",
+  },
+  {
     question: "How can I compare where to spend my budget?",
     answer: "Open Budget Planner under Analysis. Choose a result, spending options, total budget and planning weeks. Options can come from different datasets or different dimension values in one dataset. Preview first: the planner needs at least 104 complete matching weeks and recent data, and withholds allocations when the evidence is weak. Supported previews compare the same budget using the recent mix and a suggested test. Save the plan before creating a decision. These are model-based estimates, not proven causal effects or automatic spending changes.",
   },

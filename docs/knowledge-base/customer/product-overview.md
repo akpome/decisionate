@@ -13,6 +13,11 @@ an impact estimate depends on the comparison and stated business assumptions.
 - Dashboard and Dashboards show supporting KPIs, trends, mappings and targets.
 - Business Analysis is the on-demand analysis workspace. Multi dataset report opens by default;
   Single dataset report analyzes one source with the same report engine.
+  Return on spend compares historical recorded revenue per dollar, and
+  Profitability compares money left after selected costs. Customer retention
+  checks repeat purchases, Sales conversion checks matching sales steps, and
+  Cash flow planning checks expected receipts and payments. These tools remain
+  inside Business Analysis, not additional sidebar pages.
 - Business Impact assesses an existing decision using its outcome, implementation
   date and an unaffected comparison. Preview before saving the assessment to the decision.
 - Weekly Reports provides independently configured weekly

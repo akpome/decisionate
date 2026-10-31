@@ -190,6 +190,13 @@ def execute_job(identity):
                 result = generate_budget(db, BudgetDefinition.model_validate(payload), job.user_id, job.workspace_id,
                                          progress=lambda phase: set_phase(db, job, phase))
                 check_inputs(db, job)
+            elif job.kind == "performance":
+                from app.modules.performance.growth_schemas import definition_adapter
+                from app.modules.performance.service import generate as generate_performance
+                payload = {key: value for key, value in definition.items() if key != "reporting_timezone"}
+                result = generate_performance(db, definition_adapter.validate_python(payload), job.user_id, job.workspace_id,
+                                              progress=lambda phase: set_phase(db, job, phase))
+                check_inputs(db, job)
             elif job.kind == "dataset_anomalies":
                 from app.modules.reports.router import calculate_dataset_anomalies
                 set_phase(db, job, "computing")

@@ -7,6 +7,63 @@
   "default_export_audience": "customer",
   "articles": [
     {
+      "id": "performance-analysis",
+      "title": "Business Analysis: returns, profitability, customers, sales and cash",
+      "path": "customer/performance-analysis.md",
+      "audience": "customer",
+      "topics": [
+        "return",
+        "spend",
+        "advertising",
+        "roas",
+        "profit",
+        "margin",
+        "channel",
+        "historical",
+        "retention",
+        "repeat purchases",
+        "conversion",
+        "sales steps",
+        "cash flow",
+        "payments"
+      ],
+      "questions": [
+        "Which advertising platform gave me more revenue per dollar spent?",
+        "Which ad platform gave me more bang for my dollar?",
+        "How do I compare past Meta and Google spend with Shopify sales?",
+        "Which products or services are profitable?",
+        "Are my customers coming back to buy again?",
+        "Where are potential sales being lost?",
+        "When might cash run short?"
+      ],
+      "routes": [
+        "/dashboard/reports/returns",
+        "/dashboard/reports/profitability",
+        "/dashboard/reports/retention",
+        "/dashboard/reports/conversion",
+        "/dashboard/reports/cash-flow"
+      ],
+      "sources": [
+        "apps/api/app/modules/performance/schemas.py",
+        "apps/api/app/modules/performance/service.py",
+        "apps/api/app/modules/performance/router.py",
+        "apps/web/features/performance/performance-workspace.tsx",
+        "apps/web/features/performance/performance-setup.tsx",
+        "apps/web/features/performance/performance-results.tsx",
+        "apps/api/app/modules/performance/growth_schemas.py",
+        "apps/api/app/modules/performance/growth_service.py",
+        "apps/web/features/performance/growth-setup.tsx",
+        "apps/web/features/performance/growth-results.tsx",
+        "apps/web/features/reports/analysis-tools.tsx"
+      ],
+      "related": [
+        "budget-planner",
+        "reports-build",
+        "dimension-filters",
+        "decisions-outcomes"
+      ]
+    },
+    {
       "id": "budget-planner",
       "title": "Budget Planner: where to spend for better results",
       "path": "customer/budget-planner.md",
