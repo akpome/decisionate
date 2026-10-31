@@ -83,30 +83,28 @@ def metric_value(frame, dates, reference):
 
 
 def prepare_report_series(frames, references, definition):
-    result, policy_groups = {}, {}
+    result, source_groups = {}, {}
     for reference in references:
-        identity, column = reference["dataset_id"], reference["date_column"]
-        if frame_policy(frames[identity][1]):
-            policy_groups.setdefault((identity, column), []).append(reference)
-    for (identity, column), group in policy_groups.items():
+        source_groups.setdefault((reference["dataset_id"], reference["date_column"]), []).append(reference)
+    # Share date work across metrics, retaining only one scoped source at a time.
+    for (identity, column), group in source_groups.items():
         dataset, original = frames[identity]
-        dates = report_dates(original, column, definition["reporting_timezone"])
-        ordered = original.loc[dates.sort_values(kind="stable").index].copy()
-        result.update(prepare_series({identity: (dataset, ordered)}, group, definition)[0])
-    for reference in references:
-        key = metric_id(reference)
-        if key in result:
+        if frame_policy(original):
+            dates = report_dates(original, column, definition["reporting_timezone"])
+            ordered = original.loc[dates.sort_values(kind="stable").index].copy()
+            result.update(prepare_series({identity: (dataset, ordered)}, group, definition)[0])
             continue
-        _, original = frames[reference["dataset_id"]]
-        frame, dates = scoped_frame(original, reference["date_column"], definition["date_range"], definition["reporting_timezone"])
-        values = coerce_numeric_series(frame[reference["metric_key"]]).replace([float("inf"), -float("inf")], float("nan"))
-        working = pd.DataFrame({"period": _bucket_dates(dates, definition["grain"]), "date": dates, "value": values}).sort_values("date")
-        groups = working.groupby("period", sort=True).value
-        aggregation = reference["aggregation"]
-        grouped = groups.sum(min_count=1) if aggregation == "sum" else groups.agg({"avg": "mean"}.get(aggregation, aggregation))
-        # Empty values are not zero, including when the selected operation is count.
-        grouped = grouped.where(groups.count() > 0)
-        result[key] = grouped.rename("value").reset_index()
+        frame, dates = scoped_frame(original, column, definition["date_range"], definition["reporting_timezone"])
+        periods = _bucket_dates(dates, definition["grain"])
+        for reference in group:
+            values = coerce_numeric_series(frame[reference["metric_key"]]).replace([float("inf"), -float("inf")], float("nan"))
+            working = pd.DataFrame({"period": periods, "date": dates, "value": values}).sort_values("date")
+            groups = working.groupby("period", sort=True).value
+            aggregation = reference["aggregation"]
+            grouped = groups.sum(min_count=1) if aggregation == "sum" else groups.agg({"avg": "mean"}.get(aggregation, aggregation))
+            # Empty values are not zero, including when the selected operation is count.
+            grouped = grouped.where(groups.count() > 0)
+            result[metric_id(reference)] = grouped.rename("value").reset_index()
     return result
 
 
@@ -190,11 +188,15 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
             points["value"] = pd.to_numeric(points["value"], errors="coerce").replace([float("inf"), -float("inf")], float("nan"))
     expected = period_index(window, grain)
     previous_expected = period_index(previous, grain)
+    scoped = {}
     for reference in usable:
         key = metric_id(reference)
-        dataset, frame = frames[reference["dataset_id"]]
-        current_frame, dates = scoped_frame(frame, reference["date_column"], window, zone)
-        prior_frame, prior_dates = scoped_frame(frame, reference["date_column"], previous, zone)
+        source = (reference["dataset_id"], reference["date_column"])
+        if source not in scoped:
+            _, frame = frames[source[0]]
+            scoped[source] = (scoped_frame(frame, source[1], window, zone),
+                              scoped_frame(frame, source[1], previous, zone))
+        (current_frame, dates), (prior_frame, prior_dates) = scoped[source]
         value, prior = metric_value(current_frame, dates, reference), metric_value(prior_frame, prior_dates, reference)
         delta = finite(value - prior) if value is not None and prior is not None else None
         percent = finite(delta / abs(prior) * 100) if delta is not None and prior != 0 else None
@@ -224,6 +226,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                         "previous_observations": len(prior_observed), "previous_expected_periods": len(previous_expected),
                         "trend": [{"period": str(period.date()), "value": finite(value)}
                                   for period, value in points.set_index("period").value.reindex(expected).items()]})
+    scoped.clear()
 
     # Relationship history is separate from the reporting window: interactive
     # reports use at least 90 days; scheduled reviews use a rolling three years.

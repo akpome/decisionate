@@ -13,7 +13,7 @@ from fastapi.routing import run_endpoint_function
 
 from app import main
 from app.modules.datasets import router as routes
-from app.modules.datasets.schemas import DatasetMetricSelectionUpdate
+from app.modules.datasets.schemas import DatasetMetricSelectionUpdate, EntityMatchingRequest
 from app.modules.datasets.services.joins import JOIN_RESULT_VERSION
 
 
@@ -70,9 +70,71 @@ class DatasetReadConcurrencyTests(unittest.IsolatedAsyncioTestCase):
             "dataset_anomalies", "dataset_details", "dataset_ai_analysis", "get_dataset_join_cache",
             "sync_due_source_connections",
             "update_dataset_metric_selection",
+            "get_entity_matching_metadata", "preview_entity_matching", "run_entity_matching",
         ):
             with self.subTest(endpoint=name):
                 self.assertFalse(inspect.iscoroutinefunction(getattr(routes, name)))
+
+    async def test_entity_workflows_keep_io_and_database_on_one_worker_thread(self):
+        loop = asyncio.get_running_loop()
+        event_loop_thread = threading.get_ident()
+        for name in ("get_entity_matching_metadata", "preview_entity_matching", "run_entity_matching"):
+            with self.subTest(endpoint=name):
+                threads = {}
+                started = asyncio.Event()
+                release = threading.Event()
+
+                def stage(name, result=None):
+                    def call(*args, **kwargs):
+                        threads[name] = threading.get_ident()
+                        if name == "load":
+                            loop.call_soon_threadsafe(started.set)
+                            release.wait(2)
+                        return result
+                    return call
+
+                frame = pd.DataFrame({"email": ["a@example.test"], "revenue": [10]})
+                dataset = SimpleNamespace(id=1, file_name="customers.csv", source_type="csv")
+                db = Mock()
+                db.query.return_value.filter.return_value.all.return_value = []
+                db.commit.side_effect = stage("commit")
+                db.close.side_effect = stage("close")
+                result = {"entities": [], "matched_row_count": 0, "unmatched_row_count": 2}
+                with ExitStack() as stack:
+                    for target, callback in (
+                        ("SessionLocal", stage("open", db)),
+                        ("get_user_id", stage("auth", "user")),
+                        ("get_workspace_id", stage("workspace", "workspace")),
+                        ("require_workspace_data_manager", stage("permission")),
+                        ("load_dataset", stage("query", dataset)),
+                        ("verify_dataset_owner", stage("ownership")),
+                        ("load_dataframe_from_dataset", stage("load", frame)),
+                        ("build_metric_selection_profile", stage("profile", {"fields": []})),
+                        ("build_entity_resolution", stage("resolve", result)),
+                        ("_find_entity_matching_dataset", stage("existing")),
+                        ("build_linked_entity_history", stage("history", (frame, {"date_columns": {}, "policy": {"selected": []}}, []))),
+                        ("persist_entity_matching_dataframe", stage("persist", ("linked", "local", "linked"))),
+                    ):
+                        stack.enter_context(patch.object(routes, target, side_effect=callback))
+                    values = {"request": object()}
+                    if name == "get_entity_matching_metadata":
+                        values.update(dataset_ids=[1, 2], entity_type="customer")
+                    else:
+                        values["payload"] = EntityMatchingRequest(dataset_ids=[1, 2], entity_type="customer")
+                    request = asyncio.create_task(dispatch(getattr(routes, name), **values))
+                    try:
+                        await asyncio.wait_for(started.wait(), 1)
+                        self.assertFalse(request.done())
+                        self.assertNotEqual(threads["load"], event_loop_thread)
+                        self.assertNotIn("close", threads)
+                    finally:
+                        release.set()
+                        await request
+                self.assertEqual(set(threads.values()), {threads["open"]})
+                self.assertIn("close", threads)
+                if name == "run_entity_matching":
+                    self.assertIn("persist", threads)
+                    self.assertIn("commit", threads)
 
     async def test_details_are_encoded_once_on_the_worker_thread(self):
         event_loop_thread = threading.get_ident()

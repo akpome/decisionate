@@ -1,11 +1,11 @@
-import asyncio
 import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pandas as pd
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Dataset, CanonicalEntity, EntityIdentity
@@ -49,12 +49,12 @@ class EntityMatchingWorkflowTests(unittest.TestCase):
                                             metric_columns={"1": ["revenue"], "2": ["revenue"]}, date_columns={"1": "date", "2": "date"})
 
     def save(self, **changes):
-        return asyncio.run(router.run_entity_matching(SimpleNamespace(), self.payload.model_copy(update=changes)))
+        return router.run_entity_matching(SimpleNamespace(), self.payload.model_copy(update=changes))
 
     def test_metadata_defaults_dates_and_preview_does_not_write(self):
-        metadata = asyncio.run(router.get_entity_matching_metadata(SimpleNamespace(), [1, 2], "customer"))
+        metadata = router.get_entity_matching_metadata(SimpleNamespace(), [1, 2], "customer")
         self.assertEqual(metadata["datasets"][0]["default_date_column"], "date")
-        preview = asyncio.run(router.preview_entity_matching(SimpleNamespace(), self.payload))
+        preview = router.preview_entity_matching(SimpleNamespace(), self.payload)
         self.assertEqual(EntityMatchingPreviewResponse(**preview).matched_row_count, 4)
         with self.Session() as db:
             self.assertEqual(db.query(Dataset).count(), 3)
@@ -81,6 +81,38 @@ class EntityMatchingWorkflowTests(unittest.TestCase):
         first = self.save()
         second = self.save(replace_existing=False)
         self.assertNotEqual(first["unified_dataset_id"], second["unified_dataset_id"])
+
+    def test_canonical_entities_are_flushed_in_batches(self):
+        for identity in self.frames:
+            self.frames[identity] = pd.DataFrame({"email": [f"customer-{i}@example.test" for i in range(25)],
+                                                "date": ["2025-01-01"] * 25, "revenue": range(25)})
+        flushes = []
+        def before_flush(session, context, instances):
+            flushes.append(len(session.new))
+        event.listen(self.Session, "before_flush", before_flush)
+        self.addCleanup(event.remove, self.Session, "before_flush", before_flush)
+        result = self.save()
+        self.assertEqual(result["canonical_entity_count"], 25)
+        self.assertEqual(len(flushes), 2)
+        self.assertEqual(flushes, [25, 51])
+        with self.Session() as db:
+            self.assertEqual(db.query(EntityIdentity).count(), 50)
+            self.assertEqual(db.query(CanonicalEntity).count(), 25)
+
+    def test_large_matching_jobs_bound_pending_database_writes(self):
+        for identity in self.frames:
+            self.frames[identity] = pd.DataFrame({"email": [f"customer-{i}@example.test" for i in range(501)],
+                                                "date": ["2025-01-01"] * 501, "revenue": range(501)})
+        flushes = []
+        def before_flush(session, context, instances):
+            flushes.append(len(session.new))
+        event.listen(self.Session, "before_flush", before_flush)
+        self.addCleanup(event.remove, self.Session, "before_flush", before_flush)
+        result = self.save()
+        self.assertEqual(result["canonical_entity_count"], 501)
+        self.assertEqual(flushes, [500, 1, 1000, 3])
+        with self.Session() as db:
+            self.assertEqual(db.query(EntityIdentity).count(), 1002)
 
     def test_deleting_legacy_summary_keeps_identities_used_by_linked_history(self):
         self.save()

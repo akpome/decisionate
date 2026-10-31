@@ -131,10 +131,11 @@ def summarize_linked_entities(history, limit=100):
     for key, rows in history.groupby("canonical_entity_key", sort=False):
         if len(results) >= limit:
             break
+        rows = rows.sort_values("record_date")
         values = []
         for metric in policy["selected"]:
             entry = policy["descriptors"][metric]
-            value = aggregate_metric(rows.sort_values("record_date"), entry)
+            value = aggregate_metric(rows, entry)
             if value is not None:
                 values.append({"label": entry["label"], "value": value, "aggregation": entry["aggregation"],
                                "unit": entry["unit"], "currency": entry.get("currency")})

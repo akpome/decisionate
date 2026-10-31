@@ -120,7 +120,7 @@ def _select_numeric_column(
     column = resolve_column(dataframe, requested, label)
     numeric_columns = {
         str(name)
-        for name, _series in get_numeric_columns(dataframe)
+        for name, _series in get_numeric_columns(dataframe[[column]])
         if not is_identifier_column(name)
     }
     if str(column) not in numeric_columns:
@@ -184,13 +184,6 @@ def _build_metric_series(
         .rename("value")
         .reset_index()
     )
-    if aggregation == "count":
-        grouped = (
-            working.groupby("period", sort=True)["value"]
-            .count()
-            .rename("value")
-            .reset_index()
-        )
     return grouped
 
 

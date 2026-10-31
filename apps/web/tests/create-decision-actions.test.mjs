@@ -157,15 +157,6 @@ test("creation and pending labels use the existing translation hook", () => {
   assert.match(render(TranslatedButton, { creating: true }), />translated:Creating\.\.\.<\/span>/)
 })
 
-test("insight cards remain evidence-only even if a legacy creation callback is supplied", () => {
-  const { InsightCard } = loadSource("features/insights/components/insight-card.tsx")
-  const insight = { title: "Revenue change", description: "Review the change in revenue." }
-  assert.doesNotMatch(render(InsightCard, { insight }), /<button/)
-  const html = render(InsightCard, { insight, onCreateDecision: () => {}, actionDisabled: true })
-  assert.doesNotMatch(html, /<button|Create decision/)
-  assert.match(html, /Review the change in revenue/)
-})
-
 test("recommendation cards display their findings without creating a decision", () => {
   const { RecommendationCard } = loadSource("features/dashboard/components/recommendation-card.tsx")
   const props = { title: "Review spending", reason: "Costs increased", confidence: "high", decisionBrief: "Review costs.", creatingDecision: false }

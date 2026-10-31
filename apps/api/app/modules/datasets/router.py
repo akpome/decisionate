@@ -4178,7 +4178,7 @@ def _resolve_entity_matching_metric_columns(
     "/entity-matching/metadata",
     response_model=EntityMatchingMetadataResponse,
 )
-async def get_entity_matching_metadata(
+def get_entity_matching_metadata(
     request: Request,
     dataset_ids: list[int] = Query(...),
     entity_type: str = Query(...),
@@ -4257,7 +4257,7 @@ async def get_entity_matching_metadata(
     "/entity-matching/preview",
     response_model=EntityMatchingPreviewResponse,
 )
-async def preview_entity_matching(
+def preview_entity_matching(
     request: Request,
     payload: EntityMatchingRequest,
 ):
@@ -4287,8 +4287,7 @@ async def preview_entity_matching(
             payload.metric_columns,
             resolved_key_columns,
         )
-        return await asyncio.to_thread(
-            build_entity_resolution,
+        return build_entity_resolution(
             frames,
             payload.entity_type,
             resolved_key_columns,
@@ -4303,7 +4302,7 @@ async def preview_entity_matching(
     "/entity-matching/run",
     response_model=EntityMatchingRunResponse,
 )
-async def run_entity_matching(
+def run_entity_matching(
     request: Request,
     payload: EntityMatchingRequest,
 ):
@@ -4335,8 +4334,7 @@ async def run_entity_matching(
             payload.metric_columns,
             resolved_key_columns,
         )
-        result = await asyncio.to_thread(
-            build_entity_resolution,
+        result = build_entity_resolution(
             frames,
             payload.entity_type,
             resolved_key_columns,
@@ -4371,7 +4369,7 @@ async def run_entity_matching(
         confidence_breakdown = {"high": 0, "medium": 0, "review": 0}
         response_entities = []
         canonical_entity_ids = {}
-        for entity in result["entities"]:
+        for position, entity in enumerate(result["entities"], start=1):
             canonical = existing_entities.get(entity["canonical_key"]) or CanonicalEntity(
                 workspace_id=workspace_id,
                 user_id=user_id,
@@ -4390,7 +4388,15 @@ async def run_entity_matching(
             canonical.match_count = entity["match_count"]
             canonical.confidence = entity["confidence"]
             canonical.updated_at = utc_now()
-            db.flush()
+            existing_entities[entity["canonical_key"]] = canonical
+            if position % 500 == 0:
+                db.flush()
+
+        # Resolve generated IDs in bounded batches before storing identities.
+        db.flush()
+        pending_identities = 0
+        for entity in result["entities"]:
+            canonical = existing_entities[entity["canonical_key"]]
             canonical_entity_ids[entity["canonical_key"]] = canonical.id
             confidence_breakdown[confidence_bucket(entity["confidence"])] += 1
 
@@ -4412,6 +4418,10 @@ async def run_entity_matching(
                     reviewed=entity.get("confirmed", False),
                     created_at=utc_now(),
                 ))
+                pending_identities += 1
+                if pending_identities == 1000:
+                    db.flush()
+                    pending_identities = 0
                 source_rows.append({
                     "dataset_id": record["dataset_id"],
                     "file_name": record["file_name"],
@@ -4432,15 +4442,14 @@ async def run_entity_matching(
                 "sources": source_rows[:10],
             })
 
-        unified_dataframe, history_contract, warnings = await asyncio.to_thread(
-            build_linked_entity_history,
+        unified_dataframe, history_contract, warnings = build_linked_entity_history(
             frames,
             result,
             canonical_entity_ids,
             resolved_metric_columns,
             payload.date_columns,
         )
-        summary = await asyncio.to_thread(summarize_linked_entities, unified_dataframe) if payload.include_summary else []
+        summary = summarize_linked_entities(unified_dataframe) if payload.include_summary else []
         (
             stored_file_path,
             storage_provider,

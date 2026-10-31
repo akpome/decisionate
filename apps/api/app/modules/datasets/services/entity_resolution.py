@@ -107,10 +107,16 @@ def _row_candidates(
     rows: list[dict] = []
     unmatched: list[dict] = []
 
-    for row_number, (_, row) in enumerate(dataframe.iterrows()):
+    if not fields:
+        return rows, [{"row_number": index} for index in range(len(dataframe))]
+
+    # Read only identity columns and preserve their types (iterrows can turn
+    # integer IDs into floats when another column contains decimal values).
+    identity_rows = dataframe[[field["column"] for field in fields]].itertuples(index=False, name=None)
+    for row_number, row in enumerate(identity_rows):
         values = []
-        for field in fields:
-            value = normalize_entity_value(row.get(field["column"]))
+        for field, raw_value in zip(fields, row):
+            value = normalize_entity_value(raw_value)
             if not value:
                 continue
             values.append({

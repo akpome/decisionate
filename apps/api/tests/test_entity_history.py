@@ -13,6 +13,7 @@ from app.modules.datasets.services.curated_metric_analytics import aggregate_cur
 from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 from app.modules.datasets.services.entity_history import build_linked_entity_history, summarize_linked_entities
 from app.modules.datasets.services.entity_resolution import build_entity_resolution
+from app.modules.datasets.services.entity_resolution import _row_candidates
 from app.modules.datasets.services.metric_policy import FRAME_POLICY_KEY
 from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
 
@@ -22,6 +23,19 @@ def dataset(identifier, config=None):
 
 
 class EntityHistoryTests(unittest.TestCase):
+    def test_identity_scan_preserves_large_integer_ids_without_reading_metrics(self):
+        identity = 9007199254740993
+        frame = pd.DataFrame({"customer_id": [identity, identity + 1], "revenue": [1.5, 2.5]})
+        with patch.object(pd.DataFrame, "iterrows", side_effect=AssertionError("Full rows should not be scanned")):
+            rows, unmatched = _row_candidates(frame, "customer")
+        self.assertEqual([row["primary"]["value"] for row in rows], [str(identity), str(identity + 1)])
+        self.assertEqual(unmatched, [])
+
+    def test_no_identity_columns_keeps_all_unmatched_row_positions(self):
+        rows, unmatched = _row_candidates(pd.DataFrame({"revenue": [1, 2, 3]}), "customer")
+        self.assertEqual(rows, [])
+        self.assertEqual(unmatched, [{"row_number": 0}, {"row_number": 1}, {"row_number": 2}])
+
     def frames(self):
         return [(dataset(1), pd.DataFrame({"email": ["a@b.com", "a@b.com", None],
                                          "date": ["2025-01-01", "2025-01-02", "2025-01-03"],
