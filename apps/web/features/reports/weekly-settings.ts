@@ -16,5 +16,5 @@ export function weeklyDefinition(value: Partial<ReportDefinition>, history?: Wee
 export function weeklyDeliveryIssue(report: BusinessReport | null, window?: WeeklySettings["window"]) {
   if (!report?.weekly_report || !window || report.window.start !== window.start || report.window.end !== window.end ||
     report.status === "ready" && report.dataset_count >= 2) return ""
-  return `This weekly report cannot be sent: fewer than two datasets have usable data for ${window.start} to ${window.end}. Sync or upload data for that week and preview again. Use Business Analysis for historical data.`
+  return `This weekly report cannot be sent: fewer than two datasets have usable data for ${window.start} to ${window.end}. Sync or upload data for that week and preview again. Use Analysis for historical data.`
 }

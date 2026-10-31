@@ -96,7 +96,7 @@ class TimedImpactCalculationTests(unittest.TestCase):
         self.assertIn("timing", impact_facts(result))
         self.assertNotIn("trend", impact_facts(result))
         email = " ".join(impact_lines({"impact_analysis": result}))
-        for text in ("Early results", "Later results", "Early results remain included", "Suggested response window"):
+        for text in ("Early results", "Later results", "Early results remain included", "Timing reference date"):
             self.assertIn(text, email)
         json.dumps(result, allow_nan=False)
 
@@ -314,7 +314,7 @@ class ImpactTimingWorkflowTests(unittest.TestCase):
         self.assertEqual(analysis["timing"]["expected_response_date"], "2025-02-24")
         digest = WeeklyReportDigestResponse.model_validate(result["result"])
         for content in (build_weekly_report_email_html(digest), build_weekly_report_email_text(digest)):
-            self.assertIn("Suggested response window", content)
+            self.assertIn("Timing reference date", content)
             self.assertIn("Early results remain included", content)
         digest.cross_dataset_report["impact_analysis"]["timing"]["driver_label"] = "<script>driver</script>"
         html = build_weekly_report_email_html(digest)

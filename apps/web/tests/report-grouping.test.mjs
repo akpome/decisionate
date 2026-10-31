@@ -35,7 +35,7 @@ test("a known legacy weekly snapshot retains its originally calculated units", (
   const markup = render({ weekly_report: true, grain: "daily", analysis_grain: "monthly" })
   assert.match(markup, /Weekly report/)
   assert.match(markup, /daily detail/)
-  assert.match(markup, /Analysis group by: monthly/)
+  assert.match(markup, /Analysis periods: monthly/)
   assert.doesNotMatch(markup, /Grouped weekly/)
 })
 
@@ -43,14 +43,14 @@ test("weekly results distinguish daily summary detail from saved analysis groupi
   for (const grain of ["weekly", "monthly", "quarterly"]) {
     const markup = render({ grain: "daily", analysis_grain: grain })
     assert.match(markup, /Weekly summary: daily detail/)
-    assert.ok(markup.includes(`Analysis group by: ${grain}`))
+    assert.ok(markup.includes(`Analysis periods: ${grain}`))
   }
 })
 
 test("manual and legacy snapshots retain their grouping without inventing a weekly schedule", () => {
   for (const report of [{ grain: "daily" }, { grain: "monthly", analysis_grain: "monthly" }]) {
     const markup = render(report)
-    assert.ok(markup.includes(`Analysis group by: ${report.grain}`))
+    assert.ok(markup.includes(`Analysis periods: ${report.grain}`))
     assert.doesNotMatch(markup, /Weekly summary/)
   }
 })

@@ -7,7 +7,7 @@ export function ReportGrouping({ report }: { report: Pick<BusinessReport, "grain
     {report.weekly_report && report.grain === "daily" && analysis === "weekly" ? "Weekly report / Report week: daily detail / Earlier history: weekly" : report.weekly_report && report.grain === "weekly" && analysis === "weekly" ? "Weekly report / Grouped weekly" : <>
     {report.weekly_report && <>Weekly report / </>}
     {analysis !== report.grain && <>Weekly summary: {report.grain} detail / </>}
-    Analysis group by: {analysis}
+    Analysis periods: {analysis}
     </>}
   </p>
 }

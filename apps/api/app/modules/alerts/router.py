@@ -1179,7 +1179,7 @@ def validate_weekly_report_digest_for_delivery(
         dates = f" ({window['start']} to {window['end']})" if window.get("start") and window.get("end") else ""
         raise HTTPException(400, f"Weekly reports require usable metrics from at least two datasets in the latest complete week{dates}. "
                             "Sync or upload data covering that week, then generate a new preview. "
-                            "Use Business Analysis for older data; weekly reports do not move their dates to match historical files.")
+                            "Use Analysis for older data; weekly reports do not move their dates to match historical files.")
 
     if not digest.recipient_emails:
         raise HTTPException(
@@ -1876,7 +1876,7 @@ async def update_weekly_report_preference(
             template = weekly_business_template(db, preference, auth_context.workspace_id)
             expected = {f"{item['dataset_id']}:{item['metric_key']}" for item in template["metrics"]} if template else set()
             if set(clean_focus) != expected:
-                raise HTTPException(409, "Change the selected metrics on the Weekly Review page before saving delivery settings.")
+                raise HTTPException(409, "Change the selected metrics on the Weekly Reports page before saving delivery settings.")
         preference.metric_targets = json.dumps(
             clean_targets,
             sort_keys=True,

@@ -21,7 +21,7 @@ export function ImpactChart({ analysis }: { analysis: ImpactAnalysis }) {
   return <figure className="min-w-0 space-y-4 border-b border-gray-200 pb-5" aria-label="Actual result and estimated result without the change">
     <figcaption className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-base font-semibold">Your result compared with no change</h3>
+        <h3 className="text-base font-semibold">Actual and estimated results</h3>
         <div className="flex max-w-full flex-wrap items-center gap-3">
           <div role="group" aria-label="Impact chart period" className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-gray-200 p-1 print:hidden">{[{ value: "after", label: "After the change" }, { value: "all", label: "Full history" }].map(item => <button type="button" key={item.value} aria-pressed={period === item.value} onClick={() => setPeriod(item.value)} className={`min-h-10 rounded px-3 text-sm ${period === item.value ? "bg-blue-50 font-medium text-blue-800" : "text-gray-600"}`}>{item.label}</button>)}</div>
           <ChartScaleControl value={scale} onChange={setScale} />

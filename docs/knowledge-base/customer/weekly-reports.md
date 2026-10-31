@@ -1,21 +1,21 @@
-# Configure Weekly Business Review
+# Configure Weekly Reports
 
 Weekly reports are cross-dataset reviews, not a repeated single-metric screenshot.
-Open Weekly Review in the sidebar for the Weekly Business Review page. It requires usable metrics from at least
-two datasets for delivery. Business Analysis is a separate page and does not
+Open Weekly Reports in the sidebar. It requires usable metrics from at least
+two datasets for delivery. Analysis is a separate page and does not
 control the weekly report's dates or time grouping.
-The pages do not share a workflow tab bar. Weekly Business Review uses Report
-setup and Report preview; Business Analysis uses Build analysis and Analysis preview.
+The pages do not share a workflow tab bar. Weekly Reports uses Report
+setup and Report preview; Analysis uses Build analysis and Analysis preview.
 
 ## Configure weekly analysis and sending separately
 
-Open Analysis -> Weekly Review. Select metrics, date columns, dimension filters,
+Open Analysis -> Weekly Reports. Select metrics, date columns, dimension filters,
 business question, seasonal setting and relationship pairs. Save weekly settings,
 or use Save and preview to save and calculate them. Removed pairs remain excluded
 from weekly relationship analysis, while their selected metrics still receive
 KPI and anomaly analysis. Saving settings does not enable sending or change recipients.
 
-A saved business analysis offers Copy selection to Weekly Review. This is an
+A saved business analysis offers Copy selection to Weekly Reports. This is an
 editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
 to three weeks. Check and save the independent weekly settings before use.
@@ -35,7 +35,7 @@ usable email address, sending is blocked rather than using another recipient.
 Sending requires usable data from at least two selected datasets in the last
 completed week. If the preview has insufficient coverage, Send report now is
 disabled and shows the exact dates needed. Sync or upload data for that week,
-then preview again. Historical demo files belong in Business Analysis; weekly
+then preview again. Historical demo files belong in Analysis; weekly
 reports do not shift to the most recent dates in an old file. Saved weekly
 settings load only their selected datasets, not unrelated workspace sources.
 
@@ -78,13 +78,13 @@ within allowed bounds. Lag zero compares the same week. The selected metric's
 approved aggregation policy is preserved: weekly grouping does not turn every
 metric into a sum. Per-metric anomaly results include seasonal support and history warnings.
 
-Changing Business Analysis dates, daily/weekly/monthly/quarterly grouping, or timing
+Changing Analysis dates, daily/weekly/monthly/quarterly grouping, or timing
 settings does not change the saved weekly settings. Changing weekly settings does
-not alter Business Analysis or either workflow's saved snapshots.
+not alter Analysis or either workflow's saved snapshots.
 
 ## Follow up on a business change
 
-A weekly configuration using **Business impact analysis** also updates that business-change
+A weekly configuration using **Assess a decision** also updates that business-change
 study for its selected decision. Set up or select an existing decision rather
 than recording a second action. The weekly email includes its answer, estimated range when available,
 and what to do next. It keeps the original change date, result, unaffected
@@ -95,7 +95,7 @@ This is separate from the email's seven-day KPI totals; it does not attempt to
 estimate a business impact from seven days alone.
 An impact report keeps its own comparison checks and anomaly detection, but
 does not also run an exploratory correlation or include Relationship findings
-in its preview or email. Choose Correlation analysis for those relationships.
+in its preview or email. Choose Explore relationships for those relationships.
 Previewing or emailing a weekly report does not create a decision or overwrite
 its outcome. Explicitly saving a linked assessment attaches it to the selected
 decision. Existing standalone weekly studies can continue under their original

@@ -25,7 +25,7 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
   if (!study) return null
   const issue = impactSetupIssue(definition, datasets)
   const timing = study.timing_evidence
-  const timingNote = !timing || timing.status === "unavailable" ? "Timing has not been established. This check may return no impact estimate."
+  const timingNote = !timing || timing.status === "unavailable" ? "A supported timing pattern from before the action is required for an impact estimate."
     : timing.status === "choose_relationship" && !timing.choices?.some(item => item.finding_id === study.timing_finding_id)
       ? "Choose the earlier relationship that informed this decision." : ""
   const roles = [study.outcome, study.comparison].filter(item => item !== null)
@@ -60,7 +60,7 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
     {study.decision_id && study.comparison && <section aria-labelledby="impact-history-heading" className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
       <h2 id="impact-history-heading" className="text-base font-semibold">3. Check the analysis</h2>
       {weekly ? <div className="space-y-2 text-sm"><p>Report week: {weeklySettings?.window.start} to {weeklySettings?.window.end}</p><p className="text-gray-600">Impact history: {weeklySettings?.history_window.start} to {weeklySettings?.window.end}, compared week by week.</p></div> : <p className="text-sm text-gray-600">Compared {definition.grain === "daily" ? "day by day" : definition.grain === "weekly" ? "week by week" : "month by month"}.</p>}
-      <p className="text-sm text-gray-600">Baseline: the comparison&apos;s usual movement, checked against earlier records.</p>
+      <p className="text-sm text-gray-600">Expected result without the action: estimated from earlier records and the comparison&apos;s movement.</p>
       <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Analysis settings</summary>
         <div className="mt-4 space-y-4">
           {!weekly && <div className="grid min-w-0 gap-4 sm:grid-cols-3">
@@ -80,10 +80,10 @@ export function ImpactBuilder({ definition, datasets, userId, workspaceId, weekl
               {source.date_columns.map(date => <option key={date} value={date}>{date}</option>)}
             </select></label>
           })}</div>
-          <p className="text-sm leading-6 text-gray-600">Minimum history: {definition.grain === "daily" ? "90 days before the change and 28 days after." : definition.grain === "weekly" ? "52 full weeks before the change and 8 weeks after." : "24 full months before the change and 6 months after."} The minimum after-history must also be available beyond the suggested response window. Both results need matching records.</p>
+          <p className="text-sm leading-6 text-gray-600">Minimum history: {definition.grain === "daily" ? "90 days before the change and 28 days after." : definition.grain === "weekly" ? "52 full weeks before the change and 8 weeks after." : "24 full months before the change and 6 months after."} The required later periods start after the timing reference date. Both metrics need matching records.</p>
         </div>
       </details>
-      <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Business target (optional){study.worthwhile_change != null ? " (set)" : ""}</summary><label className="mt-3 block max-w-md text-sm font-medium">Smallest improvement worth the cost<input className={input} type="number" min={0} max={1e15} step="any" value={study.worthwhile_change ?? ""} onChange={event => onStudyChange({ worthwhile_change: event.target.value === "" ? null : Number(event.target.value) })} /><span className="mt-1 block text-xs font-normal leading-5 text-gray-600">In the result&apos;s units, not a percentage. Total improvement for orders or revenue; improvement per period for an average or rate. Costs are not deducted.</span></label></details>
+      <details className="min-w-0 border-t border-gray-100 pt-3"><summary className="cursor-pointer text-sm font-medium">Improvement target (optional){study.worthwhile_change != null ? " (set)" : ""}</summary><label className="mt-3 block max-w-md text-sm font-medium">Minimum worthwhile improvement<input className={input} type="number" min={0} max={1e15} step="any" value={study.worthwhile_change ?? ""} onChange={event => onStudyChange({ worthwhile_change: event.target.value === "" ? null : Number(event.target.value) })} /><span className="mt-1 block text-xs font-normal leading-5 text-gray-600">In the outcome metric&apos;s units. A total for values that can be added, such as orders; an average per period for rates or balances. Costs and profit are not calculated.</span></label></details>
     </section>}
     {extras.length > 0 && <details className="min-w-0 border-t border-gray-200 pt-4"><summary className="cursor-pointer text-sm font-medium">Other selected results ({extras.length})</summary><ul className="mt-3 divide-y divide-gray-100">{extras.map(metric => {
       const dataset = datasets.find(dataset => dataset.dataset_id === metric.dataset_id)

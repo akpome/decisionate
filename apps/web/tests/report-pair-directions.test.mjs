@@ -144,7 +144,7 @@ test("pair controls offer same-period by default and two named lead directions o
   const opened = [], removed = [], restored = []
   const props = { pairs: reportPairDirections(metrics, []), excludedPairs: [], datasets, onChange: (...value) => opened.push(value), onRemove: pair => removed.push(pair), onRestore: pair => restored.push(pair) }
   const html = renderToStaticMarkup(React.createElement(ReportPairDirections, props))
-  for (const label of ["spend leads", "revenue leads", "clicks leads", "Source 1", "Source 2", "Source 4", "Same-period comparison only"]) assert.ok(html.includes(label))
+  for (const label of ["Check whether spend comes first", "Check whether revenue comes first", "Check whether clicks comes first", "Source 1", "Source 2", "Source 4", "Same period only"]) assert.ok(html.includes(label))
   assert.doesNotMatch(html, /Earlier selected|Later selected|Test both directions|value="both"/)
   assert.doesNotMatch(html, /overflow-y-|max-h-|tabindex=/)
   assert.doesNotMatch(html, /md:grid-cols/)
@@ -180,8 +180,8 @@ test("pair controls offer same-period by default and two named lead directions o
   assert.doesNotMatch(empty, /<select/)
   const sameLabels = datasets.map(dataset => ({ ...dataset, metrics: dataset.metrics.map(metric => ({ ...metric, label: "Total" })) }))
   const ambiguous = renderToStaticMarkup(React.createElement(ReportPairDirections, { ...props, datasets: sameLabels }))
-  assert.match(ambiguous, /Source 1 \/ Total leads/)
-  assert.match(ambiguous, /Source 2 \/ Total leads/)
+  assert.match(ambiguous, /Check whether Source 1 \/ Total comes first/)
+  assert.match(ambiguous, /Check whether Source 2 \/ Total comes first/)
 })
 
 test("report dates stay in a nonshrinking row outside the settings scroll area", () => {
@@ -207,7 +207,7 @@ test("report dates stay in a nonshrinking row outside the settings scroll area",
   assert.match(dates.getText(tree), /max=\{definition\.date_range\.end \|\| undefined\}/)
   assert.match(dates.getText(tree), /min=\{definition\.date_range\.start \|\| undefined\}/)
   assert.doesNotMatch(scroll.getText(tree), /type="date"/)
-  assert.match(scroll.getText(tree), /Analysis group by/)
+  assert.match(scroll.getText(tree), /Group results by/)
   assert.match(scroll.getText(tree), /Relationship analysis/)
 })
 
@@ -217,8 +217,8 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.match(source, /const showPairDirections = definition\.pair_directions\.length > 0/)
   const settings = source.slice(source.indexOf('aria-label="Analysis settings"'), source.indexOf('id="report-report"'))
   assert.match(settings, /showPairDirections && <ReportPairDirections/)
-  assert.ok(settings.indexOf("Evaluate timing") < settings.indexOf("Maximum lag"))
-  assert.ok(settings.indexOf("Maximum lag") < settings.indexOf("<ReportPairDirections"))
+  assert.ok(settings.indexOf("Delay to check") < settings.indexOf("Maximum delay"))
+  assert.ok(settings.indexOf("Maximum delay") < settings.indexOf("<ReportPairDirections"))
   assert.ok(settings.indexOf("<ReportPairDirections") < settings.indexOf("{previewButton}"))
   assert.ok(settings.indexOf("{previewButton}") < settings.lastIndexOf("</section>"))
   const relationshipSettings = settings.slice(settings.indexOf('<div role="group"'), settings.indexOf("</div></section>"))
@@ -228,8 +228,8 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.ok(relationshipSettings.includes("<ReportPairDirections"))
   assert.match(relationshipSettings, /<section aria-label="Relationship analysis"/)
   assert.match(relationshipSettings, /<h3[^>]*>\{t\("Relationship analysis"\)\}<\/h3>/)
-  assert.match(relationshipSettings, /"Minimum historical observations"\}<input[^>]*min=\{MINIMUM_RELATIONSHIP_OBSERVATIONS\}/)
-  assert.match(relationshipSettings, /<section aria-label=\{t\("Evaluate timing"\)\}/)
+  assert.match(relationshipSettings, /Minimum matching [^\n]+<input[^>]*min=\{MINIMUM_RELATIONSHIP_OBSERVATIONS\}/)
+  assert.match(relationshipSettings, /<section aria-label=\{t\("Delay to check"\)\}/)
   assert.doesNotMatch(source, /Include AI interpretation|checked=\{definition\.lag\.enabled\}|definition\.lag\.enabled &&/)
   assert.doesNotMatch(settings, /<details|<summary|cursor-pointer/)
   assert.equal((settings.match(/report-builder-scroll/g) || []).length, 1)

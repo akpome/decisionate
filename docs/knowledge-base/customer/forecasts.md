@@ -1,7 +1,7 @@
 # Forecast a selected metric
 
 Forecasts estimates future values using observed source history. It is separate
-from Business Analysis, which reviews evidence and relationships over historical periods.
+from Analysis, which reviews evidence and relationships over historical periods.
 A projection is not a commitment that the business will achieve that outcome.
 
 ## Generate a forecast

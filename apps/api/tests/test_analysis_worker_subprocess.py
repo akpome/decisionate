@@ -165,5 +165,5 @@ with patch('app.infrastructure.analysis_worker.execute_job', probe):
                 job = db.get(ReportAnalysisJob, identity)
                 self.assertEqual(job.status, "failed", result.stderr[-6000:])
                 self.assertEqual(job.error_status, 400, f"{job.error}\n{result.stderr[-6000:]}")
-                self.assertIn("Business Analysis", job.error)
+                self.assertIn("Analysis", job.error)
                 self.assertTrue(job_response(job)["retry_safe"])

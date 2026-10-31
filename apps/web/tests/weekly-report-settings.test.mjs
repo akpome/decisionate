@@ -54,6 +54,25 @@ test("deliberate weekly timing is retained", () => {
   assert.equal(value.pair_directions[0].direction, "a_leads_b")
 })
 
+test("opening a decision directly gives an unsaved weekly report a name and preserves a saved name", () => {
+  const source = read("../features/reports/report-workspace.tsx")
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let expression
+  function visit(node) {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === "loadDecisionDefinition" && node.arguments[2]?.getText(ast).includes("weeklyContext")) expression = node.arguments[2].getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(expression)
+  for (const definition of [null, { name: "", metrics }, { name: "My weekly review", metrics }]) {
+    const value = vm.runInNewContext(`(${expression})`, { weekly: true, weeklyDefinition,
+      weeklyContext: { definition }, draftName: { current: "Report (unique-test-id)" } })
+    assert.equal(value.name, definition?.name || "Report (unique-test-id)")
+    assert.equal(value.grain, "weekly")
+    if (definition) assert.equal(value.metrics, metrics)
+  }
+})
+
 test("weekly route and saved histories stay separate from instant analysis", () => {
   assert.match(read("../app/dashboard/reports/weekly/page.tsx"), /<ReportPage weekly/)
   const workspace = read("../features/reports/report-workspace.tsx")
@@ -61,8 +80,8 @@ test("weekly route and saved histories stay separate from instant analysis", () 
   assert.doesNotMatch(workspace, /Recent analyses|"\/business-reports\/jobs"/)
   assert.match(workspace, /weekly \? "\/weekly-jobs\?include_ai_analysis=true" : "\/jobs"/)
   assert.match(workspace, /weekly \? <div[^>]*>[\s\S]*?Last completed week[\s\S]*? : <div[^>]*>[\s\S]*?type="date"/)
-  assert.match(workspace, /weekly \? "Maximum lag \(weeks\)" : "Maximum lag"/)
-  assert.match(workspace, /weekly \? "Minimum matched weeks" : "Minimum historical observations"/)
+  assert.match(workspace, /Maximum delay \(\{weekly \? "weeks"/)
+  assert.match(workspace, /Minimum matching \{weekly \? "weeks"/)
   assert.match(workspace, /if \(!weekly && params.has\("weekly"\)\)/)
   assert.doesNotMatch(workspace, /saveWeeklyTemplate|\/weekly-template/)
 })

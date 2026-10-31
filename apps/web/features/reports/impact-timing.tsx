@@ -17,12 +17,12 @@ export function ImpactTiming({ study, onChange }: { study: ImpactStudy; onChange
       <option value="">Choose an earlier relationship</option>{choices.map(item => <option key={item.finding_id} value={item.finding_id}>{item.driver_label}</option>)}
     </select></label>}
     {timing && timing.lag != null && unit ? <>
-      <p className="break-words">{timing.lag ? <>{timing.driver_label} previously led the result by {timing.lag} {unit}{timing.lag === 1 ? "" : "s"}.</>
+      <p className="break-words">{timing.lag ? <>Earlier records showed {timing.driver_label} moving {timing.lag} {unit}{timing.lag === 1 ? "" : "s"} ahead of the outcome.</>
         : <>{timing.driver_label} and the result moved together within the same grouped {unit}.</>}</p>
-      <p className="text-gray-600">This is a guide, not a guaranteed wait. Early results still count in the total.</p>
+      <p className="text-gray-600">Historical timing may differ from this action&apos;s actual response. Both early and later results count.</p>
     </> : <p className="text-amber-900">{evidence?.message || "No verified timing is linked to this decision. A delay will not be assumed."}</p>}
     {overlaps && <p role="status" className="text-amber-900">Timing must come from history before implementation. This analysis includes later dates.</p>}
     {evidence?.report_id ? <Link className="inline-flex min-h-10 items-center text-blue-700 underline" href={`/dashboard/reports?report=${encodeURIComponent(evidence.report_id)}`}>Open the earlier analysis</Link>
-      : <Link className="inline-flex min-h-10 items-center text-blue-700 underline" href="/dashboard/reports">Open correlation analysis</Link>}
+      : <Link className="inline-flex min-h-10 items-center text-blue-700 underline" href="/dashboard/reports">Explore relationships</Link>}
   </div>
 }

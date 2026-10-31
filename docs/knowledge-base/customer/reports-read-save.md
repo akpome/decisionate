@@ -2,7 +2,7 @@
 
 ## Read a business-change result
 
-A report built with Business impact analysis starts with a direct answer, its
+A report built with Assess a decision starts with a direct answer, its
 estimated difference and range, and what to do next. A range including no effect
 means the result is unclear. A failed comparison gives no impact amount at all.
 This is not a guarantee that the action caused the result.
@@ -31,14 +31,14 @@ first measured period is not presented as a guessed implementation date.
 
 Supporting business results contains the selected-metric charts, unusual
 changes and metric movements, not a second correlation analysis. Relationship
-findings are available in Correlation analysis instead. Older impact snapshots
+findings are available in Explore relationships instead. Older impact snapshots
 also omit their old relationship findings when displayed, without changing the
 stored snapshot. These results support the main answer rather than replacing
 it. Decisions and outcomes remains the place to open the central
 decision workflow with this report's evidence.
 
 Read the metric movements, unusual changes, impact checks, follow-up
-actions and limitations together. In Correlation analysis, read the relationship
+actions and limitations together. In Explore relationships, read the relationship
 findings alongside the other evidence. A significant relationship is not required for
 a period comparison to be useful; nor does it establish that a change caused
 the business outcome.
@@ -74,7 +74,7 @@ names should be edited to describe the analysis, not treated as an overwrite key
 ## Delete versus remove weekly settings
 
 Delete saved report removes that snapshot, not its source datasets or linked
-decisions. Independent weekly settings and delivery are unchanged. On Weekly Review,
+decisions. Independent weekly settings and delivery are unchanged. On Weekly Reports,
 Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.

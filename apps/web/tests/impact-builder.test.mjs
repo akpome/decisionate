@@ -87,7 +87,7 @@ test("the impact builder keeps the comparison date column beside its one dimensi
   assert.match(html, /2\. What can we fairly compare it with/)
   assert.match(html, /3\. Check the analysis/)
   assert.match(html, /Comparison dataset/)
-  assert.match(html, /Result to compare/)
+  assert.match(html, /Comparison metric/)
   assert.match(html, /52 full weeks before the change and 8 weeks after/)
   const comparisonSection = html.match(/<section aria-labelledby="impact-comparison-heading"[\s\S]*?<\/section>/)?.[0]
   assert.match(comparisonSection, /Dimension filter/)
@@ -105,9 +105,9 @@ test("the impact builder keeps the comparison date column beside its one dimensi
   assert.equal((main.match(/type="date"/g) || []).length, 1)
   assert.doesNotMatch(main, /History starts|History ends|busy and quiet seasons|Seasonal businesses need/)
   assert.match(main, /Analysis period: 2023-01-02 to 2025-12-28/)
-  assert.match(main, /Baseline: the comparison/)
+  assert.match(main, /Expected result without the action/)
   assert.match(html, /<summary[^>]*>Report details/)
-  assert.match(html, /<summary[^>]*>Business target \(optional\)/)
+  assert.match(html, /<summary[^>]*>Improvement target \(optional\)/)
   assert.doesNotMatch(html, /report-builder-scroll|Maximum lag|Minimum historical observations|Select metrics/)
 })
 
@@ -121,7 +121,7 @@ test("the first view starts with one decision choice and does not ask for a comp
 
 test("the decision fixes the outcome without adding a second dataset filter picker", () => {
   const html = render({ definition: { ...definition, metrics: [outcome], impact: { ...definition.impact, comparison: null } } })
-  assert.match(html, /Result to measure/)
+  assert.match(html, /Outcome metric/)
   assert.match(html, /aria-label="Decision data period"/)
   assert.doesNotMatch(html, /Dimension filter|Date column|3\. Check the analysis/)
   assert.equal(dimensionProps.size, 0)

@@ -1,25 +1,25 @@
 # Build single and multi dataset reports
 
-Business Analysis is the on-demand analysis workspace. Multi dataset report opens by
-default; Single dataset report is available separately for one source. Weekly Review
-in the sidebar opens Weekly Business Review, with its own page and settings, automatic dates, whole-week and daily checks,
+Analysis is the on-demand analysis workspace. Multi dataset report opens by
+default; Single dataset report is available separately for one source. Weekly Reports
+has its own page and settings, automatic dates, whole-week and daily checks,
 and earlier relationship history grouped weekly.
 Use the sidebar to move between these separate workflows; neither page has tabs
-for the other workflow. Business Analysis has Build analysis and Analysis preview;
-Weekly Business Review has Report setup and Report preview.
-Business Analysis uses approved
+for the other workflow. Analysis has Build analysis and Analysis preview;
+Weekly Reports has Report setup and Report preview.
+Analysis uses approved
 dataset metrics, date policies, anomaly detection and report snapshots.
 
-New multi dataset reports open with **Correlation analysis**. The correlation
-method, minimum historical observations, timing and relationship-pair settings
+New multi dataset reports open with **Explore relationships**. The correlation
+method, minimum matching periods, timing and metric-pair settings
 are available under the expanded Relationship analysis section. Under Analysis
-type, choose **Business impact analysis** to review an existing decision.
+type, choose **Assess a decision** to review an existing decision.
 Saved reports keep their original analysis type. Neither mode replaces
 decision creation or decision review on the Decisions page.
 
 ## Analyze one dataset
 
-Open Business Analysis and choose Single dataset report. Under Dataset and
+Open Analysis and choose Single dataset report. Under Dataset and
 metrics, use the searchable Dataset dropdown to choose one source. Type its name
 or connector to filter choices, including sources on later catalog pages. Search
 does not select a dataset or load its data files. Before choosing, no source's
@@ -63,15 +63,15 @@ explanation and no impact amount, not an assumed immediate effect.
 
 The setup is arranged around choosing the decision, choosing one fair comparison,
 and checking the analysis. The recorded action
-and result appear together. Choose Success means to say whether more or less is
-better. A new decision review starts with its recorded outcome, not unrelated
+and Outcome metric appear together. Desired improvement names that metric and
+lets you choose Increase or Decrease. A new decision review starts with its recorded outcome, not unrelated
 metrics from a previous correlation analysis. A matching earlier saved assessment
 can retain its deliberate study choices and extra results.
 
-Choose Comparison dataset and Result to compare directly from the available
+Choose Comparison dataset and Comparison metric directly from the available
 approved dataset results; there is no separate metric-checkbox selection first.
 If you do not have a fair comparison, Explore relationships instead switches back
-to Correlation analysis without creating a decision or inventing an impact amount.
+to Explore relationships without creating a decision or inventing an impact amount.
 Missing choices are named beside Check this decision. If a selected result or
 date is unavailable, review that dataset or choose another comparison.
 
@@ -84,8 +84,12 @@ effects, and say whether another major change happened at the same time. Choose
 whether more or less of the result is better. An optional minimum worthwhile
 improvement expresses your business target in the result's own units. Costs are
 not automatically deducted.
-The optional target is under Business target. The decision supplies the outcome;
-the main setup has only one Comparison dataset and Result to compare. Its Date
+The optional target is under Improvement target and labeled Minimum worthwhile
+improvement. It is a total for values that can be added, and an average per period
+for other metrics. The verdict checks the estimated range against this target,
+not just the point estimate. It does not calculate costs, profit or break-even.
+The decision supplies the outcome;
+the main setup has only one Comparison dataset and Comparison metric. Its Date
 column sits alongside Dimension column and Unique value. Unique value is a
 searchable dropdown: type to filter choices, then select one. Searching alone
 does not replace the selected comparison value. These controls belong to that
@@ -96,7 +100,7 @@ Saved multi-value comparison filters remain visible and require an explicit
 single-value choice before another assessment. A saved outcome segment is retained
 and displayed beside the decision, with a clear control; it is not silently removed.
 
-Business Analysis defaults to the period saved with the decision's report evidence.
+Analysis defaults to the period saved with the decision's report evidence.
 A matching previous assessment keeps its recorded period. If no evidence period
 was saved, the approved outcome dataset's available dates provide the default;
 the decision's creation date is never used as its data period or action date.
@@ -109,7 +113,7 @@ Datasets with no overlapping dates are blocked with an explicit message; a wider
 date range cannot invent overlap. Comparisons outside the selected decision period
 are also blocked. Saved snapshots keep their stored date choices.
 Changing the selected comparison, date column or dimension filters requires the
-comparison confirmation again. Weekly Business Review uses the same single
+comparison confirmation again. Weekly Reports uses the same single
 comparison controls, but retains its automatic weekly dates and grouping.
 Existing extra selected results stay visible under Other selected results
 and can be removed deliberately. Report name and business question are editable
@@ -129,9 +133,9 @@ The history must include dates before and after the change. At least 52 complete
 8 after are needed with weekly grouping; daily needs 90 before and 28 after,
 and monthly needs 24 before and 6 after. A partial week or month, or a period crossing the
 change date, is not counted. Missing comparison periods are not filled with zero.
-The required later observations must also be available after the suggested
-response window. For example, a two-week historical lead suggests a response
-around two weeks after implementation. The real implementation date stays fixed;
+The required later observations must also be available after the timing reference
+date. For example, a two-week historical lead places this reference date two weeks
+after implementation. This is not a promised date for results. The real implementation date stays fixed;
 those first two weeks are not discarded or treated as zero effect. Early results,
 later results and the overall estimate are reported separately. A daily lag keeps
 its original days even when impact is grouped weekly. Later weekly results start
@@ -146,7 +150,7 @@ will arrive or proof of cause and effect.
 
 ## Usual ups and downs in impact assessments
 
-There is no seasonal-business checkbox in Business impact analysis. The comparison
+There is no seasonal-business checkbox in Assess a decision. The comparison
 provides the expected baseline, with reliability checked on records before the action;
 the two results are not forced to have equal levels or identical seasonal behavior.
 Earlier records must show that the comparison helps explain the outcome beyond
@@ -180,10 +184,10 @@ answer is calculated directly, so an AI provider cannot invent
 an impact amount or upgrade weak evidence. Details are available under the checks.
 Supporting charts and unusual-change tables are kept in Supporting business
 results, rather than crowding the main answer and decision links.
-Business impact analysis does not run a separate correlation or lag search and
+Assess a decision does not run a separate correlation or lag search and
 does not show Relationship findings. Its own comparison checks and estimated
-impact are independent of the correlation settings. This applies to Business
-Analysis and Weekly Business Review. Reopened older impact snapshots also omit their
+impact are independent of the correlation settings. This applies to Analysis
+and Weekly Reports. Reopened older impact snapshots also omit their
 old correlation findings from the preview; their stored calculations are not
 rewritten or recalculated.
 The original timing evidence is reused, not searched again against post-action
@@ -191,23 +195,25 @@ results. Timing, phase estimates and waiting status are included in weekly email
 Saved assessments keep their historical evidence even if the source report is
 later deleted; new calculations cannot reuse a deleted or inaccessible source.
 
-Choose **Correlation analysis** for exploratory relationships without a recorded
+Choose **Explore relationships** for exploratory relationships without a recorded
 business change. Existing saved reports keep their original workflow.
 
 ## Build an analysis
 
-1. Open Business Analysis from the sidebar, select the intended dataset scope and name the business question.
+1. Open Analysis from the sidebar, select the intended dataset scope and name the business question.
 2. Replace the generated report name with a useful description. Its unique
    starting label prevents name collisions; it is not a business conclusion.
 3. In Datasets and metrics, select only relevant approved measures. Multi dataset
    reports require at least two sources. Single dataset reports use exactly one.
 4. Review each preselected Date column. Apply a dataset-local Dimension column
    filter and Unique values if you want a segment rather than all eligible rows.
-5. Set Start, End and Analysis group by. Request seasonal activity only when appropriate.
+5. Set Start, End and Group results by. Business has seasonal activity belongs to
+   Unusual changes; it does not adjust correlations or prove matching seasonality.
 6. For exploratory multi dataset analysis, configure Relationship analysis. Remove unwanted
-   pairs and set each remaining pair's direction. Evaluate timing is always
-   available above the pairs; set Maximum lag for directional tests. Pairs left
-   at Same-period comparison only do not test positive lags. Single dataset
+   pairs and set each remaining pair's Timing to test. Delay to check is always
+   available above the pairs; Maximum delay names the selected unit (days, weeks,
+   months or quarters). Check whether a metric comes first is a hypothesis to
+   test, not a conclusion. Same period only does not test positive delays. Single dataset
    reports omit cross-source relationships.
 7. Choose Preview analysis and wait for analysis to finish before saving.
 
@@ -217,10 +223,13 @@ New analyses share their defaults with Relationships: Spearman, daily grouping,
 Sum aggregation where applicable, 52 minimum historical observations, maximum
 lag 12 grouped periods and same-period comparison. Valid saved choices are
 retained rather than replaced simply because the defaults changed.
+Minimum matching days/weeks/months/quarters counts matched observations in the
+chosen grouping, not just the length of the calendar window. Weekly Reports uses
+weeks for its relationship history regardless of the grouping on Analysis.
 
-A report supports at most 25 selected metrics. Correlation analysis supports
+A report supports at most 25 selected metrics. Explore relationships supports
 a maximum of 12 lag periods and 1,000 cross-dataset pair/lag tests; those timing
-and test-count limits do not apply to Business impact analysis, which does not
+and test-count limits do not apply to Assess a decision, which does not
 run those tests. Reduce metrics or timing complexity if the correlation
 analysis exceeds these limits. Removed pairs do not consume relationship tests;
 they can be restored without removing the selected metrics. The default

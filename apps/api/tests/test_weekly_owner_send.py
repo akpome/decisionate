@@ -89,7 +89,7 @@ class WeeklyOwnerSendTests(unittest.TestCase):
             window = alerts.complete_week()
             self.assertIn(window["start"], job.error)
             self.assertIn(window["end"], job.error)
-            self.assertIn("Business Analysis", job.error)
+            self.assertIn("Analysis", job.error)
             self.assertTrue(jobs.job_response(job)["retry_safe"])
             self.assertIsNone(jobs.job_response(job, include_result=True)["result"])
 

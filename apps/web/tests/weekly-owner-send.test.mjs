@@ -124,7 +124,7 @@ test("coverage feedback blocks a current empty week without shifting it to histo
   const report = { weekly_report: true, window, status: "limited_coverage", dataset_count: 0 }
   const issue = loaded.exports.weeklyDeliveryIssue(report, window)
   assert.match(issue, /2026-10-19 to 2026-10-25/)
-  assert.match(issue, /Business Analysis/)
+  assert.match(issue, /Analysis/)
   assert.equal(loaded.exports.weeklyDeliveryIssue({ ...report, status: "ready", dataset_count: 2 }, window), "")
   assert.equal(loaded.exports.weeklyDeliveryIssue(null, window), "")
   assert.equal(loaded.exports.weeklyDeliveryIssue({ ...report, window: { start: "2025-01-01", end: "2025-01-07" } }, window), "")

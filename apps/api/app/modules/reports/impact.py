@@ -89,8 +89,8 @@ def _baseline(periods, control, values, before, grain, selection_end):
     seasonal = details["annual_adjustment"]
     baseline = {"kind": "comparison_with_yearly_adjustment" if seasonal else "comparison",
                 "annual_adjustment": seasonal, "annual_history_available": bool(yearly_history),
-                "message": "The comparison provides the expected baseline, with an extra yearly adjustment supported by earlier checks." if seasonal else
-                           "The comparison's normal movement provides the expected baseline; earlier records were used to check its reliability."}
+                "message": "Earlier records and the comparison's movement estimate the result without the action, with an extra yearly adjustment supported by earlier checks." if seasonal else
+                           "Earlier records and the comparison's movement estimate the result without the action. Checks use data from before the action."}
     return designs[seasonal], baseline, details
 
 
@@ -306,7 +306,7 @@ def evaluate_impact(series, definition, metadata):
         return stop("The comparison produced an unrealistic result without the change. We are withholding the estimate.", "Use a better unaffected comparison or a shorter, stable period after the change.")
     if response:
         result["phases"] = response["phases"]
-        summary += f" Historical timing suggested a response around {result['timing']['expected_response_date']}. Early results remain included in the total."
+        summary += f" The earlier timing pattern sets a reference date of {result['timing']['expected_response_date']}, not a promised response date. Early results remain included."
     result.update(status="estimated", evidence_grade="model_estimated", headline=headline, summary=summary, next_steps=[next_step],
                   estimate={"effect": amount, "lower": low, "upper": high, "confidence_level": .95, "verdict": verdict,
                             "per_period_effect": effect, "actual": actual_mean * multiplier, "expected_without_change": expected_mean * multiplier,
@@ -334,10 +334,10 @@ def impact_lines(report):
     timing_lines = []
     if timing.get("status") == "supported":
         unit = {"daily": "day", "weekly": "week", "monthly": "month", "quarterly": "quarter"}[timing["grain"]]
-        description = (f"{timing['driver_label']} led the result by {timing['lag']} {unit}{'' if timing['lag'] == 1 else 's'}."
+        description = (f"{timing['driver_label']} moved {timing['lag']} {unit}{'' if timing['lag'] == 1 else 's'} ahead of the outcome."
                        if timing["lag"] else f"{timing['driver_label']} and the result moved together within the same grouped {unit}.")
         timing_lines = [f"Earlier timing: {description}",
-                        f"Suggested response window: around {timing.get('expected_response_date', 'not yet available')}. Early results remain included."]
+                        f"Timing reference date: {timing.get('expected_response_date', 'not yet available')}, based on the earlier pattern. This is not a promised response date. Early results remain included."]
     phases = [f"{'Early' if phase['phase'] == 'early' else 'Later'} results ({phase['start']} to {phase['end']}): "
               f"estimated difference {_format(phase['effect'], (analysis.get('outcome') or {}).get('currency'))}; "
               f"95% range {_format(phase['lower'])} to {_format(phase['upper'])}"

@@ -28,9 +28,9 @@ const render = value => renderToStaticMarkup(React.createElement(ImpactTiming, {
 test("a single supported historical relationship supplies advice without a numeric lag input", () => {
   const html = render(study)
   assert.match(html, /Timing from earlier analysis/)
-  assert.match(html, /Meta \/ Spend previously led the result by 2 weeks/)
-  assert.match(html, /Early results still count/)
-  assert.match(html, /not a guaranteed wait/)
+  assert.match(html, /Earlier records showed Meta \/ Spend moving 2 weeks ahead of the outcome/)
+  assert.match(html, /Both early and later results count/)
+  assert.match(html, /actual response/)
   assert.match(html, /\/dashboard\/reports\?report=source/)
   assert.doesNotMatch(html, /type="number"|<select|type="date"/)
 })
@@ -49,7 +49,7 @@ test("multiple supported drivers are chosen by relationship identity, not by a u
     message: "Choose an earlier relationship.", choices: [...evidence.choices, { ...evidence.choices[0], finding_id: "driver-b", driver_label: "Store / Visits", lag: 4 }] } }
   assert.match(render(multiple), /Which relationship informed this decision/)
   assert.doesNotMatch(render(multiple), /previously led/)
-  assert.match(render({ ...multiple, timing_finding_id: "driver-b" }), /Store \/ Visits previously led the result by 4 weeks/)
+  assert.match(render({ ...multiple, timing_finding_id: "driver-b" }), /Earlier records showed Store \/ Visits moving 4 weeks ahead of the outcome/)
   let patch
   const element = ImpactTiming({ study: multiple, onChange: value => { patch = value } })
   const walk = node => node && typeof node === "object" ? [node, ...React.Children.toArray(node.props?.children).flatMap(walk)] : []
@@ -75,7 +75,7 @@ test("phase results distinguish early, later and total values while waiting repo
     phases: [{ phase: "early", effect: -10, lower: -25, upper: 5, observations: 2, start: "2025-01-01", end: "2025-01-14" },
       { phase: "later", effect: 60, lower: 20, upper: 100, observations: 8, start: "2025-01-20", end: "2025-03-16" }] }
   const html = renderToStaticMarkup(React.createElement(ImpactResult, { analysis }))
-  for (const text of [/Implemented 2025-01-01/, /Suggested response window/, /First complete later period/, /Early results/, /Later results/, /-10/, /\+60/, /\+50/, /not separate proof/]) assert.match(html, text)
+  for (const text of [/Implemented 2025-01-01/, /Timing reference date/, /First complete later period/, /Early results/, /Later results/, /-10/, /\+60/, /\+50/, /not separate proof/]) assert.match(html, text)
   const waiting = renderToStaticMarkup(React.createElement(ImpactResult, { analysis: { ...analysis, status: "not_ready", estimate: null, phases: [], headline: "Waiting for enough results." } }))
   assert.match(waiting, /Waiting for enough results/)
   assert.doesNotMatch(waiting, /Estimated change in|\+50|\+60/)

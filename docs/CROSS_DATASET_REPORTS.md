@@ -37,8 +37,8 @@ change the deterministic analysis, expand metric selection or create decisions.
 
 ## Business Change Impact
 
-New multi-dataset reports start with **Correlation analysis**, with relationship
-settings expanded. **Business impact analysis** is a separately labelled, explicit
+New multi-dataset reports start with **Explore relationships** (correlation), with relationship
+settings expanded. **Assess a decision** (business impact) is a separately labelled, explicit
 choice in Analysis type and is the measurement step of an existing decision's
 review. New submissions require `impact.decision_id`. Saved definitions retain
 their original type and settings. Definitions without `impact` remain exploratory.
@@ -298,15 +298,15 @@ run's frozen results. See [retirement and deployment cleanup](MULTI_METRIC_CORRE
 
 ## Weekly Delivery
 
-Business Analysis (`/dashboard/reports`, single source at `/dashboard/reports/dataset`)
-and Weekly Business Review (`/dashboard/reports/weekly`, Weekly Review in the sidebar)
+Analysis (`/dashboard/reports`, single source at `/dashboard/reports/dataset`)
+and Weekly Reports (`/dashboard/reports/weekly`, Weekly Reports in the sidebar)
 are separate workflows, reached from the sidebar rather than a cross-workflow tab bar.
-Business Analysis has Build analysis / Analysis preview, selectable dates and
-daily grouping by default. Weekly Business Review has Report setup / Report preview and stores
+Analysis has Build analysis / Analysis preview, selectable dates and
+daily grouping by default. Weekly Reports has Report setup / Report preview and stores
 an independent JSON configuration on `WeeklyReportPreference.weekly_report_definition`,
 managed through GET/PUT/DELETE `/api/v2/business-reports/weekly-settings`.
 Saving it does not enable sending or change recipients. Alerts retains delivery settings.
-Copy selection to Weekly Review is an explicit editable copy, not a live template link.
+Copy selection to Weekly Reports is an explicit editable copy, not a live template link.
 
 Weekly values cover the latest complete Monday-Sunday week in the platform
 reporting timezone, compared with the preceding complete week. Relationships

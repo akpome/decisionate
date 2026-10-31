@@ -11,7 +11,7 @@ orders. Do not compare raw spend amounts and order counts as equivalent units.
 3. Wait for a successful import. Inspect actual columns and available dates.
 4. Review the dataset's saved metric selection and business objective. Keep the
    measures relevant to the question; date and dimension fields are separate.
-5. Open Business Analysis and choose Multi dataset report.
+5. Open Analysis and choose Multi dataset report.
 6. Select approved metrics from at least two datasets. Review each Date column
    and any Dimension column filter.
 7. Enter a useful report name and business question. Choose dates and grouping

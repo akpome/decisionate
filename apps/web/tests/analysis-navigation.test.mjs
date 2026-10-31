@@ -53,12 +53,12 @@ function workspaceHeader(weekly, view = "explore", translate = text => text, loa
 }
 
 test("each separate workflow has its approved title and only its own setup and preview tabs", () => {
-  for (const [weekly, title, setup, preview] of [[false, "Business Analysis", "Build analysis", "Analysis preview"], [true, "Weekly Business Review", "Report setup", "Report preview"]]) {
+  for (const [weekly, title, setup, preview] of [[false, "Analysis", "Build analysis", "Analysis preview"], [true, "Weekly Reports", "Report setup", "Report preview"]]) {
     const html = workspaceHeader(weekly)
     assert.match(html, new RegExp(`<h1[^>]*>${title}</h1>`))
     for (const label of [setup, preview]) assert.ok(html.includes(`>${label}</span>`))
     assert.equal((html.match(/role="tab"/g) ?? []).length, 2)
-    assert.doesNotMatch(html, /<nav|href=|Instant analysis|Weekly reports/)
+    assert.doesNotMatch(html, /<nav|href=|Instant analysis/)
     const loading = workspaceHeader(weekly, "explore", text => text, true)
     assert.match(loading, new RegExp(`<h1[^>]*>${title}</h1>`))
     assert.doesNotMatch(loading, /<nav|role="tab"/)
@@ -79,13 +79,13 @@ test("setup and preview retain a single selected tab, touch sizing and accessibl
 test("French report labels use the existing translation dictionary", () => {
   const { getLandingText } = compile("../lib/language.ts")
   const html = workspaceHeader(false, "explore", text => getLandingText("fr", text))
-  assert.match(html, /Analyse d&#x27;entreprise/)
+  assert.match(html, />Analyse<\/h1>/)
   assert.match(html, /Préparer une analyse/)
   assert.match(html, /Aperçu de l&#x27;analyse/)
   const weekly = workspaceHeader(true, "explore", text => getLandingText("fr", text))
-  assert.match(weekly, /Bilan hebdomadaire d&#x27;entreprise/)
+  assert.match(weekly, /Rapports hebdomadaires/)
   assert.match(weekly, /Configuration du rapport/)
-  for (const label of ["Business Analysis", "Weekly Review", "Weekly Business Review", "Build analysis", "Analysis preview", "Report setup", "Report preview", "Preview analysis", "Copy selection to Weekly Review"]) {
+  for (const label of ["Analysis", "Weekly Reports", "Build analysis", "Analysis preview", "Report setup", "Report preview", "Preview analysis", "Copy selection to Weekly Reports"]) {
     assert.notEqual(getLandingText("fr", label), label)
   }
 })
@@ -94,9 +94,9 @@ test("Relationships is directly discoverable in the Analysis sidebar", () => {
   const source = read("../app/dashboard/dashboard-shell.tsx")
   const analysis = source.slice(source.indexOf('label: "Analysis"'), source.indexOf('label: "Data"'))
   assert.match(analysis, /href: "\/dashboard\/relationships",\s+label: "Relationships"/)
-  assert.ok(analysis.indexOf('label: "Business Analysis"') >= 0)
-  assert.ok(analysis.indexOf('label: "Business Analysis"') < analysis.indexOf('label: "Weekly Review"'))
-  assert.ok(analysis.indexOf('label: "Weekly Review"') < analysis.indexOf('label: "Relationships"'))
+  assert.ok(analysis.indexOf('label: "Analysis"') >= 0)
+  assert.ok(analysis.indexOf('label: "Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
+  assert.ok(analysis.indexOf('label: "Weekly Reports"') < analysis.indexOf('label: "Relationships"'))
 })
 
 test("sidebar navigation marks only the current workflow as active, including the single-dataset route", () => {
@@ -124,13 +124,13 @@ test("cross-workflow navigation is removed without losing source scope, delivery
     assert.doesNotMatch(read(path), /AnalysisNavigation/)
   }
   const report = read("../features/reports/report-workspace.tsx")
-  assert.doesNotMatch(report, /AnalysisNavigation|Report navigation|Instant analysis|Weekly reports/)
+  assert.doesNotMatch(report, /AnalysisNavigation|Report navigation|Instant analysis/)
   assert.equal(existsSync(new URL("../features/reports/analysis-navigation.tsx", import.meta.url)), false)
   assert.match(report, /<h1[^>]*>\{t\(pageTitle\)\}<\/h1>/)
   assert.match(report, /<nav aria-label="Analysis sources"/)
   assert.match(report, /mode === "explore" \? setupLabel : previewLabel/)
   assert.match(report, /"Save and preview" : weekly \? "Preview report" : "Preview analysis"/)
-  assert.match(report, /Copy selection to Weekly Review/)
+  assert.match(report, /Copy selection to Weekly Reports/)
   assert.match(report, /href="\/dashboard\/alerts#weekly-delivery"/)
   assert.doesNotMatch(report, /href="\/dashboard\/relationships\/explorer"/)
 })
