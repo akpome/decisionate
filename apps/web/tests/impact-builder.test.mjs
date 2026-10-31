@@ -153,6 +153,8 @@ test("weekly impact setup keeps automatic weekly history and never exposes manua
   assert.match(html, /compared week by week/)
   assert.deepEqual([...dimensionProps.keys()], [2])
   assert.doesNotMatch(html, /History starts|History ends|Compare results by/)
+  assert.equal((html.match(/Check this decision/g) || []).length, 1)
+  assert.doesNotMatch(html, /Save weekly settings|Save and preview|Save weekly report|Save snapshot/)
 })
 
 test("comparison changes preserve the decision period while checking overlap separately", () => {

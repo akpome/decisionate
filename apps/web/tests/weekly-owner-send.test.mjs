@@ -20,17 +20,18 @@ visit(ast)
 function harness(overrides = {}) {
   const calls = [], errors = [], state = {}
   const requestKey = { current: null }, action = { current: false }
+  const previewJob = { job_id: "preview-job", kind: "weekly_preview", status: "succeeded", weekly_settings_saved: true }
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nsendWeeklyNow`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    weekly: true, canManage: true, busy: false, previewDisabled: false, weeklyDirty: false, weeklySendIssue: "", uncertainDelivery: false, report: null,
+    weekly: true, canManage: true, busy: false, previewDisabled: false, weeklySendReady: true, weeklyPreviewReady: true, weeklySendIssue: "", uncertainDelivery: false,
+    report: { report_id: "saved-report", analysis_job_id: "preview-job" }, analysisJob: previewJob, weeklyPreviewBeforeSend: { current: previewJob },
     AnalysisFailedError,
     managementAction: action, weeklySendRequest: requestKey, routeController: { current: null },
     pagePath: "/dashboard/reports/weekly", encodeURIComponent,
     window: { location: { pathname: "/dashboard/reports/weekly", search: "" }, history: { replaceState: (...args) => { state.url = args[2] } } },
     crypto: { randomUUID: () => "owner-request" },
     execute: async fn => { try { await fn() } catch (error) { errors.push(error.message) } },
-    persistWeeklySettings: async () => calls.push(["settings"]),
     request: async (path, init) => { calls.push([path, init]); return { job_id: "send-job", kind: "weekly_owner_send", status: "queued" } },
     waitForAnalysis: async () => ({ status: "sent", delivered_count: 1 }),
     setAnalysisJob: value => { state.job = value }, setMessage: value => { state.message = value },
@@ -39,21 +40,21 @@ function harness(overrides = {}) {
   return { handler, calls, errors, state, requestKey, action }
 }
 
-test("manual weekly sends save pending settings and target the owner without client recipient input", async () => {
-  const { handler, calls, state, requestKey } = harness({ weeklyDirty: true })
+test("manual weekly sends reference the saved preview without saving settings or choosing recipients", async () => {
+  const { handler, calls, state, requestKey } = harness()
   await handler()
-  assert.equal(calls[0][0], "settings")
-  assert.equal(calls[1][0], "/weekly-owner-jobs?include_ai_analysis=true")
-  assert.equal(calls[1][1].method, "POST")
-  assert.equal(calls[1][1].body, undefined)
-  assert.equal(calls[1][1].headers["Idempotency-Key"], "owner-request")
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0][0], "/weekly-owner-jobs?include_ai_analysis=true&preview_job_id=preview-job")
+  assert.equal(calls[0][1].method, "POST")
+  assert.equal(calls[0][1].body, undefined)
+  assert.equal(calls[0][1].headers["Idempotency-Key"], "owner-request")
   assert.match(state.message, /workspace owner/)
   assert.equal(requestKey.current, null)
-  assert.equal(state.url, "/dashboard/reports/weekly")
+  assert.equal(state.url, "/dashboard/reports/weekly?job=preview-job")
 })
 
 test("read-only, nonweekly, incomplete, busy and repeated send clicks cannot queue duplicates", async () => {
-  for (const overrides of [{ weekly: false }, { canManage: false }, { busy: true }, { previewDisabled: true }, { weeklySendIssue: "No data this week" }, { uncertainDelivery: true }]) {
+  for (const overrides of [{ weekly: false }, { canManage: false }, { busy: true }, { weeklySendReady: false }, { previewDisabled: true }, { weeklySendIssue: "No data this week" }, { uncertainDelivery: true }]) {
     const { handler, calls } = harness(overrides)
     await handler()
     assert.equal(calls.length, 0)
@@ -82,14 +83,15 @@ test("a failure after delivery could have started preserves duplicate-send prote
 })
 
 test("successful retries return to the report rather than an earlier failed delivery job", async () => {
-  for (const [report, expected] of [[{ report_id: "saved-report" }, "?report=saved-report"],
-    [{ analysis_job_id: "preview-job" }, "?job=preview-job"], [null, ""]]) {
-    const { handler, state } = harness({ report, window: {
+  for (const weeklyPreviewReady of [true, false]) {
+    const { handler, state } = harness({ weeklyPreviewReady, window: {
       location: { pathname: "/dashboard/reports/weekly", search: "?job=earlier-failed-send" },
       history: { replaceState: (_value, _unused, value) => { state.url = value } },
     } })
     await handler()
-    assert.equal(state.url, "/dashboard/reports/weekly" + expected)
+    assert.equal(state.url, "/dashboard/reports/weekly?job=preview-job")
+    assert.equal(state.job.kind, "weekly_preview")
+    assert.equal(state.job.status, "succeeded")
     assert.match(state.message, /sent to the workspace owner/)
   }
 })
@@ -107,7 +109,7 @@ test("uncertain status reads preserve the same idempotency key on a deliberate r
 })
 
 test("send controls and grouping labels are specific to the weekly page", () => {
-  assert.match(source, /weekly && canManage && <button[^>]*[\s\S]*?Send report now/)
+  assert.match(source, /weekly && canManage && view === "report" && report && <button[^>]*[\s\S]*?Send report now/)
   assert.match(source, /Report week: daily detail/)
   assert.match(source, /Earlier history: grouped weekly/)
   assert.match(source, /\["weekly_send", "weekly_owner_send"\].includes\(analysisJob.kind\) && analysisJob.phase === "sending"/)

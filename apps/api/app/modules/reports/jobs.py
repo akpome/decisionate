@@ -80,6 +80,17 @@ def enqueue_report(db, payload, user, workspace, request_key=None):
     return enqueue(db, user, workspace, "report", definition, datasets, request_key)
 
 
+def enqueue_weekly_preview(db, payload, user, workspace, preference, request_key=None):
+    template, datasets = validate_definition(db, payload, user, workspace)
+    template.pop("reporting_timezone", None)
+    configuration = weekly_configuration(db, preference, workspace, user)
+    definition = {"configuration": {**configuration, "template": template}, "base_configuration": configuration,
+                  "draft_preview": True, "anchor": str(datetime.now(ZoneInfo(reporting_timezone())).date()),
+                  "include_ai_analysis": payload.include_ai_analysis, "scheduled": False,
+                  "reporting_timezone": reporting_timezone(), "report_only": True}
+    return enqueue(db, user, workspace, "weekly_preview", definition, datasets, request_key)
+
+
 def weekly_owner_recipient(db, workspace):
     from app.db.models import Organization
     from app.modules.billing.notifications import get_workspace_owner_email
@@ -137,6 +148,9 @@ def verify_job_actor(job):
     if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
         from app.modules.alerts.router import require_weekly_report_manager
         require_weekly_report_manager(role)
+    if job.kind == "weekly_preview" and json.loads(job.definition).get("draft_preview"):
+        from app.modules.alerts.router import require_weekly_report_manager
+        require_weekly_report_manager(role)
     from .decision_reviews import review_study, REVIEW_ROLES
     study = review_study(json.loads(job.definition))
     if job.kind == "report" and study and study.get("decision_id") and role not in REVIEW_ROLES:
@@ -156,11 +170,13 @@ def allowed_job(db, identity, user, workspace, *, for_update=False):
 
 def job_response(job, *, include_result=False):
     result = json.loads(job.result) if job.result else None
+    definition = json.loads(job.definition)
     is_delivery = job.kind in {"weekly_send", "weekly_owner_send"}
     retry_safe = not is_delivery or bool(result is not None and result.get("delivery_started") is False)
     return {"job_id": job.id, "kind": job.kind, "status": job.status, "phase": job.phase,
             "created_at": job.created_at.isoformat() + "Z", "error": job.error,
-            "definition": json.loads(job.definition) if job.kind == "report" else None,
+            "definition": definition if job.kind == "report" else definition.get("configuration", {}).get("template") if definition.get("draft_preview") else None,
+            "weekly_settings_saved": bool(result and result.get("weekly_settings_saved")),
             "error_status": job.error_status, "saved_report_id": job.saved_report_id,
             "retry_safe": job.status == "failed" and retry_safe,
             "result": result if include_result and job.status == "succeeded" else None}
@@ -176,7 +192,7 @@ def cancel_job(db, job):
     return job_response(job)
 
 
-def save_completed_job(db, identity, user, workspace):
+def save_completed_job(db, identity, user, workspace, *, commit=True):
     from .decision_reviews import attach_review_target, save_decision_review
     job = allowed_job(db, identity, user, workspace, for_update=True)
     if job.status != "succeeded" or job.kind not in {"report", "weekly_preview"}:
@@ -201,7 +217,8 @@ def save_completed_job(db, identity, user, workspace):
     save_decision_review(db, job, result, report)
     report.snapshot = encode(result)
     job.saved_report_id = report.id
-    db.commit()
+    if commit:
+        db.commit()
     return {**result, "report_id": report.id, "analysis_job_id": job.id}
 
 

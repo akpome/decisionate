@@ -78,7 +78,7 @@ test("weekly route and saved histories stay separate from instant analysis", () 
   const workspace = read("../features/reports/report-workspace.tsx")
   assert.match(workspace, /workflow=\$\{weekly \? "weekly" : "instant"\}/)
   assert.doesNotMatch(workspace, /Recent analyses|"\/business-reports\/jobs"/)
-  assert.match(workspace, /weekly \? "\/weekly-jobs\?include_ai_analysis=true" : "\/jobs"/)
+  assert.match(workspace, /weekly \? canManage \? "\/weekly-preview-jobs" : "\/weekly-jobs\?include_ai_analysis=true" : "\/jobs"/)
   assert.match(workspace, /weekly \? <div[^>]*>[\s\S]*?Last completed week[\s\S]*? : <div[^>]*>[\s\S]*?type="date"/)
   assert.match(workspace, /Maximum delay \(\{weekly \? "weeks"/)
   assert.match(workspace, /Minimum matching \{weekly \? "weeks"/)
@@ -86,7 +86,7 @@ test("weekly route and saved histories stay separate from instant analysis", () 
   assert.doesNotMatch(workspace, /saveWeeklyTemplate|\/weekly-template/)
 })
 
-test("weekly preview persists its own edits before enqueueing, without sending manual settings to instant jobs", async () => {
+test("weekly preview calculates draft edits without persisting settings or snapshots", async () => {
   const source = read("../features/reports/report-workspace.tsx"), ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let declaration
   function visit(node) {
@@ -94,38 +94,100 @@ test("weekly preview persists its own edits before enqueueing, without sending m
     ts.forEachChild(node, visit)
   }
   visit(ast)
-  const calls = []
+  const calls = [], definition = weeklyDefinition({ name: "Draft report", metrics })
   const calculate = vm.runInNewContext(ts.transpileModule(`${declaration}\ncalculate`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
-    weekly: true, weeklyDirty: true, busy: false, analysisSubmission: { current: false }, routeController: { current: null },
-    execute: async action => action(), persistWeeklySettings: async () => calls.push("save-weekly"), crypto: { randomUUID: () => "unique" },
-    request: async (path, init) => { calls.push(path); assert.equal(init.body, undefined); return { job_id: "weekly-job" } },
+    weekly: true, canManage: true, weeklyDirty: true, busy: false, definition, weeklySettings: null, weeklyDefinition,
+    selectedReportDimensionFilters: types.selectedReportDimensionFilters, analysisSubmission: { current: false }, routeController: { current: null },
+    execute: async action => action(), crypto: { randomUUID: () => "unique" },
+    request: async (path, init) => { calls.push(path); const payload = JSON.parse(init.body); assert.equal(payload.name, "Draft report"); assert.equal(payload.grain, "weekly"); assert.equal(payload.metrics.length, 2); return { job_id: "weekly-job" } },
     setAnalysisJob() {}, encodeURIComponent,
     window: { location: { pathname: "/dashboard/reports/weekly" }, history: { replaceState() {} } },
     waitForAnalysis: async () => ({ weekly_report: true }), setReport() {}, setView() {},
     setDefinition: () => { throw new Error("A weekly snapshot must not replace editable weekly settings") },
   })
   await calculate()
-  assert.deepEqual(calls, ["save-weekly", "/weekly-jobs?include_ai_analysis=true"])
+  assert.deepEqual(calls, ["/weekly-preview-jobs"])
 })
 
-test("saving copied weekly settings clears the copy link only after a successful save", async () => {
+function saveHarness(overrides = {}) {
   const source = read("../features/reports/report-workspace.tsx"), ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let declaration
   function visit(node) {
-    if (ts.isFunctionDeclaration(node) && node.name?.text === "persistWeeklySettings") declaration = node.getText(ast)
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "saveWeeklyReport") declaration = node.getText(ast)
     ts.forEachChild(node, visit)
   }
   visit(ast)
-  for (const fail of [false, true]) {
-    const calls = [], state = { dirty: true }, definition = weeklyDefinition({ metrics })
-    const save = vm.runInNewContext(ts.transpileModule(`${declaration}\npersistWeeklySettings`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
-      weekly: true, canManage: true, definition, weeklySettings: { history_window: {} }, weeklyDefinition, routeController: { current: null },
-      selectedReportDimensionFilters: types.selectedReportDimensionFilters, URLSearchParams, pagePath: "/dashboard/reports/weekly",
-      window: { location: { search: "?copy=old-instant-report" }, history: { replaceState: (...args) => calls.push(args) } },
-      request: async (path, init) => { assert.equal(path, "/weekly-settings"); assert.equal(init.method, "PUT"); if (fail) throw new Error("Unavailable"); return { definition } },
-      setWeeklySettings: value => { state.settings = value }, setWeeklyDirty: value => { state.dirty = value },
-    })
-    if (fail) { await assert.rejects(save, /Unavailable/); assert.equal(state.dirty, true); assert.equal(calls.length, 0) }
-    else { await save(); assert.equal(state.dirty, false); assert.deepEqual(calls, [[null, "", "/dashboard/reports/weekly"]]) }
+  const calls = [], state = { dirty: true }, definition = weeklyDefinition({ metrics }), managementAction = { current: false }
+  const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nsaveWeeklyReport`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
+    weeklyPreviewReady: true, report: { analysis_job_id: "preview-id" }, canManage: true, canSave: true, busy: false,
+    analysisJob: { weekly_settings_saved: false }, managementAction, weeklySendRequest: { current: "old-send" },
+    weeklyDefinition, routeController: { current: null }, encodeURIComponent, pagePath: "/dashboard/reports/weekly",
+    execute: async action => action(),
+    window: { history: { replaceState: (...args) => { state.url = args[2] } } },
+    request: async (path, init) => { calls.push([path, init]); return { report: { report_id: "saved", analysis_job_id: "preview-id", name: "Weekly report" }, settings: { definition } } },
+    setWeeklySettings: value => { state.settings = value }, setWeeklyDirty: value => { state.dirty = value },
+    setReport: value => { state.report = value }, setDefinition: value => { state.definition = value },
+    setAnalysisJob: update => { state.job = update({ job_id: "preview-id" }) }, setSaved: update => { state.saved = update([]) },
+    setMessage: value => { state.message = value }, ...overrides,
+  })
+  return { handler, calls, state, managementAction }
+}
+
+test("one post-preview save stores the report and weekly setup together, once", async () => {
+  const { handler, calls, state, managementAction } = saveHarness()
+  await Promise.all([handler(), handler(), handler()])
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0][0], "/jobs/preview-id/save-weekly")
+  assert.equal(calls[0][1].method, "POST")
+  assert.equal(calls[0][1].body, undefined, "Save uses the server's preview, not a new client definition")
+  assert.equal(state.dirty, false)
+  assert.equal(state.job.weekly_settings_saved, true)
+  assert.equal(state.saved.length, 1)
+  assert.equal(state.url, "/dashboard/reports/weekly?job=preview-id")
+  assert.match(state.message, /Delivery settings are unchanged/)
+  assert.equal(managementAction.current, false)
+})
+
+test("missing, failed, edited or already-saved previews cannot save; roles and busy state are checked", async () => {
+  for (const overrides of [{ weeklyPreviewReady: false }, { report: null }, { report: {} }, { canManage: false },
+    { canSave: false }, { busy: true }, { analysisJob: { weekly_settings_saved: true } }]) {
+    const { handler, calls } = saveHarness(overrides)
+    await handler()
+    assert.equal(calls.length, 0)
   }
+})
+
+test("a failed save preserves the preview and unsaved state for retry", async () => {
+  for (const fail of [false, true]) {
+    const { handler, state, managementAction } = saveHarness(fail ? { request: async () => { throw new Error("Unavailable") } } : {})
+    if (fail) { await assert.rejects(handler, /Unavailable/); assert.equal(state.dirty, true); assert.equal(state.report, undefined); assert.equal(state.url, undefined) }
+    else { await handler(); assert.equal(state.dirty, false) }
+    assert.equal(managementAction.current, false)
+  }
+})
+
+test("weekly saving appears only after preview, with no competing save controls", () => {
+  const source = read("../features/reports/report-workspace.tsx")
+  assert.doesNotMatch(source, /Save and preview|Save weekly settings|persistWeeklySettings/)
+  assert.match(source, /weekly && view === "report" && weeklyPreviewReady && canManage && <button/)
+  assert.match(source, /!weekly && <button[^\n]+Save snapshot/)
+  assert.match(source, /setWeeklyDirty\(!job.weekly_settings_saved\)/)
+  assert.match(source, /editable \? "\/weekly-preview-jobs" : "\/weekly-jobs\?include_ai_analysis=true"/)
+  assert.match(source, /setReport\(null\);[\s\S]*?setAnalysisJob\(null\)/)
+})
+
+test("Assess a decision receives only the preview action, never a weekly settings save", () => {
+  const source = read("../features/reports/report-workspace.tsx")
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const actions = []
+  function visit(node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === "ImpactBuilder") {
+      const attribute = node.attributes.properties.find(item => ts.isJsxAttribute(item) && item.name.getText(ast) === "actions")
+      actions.push(attribute?.initializer?.getText(ast))
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.deepEqual(actions, ["{previewButton}"])
+  assert.doesNotMatch(source, /weeklySaveButton|saveWeeklySettings/)
 })

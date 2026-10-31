@@ -53,9 +53,22 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 function formatCorrelation(value?: number | null) {
-  return value === null || value === undefined
-    ? "Not available"
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "Not calculated"
     : value.toFixed(2)
+}
+
+function hasCorrelationScore(relationship: DatasetRelationship) {
+  return relationship.status === "ready" && typeof relationship.correlation === "number"
+    && Number.isFinite(relationship.correlation)
+}
+
+function unavailableCorrelationLabel(relationship: DatasetRelationship) {
+  if (relationship.status === "unavailable") return "Analysis unavailable"
+  return relationship.minimum_observations !== undefined
+    && relationship.matched_period_count < relationship.minimum_observations
+    ? "More history needed"
+    : "Correlation unavailable"
 }
 
 function relationshipTone(relationship: DatasetRelationship) {
@@ -543,11 +556,7 @@ export default function RelationshipsPage() {
       </section>
 
       {result && (
-        <RelationshipResult
-          relationship={result}
-          onDelete={relationship => void handleDelete(relationship)}
-          deleting={deletingRelationshipId === result.id}
-        />
+        <RelationshipResult relationship={result} />
       )}
 
       <section id="saved-relationships" className="scroll-mt-24 rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
@@ -572,10 +581,10 @@ export default function RelationshipsPage() {
                   </p>
                   {[relationship.left, relationship.right].map((side, index) => side.dimension_filter && <p key={index} className="mt-1 break-words text-xs text-gray-600">{index === 0 ? "A" : "B"} / {dimensionFilterLabel(side.dimension_filter)}</p>)}
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-3">
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${relationshipTone(relationship)}`}>
-                    {relationship.correlation === null || relationship.correlation === undefined
-                      ? relationship.status
+                    {!hasCorrelationScore(relationship)
+                      ? t(unavailableCorrelationLabel(relationship))
                       : `${relationship.direction} ${formatCorrelation(relationship.correlation)}`}
                   </span>
                   <button
@@ -685,19 +694,21 @@ function SelectField({
 
 function RelationshipResult({
   relationship,
-  onDelete,
-  deleting,
 }: {
   relationship: DatasetRelationship
-  onDelete?: (relationship: DatasetRelationship) => void
-  deleting?: boolean
 }) {
   const { t } = useDecisionateText()
+  const hasScore = hasCorrelationScore(relationship)
+  const hasLag = hasScore && Number.isInteger(relationship.lag_periods) && relationship.lag_periods >= 0
+  const lagUnit = `${formatPeriodUnit(relationship.period)}${relationship.lag_periods === 1 ? "" : "s"}`
+  const missingHistory = relationship.status !== "unavailable" && !hasScore
+    && relationship.minimum_observations !== undefined
+    && relationship.matched_period_count < relationship.minimum_observations
 
   return (
-    <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+    <section aria-label={t("Relationship evidence")} className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+      <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="min-w-0 break-words">
           <p className="text-xs font-medium uppercase tracking-wide text-blue-700">{t("Relationship evidence")}</p>
           <h2 className="mt-1 text-lg font-semibold">{relationship.name}</h2>
           <p className="mt-1 text-sm font-medium text-gray-800">
@@ -707,24 +718,25 @@ function RelationshipResult({
             {relationship.causation_disclaimer || t("Association does not establish causation.")}
           </p>
         </div>
-        <div className="flex items-start gap-3">
-          {onDelete && relationship.id && (
-            <button
-              type="button"
-              onClick={() => onDelete(relationship)}
-              disabled={deleting}
-              className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-              aria-label={`Delete ${relationship.name}`}
-              title="Delete saved relationship"
-            >
-              <Trash2 size={17} />
-            </button>
+        <aside aria-label={t("Correlation coefficient")} className={`min-w-0 rounded-lg border px-4 py-3 ${relationshipTone(relationship)}`}>
+          <p className="text-xs font-medium">{t("Correlation coefficient")}</p>
+          <p className={`mt-1 font-semibold ${hasScore ? "text-2xl tabular-nums" : "text-base"}`}>
+            {hasScore ? formatCorrelation(relationship.correlation) : t(unavailableCorrelationLabel(relationship))}
+          </p>
+          {hasScore ? (
+            <p className="mt-1 text-xs capitalize">{relationship.relationship_strength} {relationship.direction}</p>
+          ) : (
+            <p className="mt-1 text-xs">
+              {missingHistory
+                ? t("{matched} of {required} matching periods.")
+                    .replace("{matched}", String(relationship.matched_period_count))
+                    .replace("{required}", String(relationship.minimum_observations))
+                : relationship.status === "unavailable"
+                  ? t("Check the source data and saved filters.")
+                  : t("A score could not be calculated from these values.")}
+            </p>
           )}
-          <div className={`rounded-xl border px-4 py-3 text-center ${relationshipTone(relationship)}`}>
-            <p className="text-2xl font-semibold">{formatCorrelation(relationship.correlation)}</p>
-            <p className="text-xs font-medium capitalize">{relationship.relationship_strength} {relationship.direction}</p>
-          </div>
-        </div>
+        </aside>
       </div>
 
       {[relationship.left, relationship.right].map((side, index) => side.dimension_filter && <p key={index} className="mt-3 break-words text-sm text-gray-600">
@@ -736,10 +748,14 @@ function RelationshipResult({
         <MetricStat label={t("Method")} value={relationship.method} />
         <MetricStat label={t("Aggregation")} value={`${relationship.aggregation} · ${relationship.period}`} />
         <MetricStat
-          label={relationship.lag_mode === "manual" ? t("Timing") : t("Best observed delay")}
-          value={relationship.delay_description || t("Same period")}
+          label={relationship.lag_mode === "manual" ? t("Lag (selected comparison)") : t("Lag (observed)")}
+          value={!hasLag ? t("Not established") : relationship.lag_periods === 0
+            ? t("0 (same period)") : `${relationship.lag_periods} ${t(lagUnit)}`}
+          detail={hasLag && relationship.lag_periods > 0 ? relationshipPairLabel(relationship) : undefined}
         />
       </div>
+      {hasLag && relationship.lag_mode === "manual" && <p className="mt-3 text-xs text-gray-600">{t("Selected comparison, not an estimated delay.")}</p>}
+      {hasLag && relationship.lag_mode !== "manual" && relationship.lag_credibility !== "credible" && <p className="mt-3 text-xs text-amber-800">{t("Tentative lag; the timing evidence is not yet dependable.")}</p>}
 
       {relationship.lag_mode !== "manual" && relationship.lag_candidates && relationship.lag_candidates.length > 0 && (
         <details className="mt-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
@@ -760,7 +776,7 @@ function RelationshipResult({
                 {relationship.lag_candidates.map(candidate => (
                   <tr key={candidate.lag_periods}>
                     <td className="px-2 py-2">{candidate.lag_periods === 0 ? t("Same period") : `${candidate.lag_periods} ${t(formatPeriodUnit(relationship.period))}`}</td>
-                    <td className="px-2 py-2">{formatCorrelation(candidate.correlation)}</td>
+                    <td className="px-2 py-2">{t(formatCorrelation(candidate.correlation))}</td>
                     <td className="px-2 py-2">{candidate.matched_period_count}</td>
                     <td className="px-2 py-2">{candidate.credible ? t("Credible") : t("Limited")}</td>
                   </tr>
@@ -797,11 +813,12 @@ function RelationshipResult({
   )
 }
 
-function MetricStat({ label, value }: { label: string; value: string }) {
+function MetricStat({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
       <p className="text-xs text-gray-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold capitalize text-gray-900">{value}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-gray-900">{value}</p>
+      {detail && <p className="mt-1 break-words text-xs text-gray-600">{detail}</p>}
     </div>
   )
 }

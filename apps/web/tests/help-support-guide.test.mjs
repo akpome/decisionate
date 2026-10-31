@@ -91,7 +91,11 @@ test("indexed comparisons and seasonality include their interpretation limits", 
 
 test("weekly delivery documents independent settings, fixed weekly grouping and safe removal", () => {
   const text = chapter("analysis")
-  assert.match(text, /Select source metrics, date columns, dimension filters/)
+  assert.match(text, /select source metrics, date columns, dimension filters/i)
+  assert.match(text, /Previewing does not save or change the existing weekly setup/)
+  assert.match(text, /After a successful preview, choose Save weekly report/)
+  assert.match(text, /Changing the setup requires another preview before saving/)
+  assert.doesNotMatch(text, /Save and preview|Save weekly settings|Unsaved weekly settings are saved first/)
   assert.match(text, /latest completed week/)
   assert.match(text, /rolling three years/)
   assert.match(text, /does not itself enable delivery or change recipients/)
@@ -100,7 +104,8 @@ test("weekly delivery documents independent settings, fixed weekly grouping and 
   assert.match(text, /daily and as a whole week/)
   assert.match(text, /Whole-week assessment compares each selected metric with its normal weekly range/)
   assert.match(text, /earlier relationship history is grouped into complete weeks/)
-  assert.match(text, /Send report now emails the current weekly report only to the workspace owner/)
+  assert.match(text, /Send report now emails it only to the workspace owner/)
+  assert.match(text, /Sending does not save unsaved changes/)
   assert.match(text, /daily lags are not interpreted as weeks/)
   assert.match(text, /Linked decisions and datasets are kept/)
   assert.match(text, /Deleting a saved snapshot does not remove independent weekly settings or change delivery/)

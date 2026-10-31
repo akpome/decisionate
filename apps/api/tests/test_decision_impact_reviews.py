@@ -30,6 +30,51 @@ class DecisionImpactReviewTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return identity, response.json()
 
+    def weekly_preview(self):
+        payload = copy.deepcopy(self.definition)
+        response = self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=payload)
+        self.assertEqual(response.status_code, 202, response.text)
+        identity = response.json()["job_id"]
+        with patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()):
+            worker.execute_job(identity)
+        result = self.client.get(f"/api/v2/business-reports/jobs/{identity}").json()
+        self.assertEqual(result["status"], "succeeded", result)
+        return identity
+
+    def test_weekly_preview_does_not_attach_an_assessment_until_the_single_explicit_save(self):
+        from app.db.models import WeeklyReportPreference
+
+        identity = self.weekly_preview()
+        with self.Session() as db:
+            self.assertEqual(db.query(DecisionImpactReview).count(), 0)
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+            self.assertEqual(db.query(WeeklyReportPreference).count(), 0)
+        response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertTrue(response.json()["report"]["decision_review_id"])
+        again = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.json()["report"]["report_id"], again.json()["report"]["report_id"])
+        with self.Session() as db:
+            self.assertEqual(db.query(Decision).count(), 1)
+            self.assertEqual(db.query(DecisionImpactReview).count(), 1)
+            self.assertEqual(db.query(BusinessReport).count(), 1)
+            self.assertEqual(db.query(WeeklyReportPreference).count(), 1)
+            self.assertEqual(db.query(DecisionActivity).count(), 1)
+
+    def test_changed_decision_blocks_saving_the_weekly_preview_and_setup(self):
+        from app.db.models import WeeklyReportPreference
+
+        identity = self.weekly_preview()
+        with self.Session() as db:
+            db.get(Decision, self.decision_id).action = "A different business action"
+            db.commit()
+        response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.status_code, 409, response.text)
+        with self.Session() as db:
+            self.assertEqual(db.query(DecisionImpactReview).count(), 0)
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+            self.assertEqual(db.query(WeeklyReportPreference).count(), 0)
+
     def test_choices_and_prefill_reuse_existing_action_outcome_and_revision_without_loading_files(self):
         with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("No source scans")):
             choices = self.client.get("/api/v2/business-reports/review-decisions").json()

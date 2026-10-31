@@ -7,6 +7,18 @@ explanation.
 
 ## Read the evidence
 
+Analysis and Weekly Reports display the Correlation coefficient and Lag
+(observed) directly on each included relationship finding, without opening the
+detailed explanation. Relationships shows these values in the opened saved
+result too. Positive lags include their time unit and metric order. A valid
+same-period result shows 0 (same period); a missing coefficient is not displayed
+as zero, and insufficient evidence does not imply zero lag.
+
+Lag units follow the relationship analysis grouping, not the chart's detail:
+weekly relationship history produces a lag in weeks even when the report week
+is also shown day by day. A tentative lag is still an observed result, not a
+dependable response time; check the accompanying timing warning.
+
 Consider the sign and magnitude of the coefficient, matched observation count,
 timing, significance information, coverage and warnings together. A coefficient
 near zero is not proof that the systems are unrelated in every possible way.

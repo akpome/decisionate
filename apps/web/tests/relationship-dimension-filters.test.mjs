@@ -188,3 +188,121 @@ test("changing analysis settings invalidates old evidence without changing the s
   assert.equal(result, null)
   assert.match(source, /minimumObservations, maximumLag\]\)/)
 })
+
+const insufficientRelationship = {
+  id: 7, name: "Cross-source relationship", status: "insufficient_data",
+  left: { dataset_id: 1, date_column: "date", metric_column: "spend" },
+  right: { dataset_id: 2, date_column: "date", metric_column: "orders" },
+  left_dataset_name: "meta_ads_daily_2025.csv", right_dataset_name: "shopify_daily_2025.csv",
+  period: "monthly", aggregation: "sum", method: "pearson", minimum_observations: 24,
+  matched_period_count: 12, correlation: null, relationship_strength: "insufficient evidence", direction: "undetermined",
+  lag_mode: "automatic", lag_periods: 0, lag_credibility: "insufficient_data", delay_description: "in the same period",
+  association_summary: "Insufficient evidence for a reliable association.", evidence: [],
+  lag_candidates: [{ lag_periods: 0, matched_period_count: 12, correlation: null, credible: false }],
+}
+
+function relationshipResult(overrides = {}) {
+  const { RelationshipResult } = functions(["RelationshipResult", "MetricStat", "hasCorrelationScore", "unavailableCorrelationLabel", "formatCorrelation", "formatPeriodUnit", "relationshipTone", "relationshipPairLabel"], {
+    useDecisionateText: () => ({ t: value => value }),
+    dimensionFilterLabel: value => `${value.column}: ${value.values.join(", ")}`,
+  })
+  return renderToStaticMarkup(React.createElement(RelationshipResult, { relationship: { ...insufficientRelationship, ...overrides } }))
+}
+
+test("unavailable correlation names the missing score and shows the saved observation threshold", () => {
+  const html = relationshipResult()
+  assert.match(html, /Correlation coefficient/)
+  assert.match(html, /More history needed/)
+  assert.match(html, /12 of 24 matching periods/)
+  assert.doesNotMatch(html, /Not available|Undetermined|undetermined|insufficient_data/)
+  assert.match(html, /Lag \(observed\)/)
+  assert.match(html, /Not established/)
+  assert.doesNotMatch(html, /in the same period|Best observed delay/)
+  assert.match(html, /View timing evidence/)
+  assert.match(html, /Not calculated/)
+})
+
+test("unavailable scores distinguish unusable values, missing sources and unknown legacy thresholds", () => {
+  const constant = relationshipResult({ matched_period_count: 24 })
+  assert.match(constant, /Correlation unavailable/)
+  assert.match(constant, /A score could not be calculated from these values/)
+  assert.doesNotMatch(constant, /More history needed/)
+  const unavailable = relationshipResult({ status: "unavailable", matched_period_count: 0 })
+  assert.match(unavailable, /Analysis unavailable/)
+  assert.match(unavailable, /Check the source data and saved filters/)
+  assert.doesNotMatch(unavailable, /More history needed|0 of 24/)
+  const legacy = relationshipResult({ minimum_observations: undefined })
+  assert.match(legacy, /Correlation unavailable/)
+  assert.doesNotMatch(legacy, /of 24|of 52|More history needed/)
+})
+
+test("valid positive, negative and zero correlation scores remain visible and explicitly labelled", () => {
+  for (const correlation of [0.82, -0.82, 0]) {
+    const html = relationshipResult({ status: "ready", correlation, matched_period_count: 52,
+      relationship_strength: "strong", direction: correlation < 0 ? "negative" : correlation > 0 ? "positive" : "neutral",
+      lag_credibility: "credible", lag_periods: 2, delay_description: "approximately 2 months later" })
+    assert.match(html, /Correlation coefficient/)
+    assert.ok(html.includes(correlation.toFixed(2)))
+    assert.match(html, /2 months/)
+    assert.doesNotMatch(html, /More history needed|Not established/)
+  }
+  for (const correlation of [null, undefined, NaN, Infinity]) {
+    assert.match(relationshipResult({ status: "ready", correlation }), /More history needed/)
+  }
+})
+
+test("limited automatic lag stays visible with its warning while manual lag stays explicit", () => {
+  const limited = relationshipResult({ status: "ready", correlation: 0.6, lag_credibility: "limited_evidence", lag_periods: 2 })
+  assert.match(limited, /0.60/)
+  assert.match(limited, /2 months/)
+  assert.match(limited, /Tentative lag; the timing evidence is not yet dependable/)
+  const manual = relationshipResult({ status: "ready", correlation: 0.6, lag_mode: "manual", lag_periods: 2 })
+  assert.match(manual, /Lag \(selected comparison\)/)
+  assert.match(manual, /2 months/)
+  assert.match(manual, /Selected comparison, not an estimated delay/)
+  assert.doesNotMatch(manual, /Best observed delay|View timing evidence/)
+})
+
+test("saved results distinguish zero lag from missing evidence and name the metric order", () => {
+  const ready = { status: "ready", correlation: 0.8, lag_credibility: "credible" }
+  assert.match(relationshipResult(ready), /0 \(same period\)/)
+  for (const patch of [{}, { lag_mode: "manual" }, { ...ready, lag_periods: undefined }]) {
+    const html = relationshipResult(patch)
+    assert.match(html, /Not established/)
+    assert.doesNotMatch(html, /0 \(same period\)/)
+  }
+  for (const [period, unit] of [["daily", "day"], ["weekly", "week"], ["monthly", "month"], ["quarterly", "quarter"]]) {
+    const html = relationshipResult({ ...ready, period, lag_periods: 1, lag_direction: "b_leads_a" })
+    assert.match(html, new RegExp(`>1 ${unit}<`))
+    assert.match(html, /shopify_daily_2025.csv · orders → meta_ads_daily_2025.csv · spend/)
+  }
+})
+
+test("opening saved evidence adds no delete button and saved-list statuses are readable", () => {
+  assert.doesNotMatch(relationshipResult(), /<button|Delete/)
+  assert.equal((source.match(/<Trash2\b/g) || []).length, 1)
+  assert.match(source, /t\(unavailableCorrelationLabel\(relationship\)\)/)
+  const { unavailableCorrelationLabel } = functions(["unavailableCorrelationLabel"])
+  assert.equal(unavailableCorrelationLabel(insufficientRelationship), "More history needed")
+  assert.equal(unavailableCorrelationLabel({ ...insufficientRelationship, matched_period_count: 30 }), "Correlation unavailable")
+  assert.equal(unavailableCorrelationLabel({ ...insufficientRelationship, status: "unavailable" }), "Analysis unavailable")
+})
+
+test("the remaining delete action still confirms removal and clears the opened relationship", async () => {
+  for (const confirmed of [false, true]) {
+    let records = [insufficientRelationship], result = insufficientRelationship, message = ""
+    const calls = []
+    const { handleDelete } = functions(["handleDelete"], { user: { id: "owner" }, activeWorkspaceId: "workspace", deletingRelationshipId: null,
+      window: { confirm: () => confirmed }, t: value => value, result, setDeletingRelationshipId() {}, setError() {},
+      setStatusMessage: value => { message = value }, deleteDatasetRelationship: async (...args) => { calls.push(args) },
+      setRelationships: update => { records = update(records) }, setResult: value => { result = value } })
+    await handleDelete(insufficientRelationship)
+    assert.equal(calls.length, confirmed ? 1 : 0)
+    assert.equal(records.length, confirmed ? 0 : 1)
+    assert.equal(result, confirmed ? null : insufficientRelationship)
+    if (confirmed) {
+      assert.deepEqual(plain(calls[0]), [7, "owner", "workspace"])
+      assert.equal(message, "Relationship removed.")
+    }
+  }
+})

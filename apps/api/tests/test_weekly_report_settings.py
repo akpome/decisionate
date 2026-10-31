@@ -33,6 +33,119 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
+    def draft_preview(self, **updates):
+        response = self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=self.settings(**updates))
+        self.assertEqual(response.status_code, 202, response.text)
+        identity = response.json()["job_id"]
+        with patch.object(alerts, "load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()), \
+                patch.object(alerts, "send_weekly_report_email") as send:
+            analysis_worker.execute_job(identity)
+            send.assert_not_called()
+        result = self.client.get(f"/api/v2/business-reports/jobs/{identity}").json()
+        self.assertEqual(result["status"], "succeeded", result)
+        return identity, result
+
+    def test_draft_preview_does_not_save_settings_or_a_report(self):
+        identity, result = self.draft_preview(name="Unsaved weekly draft")
+        self.assertEqual(result["definition"]["name"], "Unsaved weekly draft")
+        self.assertEqual(result["result"]["name"], "Unsaved weekly draft")
+        self.assertFalse(result["weekly_settings_saved"])
+        with self.Session() as db:
+            self.assertEqual(db.query(WeeklyReportPreference).count(), 0)
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+        self.assertIsNone(self.client.get("/api/v2/business-reports/weekly-settings").json()["definition"])
+        unsaved_send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
+        self.assertEqual(unsaved_send.status_code, 409, unsaved_send.text)
+
+    def test_preview_uses_draft_without_replacing_live_configuration_then_saves_both_once(self):
+        self.put(name="Existing weekly settings")
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            preference.enabled = 1
+            preference.recipient_emails = '["owner@example.test"]'
+            preference.delivery_day = "friday"
+            db.commit()
+        identity, result = self.draft_preview(name="New preview", method="spearman", seasonal_business=True)
+        self.assertEqual(result["result"]["definition"]["method"], "spearman")
+        self.assertEqual(self.client.get("/api/v2/business-reports/weekly-settings").json()["definition"]["name"], "Existing weekly settings")
+        saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        self.assertEqual(saved.json()["report"]["name"], "New preview")
+        self.assertEqual(saved.json()["settings"]["definition"]["name"], "New preview")
+        reopened = self.client.get(f"/api/v2/business-reports/jobs/{identity}").json()
+        self.assertTrue(reopened["weekly_settings_saved"])
+        self.assertEqual(reopened["result"]["report_id"], saved.json()["report"]["report_id"])
+        self.assertEqual(reopened["definition"]["grain"], "weekly")
+        with patch.object(jobs, "weekly_owner_recipient", return_value="owner@example.test"):
+            send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
+        self.assertEqual(send.status_code, 202, send.text)
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            self.assertEqual(preference.enabled, 1)
+            self.assertEqual(preference.delivery_day, "friday")
+            self.assertEqual(json.loads(preference.recipient_emails), ["owner@example.test"])
+            self.assertEqual(db.query(BusinessReport).count(), 1)
+        # A lost response/retry must not overwrite a later explicitly saved configuration.
+        self.put(name="Later settings")
+        again = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(again.status_code, 201, again.text)
+        self.assertEqual(again.json()["report"]["report_id"], saved.json()["report"]["report_id"])
+        self.assertEqual(again.json()["settings"]["definition"]["name"], "Later settings")
+        with self.Session() as db:
+            self.assertEqual(db.query(BusinessReport).count(), 1)
+        stale_send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
+        self.assertEqual(stale_send.status_code, 409, stale_send.text)
+
+    def test_weekly_save_requires_completed_preview_and_current_settings(self):
+        response = self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=self.settings())
+        identity = response.json()["job_id"]
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly").status_code, 409)
+        with self.Session() as db:
+            db.get(ReportAnalysisJob, identity).status = "failed"
+            db.commit()
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly").status_code, 409)
+        identity, _ = self.draft_preview()
+        self.put(name="Updated elsewhere")
+        response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertIn("settings changed", response.text)
+        with self.Session() as db:
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+
+    def test_weekly_save_rolls_back_snapshot_when_settings_cannot_be_saved(self):
+        identity, _ = self.draft_preview()
+        with patch("app.modules.reports.weekly.apply_weekly_settings", side_effect=RuntimeError("Write failed")):
+            with self.assertRaisesRegex(RuntimeError, "Write failed"):
+                self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        with self.Session() as db:
+            self.assertEqual(db.query(BusinessReport).count(), 0)
+            self.assertEqual(db.query(WeeklyReportPreference).count(), 0)
+            self.assertIsNone(db.get(ReportAnalysisJob, identity).saved_report_id)
+
+    def test_draft_preview_and_save_recheck_permissions_and_source_changes(self):
+        with patch.object(fixtures.router, "require_workspace_data_manager", side_effect=HTTPException(403, "Read only")):
+            self.assertEqual(self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=self.settings()).status_code, 403)
+        identity, _ = self.draft_preview()
+        with patch.object(fixtures.router, "require_workspace_data_manager", side_effect=HTTPException(403, "Read only")):
+            self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly", headers={"X-Workspace-Id": "someone-else"}).status_code, 404)
+        with self.Session() as db:
+            from app.db.models import Dataset
+            db.get(Dataset, 1).row_count += 1
+            db.commit()
+        response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertIn("dataset changed", response.text)
+
+    def test_weekly_save_rejects_a_preview_from_a_previous_reporting_week(self):
+        identity, result = self.draft_preview()
+        from app.modules.reports.weekly import weekly_context
+        future = weekly_context(date.fromisoformat(result["result"]["window"]["end"]) + timedelta(days=9))
+        with patch("app.modules.reports.weekly.weekly_context", return_value=future):
+            response = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertIn("week or timezone changed", response.text)
+
     def test_settings_have_automatic_dates_fixed_weekly_grouping_and_no_delivery_side_effect(self):
         value = self.put()
         self.assertEqual(value["definition"]["grain"], "weekly")

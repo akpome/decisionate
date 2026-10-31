@@ -11,7 +11,7 @@ export function ReportRelationshipFindings({ report }: { report: BusinessReport 
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings">
     <h3 className="text-lg font-semibold">Relationship findings</h3>
     {findings.length === 0 ? <p className="text-sm text-gray-500">No relationship findings included in this report.</p>
-      : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => <li key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} /></li>)}</ul>}
+      : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => <li key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} grain={report.analysis_grain || report.grain || report.definition?.grain} /></li>)}</ul>}
   </section>
 }
 
@@ -75,14 +75,34 @@ function DecisionRow({ decision, report }: { decision: ReportDecision; report: B
   </div>
 }
 
-function Finding({ finding }: { finding: ReportFinding }) {
-  const available = finding.eligible && finding.coefficient !== null
+function formatFindingLag(finding: ReportFinding, grain?: string) {
+  if (!Number.isInteger(finding.lag) || finding.lag < 0) return "Not established"
+  if (finding.lag === 0) return "0 (same period)"
+  const sourceGrain = {
+    "calendar daily periods": "daily", "calendar weekly periods": "weekly",
+    "calendar monthly periods": "monthly", "calendar quarterly periods": "quarterly",
+  }[finding.lag_unit] || grain || ""
+  const unit = { daily: "day", weekly: "week", monthly: "month", quarterly: "quarter" }[sourceGrain] || "grouped period"
+  return `${finding.lag} ${unit}${finding.lag === 1 ? "" : "s"}`
+}
+
+function Finding({ finding, grain }: { finding: ReportFinding; grain?: string }) {
+  const hasCoefficient = typeof finding.coefficient === "number" && Number.isFinite(finding.coefficient)
+  const available = finding.eligible && hasCoefficient
+  const hasLag = available && Number.isInteger(finding.lag) && finding.lag >= 0
+  const leader = finding.lead_metric === finding.metric_a.id ? finding.metric_a : finding.lead_metric === finding.metric_b.id ? finding.metric_b : null
+  const follower = leader === finding.metric_a ? finding.metric_b : finding.metric_a
   const pattern = !available ? "We do not have enough matching history or variation to draw a useful conclusion yet."
     : Math.abs(finding.coefficient!) < .3 ? "These results did not show a clear pattern of moving together."
       : finding.coefficient! >= 0 ? "These results tended to rise and fall together." : "When one result rose, the other tended to fall."
   return <><span className="block break-words text-sm font-semibold">{finding.metric_a.dataset_label} / {finding.metric_a.label} <span className="font-normal text-gray-500">and</span> {finding.metric_b.dataset_label} / {finding.metric_b.label}</span>
+    <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-[12rem_minmax(0,1fr)]" aria-label="Correlation statistics">
+      <div className="min-w-0"><dt className="text-xs text-gray-500">Correlation coefficient</dt><dd className="mt-1 font-semibold tabular-nums">{hasCoefficient ? finding.coefficient!.toFixed(2) : "Not calculated"}</dd></div>
+      <div className="min-w-0"><dt className="text-xs text-gray-500">Lag (observed)</dt><dd className="mt-1 font-semibold">{hasLag ? formatFindingLag(finding, grain) : "Not established"}</dd>
+        {hasLag && finding.lag > 0 && leader && <p className="mt-1 break-words text-xs text-gray-600">{leader.dataset_label} / {leader.label} precedes {follower.dataset_label} / {follower.label}.</p>}
+      </div>
+    </dl>
     <p className="mt-2 text-sm leading-6 text-gray-700">{finding.business_summary || <>{pattern} {available && "That can be worth investigating, but does not tell us whether changing one caused the other to change."}</>}</p>
-    {available && finding.lag > 0 && <p className="mt-1 text-xs text-gray-600">The strongest pattern was {finding.lag} grouped periods apart.</p>}
     {available && finding.timing_validation && <p className="mt-1 text-xs leading-5 text-gray-600">{finding.timing_validation.status === "supported" ? "Timing guide available for a later impact assessment. " : "Not yet a dependable timing guide. "}{finding.timing_validation.message}</p>}
-    <details className="mt-2 text-xs text-gray-500"><summary className="cursor-pointer">How we checked this relationship</summary><p className="mt-2">{finding.reliability.replaceAll("_", " ")} / {finding.observations} observations / Lag {finding.lag} {finding.lag_unit}</p><p className="mt-2 leading-5">{finding.interpretation}</p>{finding.warnings.length > 0 && <p className="mt-1 break-words text-amber-800">{finding.warnings.map(value => value.replaceAll("_", " ")).join("; ")}</p>}</details></>
+    <details className="mt-2 text-xs text-gray-500"><summary className="cursor-pointer">How we checked this relationship</summary><p className="mt-2">{finding.reliability.replaceAll("_", " ")} / {finding.observations} observations</p><p className="mt-2 leading-5">{finding.interpretation}</p>{finding.warnings.length > 0 && <p className="mt-1 break-words text-amber-800">{finding.warnings.map(value => value.replaceAll("_", " ")).join("; ")}</p>}</details></>
 }

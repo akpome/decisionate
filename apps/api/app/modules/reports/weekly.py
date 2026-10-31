@@ -23,3 +23,20 @@ def weekly_settings_copy(definition):
         value["lag"] = {"enabled": True, "minimum": 0, "maximum": MAXIMUM_LAG, "direction": "a_leads_b"}
         value["pair_directions"] = [{**pair, "direction": "same_period"} for pair in definition.get("pair_directions") or []]
     return value
+
+
+def apply_weekly_settings(db, definition, workspace):
+    from app.db.models import WeeklyReportPreference
+    from app.modules.correlation.engine import metric_id
+    from app.modules.correlation.service import encode
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+
+    lock_workspace_queue(db, "weekly-settings:" + workspace)
+    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
+    if preference is None:
+        preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
+        db.add(preference)
+    preference.weekly_report_definition = encode(definition)
+    preference.business_report_id = None
+    preference.metric_focus = encode([metric_id(item) for item in definition["metrics"]])
+    return preference

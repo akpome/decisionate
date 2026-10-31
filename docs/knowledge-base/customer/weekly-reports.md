@@ -10,15 +10,22 @@ setup and Report preview; Analysis uses Build analysis and Analysis preview.
 ## Configure weekly analysis and sending separately
 
 Open Analysis -> Weekly Reports. Select metrics, date columns, dimension filters,
-business question, seasonal setting and relationship pairs. Save weekly settings,
-or use Save and preview to save and calculate them. Removed pairs remain excluded
+business question, seasonal setting and relationship pairs. Choose Preview report.
+Previewing calculates the draft without changing the saved weekly setup or sending email.
+After a successful preview, choose Save weekly report. This single action keeps
+the preview in Saved reports and saves its setup for future weekly reports.
+There is no separate Save snapshot or Save weekly settings action on this page.
+Changing the setup requires another preview before saving. A failed preview or
+save leaves the previously saved setup unchanged. If the reporting week, source
+data or saved setup changes before saving, generate a fresh preview.
+Removed pairs remain excluded
 from weekly relationship analysis, while their selected metrics still receive
 KPI and anomaly analysis. Saving settings does not enable sending or change recipients.
 
 A saved business analysis offers Copy selection to Weekly Reports. This is an
 editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
-to three weeks. Check and save the independent weekly settings before use.
+to three weeks. Preview and save the independent weekly setup before use.
 
 Use Delivery settings or Alerts to check recipients, schedule, delivery preferences
 and email readiness. Enable delivery only after confirming the intended audience.
@@ -26,8 +33,9 @@ A successful scheduler invocation means a job was queued, not that an email was
 delivered. Check terminal analysis status and delivery history separately.
 
 Send report now emails the current weekly report only to the workspace owner,
-including the client owner in a managed client workspace. Unsaved weekly changes
-are saved first. This one-time send can run while scheduled delivery is paused;
+including the client owner in a managed client workspace. First preview and save
+the current weekly report. Sending does not save unsaved changes. This one-time
+send can run while scheduled delivery is paused;
 it does not change recipients, enable delivery or replace a scheduled send.
 Only authorized workspace managers can use it. If the owner's account has no
 usable email address, sending is blocked rather than using another recipient.

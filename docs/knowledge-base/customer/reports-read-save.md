@@ -66,10 +66,15 @@ shared positive baseline. Missing observations remain gaps in either view.
 
 ## Save and update
 
-Save snapshot stores the server-generated completed analysis. Reopening it does
+On Analysis, Save snapshot stores the server-generated completed analysis. Reopening it does
 not silently recalculate the data or update its narrative. Editing the settings
 starts an unsaved analysis; preview again and save a new snapshot. Generated
 names should be edited to describe the analysis, not treated as an overwrite key.
+
+On Weekly Reports, preview first, then choose Save weekly report. This one action
+stores the preview and its setup for future weeks. Previewing alone does not
+save the setup. There is no separate snapshot or settings save on the weekly
+page. Saving does not send email or change delivery preferences.
 
 ## Delete versus remove weekly settings
 

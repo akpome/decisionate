@@ -25,8 +25,8 @@ const { ReportRelationshipFindings, ReportDecisions } = load("../features/report
   "@/features/decisions/lib/report-metric-scope": load("../features/decisions/lib/report-metric-scope.ts"),
 })
 const finding = {
-  id: "finding-1", metric_a: { dataset_label: "marketing-demo.csv", label: "Website visits" },
-  metric_b: { dataset_label: "revenue-demo.csv", label: "Orders" }, reliability: "insufficient",
+  id: "finding-1", metric_a: { id: "visits", dataset_label: "marketing-demo.csv", label: "Website visits" },
+  metric_b: { id: "orders", dataset_label: "revenue-demo.csv", label: "Orders" }, reliability: "insufficient",
   observations: 3, lag: 0, lag_unit: "calendar daily periods",
   interpretation: "Insufficient matched history or variation to establish a usable relationship.", warnings: ["insufficient_overlap"],
 }
@@ -57,6 +57,60 @@ test("relationship findings are read-only results with no checkbox or print-only
   assert.match(html, /insufficient overlap/)
   assert.match(html, /<ul aria-label="Relationship results"/)
   assert.doesNotMatch(html, /<input|<label|checkbox|print:hidden/)
+})
+
+test("coefficient and lag are visible without expanding the report details", () => {
+  for (const coefficient of [0.83, -0.61, 0]) {
+    const html = renderFindings({ findings: [{ ...finding, eligible: true, coefficient, lag: 2, lead_metric: "visits" }] })
+    const visible = html.split("<details")[0]
+    assert.match(visible, /Correlation coefficient/)
+    assert.ok(visible.includes(coefficient.toFixed(2)))
+    assert.match(visible, /Lag \(observed\)/)
+    assert.match(visible, />2 days</)
+    assert.match(visible, /marketing-demo.csv \/ Website visits precedes revenue-demo.csv \/ Orders/)
+  }
+})
+
+test("same-period results show zero lag but unavailable results do not imply zero", () => {
+  const valid = renderFindings({ findings: [{ ...finding, eligible: true, coefficient: 0.7 }] })
+  assert.match(valid, /0 \(same period\)/)
+  for (const coefficient of [null, undefined, NaN, Infinity]) {
+    const html = renderFindings({ findings: [{ ...finding, eligible: false, coefficient }] })
+    assert.match(html, /Not calculated/)
+    assert.match(html, /Not established/)
+    assert.doesNotMatch(html, /0 \(same period\)|Lag 0|NaN|Infinity/)
+  }
+})
+
+test("lag uses the analysis unit rather than the daily detail in a weekly report", () => {
+  for (const [grain, unit] of [["daily", "day"], ["weekly", "week"], ["monthly", "month"], ["quarterly", "quarter"]]) {
+    for (const lag of [1, 2]) {
+      const html = renderFindings({ weekly_report: true, grain: "daily", analysis_grain: grain,
+        findings: [{ ...finding, eligible: true, coefficient: 0.75, lag, lag_unit: `calendar ${grain} periods`, lead_metric: "orders" }] })
+      assert.ok(html.includes(`>${lag} ${unit}${lag === 1 ? "" : "s"}<`))
+      assert.match(html, /revenue-demo.csv \/ Orders precedes marketing-demo.csv \/ Website visits/)
+    }
+  }
+})
+
+test("legacy lag units take precedence over summary grouping and missing units use analysis grouping", () => {
+  const historical = { ...finding, eligible: true, coefficient: 0.75, lag: 3, lag_unit: "calendar weekly periods" }
+  assert.match(renderFindings({ grain: "daily", findings: [historical] }), />3 weeks</)
+  assert.match(renderFindings({ grain: "daily", analysis_grain: "monthly", findings: [{ ...historical, lag_unit: undefined }] }), />3 months</)
+  assert.match(renderFindings({ findings: [{ ...historical, lag_unit: undefined }] }), />3 grouped periods</)
+  const missingLag = renderFindings({ findings: [{ ...historical, lag: undefined }] })
+  assert.match(missingLag, /Not established/)
+  assert.doesNotMatch(missingLag, /0 \(same period\)/)
+})
+
+test("exploratory timing keeps the computed numbers without hiding its reliability warning", () => {
+  const html = renderFindings({ findings: [{ ...finding, eligible: true, coefficient: 0.65, lag: 2,
+    timing_validation: { status: "unavailable", message: "The timing was not stable in earlier records." } }] })
+  const visible = html.split("<details")[0]
+  assert.match(visible, /0.65/)
+  assert.match(visible, /2 days/)
+  assert.match(visible, /Not yet a dependable timing guide/)
+  assert.match(visible, /The timing was not stable in earlier records/)
 })
 
 test("historical finding exclusions remain excluded in both preview and print", () => {

@@ -64,7 +64,8 @@ def check_inputs(db, job):
         if delivery.get("mode") == "workspace_owner" and weekly_owner_recipient(db, job.workspace_id) != delivery["recipient"]:
             raise HTTPException(409, "The workspace owner's email changed. Send a new report after reviewing the current owner.")
         preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
-        if weekly_configuration(db, preference, job.workspace_id, job.user_id) != json.loads(job.definition)["configuration"]:
+        expected_configuration = frozen_definition.get("base_configuration", frozen_definition["configuration"])
+        if weekly_configuration(db, preference, job.workspace_id, job.user_id) != expected_configuration:
             raise HTTPException(409, "Weekly report settings changed. Generate a new preview before sending.")
         if job.kind in {"weekly_send", "weekly_owner_send"}:
             from datetime import date, datetime
@@ -119,6 +120,7 @@ def run_weekly(db, job, definition):
     digest = alerts.build_weekly_report_digest_for_workspace(
         db, job.user_id, job.workspace_id, preference,
         include_ai_analysis=definition["include_ai_analysis"], analysis_date=date.fromisoformat(definition["anchor"]),
+        **({"template_override": definition["configuration"]["template"]} if definition.get("draft_preview") else {}),
     )
     digest.cross_dataset_report["analysis_job_id"] = job.id
     if job.kind == "weekly_preview":

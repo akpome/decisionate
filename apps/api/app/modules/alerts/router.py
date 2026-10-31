@@ -1100,11 +1100,12 @@ def build_weekly_report_digest_for_workspace(
     preference: WeeklyReportPreference | None,
     include_ai_analysis: bool = True,
     analysis_date: date | None = None,
+    *, template_override: dict | None = None,
 ) -> WeeklyReportDigestResponse:
     preference_response = build_weekly_report_preference_response(
         preference
     )
-    template = weekly_business_template(db, preference, workspace_id)
+    template = template_override if template_override is not None else weekly_business_template(db, preference, workspace_id)
     if template and template.get("impact"):
         from app.modules.reports.decision_reviews import bind_decision_review
         bind_decision_review(db, template, user_id, workspace_id)
@@ -1145,10 +1146,11 @@ def build_weekly_report_digest_for_workspace(
         include_ai_analysis=include_ai_analysis,
         analysis_date=analysis_date,
     )
-    digest.cross_dataset_report["decision_report_id"] = preference.business_report_id if preference else None
+    report_id = preference.business_report_id if preference and template_override is None else None
+    digest.cross_dataset_report["decision_report_id"] = report_id
     attach_report_decisions(
         digest.cross_dataset_report, db, workspace_id, {metric.dataset_id for metric in digest.metrics},
-        preference.business_report_id if preference else None,
+        report_id,
     )
     return digest
 

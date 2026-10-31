@@ -77,6 +77,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const draftName = useRef("")
   const managementAction = useRef(false)
   const weeklySendRequest = useRef<string | null>(null)
+  const weeklyPreviewBeforeSend = useRef<AnalysisJob | null>(null)
   const catalogRetry = useRef(false)
   const deletedReports = useRef(new Set<string>())
   const routeController = useRef<AbortController | null>(null)
@@ -119,7 +120,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly && weeklyDirty ? "Save and preview" : weekly ? "Preview report" : "Preview analysis")}</button>
+  const weeklyPreviewReady = Boolean(weekly && report?.analysis_job_id && report.analysis_job_id === analysisJob?.job_id && analysisJob.kind === "weekly_preview" && analysisJob.status === "succeeded" && analysisJob.definition)
+  const weeklySendReady = Boolean(report?.report_id && report.analysis_job_id && !weeklyDirty && weeklySettings?.definition
+    && (weeklyPreviewReady && analysisJob?.weekly_settings_saved || analysisJob?.kind === "weekly_owner_send"))
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(definition.impact ? busy ? "Checking decision..." : "Check this decision" : weekly ? "Preview report" : "Preview analysis")}</button>
 
   useEffect(() => {
     const controller = new AbortController()
@@ -199,7 +203,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                 ownerDelivery = job.kind === "weekly_owner_send"
                 if (job.definition && !restored) {
                   restored = true
-                  setDefinition(editableDefinition(job.definition))
+                  setDefinition(weekly ? weeklyDefinition(job.definition, weeklyContext?.history_window) : editableDefinition(job.definition))
+                  if (weekly) setWeeklyDirty(!job.weekly_settings_saved)
                   void addSelectedDatasets(job.definition)
                 }
               } } },
@@ -239,7 +244,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           setMessage("Selection copied. Check the weekly settings before saving. Instant-analysis dates and non-weekly lags were not copied.")
         } else if (params.get("weekly")) {
           const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, { ...init, signal: controller.signal }, workspaceId)
-          const job = await request<AnalysisJob>("/weekly-jobs?include_ai_analysis=true", { method: "POST" })
+          const selected = weeklyContext?.definition
+          const editable = canManage && selected && (!selected.impact || selected.impact.decision_id)
+          const job = await request<AnalysisJob>(editable ? "/weekly-preview-jobs" : "/weekly-jobs?include_ai_analysis=true", {
+            method: "POST", ...(editable ? { body: JSON.stringify(weeklyDefinition(selected, weeklyContext?.history_window)) } : {}),
+          })
           if (!current) return
           setAnalysisJob(job); setBusy(true); setLoading(false)
           window.history.replaceState(null, "", `${window.location.pathname}?job=${encodeURIComponent(job.job_id)}`)
@@ -394,8 +403,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     analysisSubmission.current = true
     try { await execute(async () => {
       const signal = routeController.current?.signal
-      if (weekly && weeklyDirty) await persistWeeklySettings()
-      const job = await request<AnalysisJob>(weekly ? "/weekly-jobs?include_ai_analysis=true" : "/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, ...(!weekly ? { body: JSON.stringify({ ...definition, dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }) } : {}) })
+      const payload = { ...(weekly ? weeklyDefinition(definition, weeklySettings?.history_window) : definition), dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }
+      const job = await request<AnalysisJob>(weekly ? canManage ? "/weekly-preview-jobs" : "/weekly-jobs?include_ai_analysis=true" : "/jobs", { method: "POST", signal, headers: { "Idempotency-Key": crypto.randomUUID() }, ...(!weekly || canManage ? { body: JSON.stringify(payload) } : {}) })
       signal?.throwIfAborted()
       setAnalysisJob(job)
       window.history.replaceState(null, "", `${window.location.pathname}?job=${encodeURIComponent(job.job_id)}`)
@@ -435,40 +444,36 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     } finally { openingDraft.current = false }
   }
 
-  async function persistWeeklySettings() {
-    if (!weekly || !canManage) throw new Error("Only workspace managers can change weekly report settings.")
-    const result = await request<WeeklySettings>("/weekly-settings", { method: "PUT", signal: routeController.current?.signal,
-      body: JSON.stringify({ ...weeklyDefinition(definition, weeklySettings?.history_window), dimension_filters: selectedReportDimensionFilters(definition) }) })
-    setWeeklySettings(result); setWeeklyDirty(false)
-    if (new URLSearchParams(window.location.search).has("copy")) window.history.replaceState(null, "", pagePath)
-    return result
-  }
-
-  async function saveWeeklySettings() {
-    if (!weekly || !canManage || busy || managementAction.current) return
+  async function saveWeeklyReport() {
+    if (!weeklyPreviewReady || !report?.analysis_job_id || !canManage || !canSave || busy || analysisJob?.weekly_settings_saved || managementAction.current) return
     managementAction.current = true
     try {
       await execute(async () => {
-        await persistWeeklySettings()
-        setMessage("Weekly settings saved. Recipients and delivery preferences are unchanged.")
+        const result = await request<{ report: BusinessReport; settings: WeeklySettings }>(`/jobs/${encodeURIComponent(report.analysis_job_id!)}/save-weekly`, {
+          method: "POST", signal: routeController.current?.signal,
+        })
+        setReport(result.report); setWeeklySettings(result.settings); setWeeklyDirty(false)
+        setDefinition(weeklyDefinition(result.settings.definition || {}, result.settings.history_window))
+        setAnalysisJob(current => current ? { ...current, weekly_settings_saved: true } : current)
+        setSaved(current => [{ report_id: result.report.report_id!, name: result.report.name, created_at: result.report.generated_at }, ...current.filter(item => item.report_id !== result.report.report_id)])
+        weeklySendRequest.current = null
+        window.history.replaceState(null, "", `${pagePath}?job=${encodeURIComponent(report.analysis_job_id!)}`)
+        setMessage(result.report.decision_review_id ? "Weekly report saved and assessment attached to the decision. Delivery settings are unchanged."
+          : "Weekly report saved for future weeks. This preview is kept in Saved reports. Delivery settings are unchanged.")
       })
     } finally { managementAction.current = false }
   }
 
   async function sendWeeklyNow() {
-    if (!weekly || !canManage || busy || previewDisabled || weeklySendIssue || uncertainDelivery || managementAction.current) return
+    if (!weekly || !canManage || busy || !weeklySendReady || previewDisabled || weeklySendIssue || uncertainDelivery || managementAction.current) return
     managementAction.current = true
     try {
       await execute(async () => {
-        if (weeklyDirty) {
-          await persistWeeklySettings()
-          weeklySendRequest.current = null
-        }
+        if (weeklyPreviewReady) weeklyPreviewBeforeSend.current = analysisJob
         weeklySendRequest.current ||= crypto.randomUUID()
         const signal = routeController.current?.signal
-        const returnUrl = report?.report_id ? `${pagePath}?report=${encodeURIComponent(report.report_id)}`
-          : report?.analysis_job_id ? `${pagePath}?job=${encodeURIComponent(report.analysis_job_id)}` : pagePath
-        const job = await request<AnalysisJob<WeeklyReportDeliveryResult>>("/weekly-owner-jobs?include_ai_analysis=true", {
+        const returnUrl = `${pagePath}?job=${encodeURIComponent(report!.analysis_job_id!)}`
+        const job = await request<AnalysisJob<WeeklyReportDeliveryResult>>(`/weekly-owner-jobs?include_ai_analysis=true&preview_job_id=${encodeURIComponent(report!.analysis_job_id!)}`, {
           method: "POST", signal, headers: { "Idempotency-Key": weeklySendRequest.current },
         })
         signal?.throwIfAborted()
@@ -484,6 +489,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }
         signal?.throwIfAborted()
         weeklySendRequest.current = null
+        setAnalysisJob(weeklyPreviewBeforeSend.current?.job_id === report!.analysis_job_id ? weeklyPreviewBeforeSend.current : null)
         window.history.replaceState(null, "", returnUrl)
         setMessage("Weekly report sent to the workspace owner. Scheduled delivery settings are unchanged.")
       })
@@ -528,7 +534,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
   </div>
   const catalogFooter = nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>
-  const weeklySaveButton = weekly && canManage && <button type="button" className={`${button} w-full`} disabled={previewDisabled || !weeklyDirty} onClick={event => { if (event.currentTarget.form?.reportValidity()) void saveWeeklySettings() }}><Save size={16} />Save weekly settings</button>
   if (loading) return <div className="min-w-0 w-full space-y-5"><h1 className="text-2xl font-semibold">{t(pageTitle)}</h1><p role="status" className="py-8 text-sm text-gray-600">{t(weekly ? "Loading weekly reports..." : "Loading analysis...")}</p></div>
   return <div className="min-w-0 w-full space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
@@ -564,24 +569,25 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             .then(hydrated => { if (!signal.aborted) setDatasets(existing => mergeCatalog(existing, hydrated)) })
             .catch(() => { if (!signal.aborted) setCatalogError(true) })
         })
-      }}><option value="">Unsaved analysis</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{item.name} / {item.created_at.slice(0, 10)}</option>)}</select></label>
+      }}><option value="">{weekly ? "Current report setup" : "Unsaved analysis"}</option>{saved.map(item => <option key={item.report_id} value={item.report_id}>{item.name} / {item.created_at.slice(0, 10)}</option>)}</select></label>
         {canManage && report?.report_id && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t("Delete saved report")} aria-label={t("Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
         {report && <>
-          <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>
+          {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>}
+          {weekly && view === "report" && weeklyPreviewReady && canManage && <button type="button" className={primaryButton} disabled={busy || !canSave || analysisJob?.weekly_settings_saved || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />{analysisJob?.weekly_settings_saved ? "Weekly report saved" : "Save weekly report"}</button>}
           {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
           {!single && !weekly && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
-        {weekly && canManage && <button type="button" className={button} disabled={previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title="Email the current weekly report to the workspace owner" onClick={() => void sendWeeklyNow()}><Send size={16} />Send report now</button>}
+        {weekly && canManage && view === "report" && report && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Send report now</button>}
         {weekly && <Link href="/dashboard/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Delivery settings</Link>}
       </div>
     </div>
     {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t("Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
     {weekly && <section aria-label="Weekly settings status" className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
-      <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved weekly settings" : weeklySettings?.definition ? "Weekly settings saved" : "No weekly settings saved"} / {weeklySettings?.enabled ? "Delivery enabled" : "Delivery paused"}</p>
+      <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved changes" : weeklySettings?.definition ? "Weekly report configured" : "No weekly report configured"} / {weeklySettings?.enabled ? "Delivery enabled" : "Delivery paused"}</p>
       {canManage && weeklySettings?.definition && <button type="button" className={`${button} text-red-700`} disabled={busy} title="Remove weekly settings" aria-label="Remove weekly settings" onClick={() => void removeWeeklySettings()}><Trash2 size={16} /></button>}
     </section>}
     {weeklySendIssue && <p role="status" className="border-l-2 border-amber-500 pl-3 text-sm leading-6 text-amber-900">{weeklySendIssue}</p>}
@@ -598,7 +604,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           </div></fieldset>}
           {definition.impact ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={weekly} weeklySettings={weeklySettings}
             decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
-            reportDetails={reportDetails} actions={<>{previewButton}{weeklySaveButton}</>} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
+            reportDetails={reportDetails} actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
           {reportDetails}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -627,7 +633,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{!single && !definition.impact && <> / {taskCount} relationship checks</>}</p>
               {taskCount > 1000 && <p className="shrink-0 text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
               {previewButton}
-              {weeklySaveButton}
             </section>
           </div></>}
         </fieldset>

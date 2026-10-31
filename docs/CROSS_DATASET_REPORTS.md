@@ -304,8 +304,17 @@ are separate workflows, reached from the sidebar rather than a cross-workflow ta
 Analysis has Build analysis / Analysis preview, selectable dates and
 daily grouping by default. Weekly Reports has Report setup / Report preview and stores
 an independent JSON configuration on `WeeklyReportPreference.weekly_report_definition`,
-managed through GET/PUT/DELETE `/api/v2/business-reports/weekly-settings`.
-Saving it does not enable sending or change recipients. Alerts retains delivery settings.
+read and removed through GET/DELETE `/api/v2/business-reports/weekly-settings`.
+The weekly UI follows Preview report, then Save weekly report. Draft previews
+use POST `/weekly-preview-jobs` with an authorized frozen definition and the
+original saved configuration. The worker computes that draft without persisting
+weekly settings or a report snapshot. POST `/jobs/{id}/save-weekly` atomically
+saves the completed snapshot and weekly setup; repeated saves return the same
+snapshot without reapplying older settings. It rechecks permissions, sources,
+the reporting week/timezone and concurrent settings changes before saving.
+Failed previews or saves preserve the previous configuration. The legacy PUT
+settings endpoint remains compatible, but the weekly UI no longer uses it.
+Saving does not enable sending or change recipients. Alerts retains delivery settings.
 Copy selection to Weekly Reports is an explicit editable copy, not a live template link.
 
 Weekly values cover the latest complete Monday-Sunday week in the platform
@@ -351,7 +360,10 @@ preserved. Review links open `/dashboard/reports/weekly?weekly=1`; legacy
 `/dashboard/reports?weekly=1` links redirect to the weekly page.
 
 The weekly page's Send report now action uses `POST /weekly-owner-jobs` to submit
-a durable `weekly_owner_send` job. Its distinct route and kind fail closed on
+a durable `weekly_owner_send` job after preview and save, with `preview_job_id`
+to recheck that the saved preview still matches the current reporting week and
+weekly definition. Sending does not implicitly save pending edits.
+Its distinct route and kind fail closed on
 older API/worker deployments instead of sending to scheduled recipients.
 The server resolves the workspace owner's email through the
 existing identity/organization model, freezes it and rechecks it before sending.

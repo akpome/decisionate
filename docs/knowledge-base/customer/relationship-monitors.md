@@ -40,6 +40,29 @@ monitor retains its fixed/automatic timing and stability scoring, while Reports
 supports multiple pairs and its report-specific calendar alignment and testing
 limits. Neither workflow proves causation.
 
+## Read an opened saved relationship
+
+The Correlation coefficient panel names the result being measured. More history needed
+means there are fewer matching grouped periods than this monitor requires; for
+example, 12 matching monthly periods do not meet a saved minimum of 24. Overlapping
+dates alone do not satisfy that minimum. The panel shows the matched and required
+counts. Correlation unavailable can also mean the matched values cannot produce a
+score, such as a metric that does not vary. Analysis unavailable instead indicates
+that the source data or a saved filter could not be used; check the accompanying
+message.
+
+The coefficient and lag are visible in the opened result. Lag (observed) shows the
+selected delay with its grouping unit and the metric order when the delay is
+positive. A valid same-period comparison shows 0 (same period). A computed lag
+with limited timing evidence remains visible with a tentative-timing warning;
+insufficient evidence shows Not established rather than implying a zero lag.
+A manual comparison shows Lag (selected comparison), not an estimated delay.
+Detailed timing candidates remain available under View timing evidence.
+
+Delete a saved relationship with its trash button in Saved relationships. Opening
+the evidence does not add a second delete control. Deletion requires confirmation
+and also removes the opened evidence if it belongs to that relationship.
+
 ## When to use Reports instead
 
 Use Multi dataset report when several sources or metrics need to be analyzed

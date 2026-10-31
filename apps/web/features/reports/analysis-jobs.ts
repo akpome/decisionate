@@ -7,6 +7,7 @@ export type AnalysisJob<T = BusinessReport> = {
   definition?: ReportDefinition | null
   created_at?: string
   retry_safe?: boolean
+  weekly_settings_saved?: boolean
 }
 
 export type AnalysisRequest = <T>(path: string, init?: RequestInit) => Promise<T>
