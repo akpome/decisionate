@@ -43,7 +43,14 @@ loaded with Load more datasets when the catalog is paginated.
 Open an existing decision and choose Assess business impact, or select Decision
 to review in the report builder. This is one searchable dropdown: type a decision
 name to filter its choices, then select the decision. Typing alone does not change
-the selected decision. The decision's action and outcome metric are
+the selected decision. The dropdown lists only active decisions with a recorded
+action and saved multi-dataset analysis evidence: the original selection must
+contain metrics from at least two different datasets. Single-dataset decisions,
+manual decisions without that evidence, and unfinished evidence placeholders
+are not offered. Search and pagination use the same eligibility rule. Existing
+decisions and saved assessments are not deleted by this filter. Being listed
+does not establish reliable timing or an impact estimate; those checks still apply.
+The decision's action and outcome metric are
 reused, not entered as a second decision. The Edit decision pencil beside the
 selected decision opens its Decision Details. Use it to update the original action
 or outcome metric; it appears only after a decision is selected. If no outcome

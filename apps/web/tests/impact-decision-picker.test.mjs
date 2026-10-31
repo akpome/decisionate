@@ -79,7 +79,7 @@ test("one labelled editable combobox replaces both the search input and native d
   assert.match(html, /aria-autocomplete="list"/)
   assert.match(html, /aria-expanded="false"/)
   assert.match(html, /aria-required="true"/)
-  assert.match(html, /Choose or search decisions/)
+  assert.match(html, /Search multi-dataset decisions/)
   assert.doesNotMatch(html, /<select|Search decisions|role="listbox"/)
 })
 
@@ -194,7 +194,7 @@ test("empty results and recoverable failures appear within the dropdown while it
   assert.equal(focused, 1)
   assert.equal(h.control().props["aria-expanded"], true)
   await h.settle(h.requests.at(-1), response([]))
-  assert.match(h.html(), /No matching active decisions/)
+  assert.match(h.html(), /No matching active decisions from multi-dataset analysis/)
   assert.doesNotMatch(h.html(), /Decisions could not be loaded/)
 })
 

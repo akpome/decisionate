@@ -137,14 +137,46 @@ def review_context(db, decision, user, workspace):
             "timing_evidence": decision_timing(db, decision, outcome, user, workspace) if outcome else None}
 
 
+def has_multi_dataset_analysis(decision):
+    try:
+        context = json.loads(decision.recommendation_context or "{}")
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(context, dict) or context.get("evidence_kind") != "business_report":
+        return False
+    if not isinstance(context.get("report_id"), str) or not context["report_id"].strip():
+        return False
+    definition = context.get("definition")
+    if (not isinstance(definition, dict) or definition.get("scope") not in (None, "multi")
+            or definition.get("impact") is not None or context.get("impact_analysis") is not None):
+        return False
+    references = definition.get("metrics")
+    if not isinstance(references, list) or not references:
+        return False
+    keys = [reference_key(item) for item in references]
+    return all(keys) and len({key[0] for key in keys}) >= 2
+
+
 def review_choices(db, user, workspace, *, search="", offset=0):
     query = db.query(Decision).filter(decision_scope(user, workspace), canonical_decisions(),
-        Decision.status.notin_({"archived", "cancelled"}), Decision.action.isnot(None))
+        Decision.status.notin_({"archived", "cancelled"}), Decision.action.isnot(None),
+        Decision.recommendation_context.isnot(None))
     if search:
         query = query.filter(Decision.title.ilike(f"%{search}%"))
-    rows = query.order_by(Decision.created_at.desc(), Decision.id.desc()).offset(offset).limit(26).all()
-    return {"decisions": [{"id": row.id, "title": row.title} for row in rows[:25] if not is_report_decision_draft(row) and row.action.strip()],
-            "next_offset": offset + 25 if len(rows) > 25 else None}
+    query = query.order_by(Decision.created_at.desc(), Decision.id.desc())
+    choices = []
+    # Scan bounded batches until the page is full; excluded records must not hide later choices.
+    while True:
+        rows = query.offset(offset).limit(100).all()
+        for index, row in enumerate(rows):
+            if not row.action.strip() or is_report_decision_draft(row) or not has_multi_dataset_analysis(row):
+                continue
+            if len(choices) == 25:
+                return {"decisions": choices, "next_offset": offset + index}
+            choices.append({"id": row.id, "title": row.title})
+        if len(rows) < 100:
+            return {"decisions": choices, "next_offset": None}
+        offset += len(rows)
 
 
 def attach_review_target(report, db, user, workspace):

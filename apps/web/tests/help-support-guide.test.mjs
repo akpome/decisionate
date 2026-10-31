@@ -68,6 +68,7 @@ test("report timing guidance matches the 52-observation daily default and pair-s
   assert.match(text, /New multi dataset reports open with Explore relationships/)
   assert.match(text, /Business impact analysis is a separate optional analysis type/)
   assert.match(text, /Edit decision pencil beside Decision to review/)
+  assert.match(text, /Decision to review lists only active decisions with a recorded action and saved multi-dataset analysis evidence/)
   assert.match(text, /Business impact analysis derives its title and question from the selected decision/)
   assert.match(text, /Analyze business impact runs the assessment and opens its preview without saving or creating a decision/)
   assert.match(text, /no relationship shortcuts inside the assessment form/)

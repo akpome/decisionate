@@ -96,6 +96,12 @@ class DecisionImpactReviewTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/v2/business-reports/weekly-settings").status_code, 200)
 
     def test_choices_and_prefill_reuse_existing_action_outcome_and_revision_without_loading_files(self):
+        with self.Session() as db:
+            db.get(Decision, self.decision_id).recommendation_context = json.dumps({
+                "evidence_kind": "business_report", "report_id": "original-correlation",
+                "definition": {"scope": "multi", "metrics": self.definition["metrics"]},
+            })
+            db.commit()
         with patch.object(router, "load_dataframe_from_dataset", side_effect=AssertionError("No source scans")):
             choices = self.client.get("/api/v2/business-reports/review-decisions").json()
             self.assertEqual([item["id"] for item in choices["decisions"]], [self.decision_id])
