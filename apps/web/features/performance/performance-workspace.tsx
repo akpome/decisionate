@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeft, Check, LoaderCircle, Play, Plus, Save, Target, Trash2, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, LoaderCircle, Play, Plus, Save, Target, Trash2, X } from "lucide-react"
 import { SearchableSelect } from "@/components/searchable-select"
 import { correlationRequest } from "@/lib/api"
 import { AnalysisTools } from "@/features/reports/analysis-tools"
@@ -16,6 +16,21 @@ import { blankItem, isMoneyDefinition, missingSetup, newPerformance, performance
 
 type History = { analyses: { analysis_id: string; name: string; created_at: string }[]; next_offset: number | null }
 type DecisionDraft = { title: string; action: string; expected_outcome: string; review_date: string }
+
+function WrappingSelect({ label, value, options, onChange }: {
+  label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void
+}) {
+  return <label className="block min-w-0 text-xs font-medium text-gray-600">{label}
+    <span className="relative mt-1 block h-14 rounded-md border border-gray-300 bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100">
+      <select aria-label={label} className="peer absolute inset-0 h-full w-full opacity-0" value={value} onChange={event => onChange(event.target.value)}>
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center gap-2 px-3 py-2 text-sm font-normal leading-5 text-gray-950 peer-disabled:opacity-50">
+        <span className="min-w-0 flex-1 break-words">{options.find(option => option.value === value)?.label}</span><ChevronDown size={16} className="shrink-0" />
+      </span>
+    </span>
+  </label>
+}
 
 export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canManage, canDecide }: {
   kind: ToolKind; userId: string; workspaceId?: string; canSave: boolean; canManage: boolean; canDecide: boolean
@@ -99,6 +114,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
   }
   function reset() { change(newPerformance(kind)); setLayout("one"); setView("setup") }
   const setupIssue = missingSetup(definition), returns = kind === "return", context = { userId, workspaceId }
+  const sourceQuestion = `Where are your revenue and ${returns ? "spending" : "costs"} figures stored?`
   return <div className="min-w-0 space-y-5" aria-busy={busy}>
     <header className="border-b border-gray-200 pb-4"><h1 className="text-2xl font-semibold">Business Analysis</h1></header>
     <AnalysisTools active={kind} />
@@ -130,24 +146,38 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
     {view === "setup" && <form onSubmit={event => { event.preventDefault(); void preview() }}>
       <fieldset disabled={busy} className="min-w-0 space-y-6">
         {isMoneyDefinition(definition) ? <>
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="text-xs font-medium text-gray-600">Data layout<select aria-label="Data layout" className={field} value={layout} onChange={event => {
-            const next = event.target.value as typeof layout
-            if (definition.items.some(item => item.revenue.metric_key || item.costs.some(cost => cost.metric_key)) && !window.confirm("Change the data layout and clear the selected amounts?")) return
+        <div className="grid min-w-0 items-end gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="min-w-0 sm:col-span-3 lg:col-span-2"><WrappingSelect label={sourceQuestion} value={layout} options={[
+            { value: "one", label: "Both in the same dataset" },
+            { value: "separate", label: `Revenue and ${returns ? "spending" : "costs"} in different datasets` },
+          ]} onChange={value => {
+            const next = value as typeof layout
+            if (definition.items.some(item => item.revenue.metric_key || item.costs.some(cost => cost.metric_key)) && !window.confirm(`Change the source selection and clear your selected revenue and ${returns ? "spending" : "costs"}?`)) return
             setLayout(next); change({ ...definition, group_column: null, items: next === "one" ? [blankItem("Business")] : [blankItem("Comparison 1"), blankItem("Comparison 2")] })
-          }}><option value="one">Amounts in one dataset</option><option value="separate">Amounts in separate datasets</option></select></label>
+          }} /></div>
           <label className="text-xs font-medium text-gray-600">From<input className={field} type="date" required value={definition.date_range.start} onChange={event => change({ ...definition, date_range: { ...definition.date_range, start: event.target.value } })} /></label>
           <label className="text-xs font-medium text-gray-600">To<input className={field} type="date" required min={definition.date_range.start} value={definition.date_range.end} onChange={event => change({ ...definition, date_range: { ...definition.date_range, end: event.target.value } })} /></label>
           <label className="text-xs font-medium text-gray-600">Currency<select className={field} value={definition.currency} onChange={event => change({ ...definition, currency: event.target.value })}>{["CAD", "USD", "EUR", "GBP", "AUD", "NZD", "JPY", "INR", "NGN", "ZAR", "BRL", "MXN", "SGD", "CHF"].map(code => <option key={code}>{code}</option>)}</select></label>
         </div>
         <div className="border-t border-gray-200 pt-5">{layout === "one" ? <SingleDatasetSetup context={context} definition={definition} onChange={change} /> : <SeparateDatasetSetup context={context} definition={definition} onChange={change} />}</div>
         <div className="space-y-4 border-t border-gray-200 pt-5">
-          {returns && <label className="block max-w-xl text-xs font-medium text-gray-600">How is revenue linked to spending?<select className={field} value={definition.revenue_basis} onChange={event => change({ ...definition, revenue_basis: event.target.value as PerformanceDefinition["revenue_basis"] })}>
-            <option value="assigned_sales">Sales assigned once, using the same rule</option><option value="platform_reported">Each platform reports its own sales</option>
-          </select></label>}
-          <label className="flex max-w-4xl items-start gap-3 text-sm leading-6"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={definition.amounts_confirmed} onChange={event => setDefinition({ ...definition, amounts_confirmed: event.target.checked })} />
-            <span>The records cover these dates and use {definition.currency}. Revenue accounts for refunds and discounts, excludes tax, and {returns && definition.revenue_basis === "platform_reported" ? "costs are not counted twice." : "sales and costs are not counted twice."}{returns && definition.revenue_basis === "assigned_sales" && " The same rule assigns sales to each channel."}</span>
-          </label>
+          {returns && <div className="max-w-xl"><WrappingSelect label="Where do your revenue figures come from?" value={definition.revenue_basis} options={[
+            { value: "assigned_sales", label: "Sales records with one channel per sale" },
+            { value: "platform_reported", label: "Each ad platform's own sales figures" },
+          ]} onChange={value => change({ ...definition, revenue_basis: value as PerformanceDefinition["revenue_basis"] })} /></div>}
+          <div className="max-w-4xl space-y-2 text-sm leading-6">
+            <label className="flex items-start gap-3"><input type="checkbox" aria-describedby="performance-record-checks" className="mt-1 h-4 w-4 shrink-0" checked={definition.amounts_confirmed} onChange={event => setDefinition({ ...definition, amounts_confirmed: event.target.checked })} />
+              <span>I have checked the following:</span>
+            </label>
+            <ul id="performance-record-checks" className="ml-7 list-disc space-y-1 pl-4">
+              <li>The records cover the selected dates and all amounts are in {definition.currency}.</li>
+              <li>Revenue has refunds, discounts and tax removed.</li>
+              <li>{returns ? "Spending is counted only once." : "Sales and costs are counted only once."}</li>
+              {returns && <li>{definition.revenue_basis === "assigned_sales"
+                ? "Each sale is counted once, under only one channel. All channels use the same tracking method."
+                : "I understand that the same sale may appear in more than one platform's report."}</li>}
+            </ul>
+          </div>
         </div>
         </> : <>
           <GrowthSetup definition={definition} onChange={change} context={context} />

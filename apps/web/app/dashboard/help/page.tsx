@@ -104,7 +104,7 @@ const faqItems = [
   },
   {
     question: "Which advertising platform gave me better value for past spending?",
-    answer: "Open Business Analysis, then Return on spend. Choose historical dates, revenue and spending, and compare channels in one dataset or named comparisons from separate datasets. Revenue per dollar uses total recorded revenue divided by total spend. Sales must be assigned once using the same rule for a fair ranking; platform-reported sales are shown without an overall winner. Missing amounts are not zero, and the tool does not infer attribution from total store revenue. Preview before saving. For products or services, Profitability shows money left after selected costs, not automatically net profit.",
+    answer: "Open Business Analysis, then Return on spend. Choose historical dates, revenue and spending, and compare channels in one dataset or named comparisons from separate datasets. Revenue per dollar uses total recorded revenue divided by total spend. For a fair ranking, each sale must belong to only one channel, with the same tracking method used across channels. Each ad platform's own sales figures are shown separately because the same sale may appear in several reports. Missing amounts are not zero, and the tool does not infer attribution from total store revenue. Preview before saving. For products or services, Profitability shows money left after selected costs, not automatically net profit.",
   },
   {
     question: "How can I compare where to spend my budget?",
@@ -451,15 +451,15 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Compare past spending with revenue",
         steps: [
-          "Choose Return on spend, historical dates and currency. With one dataset, select revenue, spend and a Compare by column such as channel. With separate datasets, name each comparison and select its revenue and spending sources; dimension filters can isolate the relevant rows.",
-          "Choose whether the records are daily totals, monthly totals or individual transactions. Confirm completeness and how sales were assigned. Do not count the same store revenue against every channel. Platform-reported sales can overlap, so those comparisons do not declare an overall winner.",
+          "Choose Return on spend, historical dates and currency. Answer Where are your revenue and spending figures stored? Choose Both in the same dataset to select revenue, spending and a Compare by column such as channel. Choose Revenue and spending in different datasets to name each comparison and select its revenue and spending sources; dimension filters can isolate the relevant rows.",
+          "Choose whether the records are daily totals, monthly totals or individual transactions. Answer Where do your revenue figures come from? Use Sales records with one channel per sale when each sale belongs to only one channel and all channels use the same tracking method. Use Each ad platform's own sales figures for separate platform reports; the same sale may appear in several reports, so no overall winner is declared. Check the dates, currency, refunds, discounts, tax and spending before confirming.",
           "Choose Compare results. Revenue per dollar is total recorded revenue divided by total spending, not profit or proof the advertising caused the sales. Review missing-data notes and the period used; this tool does not shift sales by a delay. Save comparison after preview, then Create decision when you are ready to record an action.",
         ],
       },
       {
         title: "Compare money left after costs",
         steps: [
-          "Choose Profitability. Select revenue and non-overlapping total cost columns, the period and currency. Compare by a product, service or location when that column is available.",
+          "Choose Profitability, the period and currency. Answer Where are your revenue and costs figures stored? Choose Both in the same dataset or Revenue and costs in different datasets, then select revenue and non-overlapping total cost columns. Compare by a product, service or location when that column is available.",
           "Use total costs for the quantities sold, not unit prices. Do not select both a cost total and its components. Confirm coverage and preview the comparison.",
           "Money left subtracts selected costs from revenue; margin expresses it as a share of positive revenue. Unselected costs are not included, so this is not automatically net profit. Review negative results and missing amounts before saving or creating a decision.",
         ],

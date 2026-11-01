@@ -6,22 +6,26 @@ Open Business Analysis and choose Return on spend to compare revenue earned
 for each dollar already spent.
 
 1. Set From, To and Currency for the period you want to review.
-2. Choose Data layout. For Amounts in one dataset, select the dataset,
+2. Answer Where are your revenue and spending figures stored? For Both in the same dataset, select the dataset,
    Revenue amount and Spending amount. Use Compare by to compare channels,
-   campaigns or another category. For Amounts in separate datasets, name each
+   campaigns or another category. For Revenue and spending in different datasets, name each
    comparison and select its Revenue and Spending sources. Add comparison
    adds another channel or business to compare.
 3. Review Date column and Records contain for each source. Choose a dimension
    filter when you want only a particular channel, product or location.
-4. In How is revenue linked to spending?, choose the option that matches your
-   records. Confirm the dates, currency and amounts only after checking them.
+4. Answer Where do your revenue figures come from? Choose Sales records with one
+   channel per sale or Each ad platform's own sales figures. Check the confirmation
+   list: dates and currency match, revenue has refunds, discounts and tax removed,
+   and spending is counted once. For your sales records, each sale is counted
+   once under one channel and every channel uses the same tracking method. With ad-platform
+   figures, acknowledge that the same sale may appear in more than one report.
 5. Choose Compare results. Review revenue per dollar, spending and any missing
    data warnings. Choose Save comparison after reviewing the preview. Create
    decision is then available if you want to record an action and review date.
 
 For example, 300 dollars of revenue divided by 100 dollars of spending gives
 3 dollars of revenue per dollar spent. This is revenue return, not profit.
-For a fair channel ranking, assign each sale once using the same rule. Do not
+For a fair channel ranking, each sale must be counted once under one channel, with the same tracking method used for every channel. Do not
 give every channel the store's entire revenue. Independently platform-reported
 sales can still be shown separately, but without declaring an overall winner.
 
@@ -29,15 +33,16 @@ sales can still be shown separately, but without declaring an overall winner.
 
 Open Business Analysis and choose Profitability to see money left after costs.
 
-1. Set From, To and Currency, then choose whether the amounts are in one dataset
-   or separate datasets.
+1. Set From, To and Currency. Answer Where are your revenue and costs figures stored?
+   Choose Both in the same dataset or Revenue and costs in different datasets.
 2. Select Revenue amount and the relevant Cost amount columns. Add another cost
    includes another non-overlapping total cost. Do not count a total and its
    components twice, or use unit cost as the total cost of all items sold.
 3. For one dataset, use Compare by for products, services or locations. With
    separate datasets, name each comparison and choose its revenue and costs.
    Review the date columns, record type and any dimension filters.
-4. Confirm the records and choose Compare results. Read both money left and
+4. Check the confirmation list: dates and currency match, revenue has refunds,
+   discounts and tax removed, and sales and costs are counted once. Choose Compare results. Read both money left and
    margin, along with any warnings about incomplete records.
 5. Review the preview before Save comparison. Create decision records an action
    after saving; it does not change prices or source data.
@@ -114,9 +119,9 @@ then Return on spend. This compares money already spent
 with recorded revenue, not a future budget. It is available for any eligible
 source, not only Meta, Google or Shopify.
 
-Choose the historical dates and currency. With amounts in one dataset, choose
+Choose the historical dates and currency. With Both in the same dataset, choose
 the revenue and spending columns and Compare by, such as channel or campaign.
-With separate datasets, name each comparison and select its own revenue and
+With Revenue and spending in different datasets, name each comparison and select its own revenue and
 spending amounts. A dimension filter can select the channel's sales from a
 shared sales dataset. Do not assign the entire store's revenue to every channel.
 
@@ -131,9 +136,10 @@ proof of incremental sales caused by advertising. Refunds and discounts should
 already be accounted for in revenue, with tax excluded. All amounts must use
 the same currency. Decisionate does not convert currencies here.
 
-Sales assigned once using the same rule can be compared. With Each platform
-reports its own sales, returns are displayed separately without an overall
-winner because platforms can claim the same sale under different rules.
+Choose Sales records with one channel per sale when each sale belongs to only
+one channel and every channel uses the same tracking method. With Each ad
+platform's own sales figures, returns are displayed separately without an overall
+winner because the same sale may appear in more than one platform's report.
 This release does not infer attribution from total store revenue or estimate
 historical channel contributions from a model. Missing revenue links must be
 resolved in the source records before a fair return comparison is available.

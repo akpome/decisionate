@@ -66,7 +66,7 @@ test("Business Analysis is the documented analysis entry and date and dimension 
 test("all business tools have focused setup guidance and current decision entry labels", () => {
   const text = chapter("analysis")
   for (const label of ["Analysis tool dropdown", "Return on spend", "Profitability", "Customer retention", "Sales conversion", "Cash flow planning", "Budget Planner", "Assess a recorded business change"]) assert.ok(text.includes(label), label)
-  for (const limit of ["not automatically net profit", "Too early to tell", "same people or opportunities", "Week-end balances", "Platform-reported sales can overlap"]) assert.ok(text.includes(limit), limit)
+  for (const limit of ["not automatically net profit", "Too early to tell", "same people or opportunities", "Week-end balances", "same sale may appear in several reports"]) assert.ok(text.includes(limit), limit)
   assert.match(chapter("decisions"), /Create decision opens the form/)
   assert.match(chapter("decisions"), /Continue decision reopens an unfinished decision/)
   assert.doesNotMatch(source, /Decision draft link|Decision draft opens/)

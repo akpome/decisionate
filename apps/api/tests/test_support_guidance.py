@@ -53,7 +53,7 @@ class GuidanceTests(unittest.TestCase):
         network.assert_not_called()
         self.assertEqual(result.mode, "documentation")
         self.assertEqual(result.sources[0].route, "/dashboard/reports/returns")
-        for step in ("1. Set From, To and Currency", "2. Choose Data layout", "3. Review Date column", "4. In How is revenue linked", "5. Choose Compare results", "Save comparison"):
+        for step in ("1. Set From, To and Currency", "2. Answer Where are your revenue and spending figures stored?", "3. Review Date column", "4. Answer Where do your revenue figures come from?", "5. Choose Compare results", "Save comparison"):
             self.assertIn(step, result.answer)
         self.assertNotIn("I cannot confirm", result.answer)
         self.assertFalse(result.contact_support)

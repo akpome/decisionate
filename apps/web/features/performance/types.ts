@@ -88,7 +88,7 @@ export function missingSetup(value: ToolDefinition) {
   if (value.items.some(item => !item.name.trim())) return "Name each comparison."
   if (value.items.some(item => [item.revenue, ...item.costs].some(source => !source.dataset_id || !source.metric_key || !source.date_column))) return "Choose a dataset, date column and amount for revenue and costs."
   if (value.items.some(item => [item.revenue, ...item.costs].some(source => source.dimension_filter && !source.dimension_filter.values.length))) return "Choose a value for each selected filter."
-  if (!value.amounts_confirmed) return "Confirm the amounts and coverage below."
+  if (!value.amounts_confirmed) return "Confirm that you have checked these figures."
   return ""
 }
 export const performancePath = (kind: ToolKind) => `/dashboard/reports/${{ return: "returns", profit: "profitability", retention: "retention", conversion: "conversion", cashflow: "cash-flow" }[kind]}`

@@ -94,10 +94,10 @@ def calculate(frames, definition: PerformanceDefinition):
         "name": f"{title}: {definition.date_range.start} to {definition.date_range.end}",
         "generated_at": pd.Timestamp.now(tz="UTC").isoformat(), "headline": "Complete the records to compare results.",
         "next_action": "Check the notes beside each result.", "winner": None,
-        "basis": "Sales assigned using your selected records." if definition.revenue_basis == "assigned_sales" else "Sales reported by each platform; the same sale may be claimed more than once.",
+        "basis": "Each sale is credited to one channel in your sales records." if definition.revenue_basis == "assigned_sales" else "Sales come from each ad platform's own report. The same sale may appear in more than one report.",
         "limitations": ["Historical recorded amounts, not a forecast or proof of what caused sales.",
             "Spending and sales use the same dates. Delayed sales outside these dates are not included.",
-            "Revenue must exclude tax and account for discounts and refunds consistently.",
+            "Use revenue after refunds and discounts, with tax removed.",
             "All amounts use the selected currency. No currency conversion is applied."]}
     if definition.kind == "profit":
         result["limitations"].append("Money left is revenue minus selected costs, not net profit unless all relevant costs are included.")
@@ -176,6 +176,6 @@ def calculate(frames, definition: PerformanceDefinition):
         else:
             result["headline"] = "The leading results are tied at the displayed precision."
     if result["status"] == "ready" and definition.kind == "return" and definition.revenue_basis == "platform_reported":
-        result["headline"] = "Platform-reported returns are shown separately, without an overall winner."
-        result["next_action"] = "Use sales assigned once under the same rule to make a fair comparison across platforms."
+        result["headline"] = "Each ad platform's sales figures are shown separately, without an overall winner."
+        result["next_action"] = "To compare channels fairly, use sales records that credit each sale to one channel, with the same tracking method across channels."
     return result
