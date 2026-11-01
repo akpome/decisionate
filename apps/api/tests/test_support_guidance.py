@@ -42,6 +42,88 @@ def configured(key="test-key"):
 
 
 class GuidanceTests(unittest.TestCase):
+    def test_business_questions_retrieve_answerable_sections_for_every_tool(self):
+        root = Path(__file__).resolve().parents[3]
+        cases = json.loads((root / "docs/knowledge-base/analysis-question-coverage.json").read_text())["cases"]
+        self.assertEqual({case["tool"] for case in cases}, {
+            "navigation", "guidance", "compare-metrics", "relationships", "business-impact",
+            "return-on-spend", "profitability", "retention", "conversion", "cash-flow",
+            "budget-planner", "forecasts", "anomalies", "weekly-reports", "dashboards",
+            "dimension-filters", "entity-matching", "report-results", "saved-results", "decisions",
+        })
+        for case in cases:
+            for question in case["questions"]:
+                with self.subTest(case=case["id"], question=question):
+                    records = knowledge.retrieve(question)
+                    self.assertIn(case["chunk_id"], [record["chunk_id"] for record in records[:3]])
+                    answer = guidance.selected_documentation({"coverage": "supported", "source_ids": [case["chunk_id"]]}, records)
+                    self.assertIn(answer.sources[0].content, answer.answer)
+                    self.assertEqual(answer.sources[0].chunk_id, case["chunk_id"])
+                    self.assertLessEqual(len(answer.answer), 6000)
+
+    def test_every_customer_section_fits_a_single_approved_answer(self):
+        for record in knowledge.load_knowledge():
+            with self.subTest(chunk=record["chunk_id"]):
+                answer = guidance.selected_documentation({"coverage": "supported", "source_ids": [record["chunk_id"]]}, [record])
+                self.assertIn(guidance.source(record).content, answer.answer)
+
+    def test_section_questions_help_retrieval_but_are_never_answer_prose(self):
+        record = dict(knowledge.load_knowledge()[0], questions=["zetaquasar zebraphoton"], section_questions=[])
+        with patch.object(knowledge, "load_knowledge", return_value=[record]):
+            self.assertEqual(knowledge.retrieve("zetaquasar zebraphoton"), [])
+        record["section_questions"] = ["zetaquasar zebraphoton"]
+        other = dict(record, chunk_id="other:section", section_questions=[])
+        with patch.object(knowledge, "load_knowledge", return_value=[record, other, other, other]):
+            records = knowledge.retrieve("zetaquasar zebraphoton")
+        self.assertEqual(records, [record])
+        answer = guidance.selected_documentation({"coverage": "supported", "source_ids": [record["chunk_id"]]}, records)
+        self.assertNotIn("zetaquasar", answer.answer)
+
+    def test_packaged_section_questions_reject_malformed_or_unbounded_hints(self):
+        record = knowledge.load_knowledge()[0]
+        for questions in ("not a list", [None], [""], ["x" * 301], ["Question?"] * 13):
+            with self.subTest(questions=questions):
+                raw = json.dumps(dict(record, section_questions=questions))
+                knowledge.load_knowledge.cache_clear()
+                try:
+                    with patch.object(knowledge, "CORPUS", SimpleNamespace(read_text=lambda **kwargs: raw)):
+                        with self.assertRaisesRegex(ValueError, "Invalid section questions"):
+                            knowledge.load_knowledge()
+                finally:
+                    knowledge.load_knowledge.cache_clear()
+
+    def test_current_starters_retrieve_focused_documentation_and_working_destinations(self):
+        for question, section, route in [
+            ("Which analysis tool should I use?", "Which analysis tool should I use?", "/dashboard/reports"),
+            ("Which channel gave me more revenue per dollar spent?", "Which advertising platform gave better value for my money?", "/dashboard/reports/returns"),
+            ("Where is Business impact and how do I use it?", "Where is Business impact and how do I use it?", "/dashboard/reports/impact"),
+            ("Are my customers coming back to buy again?", "Are customers coming back?", "/dashboard/reports/retention"),
+            ("Which products leave the most money after costs?", "Which products or services leave the most money?", "/dashboard/reports/profitability"),
+            ("Where are potential sales being lost?", "Where are potential sales being lost?", "/dashboard/reports/conversion"),
+            ("When might cash run short?", "When might cash run short?", "/dashboard/reports/cash-flow"),
+        ]:
+            with self.subTest(question=question):
+                records = knowledge.retrieve(question)
+                self.assertEqual(records[0]["section"], section)
+                self.assertEqual(guidance.source(records[0]).route, route)
+                with configured(""), patch.object(guidance, "urlopen") as network:
+                    answer = guidance.answer_guidance(GuidanceRequest(question=question))
+                network.assert_not_called()
+                self.assertEqual(answer.sources[0].route, route)
+                self.assertIn(guidance.source(records[0]).content, answer.answer)
+
+    def test_moved_impact_guidance_is_approved_prose_without_account_claims(self):
+        records = knowledge.retrieve("Where is Business impact and how do I use it?")
+        with configured(), patch.object(guidance, "urlopen", return_value=FakeResponse({
+            "coverage": "supported", "source_ids": [records[0]["chunk_id"]],
+        })):
+            response = guidance.answer_guidance(GuidanceRequest(question="Where is Business impact and how do I use it?"))
+        self.assertEqual(response.mode, "ai")
+        self.assertIn("Open Business Analysis", response.answer)
+        self.assertIn("Save assessment to decision", response.answer)
+        self.assertIn("not a guarantee of cause and effect", response.answer)
+        self.assertEqual(response.sources[0].route, "/dashboard/reports/impact")
+
     def test_historical_return_and_profit_questions_retrieve_their_own_workflow(self):
         for question in ("Which advertising platform gave me more revenue per dollar spent?",
                          "Which products or services leave the most money after costs?",

@@ -56,10 +56,10 @@ const gettingStartedItems = [
   },
   {
     id: "analysis",
-    title: "Compare datasets in Business Analysis",
-    description: "Connect selected metrics across sources to answer a business question.",
+    title: "Choose a tool in Business Analysis",
+    description: "Compare results, check a business change, or review customers, sales and cash.",
     href: "/dashboard/reports",
-    action: "Open reports",
+    action: "Open Business Analysis",
   },
   {
     id: "decision",
@@ -78,6 +78,18 @@ const gettingStartedItems = [
 ] as const
 
 const faqItems = [
+  {
+    question: "Which analysis tool should I use?",
+    answer: "In Business Analysis, choose Compare metrics for trends and relationships, Business impact to assess a recorded change, Return on spend for recorded revenue per dollar, Profitability for money left after costs, Customer retention for repeat purchases, Sales conversion for sales steps, or Cash flow planning for scheduled receipts and payments. Budget Planner is a separate page for future spending choices; Weekly Reports is for recurring monitoring. On smaller screens, use the Analysis tool dropdown.",
+  },
+  {
+    question: "Where is Business impact now?",
+    answer: "Open Business Analysis and choose Business impact. It is no longer a separate sidebar page. Select an eligible decision, enter when its action was implemented, and choose an unaffected comparison. Review Assessment preview before Save assessment to decision. Existing links, saved assessments and decision history remain available. This evaluates an existing decision; it does not create another decision or change Weekly Reports.",
+  },
+  {
+    question: "Can Ask Decisionate check my results or change my account?",
+    answer: "No. Ask Decisionate explains the approved product documentation and shows its sources. It does not inspect your datasets, calculate your channel winner, change settings or execute actions. Run the relevant tool in your workspace for your results. When the documentation does not answer a question, it should state the limitation rather than invent an answer. Use Contact support for account-specific help, without sharing credentials or private records.",
+  },
   {
     question: "How can I tell whether customers are coming back?",
     answer: "Open Business Analysis and choose Customer retention. Select completed purchase records, the date, customer ID and purchase ID columns. Choose the dates and give customers 30, 60 or 90 days to return. Only customers with enough follow-up enter the repeat-purchase rate; newer customers are shown as too early to tell. The first purchase means first in the available filtered history, not necessarily first-ever. Customer identifiers are not shown in the result.",
@@ -141,7 +153,7 @@ const faqItems = [
   {
     question: "How do recommendations become decisions?",
     answer:
-      "Review the evidence, then open Decisions to create a decision. Select a saved cross-dataset report to retain its business question, selected metrics, and findings. A report's Decision draft link opens the decision workflow; previewing or saving a report does not itself record a business action. Rename the generated decision name to describe the action.",
+      "Review the evidence, then choose Create decision from a Business Analysis or Weekly Reports result, or open Decisions and attach the saved report. Saved comparisons and budget plans also offer Create decision. The form retains the selected evidence; previewing or saving alone does not record a business action. Continue decision reopens an existing unfinished decision. Name the decision for the action you will take.",
   },
   {
     question: "How does Decisionate learn from outcomes?",
@@ -426,8 +438,64 @@ const referenceChapters: ReferenceChapter[] = [
     id: "reference-analysis",
     title: "7. Business Analysis, reports, and forecasts",
     summary:
-      "Business Analysis contains single- and multi-dataset analysis: choose metrics, dates, and dimension filters, review the findings, and save a report snapshot. Multi dataset report opens by default. Forecasts remains a separate forward-looking workflow; old Insights links redirect to Business Analysis.",
+      "Business Analysis brings together metric comparisons, business impact, spending returns, profitability, repeat purchases, sales conversion and cash planning. Choose the tool that matches your question, preview the result, then save. Multi dataset report opens by default under Compare metrics. Weekly Reports, Budget Planner and Forecasts remain separate; old Insights links redirect to Business Analysis.",
     howTos: [
+      {
+        title: "Choose the right analysis tool",
+        steps: [
+          "Open Business Analysis. Choose a tool along the top, or use the Analysis tool dropdown on smaller screens. Each tool keeps its own setup and saved results.",
+          "Compare metrics checks trends, unusual changes and relationships. Business impact checks an existing decision. Return on spend, Profitability, Customer retention, Sales conversion and Cash flow planning answer the specific questions below.",
+          "Use Budget Planner for future spending choices, Weekly Reports for recurring monitoring, and Forecasts for projected metric values. These remain separate pages in the Analysis sidebar group.",
+        ],
+      },
+      {
+        title: "Compare past spending with revenue",
+        steps: [
+          "Choose Return on spend, historical dates and currency. With one dataset, select revenue, spend and a Compare by column such as channel. With separate datasets, name each comparison and select its revenue and spending sources; dimension filters can isolate the relevant rows.",
+          "Choose whether the records are daily totals, monthly totals or individual transactions. Confirm completeness and how sales were assigned. Do not count the same store revenue against every channel. Platform-reported sales can overlap, so those comparisons do not declare an overall winner.",
+          "Choose Compare results. Revenue per dollar is total recorded revenue divided by total spending, not profit or proof the advertising caused the sales. Review missing-data notes and the period used; this tool does not shift sales by a delay. Save comparison after preview, then Create decision when you are ready to record an action.",
+        ],
+      },
+      {
+        title: "Compare money left after costs",
+        steps: [
+          "Choose Profitability. Select revenue and non-overlapping total cost columns, the period and currency. Compare by a product, service or location when that column is available.",
+          "Use total costs for the quantities sold, not unit prices. Do not select both a cost total and its components. Confirm coverage and preview the comparison.",
+          "Money left subtracts selected costs from revenue; margin expresses it as a share of positive revenue. Unselected costs are not included, so this is not automatically net profit. Review negative results and missing amounts before saving or creating a decision.",
+        ],
+      },
+      {
+        title: "Check whether customers buy again",
+        steps: [
+          "Choose Customer retention and a completed-purchase dataset. Select its purchase-date column, customer ID and unique purchase ID. Optionally filter by a dimension such as store. Exclude cancelled purchases and confirm coverage.",
+          "Set First recorded purchases from, History through and Time to buy again: 30, 60 or 90 days. A purchase with several line items counts once when its purchase ID is the same.",
+          "Preview the repeat-purchase results by first-purchase month. Only customers with the full follow-up period count in the rate. Too early to tell does not mean a customer is lost. These are first purchases in the available records, not necessarily first-ever purchases. Save after reviewing the results.",
+        ],
+      },
+      {
+        title: "Find where potential sales stop progressing",
+        steps: [
+          "Choose Sales conversion and one dataset. Select the dates and add two to five ordered count columns, such as Enquiries, Quotes and Sales. Use Compare by to compare groups when appropriate.",
+          "Confirm that the steps count the same people or opportunities once at each step and use the same follow-up period. Unrelated totals of website visits and orders are not automatically a valid sales journey.",
+          "Preview the final-step rate and the largest drop-off. A later step larger than an earlier one needs correcting; it is not forced into a percentage. A drop-off points to an area to investigate, not its cause or guaranteed recoverable sales. Review the result before saving.",
+        ],
+      },
+      {
+        title: "Plan cash from expected receipts and payments",
+        steps: [
+          "Choose Cash flow planning and one payment schedule. Select the expected-payment date, money-in and money-out columns in one currency. Enter starting cash, a start date and 4, 8, 13 or 26 weeks.",
+          "Include the obligations you need to plan, such as payroll, tax and supplier payments. Booked revenue is not cash received. Use explicit zeros when a row has no receipt or payment, and confirm the schedule's completeness.",
+          "Optionally open Cash buffer and what-if changes to set a minimum balance, change receipt or payment amounts, or delay receipts. Preview the planned weekly balance against the original schedule, then save. Week-end balances can miss a shortfall within the week. No payment is made or rescheduled by this tool.",
+        ],
+      },
+      {
+        title: "Plan future spending",
+        steps: [
+          "Open Budget Planner in the sidebar. Choose one result, the spending options, the total budget and the planning period. Options may come from separate datasets or dimension values in one dataset.",
+          "Preview budget checks whether there are at least 104 complete matching weeks and recent enough data. Weak evidence withholds an allocation instead of inventing a spending split.",
+          "A supported preview compares the recent mix with a suggested test using the same budget. Review the limits, save the plan, then Create Decision to record an action. For what past spending returned, use Return on spend instead. The planner does not change real budgets.",
+        ],
+      },
       {
         title: "Analyze metrics and findings",
         steps: [
@@ -437,16 +505,21 @@ const referenceChapters: ReferenceChapter[] = [
           "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
           "New multi dataset reports open directly with correlation controls. Relationship analysis is expanded, with the correlation method, Minimum matching days/weeks/months/quarters, delay and metric-pair controls. Business impact is a tool within Business Analysis, alongside Compare metrics and the other analysis tools. Saved reports retain their original type; old links open the appropriate page.",
           "Set Start, End and Group results by. Business has seasonal activity is under Unusual changes and applies to those checks, not to correlation. Missing history cannot be replaced by a wider date selection.",
+          "Choose Preview analysis and wait for the queued analysis to finish. Review metric movements, anomaly findings, relationship evidence, coverage, and limitations together in Analysis preview.",
+          "Exploratory report interpretation is requested automatically for each new preview. If the AI provider is unavailable or AI credits are exhausted, the report shows clearly labeled deterministic baseline rules instead. Business-change answers are calculated directly and do not need an external AI response. Opening a saved snapshot does not rerun AI.",
+          "Treat recommendations as prompts for review. Use Create decision in the result or open Decisions after confirming the source data and business context. Saving evidence does not itself record an action.",
+        ],
+      },
+      {
+        title: "Assess a recorded business change",
+        steps: [
           "Open Business Analysis and choose Business impact, or open a decision and choose Assess business impact. The tool has Assessment setup, Assessment preview and Saved assessments. Weekly Reports stays separate. Its action and outcome metric are reused. The outcome Date column is beside Outcome metric, preselected from the saved evidence. Enter the actual implementation date, then choose one unaffected comparison dataset and its result. The comparison Date column is beside Dimension column and one Unique value. History starts from the decision's source evidence or the start of shared data, whichever is later, and extends through the latest available date in both date columns, no later than yesterday in the reporting timezone. Grouping follows the source analysis; quarterly sources use weekly impact periods without changing the original lag units. If source metadata is missing, matching assessment history or outcome availability supplies the start, and timing or assessment grouping falls back to daily. The analysis period and grouping are read-only, with no editable Analysis settings. Minimum history requirements and unavailable-data warnings remain visible. Opening a saved snapshot does not change it; returning to Assessment setup prepares a new calculation with current shared dates. Weekly Reports has no assessment tab or setup form. The comparison provides the baseline for normal ups and downs; earlier records determine whether an extra yearly adjustment is supported, without a seasonal-business checkbox. Explain why the comparison was unaffected and check for other major changes. Save assessment to decision attaches the result to that same decision, without creating another decision or overwriting its recorded outcome or lessons.",
           "Timing from earlier analysis reuses reliable driver-to-outcome timing from the decision's original saved correlation. It must pass separate earlier-history checks, end before implementation, and match the outcome's date, aggregation, dimension filter and timezone. Choose the relevant earlier relationship if more than one qualifies; no arbitrary numeric delay is requested. Unknown timing does not become an assumed zero delay. The actual implementation date stays fixed, and early results count in the total. Early and later estimates are shown separately. Weekly impact needs at least 52 complete weeks before implementation and 8 complete later weeks after the timing reference date; daily needs 90 before and 28 later, monthly 24 before and 6 later. Too little later history says Waiting for enough results. These are model-based estimates, not a guaranteed causal delay. Weekly emails retain the timing and phase results.",
-          "The Edit decision pencil beside Decision to review opens the selected decision's details to update its action or outcome metric. Missing comparison or timing evidence stays visible as a warning; there are no relationship shortcuts inside the assessment form. Use the sidebar to change workflows. Open the earlier analysis is retained only when a specific evidence report is linked.",
+          "The Edit decision pencil beside Decision to review opens the selected decision's details to update its action or outcome metric. Missing comparison or timing evidence stays visible as a warning; there are no relationship shortcuts inside the assessment form. Use the tool selector to change analysis tools. Open the earlier analysis is retained only when a specific evidence report is linked.",
           "Decision to review lists only active decisions with a recorded action and saved multi-dataset analysis evidence. The original selected metrics must span at least two datasets. Single-dataset decisions and decisions without that source evidence are not offered. Existing decisions and saved assessments remain unchanged; reliable timing and a fair comparison are still required for an impact estimate.",
           "Business impact analysis derives its title and question from the selected decision, with the decision ID in the title. There is no Report details section to fill in. Automatic history stays within the API's maximum ten-year window. Analyze business impact runs the assessment and opens its preview without saving or creating a decision. Review the results before choosing Save assessment to decision. Existing saved snapshots stay unchanged.",
           "Improvement target is optional. Minimum worthwhile improvement uses the outcome metric's units: a total for values that can be added, or an average per period for other metrics. The estimated range is compared with the target. Costs, profit and break-even are not calculated.",
-          "Choose Preview analysis and wait for the queued analysis to finish. Review metric movements, anomaly findings, relationship evidence, coverage, and limitations together in Analysis preview.",
           "Business-change reports lead with a calculated answer: the change appears to have helped, worked against your goal, or remains unclear. A failed comparison produces no impact amount. The range and checks are explained in ordinary language; model-based evidence is not a randomized test or a guarantee of cause and effect.",
-          "Exploratory report interpretation is requested automatically for each new preview. If the AI provider is unavailable or AI credits are exhausted, the report shows clearly labeled deterministic baseline rules instead. Business-change answers are calculated directly and do not need an external AI response. Opening a saved snapshot does not rerun AI.",
-          "Treat recommendations as prompts for review. Create decisions from the Decisions page after confirming the source data and business context.",
         ],
       },
       {
@@ -600,8 +673,8 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Continue a report-linked decision",
         steps: [
-          "Open a saved report and look under Decisions and outcomes for its linked active decisions or an available Decision draft link.",
-          "Decision draft opens the decision workflow with that report's evidence. Review its selected metrics, record a concrete action and expected outcome, add reasoning and a review date where required, then explicitly save the decision.",
+          "Open a report and look under Decisions and outcomes for Create decision, Continue decision or linked active decisions. An unavailable action explains missing report coverage.",
+          "Create decision opens the form with the report's evidence; Continue decision reopens an unfinished decision. Review its selected metrics, record a concrete action and expected outcome, add reasoning and a review date where required, then explicitly save the decision.",
           "An earlier draft is not a completed decision. Continue the existing record when it represents the same action; updating a decision edits that record instead of requiring another decision with the same name.",
           "Use Manage decisions for the central Decisions page. Archived decisions remain in the report's separate archived-history section rather than being presented as active actions.",
         ],

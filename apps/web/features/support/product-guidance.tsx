@@ -9,9 +9,9 @@ type Message = GuidanceTurn & { id: number; response?: GuidanceResponse }
 type Props = { userId: string; workspaceId: string; onContactSupport: (message: string) => void }
 
 const starters = [
-  "How do I build a report across datasets?",
-  "Why is there insufficient relationship evidence?",
-  "How do seasonal forecasts work?",
+  "Which analysis tool should I use?",
+  "Which channel gave me more revenue per dollar spent?",
+  "Where is Business impact and how do I use it?",
 ]
 
 export function guidanceHistory(messages: GuidanceTurn[]): GuidanceTurn[] {
@@ -118,7 +118,7 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
         )}
         {messages.map(message => (
           <article key={message.id} className={message.role === "user" ? "border-l-2 border-blue-500 pl-3" : "space-y-2"}>
-            <p className="text-xs font-semibold text-gray-500">{message.role === "user" ? "You" : message.response?.mode === "ai" ? "Decisionate · AI answer" : "Decisionate · Documentation"}</p>
+            <p className="text-xs font-semibold text-gray-500">{message.role === "user" ? "You" : message.response?.mode === "ai" ? "Decisionate · Approved guidance" : "Decisionate · Documentation"}</p>
             <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
             {message.response?.sources.map(source => (
               <details key={source.chunk_id} className="border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
@@ -138,7 +138,7 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
       <form onSubmit={submit} className="mt-4">
         <label htmlFor="guidance-question" className="text-sm font-medium">Your question</label>
         <div className="mt-2 flex items-end gap-2">
-          <textarea ref={input} id="guidance-question" value={question} onChange={event => setQuestion(event.target.value)} maxLength={2000} rows={2} placeholder="Ask about reports, forecasts, connections or decisions" disabled={!userId || !workspaceId} className="min-h-20 min-w-0 flex-1 resize-y rounded-md border border-gray-300 bg-transparent p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" onKeyDown={event => {
+          <textarea ref={input} id="guidance-question" value={question} onChange={event => setQuestion(event.target.value)} maxLength={2000} rows={2} placeholder="What are you trying to understand or improve?" disabled={!userId || !workspaceId} className="min-h-20 min-w-0 flex-1 resize-y rounded-md border border-gray-300 bg-transparent p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" onKeyDown={event => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
               event.currentTarget.form?.requestSubmit()

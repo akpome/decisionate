@@ -33,6 +33,10 @@ def load_knowledge():
         if any(not re.fullmatch(r"/(?:dashboard(?:/[a-z0-9-]+)*|privacy|terms|security)", route)
                for route in record["routes"]):
             raise ValueError("Unapproved knowledge link")
+        questions = record.get("section_questions", [])
+        if (not isinstance(questions, list) or len(questions) > 12
+                or any(not isinstance(question, str) or not question.strip() or len(question) > 300 for question in questions)):
+            raise ValueError("Invalid section questions")
         seen.add(record["chunk_id"])
     return records
 
@@ -48,17 +52,19 @@ def retrieve(question, history=(), limit=5):
                 query.update(tokens(turn.content))
     if not query:
         return []
-    documents = [Counter(tokens(f"{r['title']} {r['section']} {' '.join(r['topics'])} {r['content']}")) for r in records]
+    # Article-wide questions are not evidence that every section answers them.
+    headings = [set(tokens(f"{r['title']} {r['section']} {' '.join(r.get('section_questions', []))}")) for r in records]
+    documents = [Counter(tokens(f"{r['title']} {r['section']} {' '.join(r['topics'])} {r['content']}"))
+                 + Counter(set(tokens(' '.join(r.get('section_questions', []))))) for r in records]
     frequencies = Counter(word for document in documents for word in document)
     average_length = sum(sum(document.values()) for document in documents) / len(documents)
     ranked = []
-    for record, document in zip(records, documents):
+    for record, document, heading in zip(records, documents, headings):
         matched = query & document.keys()
         if not matched or (len(query) > 1 and len(matched) < 2):
             continue
         score = 0.0
         length = sum(document.values())
-        heading = set(tokens(f"{record['title']} {record['section']}"))
         for word in matched:
             weight = math.log(1 + (len(records) - frequencies[word] + 0.5) / (frequencies[word] + 0.5))
             score += weight * document[word] * 2.2 / (document[word] + 1.2 * (0.25 + 0.75 * length / average_length))

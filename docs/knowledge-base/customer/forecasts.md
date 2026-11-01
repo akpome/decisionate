@@ -43,3 +43,33 @@ should not silently satisfy it with a different calculation. Preserve the
 selection, retry after a confirmed service recovery and escalate persistent
 unavailability. Forecasts were not moved into the Reports analysis-worker queue;
 healthy report-worker status alone does not verify forecasting.
+
+## How can I estimate future sales for one store or product?
+
+Open Forecasts, choose the dataset and sales metric, and review its Date column.
+Use Dimension column and selected Unique values for the store, product or
+channel of interest. Select a suitable history range, grouping and aggregation,
+then read the projected dates, trend, model basis and warnings. Filtering can
+leave less usable history than the full dataset.
+
+The forecast extends the selected metric's historical pattern. It does not
+predict the effect of a proposed price, staffing or advertising change. Budget
+Planner handles supported future spending scenarios; Cash flow planning uses
+expected receipts and payment dates. A sales projection alone is neither a
+complete cash plan nor an inventory purchase recommendation. Ask Decisionate
+can explain the setup but does not read your sales or produce an account-specific
+forecast in chat.
+
+## Can I trust a seasonal forecast for Christmas or a quiet season?
+
+Enable Business has seasonal activity when recurring busy and quiet calendar
+periods matter. Forecasts evaluates seasonal candidates against held-out past
+data and uses up to three years of history. Enough calendar time alone is not
+enough: repeated cycles and adequate observations must support the pattern.
+A trend-only fallback can be the honest result when seasonality is unsupported.
+
+The model does not automatically know this year's promotion, closure, stockout
+or exceptional holiday demand. Check coverage, validation and the stated model
+basis, then use business judgment for events outside that evidence. Historical
+validation error is not a guaranteed bound on future sales. The seasonal
+checkbox does not force a pattern or guarantee the forecast will be accurate.

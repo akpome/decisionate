@@ -95,3 +95,48 @@ product assortment or staffing optimization, and it does not calculate profit
 unless an eligible profit result is actually supplied. Help & Support explains
 the workflow but does not inspect your private datasets or determine your
 actual allocation in chat.
+
+## Can I plan spending by campaign, region or product instead of ad platform?
+
+Budget Planner is generic: the spending choices can be campaigns, regions or
+other non-overlapping groups, not only named advertising platforms. Select one
+additive result and two to six monetary spending series. Separate values in one
+dimension column can supply several options from a single dataset. Keep dates,
+currency and metric definitions consistent, and do not count an overall total
+again alongside its components.
+
+Each option still needs enough independent spending variation and complete,
+recent history. A product's sales alone is not a spending option. This is not a
+general product-mix, price, inventory-ordering or staffing optimizer. For past
+product performance, use Profitability; for past channel returns, use Return on
+spend. A future allocation is a scenario to test, not a historical attribution.
+
+## Why will Budget Planner not recommend a mix for my new business?
+
+The planner needs at least 104 complete matching weeks within its three-year
+history, with the latest shared week no more than two weeks old. It also needs
+spending options that varied independently enough to distinguish them. A new
+business, old demo file, monthly-only history, missing dates, or channels always
+increased together may not support a recommendation. Passing the history count
+alone is not enough: the model's prediction and uncertainty checks must pass too.
+
+It explains the missing evidence rather than inventing a percentage split. Keep
+sources current and records complete. Return on spend and Profitability can
+review suitable recorded amounts over a shorter period, but cannot manufacture
+an optimal future allocation. Do not duplicate records, treat missing days as
+zero or interpret a correlation coefficient as a budget percentage.
+
+## Can I double the budget or automatically apply the suggested allocation?
+
+Budget Planner does not automatically change a platform's spending. A supported
+preview can be saved and used to create a decision, with a specific action and
+review date. You carry out any approved business change separately.
+
+The total budget applies to the entire one-to-thirteen-week plan, not each week.
+Minimum and maximum amounts also apply over the full plan. The supported range
+keeps each option within 20% of its recent eight-week average, scaled to that
+duration. A much larger increase, such as doubling spending, can therefore be
+outside the supported range. The recent mix and suggested test use the same
+total budget; any estimated difference is not simply the effect of more money.
+Start with a bounded test and review actual results; the estimate is not a
+guarantee or proof that the suggested mix caused sales.

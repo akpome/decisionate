@@ -2,7 +2,7 @@
 
 Decisionate brings selected evidence from business datasets together so a team
 can understand changes, choose an action, record its result and retain the
-lesson. Explore relationships compares activity in one system with outcomes in
+lesson. Compare metrics compares activity in one system with outcomes in
 another. Business impact analysis estimates the impact of a recorded action using an
 unaffected comparison and before-and-after history, when the evidence passes
 the required checks. Correlation alone does not establish cause and effect;
@@ -39,7 +39,7 @@ Business impact is a tool within Business Analysis. Its former standalone URL
 redirects to that tool. It was previously labeled Assess a decision.
 Business Analysis appears under the Analysis sidebar group; the group name is unchanged.
 Weekly Reports replaces Weekly Review and Weekly Business Review in navigation.
-Explore relationships is the correlation workflow; Business impact analysis is the
+Compare metrics is the trend and correlation tool; Business impact analysis is the
 business-impact workflow. Existing analysis/report URLs and saved snapshots
 remain valid; these names do not merge the two workflows or their settings.
 
@@ -53,6 +53,36 @@ findings, anomalies, relationships, limitations and decision evidence together.
 The advanced relationship explorer and its dedicated worker were also retired.
 Historical evidence may remain readable, but that is not a new advanced-analysis
 service. Use the multi dataset report for current multi-metric analysis.
+
+## Which analysis tool should I use?
+
+Open Business Analysis and choose the tool that matches your question. On smaller
+screens, the same choices are in the Analysis tool dropdown.
+
+- Compare metrics: what changed, what looks unusual, and which metrics move together?
+- Business impact: did an action recorded in an eligible decision appear to help,
+  compared with an unaffected business? Preview before saving to that decision.
+- Return on spend: which channel gave more recorded revenue per dollar already spent?
+  Sales must be linked to spending consistently; correlation alone cannot answer this.
+- Profitability: which products, services or groups left more money after selected costs?
+- Customer retention: how many customers bought again within the chosen follow-up time?
+- Sales conversion: where did the same group of potential customers stop progressing?
+- Cash flow planning: when could scheduled receipts and payments leave cash too low?
+
+Budget Planner is a separate page for future spending choices. Weekly Reports is
+for recurring monitoring of the last completed week. Forecasts projects a selected
+metric from its history. They do not replace the tools for measured past returns
+or assessing a recorded decision. No tool automatically changes spending or payments.
+
+## What can Ask Decisionate do?
+
+Ask Decisionate on Help & Support explains approved product guidance and provides
+source sections. It does not read your live datasets, rank your own channels,
+inspect your account, run analyses or change settings. Use the relevant tool in
+your workspace for your results. A guidance answer is not an account investigation.
+When approved information is incomplete, the answer should state the gap rather
+than invent instructions or claim an undocumented feature exists. Use Contact
+support for account-specific help, without sending secrets or private records.
 
 ## What a recommendation means
 

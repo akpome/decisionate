@@ -2,7 +2,8 @@
 
 ## Which advertising platform gave better value for my money?
 
-Open Business Analysis, then Return on spend. This compares money already spent
+For "which channel gave me more bang for my dollar?", open Business Analysis,
+then Return on spend. This compares money already spent
 with recorded revenue, not a future budget. It is available for any eligible
 source, not only Meta, Google or Shopify.
 
@@ -29,6 +30,20 @@ winner because platforms can claim the same sale under different rules.
 This release does not infer attribution from total store revenue or estimate
 historical channel contributions from a model. Missing revenue links must be
 resolved in the source records before a fair return comparison is available.
+
+## Can I compare channels with only ad spend and total store revenue?
+
+Not as a fair revenue-per-dollar ranking. The total store revenue does not say
+which channel earned each sale, and assigning that total to every channel counts
+the same sales more than once. First provide consistently assigned channel
+revenue, or keep platform-reported returns separate without declaring a winner.
+
+Compare metrics in Business Analysis can show which spending series moves with
+revenue, including observed timing when supported. A higher correlation is not
+more revenue per dollar and does not prove one platform caused more sales.
+Budget Planner is for future spending scenarios; it is not a substitute for
+measuring the return on past spending. Ask Decisionate can explain these choices,
+but cannot determine your winning channel from chat or inspect your account.
 
 ## Which products or services leave the most money?
 
@@ -63,10 +78,24 @@ are not counted. Return on spend does not automatically shift revenue by a lag.
 
 Business Analysis retains Compare metrics for trends and relationships. Budget
 Planner addresses future spending choices. Business Impact assesses an actual
-recorded business change. Weekly Reports is unchanged by saving a comparison.
+recorded business change within Business Analysis. Weekly Reports is unchanged by saving a comparison.
 Customer retention, Sales conversion and Cash flow planning use the same
 preview, save and decision workflow. These five tools remain within Business
 Analysis. On smaller screens, use the Analysis tool selector.
+
+## How do I reopen, change or delete a saved comparison?
+
+Open the same tool in Business Analysis, expand Saved comparisons and choose a
+Saved comparison. Search by name if needed; Load more shows additional records.
+Each tool has its own list. Saving Return on spend does not replace a cash plan
+or the workspace's current weekly report.
+
+A saved comparison is a snapshot. Edit inputs to make a new preview; you must
+confirm the records again before running it. New comparison starts a fresh setup.
+Save comparison follows a supported preview, and Create decision follows saving.
+Creating again from the same saved comparison opens its existing decision.
+The delete button removes the saved comparison after confirmation when your role
+allows it. Linked decisions are kept. Saving never changes the original dataset.
 
 ## Are customers coming back?
 
@@ -140,3 +169,105 @@ or a guarantee. It only includes the selected obligations; tax, payroll, debt,
 inventory and other payments must be included in the schedule when relevant.
 Week-end balances can miss a shortfall within a week. No money is moved and no
 payment date is changed by previewing or saving a plan.
+
+## Does a return of 3 mean I made 3 dollars of profit?
+
+No. In Return on spend, 3 means three dollars of recorded revenue for each
+dollar spent. For example, 300 dollars of assigned sales divided by 100 dollars
+of advertising is a return of 3. That leaves product costs, fulfilment, fees and
+other expenses uncounted. It does not mean three dollars of profit or three
+dollars of extra sales caused by the advertising.
+
+Use Profitability to subtract the relevant, non-overlapping total costs. A
+high-return channel can still leave little money after those costs. To assess
+whether an implemented change helped, use Business impact only when the decision
+and comparison satisfy its evidence requirements. Ask Decisionate explains the
+calculation; it cannot tell you your actual return without an account analysis.
+
+## Why is there no winning channel or return figure?
+
+Return on spend withholds an overall winner when comparisons are incomplete or
+sales are independently claimed by platforms. Zero spending does not produce an
+infinite return. Missing revenue, missing spending, gaps in daily totals, partial
+months or incompatible currencies need resolving before a fair comparison.
+
+Use the same dates and a consistent sales-assignment rule for every channel.
+Do not convert missing amounts into zero unless the source actually records no
+activity. Daily totals, monthly totals and individual transactions have different
+coverage requirements; choose the option that describes the records, not the one
+that removes a warning. Later sales outside the chosen window are not counted
+automatically. A useful comparison may require better source records, not a
+different chart or a lower evidence threshold.
+
+## Why can a high-margin product leave less money?
+
+Profitability shows both money left and margin. For illustration, 100 dollars
+of revenue with 20 dollars left has a 20% margin. Another product with 1,000
+dollars of revenue and 100 dollars left has a 10% margin but leaves more money
+in total. The leading group is based on money left, not the margin percentage.
+
+Compare by product, service or location using the same dates, currency and cost
+definitions. Include total costs for the quantities sold, not a unit price used
+as a total. Shared overhead is not allocated automatically. If it is missing,
+describe the result as money left after selected costs, not final net profit.
+This comparison does not determine the best selling price, stock order or
+product assortment, and it cannot promise that dropping an item raises profit.
+
+## Can retention tell me which customers will leave or their lifetime value?
+
+Customer retention measures observed repeat purchases, not an individual's
+likelihood of leaving, subscription churn or predicted lifetime value. It shows
+whether customers made another distinct purchase within the same 30, 60 or
+90-day window. Recent customers without that much follow-up are too early to
+tell, not lost. Changing the window changes the question being measured.
+
+Use stable customer and purchase identifiers in completed-purchase records.
+Monthly totals alone cannot reveal who returned. Multiple product lines for one
+purchase do not count as repeat visits. Filtering to a store or product changes
+the observed purchase history: a purchase elsewhere may no longer count.
+The first purchase in the available records is not necessarily the first-ever
+purchase. Use the results to choose a follow-up test; the tool does not contact
+customers or reveal their individual identifiers in the result.
+
+## Can I combine advertising clicks and store orders into a sales funnel?
+
+Not simply by dividing unrelated totals. Sales conversion needs one dataset
+with two to five ordered count columns describing the same people or sales
+opportunities, counted once at each step under the same follow-up window.
+For example, 100 eligible enquiries, 40 quotes and 10 sales gives a 10% overall
+conversion rate for that group. It does not show why the other enquiries stopped.
+
+Clicks, sessions, customers and orders can describe different populations or
+repeat events. Prepare comparable counts first; the tool does not match people
+across platforms. Percentages are not valid count inputs. A later step greater
+than an earlier step signals a definition or data problem. The biggest numerical
+drop-off suggests where to investigate, not a proven cause or a guaranteed
+number of sales that can be recovered.
+
+## Can a profitable business still run out of cash?
+
+Yes. Profitability compares recorded revenue and selected costs; Cash flow
+planning follows expected payment dates and cash available at the start. A sale
+recorded today may not be paid until next month, while wages or suppliers are
+due sooner. Profit and available bank cash therefore answer different questions.
+
+For cash planning, include expected receipts and obligations in one dated
+payment schedule, including payroll, suppliers, tax and debt payments where
+relevant. Enter starting cash and a minimum buffer. Review the lowest planned
+balance as well as ending cash. The calculation does not connect to a bank to
+verify that balance, automatically discover bills, arrange credit or move money.
+Weekly closing cash can also miss a shortfall inside a week.
+
+## What if customers pay late or expenses rise?
+
+In Cash flow planning, open Cash buffer and what-if changes. Receipts arrive
+later shifts expected money-in dates by up to 90 days. Money in adjustment and
+Money out adjustment change the selected amounts by a percentage; Minimum cash
+to keep sets the warning level. Compare the adjusted plan with the original
+payment schedule. Use 4, 8, 13 or 26 weeks, in one currency.
+
+For example, a payment pushed beyond the plan's last day no longer counts as
+cash received during that plan. This is a scenario, not a prediction of which
+customer will pay late. The controls do not change source records, invoice due
+dates or payment instructions. Include all relevant obligations before drawing
+conclusions; a missing payment is not automatically zero.

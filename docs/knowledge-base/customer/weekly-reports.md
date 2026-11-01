@@ -148,3 +148,33 @@ and pauses delivery so a different report is not silently substituted.
 
 For failures or unexpected recipients, do not send repeated test emails. Confirm
 the current preferences and ask support to review delivery history first.
+
+## Can I monitor weekly metrics without correlation?
+
+Yes. Keep the metrics you want and remove all unwanted relationship pairs,
+including all pairs if you only want metric monitoring. The selected metrics
+still receive weekly values, previous-week comparisons and daily and whole-week
+unusual-change checks where history supports them. Removing a pair does not
+remove its metrics. Weekly delivery still requires usable metrics from at least
+two datasets in the latest completed week.
+
+Preview report, review the results, then Save changes to update the workspace's
+single current weekly report. Saving does not enable delivery or send an email.
+For an on-demand report about one dataset or older dates, use Business Analysis.
+For routine delivery, check Delivery settings separately. A seasonal setting
+affects supported unusual-change baselines, not proof that two metrics are related.
+
+## Why did saving my weekly report not send an email?
+
+Saving updates the current report and future weekly setup, but leaves delivery
+settings unchanged. Weekly report configured / Delivery paused means the report
+is saved and automatic sending is off. Use Delivery settings to review the
+schedule and recipients before enabling it.
+
+An authorized manager can choose Send report now after a successful preview and
+save with usable data for the required week. That one-time send goes to the
+workspace owner, can work while scheduled delivery is paused, and does not
+change the schedule or recipients. Unsaved selections are not silently saved.
+If delivery is uncertain, check delivery history before sending again. A queued
+job is not proof of inbox delivery, and Ask Decisionate cannot inspect your
+current delivery status from documentation.

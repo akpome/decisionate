@@ -37,6 +37,7 @@
         "When might cash run short?"
       ],
       "routes": [
+        "/dashboard/reports",
         "/dashboard/reports/returns",
         "/dashboard/reports/profitability",
         "/dashboard/reports/retention",
@@ -61,7 +62,48 @@
         "reports-build",
         "dimension-filters",
         "decisions-outcomes"
-      ]
+      ],
+      "section_routes": {
+        "Which advertising platform gave better value for my money?": "/dashboard/reports/returns",
+        "Can I compare channels with only ad spend and total store revenue?": "/dashboard/reports/returns",
+        "Does a return of 3 mean I made 3 dollars of profit?": "/dashboard/reports/returns",
+        "Why is there no winning channel or return figure?": "/dashboard/reports/returns",
+        "Which products or services leave the most money?": "/dashboard/reports/profitability",
+        "Why can a high-margin product leave less money?": "/dashboard/reports/profitability",
+        "Are customers coming back?": "/dashboard/reports/retention",
+        "Can retention tell me which customers will leave or their lifetime value?": "/dashboard/reports/retention",
+        "Where are potential sales being lost?": "/dashboard/reports/conversion",
+        "Can I combine advertising clicks and store orders into a sales funnel?": "/dashboard/reports/conversion",
+        "When might cash run short?": "/dashboard/reports/cash-flow",
+        "Can a profitable business still run out of cash?": "/dashboard/reports/cash-flow",
+        "What if customers pay late or expenses rise?": "/dashboard/reports/cash-flow"
+      },
+      "section_questions": {
+        "Which advertising platform gave better value for my money?": [
+          "Which ad platform gave me more bang for my dollar?",
+          "How do I compare recorded Meta and Google revenue per dollar for Shopify?"
+        ],
+        "Can I compare channels with only ad spend and total store revenue?": [
+          "Can all Shopify sales be assigned to both Meta and Google?",
+          "How do I compare channel returns without revenue attribution?"
+        ],
+        "Does a return of 3 mean I made 3 dollars of profit?": [
+          "Is ROAS profit after product costs and fees?",
+          "What is the difference between revenue per dollar and profit?"
+        ],
+        "Why is there no winning channel or return figure?": [
+          "Why won't Return on spend declare a winner?",
+          "What does missing or zero spending mean for return?"
+        ],
+        "Why can a high-margin product leave less money?": [
+          "Which matters more, highest margin or largest profit amount?",
+          "Does Profitability optimize selling prices or inventory orders?"
+        ],
+        "How do I reopen, change or delete a saved comparison?": [
+          "Where are my saved cash plans?",
+          "How do I delete a saved profitability or return comparison?"
+        ]
+      }
     },
     {
       "id": "budget-planner",
@@ -97,7 +139,21 @@
         "dimension-filters",
         "decisions-outcomes",
         "relationship-evidence"
-      ]
+      ],
+      "section_questions": {
+        "How to compare advertising spend and get a budget recommendation": [
+          "How do I plan next month's spending mix?",
+          "How should I spend money on Meta Ads or Google Ads for my Shopify store?"
+        ],
+        "Can I plan spending by campaign, region or product instead of ad platform?": [
+          "Is Budget Planner limited to Meta Google and Shopify?",
+          "Can spending options be regions or campaigns?"
+        ],
+        "Can I double the budget or automatically apply the suggested allocation?": [
+          "Does saving a budget plan change real ad spending?",
+          "Can I automatically apply a recommended budget?"
+        ]
+      }
     },
     {
       "id": "product-overview",
@@ -111,7 +167,9 @@
       ],
       "questions": [
         "What is Decisionate for?",
-        "Where did Insights go?"
+        "Where did Insights go?",
+        "Which analysis tool should I use?",
+        "Can Ask Decisionate check my results or change my account?"
       ],
       "routes": [
         "/dashboard/reports",
@@ -122,13 +180,24 @@
         "apps/web/app/dashboard/help/page.tsx",
         "apps/web/app/dashboard/dashboard-shell.tsx",
         "docs/CROSS_DATASET_REPORTS.md",
-        "apps/web/features/reports/legacy-insights-destination.ts"
+        "apps/web/features/reports/legacy-insights-destination.ts",
+        "apps/web/features/reports/analysis-tools.tsx",
+        "apps/web/features/support/product-guidance.tsx"
       ],
       "related": [
         "getting-started",
         "reports-build",
         "relationship-monitors"
-      ]
+      ],
+      "section_routes": {
+        "What can Ask Decisionate do?": "/dashboard/help"
+      },
+      "section_questions": {
+        "What can Ask Decisionate do?": [
+          "Can you run an analysis from this chat?",
+          "Can the help chatbot read my live datasets or change my account?"
+        ]
+      }
     },
     {
       "id": "getting-started",
@@ -442,7 +511,13 @@
         "metric-semantics",
         "time-aggregation",
         "reports-build"
-      ]
+      ],
+      "section_questions": {
+        "Apply a dimension filter": [
+          "How do I filter analysis to one region or product?",
+          "How do I choose a segment or category?"
+        ]
+      }
     },
     {
       "id": "dashboards",
@@ -475,7 +550,13 @@
         "dimension-filters",
         "sharing-exports",
         "reports-build"
-      ]
+      ],
+      "section_questions": {
+        "Configure a view": [
+          "How do I choose dashboard metrics and filters?",
+          "Where are the dashboard date and dimension settings?"
+        ]
+      }
     },
     {
       "id": "reports-build",
@@ -537,7 +618,36 @@
         "relationship-evidence",
         "lag-observations",
         "decisions-outcomes"
-      ]
+      ],
+      "section_routes": {
+        "Where is Business impact and how do I use it?": "/dashboard/reports/impact",
+        "Did my business change help?": "/dashboard/reports/impact",
+        "How does Business impact allow time for results?": "/dashboard/reports/impact",
+        "What is a fair comparison for Business impact?": "/dashboard/reports/impact",
+        "Where do the Business impact dates come from?": "/dashboard/reports/impact",
+        "Does saving an assessment change my decision?": "/dashboard/reports/impact",
+        "Why is Business impact waiting for enough results?": "/dashboard/reports/impact",
+        "Usual ups and downs in impact assessments": "/dashboard/reports/impact",
+        "Analyze one dataset": "/dashboard/reports/dataset"
+      },
+      "section_questions": {
+        "Where is Business impact and how do I use it?": [
+          "How do I get started with Business impact analysis?",
+          "What are the steps to assess the impact of a decision?"
+        ],
+        "Did my business change help?": [
+          "Which decisions are eligible for impact analysis?",
+          "Why is my decision missing from the decision dropdown?"
+        ],
+        "Where do the Business impact dates come from?": [
+          "Why can't I edit the impact history range or analysis settings?"
+        ],
+        "Usual ups and downs in impact assessments": [
+          "Do both comparison businesses have the same seasonality?",
+          "Does an impact estimate establish causation?",
+          "What does an impact range including zero mean?"
+        ]
+      }
     },
     {
       "id": "reports-read-save",
@@ -610,7 +720,13 @@
         "lag-observations",
         "reports-build",
         "decisions-outcomes"
-      ]
+      ],
+      "section_questions": {
+        "Which spending moves with revenue, and which gives better value?": [
+          "Is the strongest ad spend correlation the best return per dollar?",
+          "Which ad spending correlates with revenue growth?"
+        ]
+      }
     },
     {
       "id": "lag-observations",
@@ -684,7 +800,13 @@
         "reports-build",
         "lag-observations",
         "weekly-reports"
-      ]
+      ],
+      "section_questions": {
+        "Set up a two-metric monitor": [
+          "How do I choose metrics on the Relationships page?",
+          "How do I save a two-metric monitor?"
+        ]
+      }
     },
     {
       "id": "anomalies-seasonality",

@@ -46,3 +46,31 @@ Check imports, filters, date choices and structural changes first. If the
 change warrants action, create a human-reviewed decision and later record its
 outcome. The lookback cap excludes old data from fitting; connector retention
 is the separate process that can delete old source records.
+
+## Why did sales suddenly fall, and is that unusual?
+
+Select the sales metric in Business Analysis for a chosen period, or Weekly
+Reports for the last completed week. Unusual-change detection compares each
+selected metric with its expected behavior, even if no relationship pair is
+tested. Check actual value, expected range and history warnings. A change may
+be unusual without its cause being known.
+
+First check incomplete imports, date and dimension filters, closures, promotions
+and other known changes. Seasonal activity can help account for supported
+recurring patterns, but it does not automatically know a holiday or campaign.
+Relationship findings can suggest another metric to investigate; they do not
+prove why sales changed. No unusual change detected differs from Not assessed:
+the latter means evidence was insufficient, not that sales were normal.
+
+## Why is the week normal when one day had an unusual change?
+
+Weekly Reports checks the full week's value against earlier complete weeks and
+also checks the individual days. A sharp rise and fall can cancel out over the
+week. Conversely, several small daily increases can add up to an unusual week.
+Both assessments are useful and neither should be substituted for the other.
+
+Missing dates prevent a complete-week assessment; they are not assumed to be
+days with zero business. Read the history and seasonal warnings before acting.
+The expected range describes usual behavior under the available evidence, not
+a sales target or a promise. An unusual change does not by itself send an
+immediate alert; weekly email delivery is controlled separately.

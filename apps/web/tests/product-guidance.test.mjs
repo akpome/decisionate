@@ -69,7 +69,8 @@ test("conversation scope resets on identity or workspace changes and unmount abo
 })
 
 test("sources, privacy, retries, stop and human handoff remain available without automatic support delivery", () => {
-  assert.match(component, /AI answer/)
+  assert.match(component, /Approved guidance/)
+  assert.doesNotMatch(component, /AI answer/)
   assert.match(component, /Documentation/)
   assert.match(component, /<details key=\{source.chunk_id\}/)
   assert.match(component, /not your live account/)
@@ -78,4 +79,13 @@ test("sources, privacy, retries, stop and human handoff remain available without
   assert.match(component, /onContactSupport\(/)
   assert.doesNotMatch(component, /submitSupportRequest/)
   assert.match(page, /if \(message\) setSupportMessage\(message\)/)
+})
+
+test("starter questions cover choosing tools, past spending and the moved Business impact workflow", () => {
+  for (const question of ["Which analysis tool should I use?", "Which channel gave me more revenue per dollar spent?", "Where is Business impact and how do I use it?"]) {
+    assert.ok(component.includes(question), question)
+  }
+  assert.match(component, /What are you trying to understand or improve\?/)
+  assert.match(page, /Can Ask Decisionate check my results or change my account\?/)
+  assert.match(page, /does not inspect your datasets/)
 })

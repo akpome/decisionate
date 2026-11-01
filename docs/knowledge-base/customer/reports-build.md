@@ -42,6 +42,32 @@ they are not replaced with another dataset. Dataset names load first, and only
 the selected source's metric catalog is read in this workflow. More names can be
 loaded with Load more datasets when the catalog is paginated.
 
+## Where is Business impact and how do I use it?
+
+Open Business Analysis, then choose Business impact from the tool links or the
+Analysis tool dropdown. It is no longer a separate sidebar page. Old links
+redirect here, and saved assessments and decision history are kept.
+
+1. Choose Decision to review. Type in this dropdown to find an eligible decision.
+   Its recorded action and outcome metric are reused; readiness notes explain
+   missing evidence. The decision's original evidence and available dates set the
+   analysis period, rather than a second editable date range.
+2. Enter When did you implement the change? This is when the real action began,
+   not when its decision record was created. Supported timing from the earlier
+   analysis is reused; the tool does not run a new correlation or guess a delay.
+3. Choose one unaffected comparison dataset and its metric. Review the date column
+   and optional dimension value. Explain why it was unaffected and confirm whether
+   other major changes happened. A comparison needs to reflect similar conditions.
+4. Choose Analyze business impact to open Assessment preview. Read the estimated
+   difference, uncertainty and checks. If evidence is insufficient, no reliable
+   impact amount is given. An estimate is not a guarantee of cause and effect.
+5. Choose Save assessment to decision only after reviewing the preview. It adds
+   an assessment to that existing decision without overwriting its actual outcome,
+   completing it, or creating another decision. Reopen it from Saved assessments.
+
+Business impact settings do not change Weekly Reports. For relationships without
+an implemented action to assess, use Compare metrics in Business Analysis.
+
 ## Did my business change help?
 
 Open an existing decision and choose Assess business impact, or select Decision
@@ -75,6 +101,8 @@ the decision creation date is not assumed to be the implementation date.
 When did you implement the change? means the real action date, not the date you
 expect results. Do not shift it to make the result look better.
 
+## How does Business impact allow time for results?
+
 Timing from earlier analysis uses the decision's original saved correlation,
 checking the changed driver and the result to measure. It does not use the
 unaffected comparison to invent a delay. A timing guide is available only when
@@ -88,6 +116,8 @@ explanation and no impact amount, not an assumed immediate effect.
 When a specific earlier report is linked, Open the earlier analysis opens that
 evidence. Missing timing still shows its warning, without a generic relationship
 navigation link.
+
+## What is a fair comparison for Business impact?
 
 The setup is arranged around choosing the decision, choosing one fair comparison,
 and checking the analysis. The recorded action
@@ -129,6 +159,8 @@ Saved multi-value comparison filters remain visible and require an explicit
 single-value choice before another assessment. A saved outcome segment is retained
 and displayed beside the decision, with a clear control; it is not silently removed.
 
+## Where do the Business impact dates come from?
+
 Business impact analysis sets its history period and grouping automatically.
 The history starts from the decision's original report evidence, or the beginning
 of shared data if that is later. The end extends to the latest available date
@@ -168,6 +200,8 @@ calculation uses the current decision name; existing saved snapshots stay unchan
 Existing weekly assessments keep automatic dates and weekly study
 grouping; they do not expose manual weekly email dates.
 
+## Does saving an assessment change my decision?
+
 Analyze business impact runs the assessment and opens its preview. It does not
 create a decision, save the assessment, or change the decision's recorded outcome.
 Save assessment to decision attaches the calculated assessment to that same
@@ -178,6 +212,8 @@ assessments; changed actions or outcome metrics mark older results as historical
 Archived decisions can show their history but cannot receive new assessments.
 Old standalone impact snapshots remain readable; new assessments require an
 existing decision.
+
+## Why is Business impact waiting for enough results?
 
 The history must include dates before and after the change. At least 52 complete weeks before and
 8 after are needed with weekly grouping; daily needs 90 before and 28 after,
@@ -277,7 +313,7 @@ Minimum matching days/weeks/months/quarters counts matched observations in the
 chosen grouping, not just the length of the calendar window. Weekly Reports uses
 weeks for its relationship history regardless of the grouping on Business Analysis.
 
-A report supports at most 25 selected metrics. Explore relationships supports
+A report supports at most 25 selected metrics. Compare metrics supports
 a maximum of 12 lag periods and 1,000 cross-dataset pair/lag tests; those timing
 and test-count limits do not apply to Business impact analysis, which does not
 run those tests. Reduce metrics or timing complexity if the correlation

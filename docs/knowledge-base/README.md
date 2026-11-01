@@ -20,6 +20,12 @@ calls and sends no emails.
 - Use [the evaluation cases](evaluation-cases.json) for chatbot review.
   Retrieval and mocked-provider regression tests do not establish live model
   answer quality; these criteria still need human review with the configured model.
+- Use [the business-question coverage matrix](analysis-question-coverage.json)
+  for 144 representative questions across 20 tools and supporting workflows.
+  These include ordinary wording, data requirements, interpretation, saving and
+  limitations, not only exact feature names. The matrix checks that the intended
+  answer appears among the first three retrieved sections and can be displayed
+  in full within the answer limit. It is not a claim to cover every possible question.
 
 The chatbot no longer displays free-form model-written factual answers. It uses
 AI to classify coverage and select approved sections, then composes the response
@@ -34,6 +40,7 @@ that model selection or documentation can never be mistaken.
 | Topic | Article |
 | --- | --- |
 | Product purpose and navigation | [Decisionate fundamentals](customer/product-overview.md) |
+| Returns, profitability, repeat purchases, sales steps and cash | [Business Analysis tools](customer/performance-analysis.md) |
 | First useful analysis | [Getting started](customer/getting-started.md) |
 | Workspaces and permissions | [Accounts and access](customer/workspaces-access.md) |
 | Client access and white labeling | [Agencies and clients](customer/agencies-clients.md) |
@@ -89,13 +96,25 @@ python -B -m unittest discover -s apps/api/tests -p test_knowledge_repository.py
 The committed customer JSONL contains independently retrievable Markdown
 sections, stable article/section identities, route metadata and verification
 dates. It contains neither source-file contents nor operator articles.
+Articles covering multiple tools can specify `section_routes` in the manifest.
+Each section link must reference an existing section heading and one of that
+article's approved routes. The export puts that route first so Ask Decisionate's
+Open page link goes to the relevant tool, not a different tool from the same article.
+`section_questions` adds reviewed alternative phrasings for a specific section.
+These help retrieval but are not additional factual answers. Do not attach all
+article questions to every section: a section about cash should not be ranked as
+the answer to an advertising-return question merely because both share an article.
+Keep the question coverage matrix separate from these retrieval hints so tests
+also exercise natural phrasing that is not copied from the hints.
 An operator export requires an explicit audience choice and is not committed
 to the customer export. The API image packages only the generated customer
 bundle. Authenticated server-side retrieval never loads the operator corpus.
 
 `check` validates article metadata, audience directories, links to related
 articles, source references, inventory generation, evaluation references and
-source fingerprints. It also checks that the committed customer export matches
+source fingerprints. The business-question matrix may reference only approved
+customer sections; unknown, duplicate and operator targets fail validation.
+It also checks that the committed customer export matches
 the articles and matches the packaged API bundle. A changed fingerprint means review is needed; it does not prove
 the corresponding behavior changed. Passing checks establishes structural
 consistency, not correctness of a live deployment or an AI answer.

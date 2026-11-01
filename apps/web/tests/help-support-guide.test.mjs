@@ -63,6 +63,16 @@ test("Business Analysis is the documented analysis entry and date and dimension 
   assert.match(chapter("troubleshooting"), /Retry filtered dashboard/)
 })
 
+test("all business tools have focused setup guidance and current decision entry labels", () => {
+  const text = chapter("analysis")
+  for (const label of ["Analysis tool dropdown", "Return on spend", "Profitability", "Customer retention", "Sales conversion", "Cash flow planning", "Budget Planner", "Assess a recorded business change"]) assert.ok(text.includes(label), label)
+  for (const limit of ["not automatically net profit", "Too early to tell", "same people or opportunities", "Week-end balances", "Platform-reported sales can overlap"]) assert.ok(text.includes(limit), limit)
+  assert.match(chapter("decisions"), /Create decision opens the form/)
+  assert.match(chapter("decisions"), /Continue decision reopens an unfinished decision/)
+  assert.doesNotMatch(source, /Decision draft link|Decision draft opens/)
+  assert.match(JSON.stringify(faqItems), /It is no longer a separate sidebar page/)
+})
+
 test("report timing guidance matches the 52-observation daily default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
   assert.match(text, /New multi dataset reports open directly with correlation controls/)

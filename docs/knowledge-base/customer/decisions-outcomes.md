@@ -6,7 +6,9 @@ does not automatically create an accountable decision.
 
 ## Central creation workflow
 
-Open Decisions and use its creation entry. Name the decision for the actual
+Use Create decision from the reviewed Business Analysis or Weekly Reports result,
+or open Decisions and use its creation entry. A saved comparison or budget plan
+also offers Create decision after saving. Name the decision for the actual
 business action, replacing the generated unique starting label. Supply the
 required action and evidence, expected outcome and review information shown by
 the form. Attach a saved report when it provides the justification, or use the
@@ -32,7 +34,8 @@ Decisions and outcomes is not supposed to contain a fixed number of records.
 ## Review, learning and lifecycle
 
 Business impact review is an assessment of this decision, not another decision.
-Choose Assess business impact on the decision page. The report builder reuses
+Choose Assess business impact on the decision page, or open Business Analysis
+and choose Business impact. The assessment setup reuses
 the recorded action and outcome metric, and asks for the actual action start
 date, an unaffected comparison from another dataset and the business context.
 The action date is independent of when the decision record was created.

@@ -31,7 +31,7 @@ first measured period is not presented as a guessed implementation date.
 
 Supporting business results contains the selected-metric charts, unusual
 changes and metric movements, not a second correlation analysis. Relationship
-findings are available in Explore relationships instead. Older impact snapshots
+findings are available in Compare metrics instead. Older impact snapshots
 also omit their old relationship findings when displayed, without changing the
 stored snapshot. These results support the main answer rather than replacing
 it. Decisions and outcomes remains the place to open the central
@@ -44,7 +44,7 @@ dates lack usable dataset values. Saving a report does not make missing data
 usable; a strong correlation or previous-period baseline is not required.
 
 Read the metric movements, unusual changes, impact checks, follow-up
-actions and limitations together. In Explore relationships, read the relationship
+actions and limitations together. In Compare metrics, read the relationship
 findings alongside the other evidence. A significant relationship is not required for
 a period comparison to be useful; nor does it establish that a change caused
 the business outcome.
@@ -95,10 +95,15 @@ decisions. Independent weekly settings and delivery are unchanged. On Weekly Rep
 Remove weekly settings keeps saved snapshots and linked decisions while clearing
 the weekly configuration and pausing delivery. Read the confirmation and use only
 actions allowed by your workspace role.
+For an older setup that still relies only on the deleted report as its weekly
+template, deleting that report also removes the template and pauses delivery.
+The deletion confirmation identifies that case; current independent weekly
+settings are not removed by deleting a historical snapshot.
 
-Business Analysis uses Saved reports; Business Impact uses Saved assessments;
-Weekly Reports uses Weekly history. Metric analyses and impact assessments appear
-only in their own page's list. Deleting a historical report also
+Compare metrics in Business Analysis uses Saved reports; its Business impact
+tool uses Saved assessments. The return, profitability, customer, conversion
+and cash tools use Saved comparisons, separately for each tool. Weekly Reports
+uses Weekly history. These lists do not combine unrelated types. Deleting a historical report also
 removes its associated temporary preview. An old link to a deleted or expired
 analysis cannot restore it. Choose a saved report or generate a new preview;
 this is different from an analysis failing.

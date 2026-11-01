@@ -145,7 +145,7 @@ def answer_guidance(payload):
     if not question:
         raise HTTPException(400, "Enter a product question.")
     if re.fullmatch(r"(?:hi|hello|hey|thanks|thank you)[.!\s]*", question, re.IGNORECASE):
-        return GuidanceResponse(answer="Hello. What would you like to know about Decisionate's reports, forecasts, connections or decisions?", mode="documentation")
+        return GuidanceResponse(answer="Hello. What would you like help with: choosing an analysis tool, reviewing a decision, weekly reports, or another Decisionate feature?", mode="documentation")
     if any(SECRET.search(text) for text in [question, *(turn.content for turn in payload.history)]):
         return GuidanceResponse(answer="Please remove credentials or secret values before asking. If a real credential was shared, rotate it with its provider. Contact support without including the secret.",
                                 mode="documentation", contact_support=True)

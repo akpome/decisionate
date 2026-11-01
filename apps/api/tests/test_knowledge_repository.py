@@ -45,7 +45,8 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(summary["customer_articles"], 30)
         self.assertEqual(summary["operator_articles"], 6)
         self.assertEqual(summary["connectors"], 27)
-        self.assertEqual(summary["evaluation_cases"], 41)
+        self.assertEqual(summary["evaluation_cases"], 45)
+        self.assertEqual(summary["business_questions"], 144)
         self.assertGreater(summary["customer_chunks"], 100)
 
     def test_default_export_contains_only_customer_content_and_safe_metadata(self):
@@ -72,6 +73,64 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(first, knowledge.jsonl(manifest, documents))
         self.assertTrue(all(json.loads(line)["verification"] == "source_reviewed_not_live_state" for line in first.splitlines()))
         self.assertTrue(first.endswith("\n"))
+
+    def test_section_links_open_the_relevant_tool_without_changing_article_routes(self):
+        manifest, documents = knowledge.read_repository(self.root)
+        original = json.dumps(manifest)
+        rows = {row["chunk_id"]: row for row in knowledge.export_records(manifest, documents)}
+        for slug, path in [
+            ("which-advertising-platform-gave-better-value-for-my-money", "returns"),
+            ("which-products-or-services-leave-the-most-money", "profitability"),
+            ("are-customers-coming-back", "retention"),
+            ("where-are-potential-sales-being-lost", "conversion"),
+            ("when-might-cash-run-short", "cash-flow"),
+        ]:
+            self.assertEqual(rows[f"performance-analysis:{slug}"]["routes"][0], f"/dashboard/reports/{path}")
+        self.assertEqual(rows["reports-build:where-is-business-impact-and-how-do-i-use-it"]["routes"][0], "/dashboard/reports/impact")
+        self.assertEqual(rows["product-overview:what-can-ask-decisionate-do"]["routes"][0], "/dashboard/help")
+        self.assertEqual(json.dumps(manifest), original)
+
+    def test_unknown_sections_or_unapproved_destinations_fail_closed(self):
+        article = self.manifest["articles"][0]
+        heading = "Are customers coming back?"
+        for routes in [[], {"Invented heading": article["routes"][0]}, {heading: "https://external.test"},
+                       {heading: "/platform-admin"}, {heading: "/dashboard/reports?workspace=other"}]:
+            with self.subTest(routes=routes):
+                article["section_routes"] = routes
+                self.save_manifest()
+                with self.assertRaisesRegex(knowledge.KnowledgeError, "Section routes"):
+                    knowledge.read_repository(self.root)
+
+    def test_section_questions_are_scoped_and_bounded(self):
+        manifest, documents = knowledge.read_repository(self.root)
+        rows = {row["chunk_id"]: row for row in knowledge.export_records(manifest, documents)}
+        returns = rows["performance-analysis:which-advertising-platform-gave-better-value-for-my-money"]
+        self.assertIn("Which ad platform gave me more bang for my dollar?", returns["section_questions"])
+        self.assertEqual(rows["performance-analysis:are-customers-coming-back"]["section_questions"], [])
+        article = self.manifest["articles"][0]
+        for questions in [[], {"Unknown heading": ["Question?"]}, {"Are customers coming back?": []},
+                          {"Are customers coming back?": ["x" * 301]}, {"Are customers coming back?": ["Question?"] * 13}]:
+            with self.subTest(questions=questions):
+                article["section_questions"] = questions
+                self.save_manifest()
+                with self.assertRaises(knowledge.KnowledgeError):
+                    knowledge.read_repository(self.root)
+
+    def test_business_question_coverage_rejects_unapproved_or_duplicate_targets(self):
+        path = self.root / knowledge.KB / "analysis-question-coverage.json"
+        original = path.read_text()
+        manifest, documents = knowledge.read_repository(self.root)
+        for change in [
+            {"chunk_id": "operator-architecture:overview"}, {"chunk_id": "invented:section"},
+            {"questions": []}, {"questions": ["Same question?", "Same question?"]},
+            {"tool": ""}, {"id": "chat-boundary"},
+        ]:
+            with self.subTest(change=change):
+                coverage = json.loads(original)
+                coverage["cases"][0].update(change)
+                knowledge.write_json(path, coverage)
+                with self.assertRaises(knowledge.KnowledgeError):
+                    knowledge.read_question_coverage(self.root, manifest, documents)
 
     def test_duplicate_id_and_wrong_audience_path_fail_closed(self):
         self.manifest["articles"][1]["id"] = self.manifest["articles"][0]["id"]

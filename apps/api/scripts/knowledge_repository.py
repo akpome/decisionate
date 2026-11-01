@@ -89,6 +89,20 @@ def read_repository(root=ROOT):
         body = safe_file(root / KB, path).read_text(encoding="utf-8")
         if not body.startswith("# ") or len(body.split()) < 100 or "\n## " not in body:
             raise KnowledgeError(f"Article needs a title, sections and substantive content: {identity}")
+        section_routes = article.get("section_routes", {})
+        sections = {section for section, _ in markdown_sections(body)}
+        if not isinstance(section_routes, dict) or any(
+            section not in sections or route not in article["routes"]
+            for section, route in section_routes.items()
+        ):
+            raise KnowledgeError(f"Section routes must use existing headings and approved article routes: {identity}")
+        section_questions = article.get("section_questions", {})
+        if not isinstance(section_questions, dict) or any(section not in sections for section in section_questions):
+            raise KnowledgeError(f"Section questions must use existing headings: {identity}")
+        for section, questions in section_questions.items():
+            text_list(questions, f"{identity}.{section}.section_questions")
+            if len(questions) > 12 or any(len(question) > 300 for question in questions):
+                raise KnowledgeError(f"Section questions exceed retrieval bounds: {identity}")
         documents[identity] = body
     by_id = {article["id"]: article for article in articles}
     for article in articles:
@@ -169,9 +183,13 @@ def export_records(manifest, documents, audience="customer"):
             if not slug or identity in seen or not body:
                 raise KnowledgeError(f"Empty or duplicate retrieval section: {identity}")
             seen.add(identity)
+            routes = article["routes"]
+            if destination := article.get("section_routes", {}).get(section):
+                routes = [destination, *(route for route in routes if route != destination)]
             yield {"chunk_id": identity, "article_id": article["id"], "title": article["title"],
                    "section": section, "content": body, "audience": audience,
-                   "routes": article["routes"], "topics": article["topics"], "questions": article["questions"],
+                   "routes": routes, "topics": article["topics"], "questions": article["questions"],
+                   "section_questions": article.get("section_questions", {}).get(section, []),
                    "related_article_ids": [value for value in article["related"] if any(item["id"] == value and item["audience"] == audience for item in manifest["articles"])],
                    "reviewed_on": manifest["reviewed_on"], "verification": "source_reviewed_not_live_state"}
 
@@ -183,6 +201,29 @@ def jsonl(manifest, documents, audience="customer"):
 def source_hashes(root, manifest):
     sources = sorted({source for article in manifest["articles"] for source in article["sources"]})
     return {source: sha256(safe_file(root, source)) for source in sources}
+
+
+def read_question_coverage(root, manifest, documents):
+    coverage = read_json(safe_file(root, str(KB / "analysis-question-coverage.json")))
+    cases = coverage.get("cases", [])
+    if coverage.get("schema_version") != 1 or not isinstance(cases, list) or not cases:
+        raise KnowledgeError("Missing business question coverage")
+    approved = {row["chunk_id"] for row in export_records(manifest, documents)}
+    seen, questions = set(), set()
+    for case in cases:
+        if (not isinstance(case, dict) or not isinstance(case.get("id"), str)
+                or not case["id"] or case["id"] in seen
+                or not isinstance(case.get("tool"), str) or not case["tool"]
+                or not isinstance(case.get("chunk_id"), str)
+                or case.get("chunk_id") not in approved):
+            raise KnowledgeError("Business question coverage needs unique IDs and approved customer sections")
+        text_list(case.get("questions"), f"{case['id']}.questions")
+        for question in case["questions"]:
+            if question.casefold() in questions or len(question) > 500:
+                raise KnowledgeError("Business question coverage has duplicate or overlong questions")
+            questions.add(question.casefold())
+        seen.add(case["id"])
+    return cases
 
 
 def check(root=ROOT):
@@ -211,6 +252,7 @@ def check(root=ROOT):
             text_list(case.get(key), f"{case['id']}.{key}")
         if any(identity not in by_id or by_id[identity]["audience"] != case["audience"] for identity in case["articles"]):
             raise KnowledgeError(f"Evaluation references the wrong knowledge audience: {case['id']}")
+    coverage = read_question_coverage(root, manifest, documents)
     exported = safe_file(root, str(KB / "generated/customer.jsonl")).read_text(encoding="utf-8")
     if exported != jsonl(manifest, documents):
         raise KnowledgeError("Customer export is stale; regenerate after review")
@@ -220,7 +262,8 @@ def check(root=ROOT):
             "customer_articles": sum(item["audience"] == "customer" for item in manifest["articles"]),
             "operator_articles": sum(item["audience"] == "operator" for item in manifest["articles"]),
             "customer_chunks": len(list(export_records(manifest, documents))),
-            "connectors": len(inventory["sources"]), "evaluation_cases": len(cases)}
+            "connectors": len(inventory["sources"]), "evaluation_cases": len(cases),
+            "business_questions": sum(len(case["questions"]) for case in coverage)}
 
 
 def write_json(path, value):
@@ -281,7 +324,7 @@ def main():
                     raise KnowledgeError("Operator knowledge must not be packaged in the customer API")
                 inputs = {safe_file(ROOT / KB, item["path"]) for item in manifest["articles"]}
                 inputs.update(safe_file(ROOT, source) for source in snapshot_data["source_sha256"])
-                inputs.update((ROOT / KB / name).resolve() for name in ("manifest.json", "assistant-policy.json", "evaluation-cases.json", "connector-catalog.json", "source-snapshot.json"))
+                inputs.update((ROOT / KB / name).resolve() for name in ("manifest.json", "assistant-policy.json", "evaluation-cases.json", "analysis-question-coverage.json", "connector-catalog.json", "source-snapshot.json"))
                 if output in inputs:
                     raise KnowledgeError("Export cannot overwrite repository inputs")
                 output.parent.mkdir(parents=True, exist_ok=True)
