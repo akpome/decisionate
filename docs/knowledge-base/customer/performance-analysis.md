@@ -7,8 +7,9 @@ for each dollar already spent.
 
 1. Set From, To and Currency for the period you want to review.
 2. Answer Where are your revenue and spending figures stored? For Both in the same dataset, select the dataset,
-   Revenue amount and Spending amount. Use Compare by to compare channels,
-   campaigns or another category. For Revenue and spending in different datasets, name each
+   Revenue amount and Spending amount. Under Show separate results for, choose
+   a column such as Channel for one result per channel, or All records combined
+   for one overall result. For Revenue and spending in different datasets, name each
    comparison and select its Revenue and Spending sources. Add comparison
    adds another channel or business to compare.
 3. Review Date column and Records contain for each source. Choose a dimension
@@ -25,6 +26,9 @@ for each dollar already spent.
 
 For example, 300 dollars of revenue divided by 100 dollars of spending gives
 3 dollars of revenue per dollar spent. This is revenue return, not profit.
+Show separate results for uses the categories already in your records. It does
+not determine which channel generated a sale. All records combined includes
+only the selected dates and any dimension filter, not the dataset's entire history.
 For a fair channel ranking, each sale must be counted once under one channel, with the same tracking method used for every channel. Do not
 give every channel the store's entire revenue. Independently platform-reported
 sales can still be shown separately, but without declaring an overall winner.
@@ -38,8 +42,10 @@ Open Business Analysis and choose Profitability to see money left after costs.
 2. Select Revenue amount and the relevant Cost amount columns. Add another cost
    includes another non-overlapping total cost. Do not count a total and its
    components twice, or use unit cost as the total cost of all items sold.
-3. For one dataset, use Compare by for products, services or locations. With
-   separate datasets, name each comparison and choose its revenue and costs.
+3. For one dataset, use Show separate results for to select a product, service
+   or location column for individual results. Choose All records combined for
+   one overall result within the selected dates and filters. With separate
+   datasets, name each comparison and choose its revenue and costs.
    Review the date columns, record type and any dimension filters.
 4. Check the confirmation list: dates and currency match, revenue has refunds,
    discounts and tax removed, and sales and costs are counted once. Choose Compare results. Read both money left and
@@ -130,7 +136,9 @@ with recorded revenue, not a future budget. It is available for any eligible
 source, not only Meta, Google or Shopify.
 
 Choose the historical dates and currency. With Both in the same dataset, choose
-the revenue and spending columns and Compare by, such as channel or campaign.
+the revenue and spending columns. Under Show separate results for, select a
+channel or campaign column for individual results; All records combined gives
+one overall result within the selected dates and filters.
 With Revenue and spending in different datasets, name each comparison and select its own revenue and
 spending amounts. A dimension filter can select the channel's sales from a
 shared sales dataset. Do not assign the entire store's revenue to every channel.
@@ -171,8 +179,9 @@ but cannot determine your winning channel from chat or inspect your account.
 ## Which products or services leave the most money?
 
 Open Business Analysis, then Profitability. Select recorded revenue and one or
-more non-overlapping total cost columns, and optionally Compare by product,
-service, customer or location. Unit costs must first be converted into the
+more non-overlapping total cost columns. Under Show separate results for, choose
+a product, service, customer or location column to see each one's result, or
+All records combined for one overall result. Unit costs must first be converted into the
 correct total cost for the recorded quantities. Do not include both a total cost
 and its component costs.
 
@@ -333,8 +342,9 @@ of revenue with 20 dollars left has a 20% margin. Another product with 1,000
 dollars of revenue and 100 dollars left has a 10% margin but leaves more money
 in total. The leading group is based on money left, not the margin percentage.
 
-Compare by product, service or location using the same dates, currency and cost
-definitions. Include total costs for the quantities sold, not a unit price used
+Under Show separate results for, select a product, service or location column.
+Use the same dates, currency and cost definitions for each result. Include total
+costs for the quantities sold, not a unit price used
 as a total. Shared overhead is not allocated automatically. If it is missing,
 describe the result as money left after selected costs, not final net profit.
 This comparison does not determine the best selling price, stock order or

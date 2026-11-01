@@ -115,8 +115,9 @@ export function AmountSource({ label, value, onChange, context }: {
   </div>
 }
 
-export function GroupChoice({ datasetId, value, onChange, context }: {
+export function GroupChoice({ datasetId, value, onChange, context, label = "Compare by", totalLabel = "Business total" }: {
   datasetId: number; value: string | null; onChange: (value: string | null) => void; context: SourceContext
+  label?: string; totalLabel?: string
 }) {
   const [state, setState] = useState<{ id: number; columns: { column: string; label: string }[] }>({ id: 0, columns: [] })
   const [error, setError] = useState("")
@@ -129,7 +130,7 @@ export function GroupChoice({ datasetId, value, onChange, context }: {
       .catch(failure => { if (!controller.signal.aborted) setError(failure.message) })
     return () => controller.abort()
   }, [datasetId, context.userId, context.workspaceId, revision])
-  return <div><label className="block text-xs font-medium text-gray-600">Compare by<select aria-label="Compare by" className={field} value={value || ""} disabled={!datasetId} onChange={event => onChange(event.target.value || null)}>
-    <option value="">Business total</option>{state.id === datasetId && state.columns.map(column => <option key={column.column} value={column.column}>{column.label}</option>)}
+  return <div><label className="block text-xs font-medium text-gray-600">{label}<select aria-label={label} className={field} value={value || ""} disabled={!datasetId} onChange={event => onChange(event.target.value || null)}>
+    <option value="">{totalLabel}</option>{state.id === datasetId && state.columns.map(column => <option key={column.column} value={column.column}>{column.label}</option>)}
   </select></label>{error && <p role="alert" className="text-sm text-red-700">{error} <button type="button" className={command} onClick={() => setRevision(value => value + 1)}>Retry</button></p>}</div>
 }
