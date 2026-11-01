@@ -1,10 +1,8 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-31",
-  "base_git_revision": "314ed62d26fd3ba24fd930bb874b143f745f811e",
+  "base_git_revision": "35b1129333f0013985243b91c2d2c908d3aa1d52",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/performance/service.py",
-    "apps/web/app/dashboard/help/page.tsx",
     "apps/web/features/performance/performance-workspace.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
@@ -111,7 +109,7 @@
     "apps/web/features/performance/growth-setup.tsx": "6a6a92841e2097e39cbbe12106f4b8bb5710a505cca6a1b745227d441f35cf35",
     "apps/web/features/performance/performance-results.tsx": "c2a123d62af6548de3554001453aecc713e5ad0230c5904b1d9a8092a20b620d",
     "apps/web/features/performance/performance-setup.tsx": "f6f8571c3222f8a393dcb5fffd10c960ed80f58246ebc4c298652a1818211326",
-    "apps/web/features/performance/performance-workspace.tsx": "fa1dd1bd91bd35a9bf72343c63e4637f50b8fdeb3b37ef0ccd80a53043500f96",
+    "apps/web/features/performance/performance-workspace.tsx": "a799270bda69f36a04902ab84abbe282b077618cd93d7cfdba148a5e74ca2604",
     "apps/web/features/relationships/defaults.ts": "2ae713139a4aefcc5de6dc7a1b1198def14f2f544b5b93104e63da30a223258a",
     "apps/web/features/reports/analysis-jobs.ts": "e401e777e7decbdcb95d574a13c4ca7fc1b71981960f02dee64cb3977fa1bf87",
     "apps/web/features/reports/analysis-tools.tsx": "c9bf52990e575fca9e3f60c276e257d406c7f2fb15ccf7d812fe6c8fcdcf382c",

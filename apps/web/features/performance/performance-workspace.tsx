@@ -21,11 +21,11 @@ function WrappingSelect({ label, value, options, onChange }: {
   label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void
 }) {
   return <label className="block min-w-0 text-xs font-medium text-gray-600">{label}
-    <span className="relative mt-1 block h-14 rounded-md border border-gray-300 bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100">
-      <select aria-label={label} className="peer absolute inset-0 h-full w-full opacity-0" value={value} onChange={event => onChange(event.target.value)}>
+    <span className="relative mt-1 block rounded-md focus-within:ring-2 focus-within:ring-blue-100">
+      <select aria-label={label} className={`${field} peer block mt-0! opacity-0!`} value={value} onChange={event => onChange(event.target.value)}>
         {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center gap-2 px-3 py-2 text-sm font-normal leading-5 text-gray-950 peer-disabled:opacity-50">
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-0.5 text-sm font-normal leading-4 text-gray-950 peer-focus:border-blue-600 peer-disabled:opacity-50">
         <span className="min-w-0 flex-1 break-words">{options.find(option => option.value === value)?.label}</span><ChevronDown size={16} className="shrink-0" />
       </span>
     </span>
