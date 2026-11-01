@@ -499,11 +499,12 @@
       "routes": [
         "/dashboard/reports",
         "/dashboard/reports/dataset",
-        "/dashboard/business-impact"
+        "/dashboard/reports/impact"
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
         "apps/web/app/dashboard/business-impact/page.tsx",
+        "apps/web/app/dashboard/reports/impact/page.tsx",
         "apps/web/features/reports/report-page.tsx",
         "apps/web/features/reports/report-navigation.ts",
         "apps/web/components/searchable-select.tsx",

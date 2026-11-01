@@ -15,7 +15,7 @@ const { reportPagePath, reportHistoryQuery } = loaded.exports
 test("saved definitions and resumed jobs route to their own workflow, including legacy weekly assessments", () => {
   for (const [weekly, impact, scope, path] of [
     [false, false, "multi", "/dashboard/reports"], [false, false, "single", "/dashboard/reports/dataset"],
-    [false, true, "multi", "/dashboard/business-impact"], [true, true, "multi", "/dashboard/reports/weekly"],
+    [false, true, "multi", "/dashboard/reports/impact"], [true, true, "multi", "/dashboard/reports/weekly"],
     [true, false, "multi", "/dashboard/reports/weekly"],
   ]) assert.equal(reportPagePath(weekly, impact, scope), path)
   const source = read("../features/reports/report-workspace.tsx")
@@ -33,8 +33,25 @@ test("saved metric analyses and assessments request separate histories without c
 
 test("decision entry and saved assessment links open Business Impact directly", () => {
   const source = read("../features/decisions/components/decision-impact-reviews.tsx")
-  assert.match(source, /\/dashboard\/business-impact\?decision=\$\{decision.id\}/)
-  assert.match(source, /\/dashboard\/business-impact\?report=\$\{encodeURIComponent\(review.report_id\)\}/)
-  assert.doesNotMatch(source, /href=\{`\/dashboard\/reports/)
+  assert.match(source, /\/dashboard\/reports\/impact\?decision=\$\{decision.id\}/)
+  assert.match(source, /\/dashboard\/reports\/impact\?report=\$\{encodeURIComponent\(review.report_id\)\}/)
+  assert.doesNotMatch(source, /\/dashboard\/business-impact/)
   assert.match(read("../features/reports/report-page.tsx"), /key=\{`[^`]*\$\{impactPage\}/)
+})
+
+test("old Business Impact links redirect with their decision, saved report and job parameters intact", async () => {
+  const loaded = { exports: {} }, destinations = []
+  vm.runInNewContext(ts.transpileModule(read("../app/dashboard/business-impact/page.tsx"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { module: loaded, exports: loaded.exports, URLSearchParams,
+    require: name => { assert.equal(name, "next/navigation"); return { redirect: path => destinations.push(path) } } })
+  for (const params of [{}, { decision: "7" }, { report: "saved & report", job: "running-job" }, { tag: ["one", "two"], missing: undefined }]) {
+    await loaded.exports.default({ searchParams: Promise.resolve(params) })
+    const destination = new URL(destinations.at(-1), "https://example.test")
+    assert.equal(destination.pathname, "/dashboard/reports/impact")
+    for (const [key, value] of Object.entries(params)) {
+      assert.deepEqual(destination.searchParams.getAll(key), value === undefined ? [] : Array.isArray(value) ? value : [value])
+    }
+    if (!Object.keys(params).length) assert.equal(destination.search, "")
+  }
 })

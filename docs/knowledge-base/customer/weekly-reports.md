@@ -103,14 +103,14 @@ not alter Business Analysis or either workflow's saved snapshots.
 ## Follow up on a business change
 
 Weekly Reports has no **Business impact analysis** tab or assessment setup form. Configure
-assessments on Business Impact, or open Assess business impact from Decision Details.
+assessments in Business Analysis under Business impact, or open Assess business impact from Decision Details.
 Weekly Reports focuses on selected metrics, unusual changes and relationships.
-Old weekly decision links open Business Impact. Older explicit copy links copy
-only metrics and dimension filters, not the assessment; the Business Impact page
+Old weekly decision links open Business impact within Business Analysis. Older explicit copy links copy
+only metrics and dimension filters, not the assessment; the Business impact tool
 does not offer a Copy selection to Weekly Reports action.
 
 Existing weekly assessment configurations are preserved, not silently converted
-or deleted. Their setup is read-only, with a Manage assessment in Business Impact link.
+or deleted. Their setup is read-only, with an Open Business impact link.
 Set up metric monitoring explicitly starts an unsaved monitoring setup using the
 same selected metrics. The existing weekly configuration is replaced only after
 preview and Save changes; saved decision assessments and report history remain.

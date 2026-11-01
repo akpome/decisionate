@@ -64,8 +64,8 @@ test("removing weekly settings pauses delivery but does not delete snapshots", a
 })
 
 test("snapshot deletion retains the correct workflow URL", async () => {
-  for (const pagePath of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/weekly", "/dashboard/business-impact"]) {
-    const { handler, calls } = management("deleteSavedReport", { pagePath, impactPage: pagePath === "/dashboard/business-impact" })
+  for (const pagePath of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/weekly", "/dashboard/reports/impact"]) {
+    const { handler, calls } = management("deleteSavedReport", { pagePath, impactPage: pagePath === "/dashboard/reports/impact" })
     await handler()
     assert.deepEqual(calls[1], ["history", null, "", pagePath])
   }

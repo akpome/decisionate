@@ -41,7 +41,7 @@ export function DecisionImpactReviews({ decision, userId, workspaceId, canReview
   return <section id="business-impact-review" aria-label="Business impact review" className="min-w-0 scroll-mt-20 space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-xl font-semibold">Business impact review</h2>
-      {canReview && ready && <Link className="inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium" href={`/dashboard/business-impact?decision=${decision.id}`}><ChartNoAxesCombined size={16} />Assess business impact</Link>}
+      {canReview && ready && <Link className="inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium" href={`/dashboard/reports/impact?decision=${decision.id}`}><ChartNoAxesCombined size={16} />Assess business impact</Link>}
     </div>
     {canReview && !ready && <p className="text-sm text-gray-600">An action and an outcome metric are needed. <Link href="#decision-title" className="text-blue-700 underline">Open Decision Details</Link></p>}
     {error && <div role="alert" className="flex items-start gap-3 text-sm text-red-700"><p className="min-w-0 break-words">{error}</p><button type="button" disabled={loading} title="Retry impact assessments" aria-label="Retry impact assessments" onClick={() => setRetry(value => value + 1)}><RefreshCw size={16} /></button></div>}
@@ -52,7 +52,7 @@ export function DecisionImpactReviews({ decision, userId, workspaceId, canReview
       {reviews.length > 1 && <label className="block max-w-xl text-xs font-medium text-gray-600">Saved assessments<select className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" value={review.review_id} onChange={event => setSelected(event.target.value)}>{reviews.map(item => <option key={item.review_id} value={item.review_id}>{item.created_at.slice(0, 10)} / {item.analysis.window.start} to {item.analysis.window.end}</option>)}</select></label>}
       {!review.matches_current_decision && <p className="text-sm text-amber-800">The decision&apos;s action, outcome metric or expected result changed after this assessment. This is historical evidence.</p>}
       <ImpactResult analysis={review.analysis} />
-      {review.report_id && <Link className="inline-flex min-h-10 items-center text-sm text-blue-700 underline" href={`/dashboard/business-impact?report=${encodeURIComponent(review.report_id)}`}>Open assessment</Link>}
+      {review.report_id && <Link className="inline-flex min-h-10 items-center text-sm text-blue-700 underline" href={`/dashboard/reports/impact?report=${encodeURIComponent(review.report_id)}`}>Open assessment</Link>}
     </>}
     {next !== null && <button type="button" className="min-h-10 text-sm text-blue-700 underline" disabled={loading} onClick={() => setOffset(next)}>Earlier assessments</button>}
   </section>

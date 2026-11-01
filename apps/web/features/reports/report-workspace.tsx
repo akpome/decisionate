@@ -122,7 +122,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
   const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
   const pagePath = reportPagePath(weekly, impactPage, initialScope)
-  const pageTitle = weekly ? "Weekly Reports" : impactPage ? "Business Impact" : "Business Analysis"
+  const pageTitle = weekly ? "Weekly Reports" : "Business Analysis"
   const setupLabel = weekly ? "Report setup" : impactPage ? "Assessment setup" : "Build analysis"
   const previewLabel = weekly ? "Report preview" : impactPage ? "Assessment preview" : "Analysis preview"
   const historyLabel = weekly ? "Weekly history" : impactPage ? "Saved assessments" : "Saved reports"
@@ -196,7 +196,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       try {
         const params = new URLSearchParams(window.location.search)
         if (!impactPage && params.has("decision")) {
-          router.replace(`/dashboard/business-impact?decision=${encodeURIComponent(params.get("decision")!)}`)
+          router.replace(`/dashboard/reports/impact?decision=${encodeURIComponent(params.get("decision")!)}`)
           return
         }
         if (!weekly && params.has("weekly")) {
@@ -592,7 +592,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? setupLabel : previewLabel)}</span></button>)}
       </div>
     </header>
-    {!weekly && !impactPage && <AnalysisTools />}
+    {!weekly && <AnalysisTools active={impactPage ? "impact" : "metrics"} />}
     {!weekly && !impactPage && <nav aria-label="Analysis sources" className="flex flex-wrap gap-4 text-sm print:hidden">{[{ scope: "multi", href: "/dashboard/reports", label: "Multi dataset report" }, { scope: "single", href: "/dashboard/reports/dataset", label: "Single dataset report" }].map(item => <Link key={item.scope} href={item.href} aria-current={definition.scope === item.scope ? "page" : undefined} className={definition.scope === item.scope ? "font-semibold text-blue-800 underline underline-offset-8" : "text-gray-600"}>{t(item.label)}</Link>)}</nav>}
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {weekly && !weeklySettings && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />Retry weekly settings</button>}

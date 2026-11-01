@@ -53,7 +53,7 @@ function workspaceHeader(weekly, view = "explore", translate = text => text, loa
 }
 
 test("each separate workflow has its approved title and only its own setup and preview tabs", () => {
-  for (const [weekly, impactPage, title, setup, preview] of [[false, false, "Business Analysis", "Build analysis", "Analysis preview"], [true, false, "Weekly Reports", "Report setup", "Report preview"], [false, true, "Business Impact", "Assessment setup", "Assessment preview"]]) {
+  for (const [weekly, impactPage, title, setup, preview] of [[false, false, "Business Analysis", "Build analysis", "Analysis preview"], [true, false, "Weekly Reports", "Report setup", "Report preview"], [false, true, "Business Analysis", "Assessment setup", "Assessment preview"]]) {
     const html = workspaceHeader(weekly, "explore", text => text, false, impactPage)
     assert.match(html, new RegExp(`<h1[^>]*>${title}</h1>`))
     for (const label of [setup, preview]) assert.ok(html.includes(`>${label}</span>`))
@@ -96,9 +96,28 @@ test("Business Analysis has a distinct label in the Analysis sidebar alongside W
   assert.match(analysis, /href: "\/dashboard\/relationships",\s+label: "Relationships"/)
   assert.equal((analysis.match(/label: "Analysis"/g) ?? []).length, 1)
   assert.match(analysis, /href: "\/dashboard\/reports",\s+label: "Business Analysis"/)
-  assert.match(analysis, /href: "\/dashboard\/business-impact",\s+label: "Business Impact"/)
+  assert.doesNotMatch(analysis, /label: "Business Impact"|href: "\/dashboard\/business-impact"/)
   assert.ok(analysis.indexOf('label: "Business Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
   assert.ok(analysis.indexOf('label: "Weekly Reports"') < analysis.indexOf('label: "Relationships"'))
+})
+
+test("Business impact shares the desktop tools and mobile selector with a single active choice", () => {
+  let destination
+  const { AnalysisTools } = compile("../features/reports/analysis-tools.tsx", {
+    "next/link": { default: props => require("react").createElement("a", props) },
+    "next/navigation": { useRouter: () => ({ push: path => { destination = path } }) },
+    "@/features/performance/types": compile("../features/performance/types.ts"),
+  })
+  const tree = AnalysisTools({ active: "impact" }), html = renderToStaticMarkup(tree)
+  assert.match(html, /href="\/dashboard\/reports\/impact" aria-current="page"/)
+  assert.equal((html.match(/aria-current="page"/g) || []).length, 1)
+  assert.match(html, /<option value="impact" selected="">Business impact<\/option>/)
+  assert.equal((html.match(/<option /g) || []).length, 7)
+  const selector = tree.props.children[0].props.children[1]
+  selector.props.onChange({ target: { value: "metrics" } })
+  assert.equal(destination, "/dashboard/reports")
+  selector.props.onChange({ target: { value: "impact" } })
+  assert.equal(destination, "/dashboard/reports/impact")
 })
 
 test("sidebar navigation marks only the current workflow as active, including the single-dataset route", () => {
@@ -108,7 +127,7 @@ test("sidebar navigation marks only the current workflow as active, including th
   const code = ts.transpileModule(`module.exports = ${declaration.getText(ast)}`, { compilerOptions: { target: ts.ScriptTarget.ES2021 } }).outputText
   const loaded = { exports: {} }; vm.runInNewContext(code, { module: loaded })
   const matches = loaded.exports
-  for (const path of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/evidence"]) {
+  for (const path of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/evidence", "/dashboard/reports/impact"]) {
     assert.equal(matches(path, "/dashboard/reports"), true)
     assert.equal(matches(path, "/dashboard/reports/weekly"), false)
   }

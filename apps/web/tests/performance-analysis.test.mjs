@@ -20,7 +20,7 @@ test("historical comparisons remain within Business Analysis without more sideba
   assert.deepEqual(Object.values(toolLabels).sort(), ["Cash flow planning", "Customer retention", "Profitability", "Return on spend", "Sales conversion"])
   assert.match(nav, /Analysis tool<select/)
   assert.match(nav, /lg:hidden/)
-  assert.match(read("../features/reports/report-workspace.tsx"), /!weekly && !impactPage && <AnalysisTools/)
+  assert.match(read("../features/reports/report-workspace.tsx"), /!weekly && <AnalysisTools active=\{impactPage \? "impact" : "metrics"\}/)
   assert.doesNotMatch(read("../app/dashboard/dashboard-shell.tsx"), /label: "Return on spend"|label: "Profitability"/)
 })
 

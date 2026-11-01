@@ -187,9 +187,10 @@ test("fresh reports open with correlation settings and do not initialize an impa
   assert.doesNotMatch(workspace, /Create decision|createDecision\(/)
 })
 
-test("business impact is a dedicated page without analysis-type or dataset-scope tabs", () => {
+test("business impact is a Business Analysis tool without unrelated dataset-scope tabs", () => {
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(readFileSync(new URL("../app/dashboard/business-impact/page.tsx", import.meta.url), "utf8"), /<ReportPage impactPage/)
+  assert.match(readFileSync(new URL("../app/dashboard/reports/impact/page.tsx", import.meta.url), "utf8"), /<ReportPage impactPage/)
+  assert.match(workspace, /!weekly && <AnalysisTools active=\{impactPage \? "impact" : "metrics"\}/)
   assert.doesNotMatch(workspace, /aria-label="Analysis type"/)
   assert.match(workspace, /!weekly && !impactPage && <nav aria-label="Analysis sources"/)
   assert.match(workspace, /!single && !weekly && !impactPage && canManage && report.report_id/)
