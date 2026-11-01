@@ -16,22 +16,41 @@ function load(path, dependencies = {}) {
   return loadedModule.exports
 }
 const types = load("../features/performance/types.ts")
+const hooks = { ...React, useEffect() {}, useState: initial => [initial?.columns ? {
+  id: 7, columns: [{ column: "channel", label: "Channel" }, { column: "product", label: "Product" }],
+} : initial, () => {}] }
 const sources = load("../features/performance/amount-source.tsx", {
-  react: { ...React, useEffect() {}, useState: initial => [initial?.columns ? {
-    id: 7, columns: [{ column: "channel", label: "Channel" }, { column: "product", label: "Product" }],
-  } : initial, () => {}] },
+  react: hooks,
   "@/components/searchable-select": { SearchableSelect: () => null },
   "@/features/datasets/components/dimension-filter": { DatasetDimensionFilter: () => null },
   "@/lib/api": {},
   "./types": types,
 })
+const setupSources = { ...sources, useAmountDataset: () => ({ dataset: null, error: "" }),
+  DatasetChoice: () => null, SourceDetails: () => null }
 const { SingleDatasetSetup } = load("../features/performance/performance-setup.tsx", {
   "./types": types,
-  "./amount-source": { ...sources, useAmountDataset: () => ({ dataset: null, error: "" }),
-    DatasetChoice: () => null, SourceDetails: () => null },
+  "./amount-source": setupSources,
+})
+const { GrowthSetup } = load("../features/performance/growth-setup.tsx", {
+  react: hooks,
+  "@/lib/api": {},
+  "@/features/datasets/components/dimension-filter": { DatasetDimensionFilter: () => null },
+  "./amount-source": setupSources,
 })
 const context = { userId: "owner", workspaceId: "workspace" }
 const render = node => renderToStaticMarkup(node)
+function findGrouping(tree) {
+  let grouping
+  function visit(node) {
+    if (!node || typeof node !== "object") return
+    if (node.type === sources.GroupChoice) grouping = node
+    React.Children.forEach(node.props?.children, visit)
+  }
+  visit(tree)
+  assert.ok(grouping)
+  return grouping
+}
 
 test("Return on spend and Profitability use explicit result grouping labels", () => {
   for (const kind of ["return", "profit"]) {
@@ -52,14 +71,7 @@ test("renaming the field preserves saved categories and clearing restores the ov
     definition.group_column = "channel"
     const changes = []
     const tree = SingleDatasetSetup({ definition, context, onChange: value => changes.push(value) })
-    let grouping
-    function visit(node) {
-      if (!node || typeof node !== "object") return
-      if (node.type === sources.GroupChoice) grouping = node
-      React.Children.forEach(node.props?.children, visit)
-    }
-    visit(tree)
-    assert.ok(grouping)
+    const grouping = findGrouping(tree)
     const control = sources.GroupChoice(grouping.props).props.children[0].props.children[1]
     assert.match(render(grouping), /<option value="channel" selected="">Channel<\/option>/)
     for (const [value, expected] of [["product", "product"], ["", null]]) {
@@ -70,9 +82,24 @@ test("renaming the field preserves saved categories and clearing restores the ov
   }
 })
 
-test("Sales conversion keeps its existing grouping labels", () => {
-  const html = render(React.createElement(sources.GroupChoice, { datasetId: 7, value: null, context, onChange() {} }))
-  assert.match(html, /Compare by<select aria-label="Compare by"/)
-  assert.match(html, /<option value="" selected="">Business total<\/option>/)
-  assert.doesNotMatch(html, /Show separate results for|All records combined/)
+test("Sales conversion uses the same result grouping wording and preserves saved choices", () => {
+  for (const group_column of [null, "channel"]) {
+    const definition = types.newPerformance("conversion")
+    Object.assign(definition, { source: { dataset_id: 7, date_column: "date" }, group_column })
+    const changes = []
+    const tree = GrowthSetup({ definition, context, onChange: value => changes.push(value) })
+    const html = render(tree)
+    assert.match(html, /Show separate results for<select aria-label="Show separate results for"/)
+    assert.match(html, group_column ? /<option value="channel" selected="">Channel<\/option>/ : /<option value="" selected="">All records combined<\/option>/)
+    assert.doesNotMatch(html, /Compare by|Business total/)
+    const grouping = findGrouping(tree)
+    const control = sources.GroupChoice(grouping.props).props.children[0].props.children[1]
+    for (const [value, expected] of [["product", "product"], ["", null]]) {
+      control.props.onChange({ target: { value } })
+      assert.equal(changes.at(-1).group_column, expected)
+      assert.deepEqual(changes.at(-1).steps, definition.steps)
+      assert.deepEqual(JSON.parse(JSON.stringify(changes.at(-1).source)), definition.source)
+      assert.deepEqual(changes.at(-1).date_range, definition.date_range)
+    }
+  }
 })

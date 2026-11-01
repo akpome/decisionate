@@ -475,7 +475,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Find where potential sales stop progressing",
         steps: [
-          "Choose Sales conversion and one dataset. Select the dates and add two to five ordered count columns, such as Enquiries, Quotes and Sales. Use Compare by to compare groups when appropriate.",
+          "Choose Sales conversion and one dataset. Select the dates and add two to five ordered count columns, such as Enquiries, Quotes and Sales. Under Show separate results for, choose a channel, store or other category column for individual results, or All records combined for one overall result.",
           "Confirm that the steps count the same people or opportunities once at each step and use the same follow-up period. Unrelated totals of website visits and orders are not automatically a valid sales journey.",
           "Preview the final-step rate and the largest drop-off. A later step larger than an earlier one needs correcting; it is not forced into a percentage. A drop-off points to an area to investigate, not its cause or guaranteed recoverable sales. Review the result before saving.",
         ],

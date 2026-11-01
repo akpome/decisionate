@@ -17,7 +17,7 @@ export function SingleDatasetSetup({ definition, onChange, context }: {
     <div className="grid gap-4 md:grid-cols-2"><DatasetChoice {...context} label="Dataset" value={item.revenue.dataset_id} selectedLabel={dataset?.dataset_label} onChange={dataset_id => {
       const source = { ...blankAmount(), dataset_id }
       onChange({ ...definition, group_column: null, items: [{ ...blankItem("Business"), revenue: source, costs: [{ ...source }] }] })
-    }} /><GroupChoice label="Show separate results for" totalLabel="All records combined" context={context} datasetId={item.revenue.dataset_id} value={definition.group_column} onChange={group_column => onChange({ ...definition, group_column })} /></div>
+    }} /><GroupChoice context={context} datasetId={item.revenue.dataset_id} value={definition.group_column} onChange={group_column => onChange({ ...definition, group_column })} /></div>
     <div className="grid items-start gap-4 md:grid-cols-2">
       <AmountChoice label="Revenue amount" value={item.revenue.metric_key} dataset={dataset} onChange={metric_key => {
         const date_column = item.revenue.date_column || dataset?.date_columns[0] || ""

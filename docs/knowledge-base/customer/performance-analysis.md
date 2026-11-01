@@ -85,9 +85,11 @@ sales stop progressing.
 2. Name and order two to five steps, such as Enquiries, Quotes and Sales.
    Choose the Count column for each step. Use Add step or the move controls
    to arrange the process in its actual order.
-3. Optionally compare a category or apply a dimension filter. Confirm the
-   counts describe the same people or opportunities, counted once per step
-   under the same follow-up window.
+3. Under Show separate results for, choose a channel, store or other category
+   column for individual results, or All records combined for one overall
+   result within the selected dates and filters. A dimension filter limits
+   which records are included. Confirm the counts describe the same people
+   or opportunities, counted once per step under the same follow-up window.
 4. Choose Show results. Review the overall conversion rate and the step with
    the largest number of people who did not continue.
 5. Review the results before Save comparison, then Create decision if you want

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-01",
-  "base_git_revision": "7d6f084a563c68505e07bb9aae32be52087df124",
+  "base_git_revision": "ce035119d8b0ad093a61ce3096106366cd6696c6",
   "referenced_sources_modified_in_worktree": [
     "apps/web/app/dashboard/help/page.tsx",
     "apps/web/features/performance/amount-source.tsx",
@@ -92,7 +92,7 @@
     "apps/web/app/dashboard/dashboard-shell.tsx": "b1f1d34178e038f5d02ebfa7af5e213aa7ee0f6bd26c51fa9ed7b7720e8fc1dd",
     "apps/web/app/dashboard/decisions/[id]/page.tsx": "1840e58a69c2b6c71db6ebbff7a8eae5ac059287eabe7045eabcad5d3041837b",
     "apps/web/app/dashboard/entity-matching/page.tsx": "28a6dfafb83e2cd9269106cb062b8addb7084dc236295bfe5d377b533c96c277",
-    "apps/web/app/dashboard/help/page.tsx": "2924998b4296a6bef565191ec71c54ef272bf3da51b3a3f66b01c658ba8ec6de",
+    "apps/web/app/dashboard/help/page.tsx": "b43094c79577a357f67a9b0b6168440dfd7735c6df17319b80b22b59954f322e",
     "apps/web/app/dashboard/page.tsx": "3af5c0c1fcffcb3cde82a32b5cfcc43df6322a45b0a8d78c9a482c0689f688bd",
     "apps/web/app/dashboard/relationships/page.tsx": "8006bc0d141b84f2e62d83f6c99d64e6b27310a0bc4f821e9b928a1ed8a7bd19",
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
@@ -108,11 +108,11 @@
     "apps/web/features/datasets/lib/metric-selection-save.ts": "f5e26dc649de82e84e657e8a6e8ecc0bd635a6a07bd43426f1a263d23777b1ec",
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "187d087b81dedd9d084fe79332e8489ec14d7d97d6e625123556ad7d40d0ce66",
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "7d724c58e2b443baae68b205bd3ceec8eaca0754f9b3351935b5ef271e784799",
-    "apps/web/features/performance/amount-source.tsx": "407c62bedac67c7ef38e5c7068ec9520ce63c1c2b4eaea4e6388c2f6d4ff4134",
+    "apps/web/features/performance/amount-source.tsx": "122a9f4c76f165a258ec8bacbd93c81067647dbc83c99168080eff31c61ca8dd",
     "apps/web/features/performance/growth-results.tsx": "70b243acaeb2dc4cba429d9b97261e4da8deec0936f8ebe7b0f0cc4cafa82169",
     "apps/web/features/performance/growth-setup.tsx": "d6de2ec2af8db7a4c7cba51f6e478c055a8649ea14eb68c2e7266cc36d75b2d9",
     "apps/web/features/performance/performance-results.tsx": "c2a123d62af6548de3554001453aecc713e5ad0230c5904b1d9a8092a20b620d",
-    "apps/web/features/performance/performance-setup.tsx": "b1a7d19f15525d1b1065cdeea36a54d4c1966f416e903d4343023318f8eec723",
+    "apps/web/features/performance/performance-setup.tsx": "f6f8571c3222f8a393dcb5fffd10c960ed80f58246ebc4c298652a1818211326",
     "apps/web/features/performance/performance-workspace.tsx": "cf91879b0e8bb337da28d9fef48b2b8507f162b628e31467bc43aa8fb2d3de34",
     "apps/web/features/performance/types.ts": "f6c3854bde179c65cb68c9984c5ebe1c3a730d115c1e7c638af46e16544c4099",
     "apps/web/features/relationships/defaults.ts": "2ae713139a4aefcc5de6dc7a1b1198def14f2f544b5b93104e63da30a223258a",
@@ -157,7 +157,7 @@
     "docs/railway-scheduling.md": "73781498a08122f0e4987f21286eb375a120cbc5f179757d44af01d6cb7e6305"
   },
   "article_sha256": {
-    "customer/performance-analysis.md": "ed22de2305f6427aed42d56dde84a23e9ff8e482fef8140458eda4b17f848fc4",
+    "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "f8c624fc0092d9cd57247d9b2c23888394bfe898190c6ea2022530301340d8a4",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",
     "customer/getting-started.md": "810205b6f2af17f6cce9b613e1424fcb34e2653bf57b8fb64236b771cfd8496c",
