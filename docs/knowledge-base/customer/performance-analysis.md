@@ -96,17 +96,27 @@ can definitely be recovered.
 Open Business Analysis and choose Cash flow planning to check expected cash
 against upcoming payments.
 
-1. Select a Payment schedule dataset, its Expected payment date column, and
-   the Expected money in and Expected money out columns.
-2. Set Plan starts, Plan length of 4, 8, 13 or 26 weeks, Currency and
+1. Answer Where are your incoming and outgoing payments stored? Choose Both in
+   the same dataset or Incoming and outgoing payments in different datasets.
+2. For one dataset, select Payment schedule dataset, Expected payment date
+   column, Expected money in and Expected money out. For different datasets,
+   select Incoming payments dataset, Expected collection date column and
+   Expected money in; then select Outgoing payments dataset, Expected payment
+   date column and Expected money out. Each source has its own optional dimension
+   filter, such as a store or region.
+3. Set Plan starts, Plan length of 4, 8, 13 or 26 weeks, Currency and
    Cash available at the start.
-3. Optionally open Cash buffer and what-if changes to set Minimum cash to keep,
+4. Optionally open Cash buffer and what-if changes to set Minimum cash to keep,
    adjust receipts or costs, or test receipts arriving up to 90 days later.
-4. Confirm that the schedule includes the receipts and obligations you intend
+5. Confirm that the schedules include the receipts and obligations you intend
    to plan. Choose Preview cash plan and review weekly cash, the lowest balance
    and any shortfall against your minimum.
-5. Choose Save comparison after reviewing the preview. Create decision can
+6. Choose Save comparison after reviewing the preview. Create decision can
    then record an action and review date.
+
+Separate sources are totaled into the same planning weeks. Their payment dates
+do not have to match, and the records are not joined together. Both sources must
+use the chosen currency. Older saved plans with one dataset continue to work.
 
 This is a scenario from your payment schedule, not a guarantee or bank balance
 check. Include relevant bills, wages and other obligations yourself. Weekly
@@ -256,8 +266,10 @@ number of recoverable sales. Incomplete groups do not produce an overall conclus
 
 ## When might cash run short?
 
-Choose Cash flow planning and a payment schedule with an expected-payment date,
-expected money-in total and expected money-out total. Use a single currency.
+Choose Cash flow planning and either one combined payment schedule or separate
+incoming and outgoing datasets. Choose the expected payment dates, amount columns
+and any dimension filter for each source. Use a single currency. Different
+datasets can use the same amount column name; they do not need matching dates.
 Enter cash available before the plan begins, its start date and a length of
 4, 8, 13 or 26 weeks. Each plan week is seven days from the selected start.
 The schedule must include the actual cash receipts and obligations being planned,
@@ -275,7 +287,9 @@ Weekly closing cash equals opening cash plus expected receipts minus expected
 payments. The result shows the adjusted plan against the original schedule,
 ending cash, the lowest planned balance including opening cash, and any gap
 below the chosen minimum. Empty weeks mean no payments in the confirmed schedule.
-A completely empty schedule cannot produce a reassuring cash plan.
+A completely empty plan cannot produce a reassuring cash plan. One source may
+have no payments in the plan dates while the other does; missing amounts in a
+scheduled payment are still flagged rather than treated as zero.
 
 This is a payment-schedule scenario, not an automated statistical cash forecast
 or a guarantee. It only includes the selected obligations; tax, payroll, debt,
@@ -364,8 +378,8 @@ planning follows expected payment dates and cash available at the start. A sale
 recorded today may not be paid until next month, while wages or suppliers are
 due sooner. Profit and available bank cash therefore answer different questions.
 
-For cash planning, include expected receipts and obligations in one dated
-payment schedule, including payroll, suppliers, tax and debt payments where
+For cash planning, include expected receipts and obligations in one combined
+payment schedule or separate incoming and outgoing datasets, including payroll, suppliers, tax and debt payments where
 relevant. Enter starting cash and a minimum buffer. Review the lowest planned
 balance as well as ending cash. The calculation does not connect to a bank to
 verify that balance, automatically discover bills, arrange credit or move money.

@@ -51,6 +51,9 @@
         "apps/web/features/performance/performance-workspace.tsx",
         "apps/web/features/performance/performance-setup.tsx",
         "apps/web/features/performance/performance-results.tsx",
+        "apps/web/features/performance/amount-source.tsx",
+        "apps/web/features/performance/types.ts",
+        "apps/api/app/modules/reports/cleanup.py",
         "apps/api/app/modules/performance/growth_schemas.py",
         "apps/api/app/modules/performance/growth_service.py",
         "apps/web/features/performance/growth-setup.tsx",
@@ -122,6 +125,10 @@
         ]
       },
       "section_questions": {
+        "How do I use Cash flow planning?": [
+          "Can money in and money out be in separate datasets?",
+          "How do I use separate receipts and bills datasets for cash flow planning?"
+        ],
         "Which advertising platform gave better value for my money?": [
           "Which ad platform gave me more bang for my dollar?",
           "How do I compare recorded Meta and Google revenue per dollar for Shopify?"

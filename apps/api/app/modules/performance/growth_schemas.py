@@ -60,6 +60,7 @@ class ConversionDefinition(StrictModel):
 class CashFlowDefinition(StrictModel):
     kind: Literal["cashflow"]
     source: RecordSource
+    outgoing_source: RecordSource | None = None
     incoming_metric: str = Field(min_length=1, max_length=200)
     outgoing_metric: str = Field(min_length=1, max_length=200)
     start_date: date
@@ -74,7 +75,10 @@ class CashFlowDefinition(StrictModel):
 
     @model_validator(mode="after")
     def distinct_amounts(self):
-        if self.incoming_metric == self.outgoing_metric:
+        if self.outgoing_source is not None:
+            if self.source.dataset_id == self.outgoing_source.dataset_id:
+                raise ValueError("Choose different datasets for incoming and outgoing payments, or use both in the same dataset.")
+        elif self.incoming_metric == self.outgoing_metric:
             raise ValueError("Choose separate amounts for money coming in and going out.")
         return self
 
@@ -88,6 +92,11 @@ def references(definition):
         return selections(definition)
     if isinstance(definition, RetentionDefinition):
         return [definition.source]
-    keys = [step.metric_key for step in definition.steps] if isinstance(definition, ConversionDefinition) else [definition.incoming_metric, definition.outgoing_metric]
+    if isinstance(definition, CashFlowDefinition):
+        return [AmountSelection(**source.model_dump(), metric_key=key, records="transactions") for source, key in (
+            (definition.source, definition.incoming_metric),
+            (definition.outgoing_source or definition.source, definition.outgoing_metric),
+        )]
+    keys = [step.metric_key for step in definition.steps]
     return [AmountSelection(**definition.source.model_dump(), metric_key=key,
                             records=getattr(definition, "records", "transactions")) for key in keys]

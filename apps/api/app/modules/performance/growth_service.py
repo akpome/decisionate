@@ -179,43 +179,38 @@ def conversion(frames, definition, result):
 
 def cash_flow(frames, definition, result):
     refs = references(definition)
-    dataset, frame, dates = source_records(frames, definition.source, [ref.metric_key for ref in refs])
     start = pd.Timestamp(definition.start_date)
     end = start + pd.Timedelta(weeks=definition.weeks) - pd.Timedelta(days=1)
-    relevant = dates.between(start, end)
-    if not relevant.any():
-        raise HTTPException(422, "No scheduled receipts or payments fall within this plan. Choose the payment schedule and its due-date column.")
-    catalog = metric_catalog(*frames[definition.source.dataset_id])
-    # Validate the whole selected schedule before calculating any weekly balances.
+    catalogs = {identity: metric_catalog(*frames[identity]) for identity in {ref.dataset_id for ref in refs}}
     scope = SimpleNamespace(date_range=DateRange(start=start.date(), end=end.date()), currency=definition.currency)
+    schedules, has_payments = [], False
+    # Validate both schedules before treating weeks without scheduled payments as zero.
     for ref in refs:
-        _, issue = amount(frames, ref, scope, catalog)
+        _, frame, dates = source_records(frames, ref, [ref.metric_key])
+        relevant = dates.between(start, end)
+        _, issue = amount(frames, ref, scope, catalogs[ref.dataset_id], allow_empty=True)
         if issue:
             raise HTTPException(422, issue)
-        if (pd.to_numeric(frame.loc[relevant, ref.metric_key], errors="coerce") < 0).any():
-            raise HTTPException(422, "Scheduled money in and money out must be non-negative amounts in separate columns.")
+        values = pd.to_numeric(frame.loc[relevant, ref.metric_key], errors="coerce")
+        if (values < 0).any():
+            raise HTTPException(422, "Scheduled money in and money out must be non-negative amounts.")
+        schedules.append(pd.DataFrame({"date": dates.loc[relevant], "amount": values}))
+        has_payments = has_payments or relevant.any()
+    if not has_payments:
+        raise HTTPException(422, "No scheduled receipts or payments fall within this plan. Choose the payment schedules and their expected payment dates.")
+
+    def weekly_totals(schedule, delay=0):
+        periods = (schedule["date"] + pd.Timedelta(days=delay) - start).dt.days // 7
+        return schedule["amount"].groupby(periods).sum().reindex(range(definition.weeks), fill_value=0.0).tolist()
+
+    incoming_totals, outgoing_totals = [weekly_totals(schedule) for schedule in schedules]
+    delayed_totals = weekly_totals(schedules[0], definition.collection_delay_days)
     base_balance = plan_balance = definition.opening_balance
     lowest, first_shortfall = plan_balance, None
-    # The opening balance is before the first plan date; later collections move only receipts within this schedule.
-    scheduled = frame.loc[relevant].copy()
-    scheduled[definition.source.date_column] = dates.loc[relevant]
-    adjusted = scheduled.copy()
-    adjusted[definition.source.date_column] += pd.Timedelta(days=definition.collection_delay_days)
-    clean_refs = [ref.model_copy(update={"dimension_filter": None}) for ref in refs]
     for index in range(definition.weeks):
         week_start = start + pd.Timedelta(weeks=index)
-        week_end = week_start + pd.Timedelta(days=6)
-        period = SimpleNamespace(date_range=DateRange(start=week_start.date(), end=week_end.date()), currency=definition.currency)
-        def total(ref, records):
-            if not records[definition.source.date_column].between(week_start, week_end).any():
-                return 0.0
-            value, issue = amount({definition.source.dataset_id: (dataset, records)}, ref, period, catalog)
-            if issue:
-                raise HTTPException(422, issue)
-            return value
-        incoming = total(clean_refs[0], scheduled)
-        outgoing = total(clean_refs[1], scheduled)
-        planned_in = total(clean_refs[0], adjusted) * (1 + definition.income_change_percent / 100)
+        incoming, outgoing = incoming_totals[index], outgoing_totals[index]
+        planned_in = delayed_totals[index] * (1 + definition.income_change_percent / 100)
         planned_out = outgoing * (1 + definition.cost_change_percent / 100)
         base_balance += incoming - outgoing
         plan_balance += planned_in - planned_out

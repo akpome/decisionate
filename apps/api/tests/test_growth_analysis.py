@@ -6,17 +6,17 @@ from unittest.mock import AsyncMock, patch
 import pandas as pd
 from pydantic import ValidationError
 
-from app.modules.performance.growth_schemas import CashFlowDefinition, ConversionDefinition, RetentionDefinition, definition_adapter
+from app.modules.performance.growth_schemas import CashFlowDefinition, ConversionDefinition, RetentionDefinition, definition_adapter, references
 from app.modules.performance.growth_service import calculate_growth
 from app.modules.performance.models import PerformanceAnalysis
 from app.modules.reports.models import ReportAnalysisJob
 from tests import test_performance_analysis as performance_tests
 
 
-def source(frame):
-    dataset = SimpleNamespace(id=1, file_name="records.csv", source_type="csv", source_config=json.dumps({
+def source(frame, identity=1, name="records.csv"):
+    dataset = SimpleNamespace(id=identity, file_name=name, source_type="csv", source_config=json.dumps({
         "selected_metric_columns": [key for key in ("revenue", "ad_spend", "website_visits", "leads", "customers") if key in frame]}))
-    return {1: (dataset, frame)}
+    return {identity: (dataset, frame)}
 
 
 def retention_definition(**changes):
@@ -52,6 +52,21 @@ def cash_definition(**changes):
 
 def payments():
     return source(pd.DataFrame({"date": ["2027-01-01", "2027-01-08"], "revenue": [100, 500], "ad_spend": [200, 50], "currency": ["CAD", "CAD"]}))
+
+
+def separate_payments():
+    return {
+        **source(pd.DataFrame({"collection_date": ["2027-01-01", "2027-01-08", "2027-01-10"],
+            "revenue": [100, 500, 999], "region": ["East", "East", "West"], "currency": ["CAD"] * 3}), name="receipts.csv"),
+        **source(pd.DataFrame({"due_date": ["2027-01-02", "2027-01-09", "2027-01-15"],
+            "revenue": [200, 50, 999], "region": ["East", "East", "West"], "currency": ["CAD"] * 3}), identity=2, name="bills.csv"),
+    }
+
+
+def separate_cash_definition(**changes):
+    return cash_definition(**(dict(source={"dataset_id": 1, "date_column": "collection_date", "dimension_filter": {"column": "region", "values": ["East"]}},
+        outgoing_source={"dataset_id": 2, "date_column": "due_date", "dimension_filter": {"column": "region", "values": ["East"]}},
+        outgoing_metric="revenue") | changes))
 
 
 class GrowthCalculationTests(unittest.TestCase):
@@ -128,6 +143,67 @@ class GrowthCalculationTests(unittest.TestCase):
         self.assertEqual(result["highlights"][0]["value"], 550)
         self.assertEqual(result["rows"][-1]["incoming"], 0)
 
+    def test_cash_separate_sources_use_own_dates_filters_and_same_named_amounts(self):
+        payload = separate_cash_definition()
+        refs = references(payload)
+        self.assertEqual([(ref.dataset_id, ref.date_column, ref.metric_key) for ref in refs],
+            [(1, "collection_date", "revenue"), (2, "due_date", "revenue")])
+        result = calculate_growth(separate_payments(), payload)
+        self.assertEqual(result["status"], "ready", result)
+        self.assertEqual(result["rows"], calculate_growth(payments(), cash_definition())["rows"])
+        self.assertEqual(result["definition"]["outgoing_source"]["dimension_filter"]["values"], ["East"])
+
+    def test_cash_separate_sources_apply_delays_only_to_receipts(self):
+        data = separate_payments()
+        before = {identity: frame.copy(deep=True) for identity, (_, frame) in data.items()}
+        result = calculate_growth(data, separate_cash_definition(collection_delay_days=7))
+        self.assertEqual(result["status"], "ready", result)
+        self.assertEqual([row["balance"] for row in result["rows"]], [0, 50, 550, 550])
+        self.assertEqual([row["baseline"] for row in result["rows"]], [100, 550, 550, 550])
+        for identity, (_, frame) in data.items():
+            pd.testing.assert_frame_equal(frame, before[identity])
+        changed = calculate_growth(data, separate_cash_definition(income_change_percent=-50, cost_change_percent=20))
+        self.assertEqual(changed["rows"][-1]["balance"], 200)
+
+    def test_cash_one_direction_can_have_no_payments_in_the_plan(self):
+        for outside, expected in (([1], -50), ([2], 800), ([1, 2], None)):
+            with self.subTest(outside=outside):
+                data = separate_payments()
+                for identity in outside:
+                    date_column = "collection_date" if identity == 1 else "due_date"
+                    data[identity][1][date_column] = pd.to_datetime(data[identity][1][date_column]) + pd.DateOffset(years=1)
+                result = calculate_growth(data, separate_cash_definition())
+                if expected is None:
+                    self.assertEqual(result["status"], "needs_data", result)
+                    self.assertFalse(result["rows"])
+                else:
+                    self.assertEqual(result["status"], "ready", result)
+                    self.assertEqual(result["rows"][-1]["balance"], expected)
+
+    def test_cash_invalid_outgoing_records_are_not_replaced_by_zero(self):
+        for failure in ("currency", "missing", "negative", "date", "column", "filter"):
+            with self.subTest(failure=failure):
+                data, changes = separate_payments(), {}
+                frame = data[2][1]
+                if failure == "currency": frame["currency"] = "USD"
+                if failure == "missing": frame.loc[0, "revenue"] = None
+                if failure == "negative": frame.loc[0, "revenue"] = -10
+                if failure == "date": frame.loc[0, "due_date"] = "bad"
+                if failure == "column": changes["outgoing_metric"] = "unknown"
+                if failure == "filter": changes["outgoing_source"] = {"dataset_id": 2, "date_column": "due_date", "dimension_filter": {"column": "region", "values": ["Unknown"]}}
+                result = calculate_growth(data, separate_cash_definition(**changes))
+                self.assertEqual(result["status"], "needs_data", result)
+                self.assertEqual(result["rows"], [])
+
+    def test_cash_legacy_definitions_and_source_validation(self):
+        legacy = cash_definition().model_dump(mode="json", exclude={"outgoing_source"})
+        restored = definition_adapter.validate_python(legacy)
+        self.assertIsNone(restored.outgoing_source)
+        self.assertEqual([ref.dataset_id for ref in references(restored)], [1, 1])
+        self.assertEqual(calculate_growth(payments(), restored)["rows"], calculate_growth(payments(), cash_definition())["rows"])
+        with self.assertRaises(ValidationError):
+            separate_cash_definition(outgoing_source={"dataset_id": 1, "date_column": "date"})
+
     def test_delayed_receipts_warn_about_cash_shortfall_and_keep_baseline(self):
         result = calculate_growth(payments(), cash_definition(collection_delay_days=7))
         self.assertEqual(result["status"], "ready", result)
@@ -168,6 +244,60 @@ class GrowthCalculationTests(unittest.TestCase):
 
 class GrowthRouteTests(unittest.TestCase):
     setUp = performance_tests.PerformanceRoutesTests.setUp
+
+    def test_separate_cash_sources_survive_worker_save_reopen_and_outgoing_cleanup(self):
+        from app.infrastructure import analysis_worker
+        from app.modules.reports.cleanup import cleanup_source
+        payload, data = separate_cash_definition(), separate_payments()
+        response = self.client.post("/api/v2/performance-analyses/jobs", json=payload.model_dump(mode="json"))
+        self.assertEqual(response.status_code, 202, response.text)
+        job_id = response.json()["job_id"]
+        with self.sessions() as db:
+            self.assertEqual(set(json.loads(db.get(ReportAnalysisJob, job_id).sources)), {"1", "2"})
+        loaded = set()
+        def load_source(dataset, **kwargs):
+            loaded.add(dataset.id)
+            return data[dataset.id][1]
+        with patch.object(analysis_worker, "SessionLocal", self.sessions), patch("app.modules.performance.service.load_dataframe_from_dataset", side_effect=load_source) as load:
+            analysis_worker.execute_job(job_id)
+        self.assertEqual(loaded, {1, 2})
+        self.assertEqual(load.call_count, 2)
+        saved = self.client.post(f"/api/v2/performance-analyses/jobs/{job_id}/save")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        identity = saved.json()["analysis_id"]
+        reopened = self.client.get(f"/api/v2/performance-analyses/{identity}").json()
+        self.assertEqual(reopened["definition"]["outgoing_source"], payload.model_dump(mode="json")["outgoing_source"])
+        self.assertEqual(reopened["rows"][-1]["balance"], 550)
+        create = AsyncMock(return_value=SimpleNamespace(id=77))
+        with patch("app.modules.decisions.router.require_decision_manager"), patch("app.modules.decisions.router.create_decision", create):
+            response = self.client.post(f"/api/v2/performance-analyses/{identity}/decision", json={"title": "Review upcoming payments", "action": "Review payment dates and follow up on expected receipts.", "expected_outcome": "Keep enough cash for the planned payments.", "review_date": "2027-02-01"})
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(create.call_args.args[0].evidence_dataset_ids, [1, 2])
+        self.assertEqual({(metric.dataset_id, metric.metric_column) for metric in create.call_args.args[0].evidence_metrics}, {(1, "revenue"), (2, "revenue")})
+        with self.sessions() as db:
+            cleanup_source(db, 2)
+            db.commit()
+            self.assertIsNone(db.get(PerformanceAnalysis, identity))
+
+    def test_separate_cash_sources_recheck_outgoing_data_before_saving(self):
+        from app.db.models import Dataset
+        payload = separate_cash_definition()
+        job_id = self.client.post("/api/v2/performance-analyses/jobs", json=payload.model_dump(mode="json")).json()["job_id"]
+        with self.sessions() as db:
+            job = db.get(ReportAnalysisJob, job_id)
+            job.status, job.result = "succeeded", json.dumps(calculate_growth(separate_payments(), payload))
+            db.get(Dataset, 2).row_count += 1
+            db.commit()
+        self.assertEqual(self.client.post(f"/api/v2/performance-analyses/jobs/{job_id}/save").status_code, 409)
+
+    def test_separate_cash_sources_require_access_to_the_outgoing_dataset(self):
+        from app.db.models import Dataset
+        with self.sessions() as db:
+            db.get(Dataset, 2).workspace_id = "other"
+            db.get(Dataset, 2).user_id = "other"
+            db.commit()
+        response = self.client.post("/api/v2/performance-analyses/jobs", json=separate_cash_definition().model_dump(mode="json"))
+        self.assertIn(response.status_code, (403, 404), response.text)
 
     def test_all_three_use_worker_preview_save_history_and_cleanup(self):
         from app.infrastructure import analysis_worker

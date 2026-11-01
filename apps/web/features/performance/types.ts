@@ -31,6 +31,7 @@ export type ConversionDefinition = {
 }
 export type CashFlowDefinition = {
   kind: "cashflow"; source: RecordSource; incoming_metric: string; outgoing_metric: string
+  outgoing_source?: RecordSource | null
   start_date: string; weeks: 4 | 8 | 13 | 26; currency: string; opening_balance: number; reserve: number
   income_change_percent: number; cost_change_percent: number; collection_delay_days: number; amounts_confirmed: boolean
 }
@@ -56,7 +57,7 @@ export function newPerformance(kind: ToolKind): ToolDefinition {
   const source = { dataset_id: 0, date_column: "" }, date_range = { start: "", end: "" }
   if (kind === "retention") return { kind, source, date_range, customer_column: "", order_column: "", return_days: 90, amounts_confirmed: false }
   if (kind === "conversion") return { kind, source, date_range, records: "daily", group_column: null, steps: [{ name: "Enquiries", metric_key: "" }, { name: "Sales", metric_key: "" }], amounts_confirmed: false }
-  if (kind === "cashflow") return { kind, source, incoming_metric: "", outgoing_metric: "", start_date: "", weeks: 13, currency: "CAD", opening_balance: 0, reserve: 0, income_change_percent: 0, cost_change_percent: 0, collection_delay_days: 0, amounts_confirmed: false }
+  if (kind === "cashflow") return { kind, source, outgoing_source: null, incoming_metric: "", outgoing_metric: "", start_date: "", weeks: 13, currency: "CAD", opening_balance: 0, reserve: 0, income_change_percent: 0, cost_change_percent: 0, collection_delay_days: 0, amounts_confirmed: false }
   return { kind, currency: "CAD", date_range: { start: "", end: "" }, items: [blankItem("Business")],
     group_column: null, revenue_basis: "assigned_sales", amounts_confirmed: false }
 }
@@ -65,7 +66,11 @@ export function missingSetup(value: ToolDefinition) {
     if (value.kind === "cashflow") {
       if (!value.start_date) return "Choose when the cash plan starts."
       if (!value.incoming_metric || !value.outgoing_metric) return "Choose the expected money in and money out columns."
-      if (value.incoming_metric === value.outgoing_metric) return "Choose separate amounts for money in and money out."
+      if (value.outgoing_source) {
+        if (!value.outgoing_source.dataset_id || !value.outgoing_source.date_column) return "Choose the outgoing payments dataset and its payment date column."
+        if (value.source.dataset_id === value.outgoing_source.dataset_id) return "Choose different datasets, or use Both in the same dataset."
+        if (value.outgoing_source.dimension_filter && !value.outgoing_source.dimension_filter.values.length) return "Choose a value for the outgoing payments filter."
+      } else if (value.incoming_metric === value.outgoing_metric) return "Choose separate amounts for money in and money out."
     } else {
       if (!value.date_range.start || !value.date_range.end) return "Choose the dates to compare."
       if (value.date_range.start > value.date_range.end) return "The end date must be on or after the start date."
@@ -93,6 +98,7 @@ export function missingSetup(value: ToolDefinition) {
 }
 export const performancePath = (kind: ToolKind) => `/dashboard/reports/${{ return: "returns", profit: "profitability", retention: "retention", conversion: "conversion", cashflow: "cash-flow" }[kind]}`
 export function sameDatasetLayout(value: ToolDefinition) {
+  if (value.kind === "cashflow") return !value.outgoing_source
   if (!isMoneyDefinition(value)) return true
   if (value.items.length !== 1) return false
   const first = value.items[0].revenue

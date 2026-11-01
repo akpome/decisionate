@@ -2,12 +2,12 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeft, Check, ChevronDown, LoaderCircle, Play, Plus, Save, Target, Trash2, X } from "lucide-react"
+import { ArrowLeft, Check, LoaderCircle, Play, Plus, Save, Target, Trash2, X } from "lucide-react"
 import { SearchableSelect } from "@/components/searchable-select"
 import { correlationRequest } from "@/lib/api"
 import { AnalysisTools } from "@/features/reports/analysis-tools"
 import { AnalysisFailedError, AnalysisUnavailableError, analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "@/features/reports/analysis-jobs"
-import { command, field, primary } from "./amount-source"
+import { command, field, primary, WrappingSelect } from "./amount-source"
 import { SeparateDatasetSetup, SingleDatasetSetup } from "./performance-setup"
 import { PerformanceResults } from "./performance-results"
 import { GrowthConfirmation, GrowthSetup } from "./growth-setup"
@@ -16,21 +16,6 @@ import { blankItem, isMoneyDefinition, missingSetup, newPerformance, performance
 
 type History = { analyses: { analysis_id: string; name: string; created_at: string }[]; next_offset: number | null }
 type DecisionDraft = { title: string; action: string; expected_outcome: string; review_date: string }
-
-function WrappingSelect({ label, value, options, onChange }: {
-  label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void
-}) {
-  return <label className="block min-w-0 text-xs font-medium text-gray-600">{label}
-    <span className="relative mt-1 block rounded-md focus-within:ring-2 focus-within:ring-blue-100">
-      <select aria-label={label} className={`${field} peer block mt-0! opacity-0!`} value={value} onChange={event => onChange(event.target.value)}>
-        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-0.5 text-sm font-normal leading-4 text-gray-950 peer-focus:border-blue-600 peer-disabled:opacity-50">
-        <span className="min-w-0 flex-1 break-words">{options.find(option => option.value === value)?.label}</span><ChevronDown size={16} className="shrink-0" />
-      </span>
-    </span>
-  </label>
-}
 
 export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canManage, canDecide }: {
   kind: ToolKind; userId: string; workspaceId?: string; canSave: boolean; canManage: boolean; canDecide: boolean

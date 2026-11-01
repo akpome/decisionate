@@ -21,7 +21,7 @@ calls and sends no emails.
   Retrieval and mocked-provider regression tests do not establish live model
   answer quality; these criteria still need human review with the configured model.
 - Use [the business-question coverage matrix](analysis-question-coverage.json)
-  for 172 representative questions across 20 tools and supporting workflows.
+  for 174 representative questions across 20 tools and supporting workflows.
   These include ordinary wording, data requirements, interpretation, saving and
   limitations, not only exact feature names. The matrix checks that the intended
   answer appears among the first three retrieved sections and can be displayed

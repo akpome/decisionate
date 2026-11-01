@@ -30,7 +30,7 @@ def generate(db, definition, user, workspace, progress=None):
     return calculate(frames, definition)
 
 
-def amount(frames, selection, definition, catalog, *, group_filter=None, count=False):
+def amount(frames, selection, definition, catalog, *, group_filter=None, count=False, allow_empty=False):
     dataset, original = frames[selection.dataset_id]
     filters = [selection.dimension_filter.model_dump() if selection.dimension_filter else None, group_filter]
     frame = original
@@ -60,7 +60,7 @@ def amount(frames, selection, definition, catalog, *, group_filter=None, count=F
     start, end = pd.Timestamp(definition.date_range.start), pd.Timestamp(definition.date_range.end)
     mask = dates.between(start, end + pd.Timedelta(days=1), inclusive="left")
     if not mask.any():
-        return None, f"{dataset.file_name} has no matching records in these dates."
+        return (0.0, None) if allow_empty else (None, f"{dataset.file_name} has no matching records in these dates.")
     numeric = pd.to_numeric(frame.loc[mask, selection.metric_key], errors="coerce")
     if not np.isfinite(numeric).all():
         return None, f"{metric['label']} has missing or invalid amounts. Missing amounts are not zero."

@@ -27,6 +27,8 @@ def cleanup_source(db, dataset_id):
         for analysis in db.query(PerformanceAnalysis):
             definition = json.loads(analysis.definition)
             sources = [definition["source"]] if "source" in definition else [source for item in definition["items"] for source in [item["revenue"], *item["costs"]]]
+            if definition.get("outgoing_source"):
+                sources.append(definition["outgoing_source"])
             if any(source["dataset_id"] == dataset_id for source in sources):
                 db.delete(analysis)
     if inspect(db.connection()).has_table(BudgetPlan.__tablename__):

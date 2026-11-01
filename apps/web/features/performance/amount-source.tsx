@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { RefreshCw } from "lucide-react"
+import { ChevronDown, RefreshCw } from "lucide-react"
 import { SearchableSelect } from "@/components/searchable-select"
 import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
 import type { CatalogDataset } from "@/features/relationships/types"
@@ -14,6 +14,21 @@ export const command = `${buttonBase} border-gray-300 bg-white`
 export const primary = `${buttonBase} border-blue-700 bg-blue-700 text-white hover:bg-blue-800`
 export type SourceContext = { userId: string; workspaceId?: string }
 type Catalog = { datasets: CatalogDataset[]; next_offset: number | null }
+
+export function WrappingSelect({ label, value, options, onChange }: {
+  label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void
+}) {
+  return <label className="block min-w-0 text-xs font-medium text-gray-600">{label}
+    <span className="relative mt-1 block rounded-md focus-within:ring-2 focus-within:ring-blue-100">
+      <select aria-label={label} className={`${field} peer block mt-0! opacity-0!`} value={value} onChange={event => onChange(event.target.value)}>
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-0.5 text-sm font-normal leading-4 text-gray-950 peer-focus:border-blue-600 peer-disabled:opacity-50">
+        <span className="min-w-0 flex-1 break-words">{options.find(option => option.value === value)?.label}</span><ChevronDown size={16} className="shrink-0" />
+      </span>
+    </span>
+  </label>
+}
 
 export function useAmountDataset(datasetId: number, { userId, workspaceId }: SourceContext) {
   const [dataset, setDataset] = useState<CatalogDataset | null>(null)

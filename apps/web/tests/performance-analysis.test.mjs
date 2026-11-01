@@ -94,6 +94,28 @@ test("reopened comparisons retain separate-source and filtered layouts", () => {
   assert.equal(sameDatasetLayout(value), false)
 })
 
+test("cash planning accepts separate payment sources and validates both date columns and filters", () => {
+  const cash = newPerformance("cashflow")
+  Object.assign(cash, { start_date: "2027-01-01", source: { dataset_id: 1, date_column: "collection_date" },
+    incoming_metric: "amount", outgoing_metric: "amount", outgoing_source: { dataset_id: 2, date_column: "due_date" }, amounts_confirmed: true })
+  assert.equal(missingSetup(cash), "")
+  assert.equal(sameDatasetLayout(cash), false)
+  cash.outgoing_source.date_column = ""
+  assert.match(missingSetup(cash), /outgoing payments dataset/)
+  cash.outgoing_source.date_column = "due_date"
+  cash.outgoing_source.dataset_id = 1
+  assert.match(missingSetup(cash), /different datasets/)
+  cash.outgoing_source.dataset_id = 2
+  cash.outgoing_source.dimension_filter = { column: "region", values: [] }
+  assert.match(missingSetup(cash), /outgoing payments filter/)
+  cash.outgoing_source.dimension_filter.values = ["East"]
+  assert.equal(missingSetup(cash), "")
+  delete cash.outgoing_source
+  cash.outgoing_metric = "cost"
+  assert.equal(sameDatasetLayout(cash), true)
+  assert.equal(missingSetup(cash), "")
+})
+
 test("save and decision actions follow a completed preview; edits invalidate it", () => {
   const source = read("../features/performance/performance-workspace.tsx")
   assert.match(source, /view === "results" && result/)

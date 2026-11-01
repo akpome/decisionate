@@ -483,7 +483,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Plan cash from expected receipts and payments",
         steps: [
-          "Choose Cash flow planning and one payment schedule. Select the expected-payment date, money-in and money-out columns in one currency. Enter starting cash, a start date and 4, 8, 13 or 26 weeks.",
+          "Choose Cash flow planning. Answer Where are your incoming and outgoing payments stored? Use one payment schedule or separate incoming and outgoing datasets. Select the expected-payment dates, amount columns and any dimension filter for each source. Use one currency, then enter starting cash, a start date and 4, 8, 13 or 26 weeks.",
           "Include the obligations you need to plan, such as payroll, tax and supplier payments. Booked revenue is not cash received. Use explicit zeros when a row has no receipt or payment, and confirm the schedule's completeness.",
           "Optionally open Cash buffer and what-if changes to set a minimum balance, change receipt or payment amounts, or delay receipts. Preview the planned weekly balance against the original schedule, then save. Week-end balances can miss a shortfall within the week. No payment is made or rescheduled by this tool.",
         ],
