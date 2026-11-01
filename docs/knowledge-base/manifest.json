@@ -64,6 +64,11 @@
         "decisions-outcomes"
       ],
       "section_routes": {
+        "How do I use Return on spend?": "/dashboard/reports/returns",
+        "How do I use Profitability?": "/dashboard/reports/profitability",
+        "How do I use Customer retention?": "/dashboard/reports/retention",
+        "How do I use Sales conversion?": "/dashboard/reports/conversion",
+        "How do I use Cash flow planning?": "/dashboard/reports/cash-flow",
         "Which advertising platform gave better value for my money?": "/dashboard/reports/returns",
         "Can I compare channels with only ad spend and total store revenue?": "/dashboard/reports/returns",
         "Does a return of 3 mean I made 3 dollars of profit?": "/dashboard/reports/returns",
@@ -77,6 +82,44 @@
         "When might cash run short?": "/dashboard/reports/cash-flow",
         "Can a profitable business still run out of cash?": "/dashboard/reports/cash-flow",
         "What if customers pay late or expenses rise?": "/dashboard/reports/cash-flow"
+      },
+      "direct_questions": {
+        "How do I use Return on spend?": [
+          "How do I use Return on spend?",
+          "How to use Return on spend?",
+          "How do I use the Return on spend tool?",
+          "How do I use Return on spend under Business Analysis?",
+          "How do I use Return on spend in Business Analysis?",
+          "how do use the return on spend under business analysis"
+        ],
+        "How do I use Profitability?": [
+          "How do I use Profitability?",
+          "How to use Profitability?",
+          "How do I use the Profitability tool?",
+          "How do I use Profitability under Business Analysis?",
+          "How do I use Profitability in Business Analysis?"
+        ],
+        "How do I use Customer retention?": [
+          "How do I use Customer retention?",
+          "How to use Customer retention?",
+          "How do I use the Customer retention tool?",
+          "How do I use Customer retention under Business Analysis?",
+          "How do I use Customer retention in Business Analysis?"
+        ],
+        "How do I use Sales conversion?": [
+          "How do I use Sales conversion?",
+          "How to use Sales conversion?",
+          "How do I use the Sales conversion tool?",
+          "How do I use Sales conversion under Business Analysis?",
+          "How do I use Sales conversion in Business Analysis?"
+        ],
+        "How do I use Cash flow planning?": [
+          "How do I use Cash flow planning?",
+          "How to use Cash flow planning?",
+          "How do I use the Cash flow planning tool?",
+          "How do I use Cash flow planning under Business Analysis?",
+          "How do I use Cash flow planning in Business Analysis?"
+        ]
       },
       "section_questions": {
         "Which advertising platform gave better value for my money?": [
@@ -152,6 +195,13 @@
         "Can I double the budget or automatically apply the suggested allocation?": [
           "Does saving a budget plan change real ad spending?",
           "Can I automatically apply a recommended budget?"
+        ]
+      },
+      "direct_questions": {
+        "How to compare advertising spend and get a budget recommendation": [
+          "How do I use Budget Planner?",
+          "How to use Budget Planner?",
+          "How do I create a budget plan?"
         ]
       }
     },
@@ -556,6 +606,12 @@
           "How do I choose dashboard metrics and filters?",
           "Where are the dashboard date and dimension settings?"
         ]
+      },
+      "direct_questions": {
+        "Configure a view": [
+          "How do I use the dashboards?",
+          "How do I set up a dashboard?"
+        ]
       }
     },
     {
@@ -646,6 +702,22 @@
           "Do both comparison businesses have the same seasonality?",
           "Does an impact estimate establish causation?",
           "What does an impact range including zero mean?"
+        ]
+      },
+      "direct_questions": {
+        "Where is Business impact and how do I use it?": [
+          "How do I use Business impact?",
+          "How do I use Business impact analysis?",
+          "How do I use Business impact under Business Analysis?"
+        ],
+        "Build an analysis": [
+          "How do I use Compare metrics?",
+          "How do I use correlation analysis?",
+          "How do I create a multi dataset report?"
+        ],
+        "Analyze one dataset": [
+          "How do I create a single dataset report?",
+          "How do I use Single dataset report?"
         ]
       }
     },
@@ -806,6 +878,12 @@
           "How do I choose metrics on the Relationships page?",
           "How do I save a two-metric monitor?"
         ]
+      },
+      "direct_questions": {
+        "Set up a two-metric monitor": [
+          "How do I use Relationships?",
+          "How do I use the Relationships page?"
+        ]
       }
     },
     {
@@ -843,6 +921,13 @@
       "id": "forecasts",
       "title": "Forecast a selected metric",
       "path": "customer/forecasts.md",
+      "direct_questions": {
+        "Generate a forecast": [
+          "How do I use Forecasts?",
+          "How do I create a forecast?",
+          "How to use Forecasts?"
+        ]
+      },
       "audience": "customer",
       "topics": [
         "forecasting",
@@ -875,6 +960,12 @@
       "id": "weekly-reports",
       "title": "Configure a meaningful weekly report",
       "path": "customer/weekly-reports.md",
+      "direct_questions": {
+        "Configure weekly analysis and sending separately": [
+          "How do I use Weekly Reports?",
+          "How do I set up a weekly report?"
+        ]
+      },
       "audience": "customer",
       "topics": [
         "weekly",
@@ -1155,6 +1246,12 @@
       "id": "joins-entities",
       "title": "Joining periods and matching entities",
       "path": "customer/joins-entities.md",
+      "direct_questions": {
+        "Match customer or product identities": [
+          "How do I use Entity Matching?",
+          "How do I create linked history?"
+        ]
+      },
       "audience": "customer",
       "topics": [
         "joins",

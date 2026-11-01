@@ -42,6 +42,93 @@ def configured(key="test-key"):
 
 
 class GuidanceTests(unittest.TestCase):
+    def test_screenshot_question_returns_usage_steps_without_needing_ai(self):
+        question = "how do use the return on spend under business analysis"
+        records = knowledge.retrieve(question)
+        self.assertEqual(records[0]["chunk_id"], "performance-analysis:how-do-i-use-return-on-spend")
+        with patch.object(guidance, "get_runtime_configuration") as configuration, patch.object(guidance, "urlopen") as network:
+            result = guidance.answer_guidance(GuidanceRequest(question=question))
+        configuration.assert_not_called()
+        network.assert_not_called()
+        self.assertEqual(result.mode, "documentation")
+        self.assertEqual(result.sources[0].route, "/dashboard/reports/returns")
+        for step in ("1. Set From, To and Currency", "2. Choose Data layout", "3. Review Date column", "4. In How is revenue linked", "5. Choose Compare results", "Save comparison"):
+            self.assertIn(step, result.answer)
+        self.assertNotIn("I cannot confirm", result.answer)
+        self.assertFalse(result.contact_support)
+        self.assertIn("not profit", result.answer)
+
+    def test_every_reviewed_direct_question_is_answered_first_and_without_provider(self):
+        for record in knowledge.load_knowledge():
+            for question in record.get("direct_questions", []):
+                with self.subTest(question=question), configured(), patch.object(guidance, "urlopen") as network:
+                    result = guidance.answer_guidance(GuidanceRequest(question="  " + question.upper().rstrip("?") + "?  "))
+                    self.assertEqual(result.mode, "documentation")
+                    self.assertEqual(result.sources[0].chunk_id, record["chunk_id"])
+                    self.assertEqual(result.sources[0].route, record["routes"][0])
+                    self.assertIn(guidance.source(record).content, result.answer)
+                    self.assertFalse(result.contact_support)
+                    self.assertNotIn("I cannot confirm", result.answer)
+                    network.assert_not_called()
+
+    def test_direct_answers_do_not_drop_qualifiers_or_added_requests(self):
+        for question in (
+            "How do I use Return on spend to prove my ads caused sales?",
+            "How do I use Return on spend and automatically refund my customers?",
+            "How do I use Return on spend in another workspace without permission?",
+            "How do I not use Return on spend?",
+            "Which of my channels won Return on spend today?",
+        ):
+            with self.subTest(question=question):
+                records = knowledge.retrieve(question)
+                self.assertIsNone(knowledge.direct_answer_record(question, records))
+                with configured(""), patch.object(guidance, "urlopen") as network:
+                    result = guidance.answer_guidance(GuidanceRequest(question=question))
+                network.assert_not_called()
+                self.assertIn("cannot confirm", result.answer)
+                self.assertTrue(result.contact_support)
+
+    def test_usage_paraphrases_rank_instructions_but_do_not_claim_full_coverage(self):
+        for question, slug in (
+            ("Please walk me through Return on spend", "return-on-spend"),
+            ("guide me on return on spend", "return-on-spend"),
+            ("How can I use Profitability to compare products?", "profitability"),
+            ("How can I get started with Cash flow planning?", "cash-flow-planning"),
+            ("How do I use Return on spend to automatically alter my budgets?", "return-on-spend"),
+        ):
+            with self.subTest(question=question):
+                records = knowledge.retrieve(question)
+                self.assertEqual(records[0]["chunk_id"], f"performance-analysis:how-do-i-use-{slug}")
+                self.assertIsNone(knowledge.direct_answer_record(question, records))
+                fallback = guidance.documentation_answer(records, question)
+                self.assertTrue(fallback.contact_support)
+                self.assertIn("cannot confirm", fallback.answer)
+                self.assertIn(guidance.source(records[0]).content, fallback.answer)
+
+    def test_specific_limitations_still_outrank_general_usage_guides(self):
+        for question, slug in (
+            ("Why won't Return on spend declare a winner?", "why-is-there-no-winning-channel-or-return-figure"),
+            ("Does a return of 3 mean I made 3 dollars of profit?", "does-a-return-of-3-mean-i-made-3-dollars-of-profit"),
+        ):
+            with self.subTest(question=question):
+                records = knowledge.retrieve(question)
+                self.assertEqual(records[0]["chunk_id"], f"performance-analysis:{slug}")
+                self.assertIsNone(knowledge.direct_answer_record(question, records))
+
+    def test_direct_question_ambiguity_fails_closed(self):
+        record = next(row for row in knowledge.load_knowledge() if row.get("direct_questions"))
+        question = record["direct_questions"][0]
+        duplicate = dict(record, chunk_id="other:guide")
+        self.assertIsNone(knowledge.direct_answer_record(question, [record, duplicate]))
+        knowledge.load_knowledge.cache_clear()
+        try:
+            raw = "\n".join(json.dumps(row) for row in [record, duplicate])
+            with patch.object(knowledge, "CORPUS", SimpleNamespace(read_text=lambda **kwargs: raw)):
+                with self.assertRaisesRegex(ValueError, "Ambiguous direct question"):
+                    knowledge.load_knowledge()
+        finally:
+            knowledge.load_knowledge.cache_clear()
+
     def test_business_questions_retrieve_answerable_sections_for_every_tool(self):
         root = Path(__file__).resolve().parents[3]
         cases = json.loads((root / "docs/knowledge-base/analysis-question-coverage.json").read_text())["cases"]
@@ -68,10 +155,11 @@ class GuidanceTests(unittest.TestCase):
                 self.assertIn(guidance.source(record).content, answer.answer)
 
     def test_section_questions_help_retrieval_but_are_never_answer_prose(self):
-        record = dict(knowledge.load_knowledge()[0], questions=["zetaquasar zebraphoton"], section_questions=[])
+        record = dict(knowledge.load_knowledge()[0], questions=["zetaquasar zebraphoton"], section_questions=[], direct_questions=[])
         with patch.object(knowledge, "load_knowledge", return_value=[record]):
             self.assertEqual(knowledge.retrieve("zetaquasar zebraphoton"), [])
         record["section_questions"] = ["zetaquasar zebraphoton"]
+        self.assertIsNone(knowledge.direct_answer_record("zetaquasar zebraphoton", [record]))
         other = dict(record, chunk_id="other:section", section_questions=[])
         with patch.object(knowledge, "load_knowledge", return_value=[record, other, other, other]):
             records = knowledge.retrieve("zetaquasar zebraphoton")
@@ -376,6 +464,17 @@ class GuidanceRouteTests(unittest.TestCase):
         self.assertTrue(response.json()["sources"])
         self.assertEqual(response.json()["mode"], "documentation")
         self.assertNotIn("api_key", response.text)
+
+    def test_authenticated_how_to_route_returns_the_steps_without_ai(self):
+        with patch.object(router, "get_auth_context", return_value=AuthContext("user", "workspace")), patch.object(guidance, "enforce_guidance_limits") as limits, patch.object(guidance, "urlopen") as provider:
+            response = self.client.post("/support/chat", json={"question": "how do use the return on spend under business analysis"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertIn("5. Choose Compare results", response.json()["answer"])
+        self.assertEqual(response.json()["sources"][0]["route"], "/dashboard/reports/returns")
+        self.assertFalse(response.json()["contact_support"])
+        limits.assert_called_once_with(AuthContext("user", "workspace"))
+        provider.assert_not_called()
 
 
 class GuidanceBudgetTests(unittest.TestCase):

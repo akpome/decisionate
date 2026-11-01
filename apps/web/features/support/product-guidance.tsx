@@ -35,7 +35,17 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
 
   useEffect(() => () => request.current?.abort(), [])
   useEffect(() => {
-    if (log.current) log.current.scrollTop = log.current.scrollHeight
+    const conversation = log.current
+    if (!conversation) return
+    const latest = messages[messages.length - 1]
+    const answer = latest?.role === "assistant" && !busy && !error
+      ? conversation.querySelector<HTMLElement>(`[data-guidance-message="${latest.id}"]`)
+      : null
+    if (answer) {
+      conversation.scrollTop += answer.getBoundingClientRect().top - conversation.getBoundingClientRect().top
+    } else {
+      conversation.scrollTop = conversation.scrollHeight
+    }
   }, [messages, busy, error])
 
   function stop() {
@@ -117,7 +127,7 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
           </div>
         )}
         {messages.map(message => (
-          <article key={message.id} className={message.role === "user" ? "border-l-2 border-blue-500 pl-3" : "space-y-2"}>
+          <article key={message.id} data-guidance-message={message.id} className={message.role === "user" ? "border-l-2 border-blue-500 pl-3" : "space-y-2"}>
             <p className="text-xs font-semibold text-gray-500">{message.role === "user" ? "You" : message.response?.mode === "ai" ? "Decisionate · Approved guidance" : "Decisionate · Documentation"}</p>
             <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
             {message.response?.sources.map(source => (

@@ -68,6 +68,34 @@ test("conversation scope resets on identity or workspace changes and unmount abo
   assert.doesNotMatch(component, /localStorage|sessionStorage|dangerouslySetInnerHTML/)
 })
 
+test("long replies open at the start of the answer while questions and pending status stay visible", () => {
+  const ast = ts.createSourceFile("source.tsx", component, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let callback
+  function visit(node) {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === "useEffect" && node.arguments[0]?.getText(ast).includes("data-guidance-message")) callback = node.arguments[0]
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(callback)
+  function run({ role = "assistant", busy = false, error = "", missing = false, mounted = true } = {}) {
+    const selectors = []
+    const conversation = { scrollTop: 500, scrollHeight: 2000, getBoundingClientRect: () => ({ top: 200 }), querySelector(selector) {
+      selectors.push(selector)
+      return missing ? null : { getBoundingClientRect: () => ({ top: -100 }) }
+    } }
+    const globals = { messages: [{ id: 12, role }], busy, error, log: { current: mounted ? conversation : null } }
+    const code = ts.transpileModule(`(${callback.getText(ast)})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+    vm.runInNewContext(code, globals)
+    return { conversation, selectors }
+  }
+  const answer = run()
+  assert.equal(answer.conversation.scrollTop, 200)
+  assert.deepEqual(answer.selectors, ['[data-guidance-message="12"]'])
+  for (const state of [{ role: "user" }, { busy: true }, { error: "Try again" }, { missing: true }]) assert.equal(run(state).conversation.scrollTop, 2000)
+  assert.equal(run({ mounted: false }).conversation.scrollTop, 500)
+  assert.match(component, /data-guidance-message=\{message.id\}/)
+})
+
 test("sources, privacy, retries, stop and human handoff remain available without automatic support delivery", () => {
   assert.match(component, /Approved guidance/)
   assert.doesNotMatch(component, /AI answer/)

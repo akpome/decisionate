@@ -46,7 +46,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(summary["operator_articles"], 6)
         self.assertEqual(summary["connectors"], 27)
         self.assertEqual(summary["evaluation_cases"], 45)
-        self.assertEqual(summary["business_questions"], 144)
+        self.assertEqual(summary["business_questions"], 172)
         self.assertGreater(summary["customer_chunks"], 100)
 
     def test_default_export_contains_only_customer_content_and_safe_metadata(self):
@@ -112,6 +112,24 @@ class KnowledgeRepositoryTests(unittest.TestCase):
                           {"Are customers coming back?": ["x" * 301]}, {"Are customers coming back?": ["Question?"] * 13}]:
             with self.subTest(questions=questions):
                 article["section_questions"] = questions
+                self.save_manifest()
+                with self.assertRaises(knowledge.KnowledgeError):
+                    knowledge.read_repository(self.root)
+
+    def test_direct_questions_are_reviewed_separately_and_cannot_have_ambiguous_answers(self):
+        manifest, documents = knowledge.read_repository(self.root)
+        rows = {row["chunk_id"]: row for row in knowledge.export_records(manifest, documents)}
+        direct = rows["performance-analysis:how-do-i-use-return-on-spend"]
+        self.assertIn("how do use the return on spend under business analysis", direct["direct_questions"])
+        self.assertEqual(direct["routes"][0], "/dashboard/reports/returns")
+        self.assertEqual(rows["performance-analysis:can-i-compare-channels-with-only-ad-spend-and-total-store-revenue"]["direct_questions"], [])
+        article = self.manifest["articles"][0]
+        for questions in [[], {"Unknown heading": ["How do I use this?"]},
+                          {"Are customers coming back?": ["How do I use Return on spend?", "HOW DO I USE RETURN ON SPEND"]},
+                          {"Are customers coming back?": ["?"]},
+                          {"Are customers coming back?": ["How do I use Budget Planner?"]}]:
+            with self.subTest(questions=questions):
+                article["direct_questions"] = questions
                 self.save_manifest()
                 with self.assertRaises(knowledge.KnowledgeError):
                     knowledge.read_repository(self.root)

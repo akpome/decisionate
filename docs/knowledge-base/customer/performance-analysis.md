@@ -1,5 +1,112 @@
 # Business Analysis tools for growing businesses
 
+## How do I use Return on spend?
+
+Open Business Analysis and choose Return on spend to compare revenue earned
+for each dollar already spent.
+
+1. Set From, To and Currency for the period you want to review.
+2. Choose Data layout. For Amounts in one dataset, select the dataset,
+   Revenue amount and Spending amount. Use Compare by to compare channels,
+   campaigns or another category. For Amounts in separate datasets, name each
+   comparison and select its Revenue and Spending sources. Add comparison
+   adds another channel or business to compare.
+3. Review Date column and Records contain for each source. Choose a dimension
+   filter when you want only a particular channel, product or location.
+4. In How is revenue linked to spending?, choose the option that matches your
+   records. Confirm the dates, currency and amounts only after checking them.
+5. Choose Compare results. Review revenue per dollar, spending and any missing
+   data warnings. Choose Save comparison after reviewing the preview. Create
+   decision is then available if you want to record an action and review date.
+
+For example, 300 dollars of revenue divided by 100 dollars of spending gives
+3 dollars of revenue per dollar spent. This is revenue return, not profit.
+For a fair channel ranking, assign each sale once using the same rule. Do not
+give every channel the store's entire revenue. Independently platform-reported
+sales can still be shown separately, but without declaring an overall winner.
+
+## How do I use Profitability?
+
+Open Business Analysis and choose Profitability to see money left after costs.
+
+1. Set From, To and Currency, then choose whether the amounts are in one dataset
+   or separate datasets.
+2. Select Revenue amount and the relevant Cost amount columns. Add another cost
+   includes another non-overlapping total cost. Do not count a total and its
+   components twice, or use unit cost as the total cost of all items sold.
+3. For one dataset, use Compare by for products, services or locations. With
+   separate datasets, name each comparison and choose its revenue and costs.
+   Review the date columns, record type and any dimension filters.
+4. Confirm the records and choose Compare results. Read both money left and
+   margin, along with any warnings about incomplete records.
+5. Review the preview before Save comparison. Create decision records an action
+   after saving; it does not change prices or source data.
+
+Money left is revenue minus the selected costs, not automatically net profit.
+Missing overhead, fees and other costs are not invented or allocated for you.
+
+## How do I use Customer retention?
+
+Open Business Analysis and choose Customer retention to check repeat purchases.
+
+1. Select a Purchase dataset containing completed purchases, then choose its
+   Purchase date column, Customer ID column and Purchase ID column.
+2. Set First recorded purchases from and History through. Time to buy again
+   gives customers 30, 60 or 90 days to make a second distinct purchase.
+3. Apply a dimension filter if you want a particular store or group. Confirm
+   the selected records meet the stated requirements.
+4. Choose Show results. Review repeat-purchase rates by first-purchase month
+   and the customers marked Too early to tell.
+5. Choose Save comparison after reviewing the results. Create decision is
+   available afterward to record a follow-up action.
+
+Only customers with the complete follow-up window enter the rate. The first
+purchase means first in the available filtered records, not necessarily
+first-ever. This is not a prediction of which customers will leave.
+
+## How do I use Sales conversion?
+
+Open Business Analysis and choose Sales conversion to find where potential
+sales stop progressing.
+
+1. Select a Sales process dataset and Date column, set From and To, and choose
+   the Records contain option that describes your counts.
+2. Name and order two to five steps, such as Enquiries, Quotes and Sales.
+   Choose the Count column for each step. Use Add step or the move controls
+   to arrange the process in its actual order.
+3. Optionally compare a category or apply a dimension filter. Confirm the
+   counts describe the same people or opportunities, counted once per step
+   under the same follow-up window.
+4. Choose Show results. Review the overall conversion rate and the step with
+   the largest number of people who did not continue.
+5. Review the results before Save comparison, then Create decision if you want
+   to record an improvement to test.
+
+Use counts, not percentages or unrelated totals from different populations.
+A drop-off shows where to investigate, not why it happened or how many sales
+can definitely be recovered.
+
+## How do I use Cash flow planning?
+
+Open Business Analysis and choose Cash flow planning to check expected cash
+against upcoming payments.
+
+1. Select a Payment schedule dataset, its Expected payment date column, and
+   the Expected money in and Expected money out columns.
+2. Set Plan starts, Plan length of 4, 8, 13 or 26 weeks, Currency and
+   Cash available at the start.
+3. Optionally open Cash buffer and what-if changes to set Minimum cash to keep,
+   adjust receipts or costs, or test receipts arriving up to 90 days later.
+4. Confirm that the schedule includes the receipts and obligations you intend
+   to plan. Choose Preview cash plan and review weekly cash, the lowest balance
+   and any shortfall against your minimum.
+5. Choose Save comparison after reviewing the preview. Create decision can
+   then record an action and review date.
+
+This is a scenario from your payment schedule, not a guarantee or bank balance
+check. Include relevant bills, wages and other obligations yourself. Weekly
+closing balances can miss a shortage inside a week; saving does not move money.
+
 ## Which advertising platform gave better value for my money?
 
 For "which channel gave me more bang for my dollar?", open Business Analysis,

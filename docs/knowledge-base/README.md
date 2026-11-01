@@ -21,7 +21,7 @@ calls and sends no emails.
   Retrieval and mocked-provider regression tests do not establish live model
   answer quality; these criteria still need human review with the configured model.
 - Use [the business-question coverage matrix](analysis-question-coverage.json)
-  for 144 representative questions across 20 tools and supporting workflows.
+  for 172 representative questions across 20 tools and supporting workflows.
   These include ordinary wording, data requirements, interpretation, saving and
   limitations, not only exact feature names. The matrix checks that the intended
   answer appears among the first three retrieved sections and can be displayed
@@ -30,6 +30,10 @@ calls and sends no emails.
 The chatbot no longer displays free-form model-written factual answers. It uses
 AI to classify coverage and select approved sections, then composes the response
 on the server. Unsupported and partial questions receive explicit limitations.
+Reviewed, exact how-to questions can return their approved instructions directly
+without an AI call or an unnecessary uncertainty preamble. Other questions still
+use coverage classification, or clearly qualified related documentation when
+the provider is unavailable. Keyword similarity alone does not authorize a direct answer.
 Regression tests cover fabricated claims with real citations, missing features,
 live-account questions, partial answers and unrelated follow-up questions.
 Relevant selection and source accuracy still need review; this is not a claim
@@ -106,6 +110,12 @@ article questions to every section: a section about cash should not be ranked as
 the answer to an advertising-return question merely because both share an article.
 Keep the question coverage matrix separate from these retrieval hints so tests
 also exercise natural phrasing that is not copied from the hints.
+`direct_questions` is a separate, explicit approval: the named section must answer
+each entire question. Matching ignores only case, whitespace and punctuation,
+not additional clauses, negation or account-specific qualifiers. Duplicate
+questions after normalization fail validation. Add a regression for the actual
+displayed answer, not just presence somewhere in the retrieved sources. Do not
+promote retrieval hints or whole article question lists into direct answers.
 An operator export requires an explicit audience choice and is not committed
 to the customer export. The API image packages only the generated customer
 bundle. Authenticated server-side retrieval never loads the operator corpus.

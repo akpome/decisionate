@@ -65,7 +65,7 @@ def read_repository(root=ROOT):
     articles = manifest.get("articles")
     if not isinstance(articles, list) or not articles:
         raise KnowledgeError("No knowledge articles registered")
-    identities, paths, documents = set(), set(), {}
+    identities, paths, documents, direct_keys = set(), set(), {}, set()
     for article in articles:
         identity, path, audience = article.get("id"), article.get("path"), article.get("audience")
         if not isinstance(identity, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", identity) or identity in identities:
@@ -96,13 +96,20 @@ def read_repository(root=ROOT):
             for section, route in section_routes.items()
         ):
             raise KnowledgeError(f"Section routes must use existing headings and approved article routes: {identity}")
-        section_questions = article.get("section_questions", {})
-        if not isinstance(section_questions, dict) or any(section not in sections for section in section_questions):
-            raise KnowledgeError(f"Section questions must use existing headings: {identity}")
-        for section, questions in section_questions.items():
-            text_list(questions, f"{identity}.{section}.section_questions")
-            if len(questions) > 12 or any(len(question) > 300 for question in questions):
-                raise KnowledgeError(f"Section questions exceed retrieval bounds: {identity}")
+        for field in ("section_questions", "direct_questions"):
+            section_questions = article.get(field, {})
+            if not isinstance(section_questions, dict) or any(section not in sections for section in section_questions):
+                raise KnowledgeError(f"Section questions must use existing headings: {identity}")
+            for section, questions in section_questions.items():
+                text_list(questions, f"{identity}.{section}.{field}")
+                if len(questions) > 12 or any(len(question) > 300 or not re.findall(r"\w+", question) for question in questions):
+                    raise KnowledgeError(f"Section questions exceed retrieval bounds: {identity}")
+                if field == "direct_questions":
+                    for question in questions:
+                        key = (audience, tuple(re.findall(r"\w+", question.casefold())))
+                        if key in direct_keys:
+                            raise KnowledgeError(f"Ambiguous direct question: {identity}")
+                        direct_keys.add(key)
         documents[identity] = body
     by_id = {article["id"]: article for article in articles}
     for article in articles:
@@ -190,6 +197,7 @@ def export_records(manifest, documents, audience="customer"):
                    "section": section, "content": body, "audience": audience,
                    "routes": routes, "topics": article["topics"], "questions": article["questions"],
                    "section_questions": article.get("section_questions", {}).get(section, []),
+                   "direct_questions": article.get("direct_questions", {}).get(section, []),
                    "related_article_ids": [value for value in article["related"] if any(item["id"] == value and item["audience"] == audience for item in manifest["articles"])],
                    "reviewed_on": manifest["reviewed_on"], "verification": "source_reviewed_not_live_state"}
 

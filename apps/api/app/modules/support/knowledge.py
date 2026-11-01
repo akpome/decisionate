@@ -20,12 +20,40 @@ def tokens(text):
             for word in words if word not in STOP_WORDS and len(word) > 1]
 
 
+def question_key(text):
+    # Ignore only case, whitespace and punctuation, never qualifiers or negation.
+    return tuple(re.findall(r"\w+", text.casefold()))
+
+
+def direct_answer_record(question, records):
+    key = question_key(question)
+    matches = [record for record in records if key and any(
+        question_key(approved) == key for approved in record.get("direct_questions", [])
+    )]
+    return matches[0] if len(matches) == 1 else None
+
+
+def usage_guide_record(question, records):
+    normalized = " ".join(question_key(question))
+    if not re.search(r"\b(?:how (?:do|can|should) (?:i |we )?use|how to use|walk me through|guide me (?:on|through)|get started with)\b", normalized):
+        return None
+    matches = []
+    for record in records:
+        for approved in record.get("direct_questions", []):
+            words = question_key(approved)
+            if words[:4] == ("how", "do", "i", "use") and words[4:] and " " + " ".join(words[4:]) + " " in " " + normalized + " ":
+                matches.append(record)
+                break
+    # This prioritizes instructions for retrieval, not complete answer coverage.
+    return matches[0] if len(matches) == 1 else None
+
+
 @lru_cache(maxsize=1)
 def load_knowledge():
     records = tuple(json.loads(line) for line in CORPUS.read_text(encoding="utf-8").splitlines() if line)
     if not records or len(records) > 500:
         raise ValueError("Invalid customer knowledge bundle")
-    seen = set()
+    seen, direct_questions = set(), set()
     for record in records:
         if (record.get("audience") != "customer" or record["article_id"].startswith("operator-")
                 or record["chunk_id"] in seen or len(record["content"]) > 12000):
@@ -33,10 +61,16 @@ def load_knowledge():
         if any(not re.fullmatch(r"/(?:dashboard(?:/[a-z0-9-]+)*|privacy|terms|security)", route)
                for route in record["routes"]):
             raise ValueError("Unapproved knowledge link")
-        questions = record.get("section_questions", [])
-        if (not isinstance(questions, list) or len(questions) > 12
-                or any(not isinstance(question, str) or not question.strip() or len(question) > 300 for question in questions)):
-            raise ValueError("Invalid section questions")
+        for field in ("section_questions", "direct_questions"):
+            questions = record.get(field, [])
+            if (not isinstance(questions, list) or len(questions) > 12
+                    or any(not isinstance(question, str) or not question_key(question) or len(question) > 300 for question in questions)):
+                raise ValueError("Invalid section questions")
+        for question in record.get("direct_questions", []):
+            key = question_key(question)
+            if key in direct_questions:
+                raise ValueError("Ambiguous direct question")
+            direct_questions.add(key)
         seen.add(record["chunk_id"])
     return records
 
@@ -53,9 +87,10 @@ def retrieve(question, history=(), limit=5):
     if not query:
         return []
     # Article-wide questions are not evidence that every section answers them.
-    headings = [set(tokens(f"{r['title']} {r['section']} {' '.join(r.get('section_questions', []))}")) for r in records]
+    hints = [' '.join([*r.get("section_questions", []), *r.get("direct_questions", [])]) for r in records]
+    headings = [set(tokens(f"{r['title']} {r['section']} {hint}")) for r, hint in zip(records, hints)]
     documents = [Counter(tokens(f"{r['title']} {r['section']} {' '.join(r['topics'])} {r['content']}"))
-                 + Counter(set(tokens(' '.join(r.get('section_questions', []))))) for r in records]
+                 + Counter(set(tokens(hint))) for r, hint in zip(records, hints)]
     frequencies = Counter(word for document in documents for word in document)
     average_length = sum(sum(document.values()) for document in documents) / len(documents)
     ranked = []
@@ -73,7 +108,9 @@ def retrieve(question, history=(), limit=5):
         if record["section"] == "Overview":
             score *= 0.75
         ranked.append((score, record))
-    ranked.sort(key=lambda item: (-item[0], item[1]["chunk_id"]))
+    direct = direct_answer_record(question, records)
+    guide = usage_guide_record(question, records)
+    ranked.sort(key=lambda item: (item[1] is not direct, item[1] is not guide, -item[0], item[1]["chunk_id"]))
     selected, per_article, characters = [], Counter(), 0
     for score, record in ranked:
         if score < 2.0 or per_article[record["article_id"]] >= 2:

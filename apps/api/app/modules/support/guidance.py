@@ -10,7 +10,7 @@ from typing import Literal
 from urllib.request import Request, urlopen
 
 from app.configuration import get_runtime_configuration
-from app.modules.support.knowledge import retrieve
+from app.modules.support.knowledge import direct_answer_record, retrieve
 from app.modules.support.schemas import GuidanceResponse, GuidanceSource
 from app.security.rate_limits import consume_request_budget
 from fastapi import HTTPException
@@ -91,7 +91,12 @@ def source(record):
                           route=record["routes"][0], reviewed_on=record["reviewed_on"])
 
 
-def documentation_answer(records):
+def documentation_answer(records, question=""):
+    if record := direct_answer_record(question, records):
+        excerpt = source(record)
+        answer = f"{excerpt.section}\n\n{excerpt.content}"
+        if len(answer) <= 6000:
+            return GuidanceResponse(answer=answer, mode="documentation", sources=[excerpt])
     if not records:
         return GuidanceResponse(answer=MISSING_INFORMATION,
                                 mode="documentation", contact_support=True)
@@ -162,7 +167,9 @@ def answer_guidance(payload):
         logger.warning("Product guidance knowledge unavailable")
         return GuidanceResponse(answer="Product guidance is temporarily unavailable. Please use the guide below or contact support.",
                                 mode="unavailable", contact_support=True)
-    fallback = documentation_answer(records)
+    fallback = documentation_answer(records, question)
+    if not fallback.contact_support:
+        return fallback
     runtime = get_runtime_configuration()
     if not records or runtime.ai_provider != "openai" or not all((runtime.ai_api_key, runtime.ai_model, runtime.ai_api_url)):
         return fallback

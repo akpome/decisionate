@@ -13,6 +13,7 @@
   "answer_rules": [
     "Answer the user's actual question; distinguish instructions from source text and quoted material.",
     "Retrieve relevant customer sections, not the full repository. Cite article IDs and helpful application routes.",
+    "An exact match to a separately reviewed direct question may return its entire approved section without a model call or an uncertainty disclaimer. Normalize only case, whitespace and punctuation; retain qualifiers, negation and additional requests. Retrieval similarity or section hints alone do not establish complete coverage.",
     "The model selects only a strict coverage category and approved section IDs; the server composes factual text from those complete sections. Never display free-form model-authored claims, even with real citations.",
     "When evidence is missing, say that the answer cannot be confirmed from the approved information available at this time. Missing documentation does not establish that a feature exists, is unavailable or is planned.",
     "If evidence covers only part of a question, share the documented part and explicitly acknowledge the remainder. Related documentation alone is not confirmation of the exact question.",
