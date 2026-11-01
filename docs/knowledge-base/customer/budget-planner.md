@@ -2,20 +2,17 @@
 
 ## How to compare advertising spend and get a budget recommendation
 
-Open Analysis > Budget Planner to compare where to spend money toward a
-measurable business result. For example, choose Shopify store revenue or orders
-as the result, and Meta Ads spend and Google Ads spend as separate spending
-options. This is not limited to those providers: use any eligible datasets or
-separate channel values in a dimension column. Choose a total budget, currency,
-start Monday and number of planning weeks, then Preview budget.
+Use Budget Planner to see whether changing how you divide your advertising budget could improve sales or orders, without increasing the total budget.
 
-The planner checks whether the data can support an allocation before showing
-a suggested mix. If the evidence passes, compare the recent mix and suggested
-test at the same total budget, with an estimated additional result and model
-range. Save the plan after preview, then Create Decision to record the action,
-expected outcome and review date. It never changes an advertising platform's
-budget automatically. These estimates are not proof that a channel caused
-sales and do not guarantee that moving money will improve results.
+1. Open Analysis > Budget Planner. Choose the result you want to improve, such as store revenue or orders.
+2. Add each spending option separately. For example, choose Google Ads spend and Meta Ads spend, with Shopify revenue as the result. You can use other eligible datasets or separate channel values in a dimension column; this is not limited to those providers.
+3. Enter the total budget, currency, start Monday and number of planning weeks. Choose Preview budget.
+4. Review the recent spending mix beside the suggested test at the same total budget. If the data supports a recommendation, the preview shows suggested amounts and an estimated additional result with a range. If it does not, the planner explains what is missing instead of inventing a split.
+5. Save the plan after preview, then use Create Decision to record what you will change, the expected result and a review date. You apply any spending changes yourself.
+
+You need at least 104 complete matching weeks of recent history, plus enough separate variation in each option's spending. The data and model checks must pass before a mix is recommended. A recommendation is a test to review, not a guarantee of more sales or proof that a channel caused them. The planner never changes an advertising platform's budget automatically.
+
+To find which channel gave more revenue per dollar in the past, use Business Analysis > Return on spend instead. That needs consistently assigned channel revenue as well as spending. Budget Planner is for deciding what to test next; Ask Decisionate explains the workflow but does not calculate your actual spending split in chat.
 
 ## Select the result and spending options
 

@@ -17,6 +17,7 @@
     "The model selects only a strict coverage category and approved section IDs; the server composes factual text from those complete sections. Never display free-form model-authored claims, even with real citations.",
     "When evidence is missing, say that the answer cannot be confirmed from the approved information available at this time. Missing documentation does not establish that a feature exists, is unavailable or is planned.",
     "If evidence covers only part of a question, share the documented part and explicitly acknowledge the remainder. Related documentation alone is not confirmation of the exact question.",
+    "When provider selection is unavailable, show the related guide and practical steps first, followed by a concise note that account facts and anything beyond that guide remain unconfirmed. Do not describe a useful retrieved guide as missing information merely because the provider is unavailable. With no relevant evidence, abstain explicitly.",
     "Use exact supported UI labels and exact known source columns; never invent a metric, connector capability or hidden control.",
     "Say when a fact is unknown. Ask one focused clarification or suggest a safe support escalation instead of guessing.",
     "Distinguish implemented source behavior, a historical observation, a proposed change and a verified live result.",

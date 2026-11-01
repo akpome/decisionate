@@ -32,9 +32,20 @@ can become stale. Whole-section extraction is not a proof that a selected
 section answers the exact question or that every source statement is correct.
 Continue human relevance review and keep the knowledge review dates current.
 Missing configuration, unavailable providers, malformed replies or process
-concurrency saturation produce labeled related documentation with an explicit
-warning that it may not answer the exact question, instead of pretending the
-question has been resolved. No retrieval match produces an explicit abstention.
+concurrency saturation produce a labeled related guide, leading with the
+instructions and ending with a scope note that account facts and anything beyond
+the guide remain unconfirmed. Provider availability and documentation coverage
+are different: a provider failure does not establish missing product guidance.
+No retrieval match produces an explicit abstention. Reviewed exact how-to
+questions can return their approved section directly without a provider call;
+paraphrases still use coverage selection or a related guide.
+
+Fallback logs contain fixed reason codes for missing configuration, a busy
+provider, HTTP errors, timeouts, network errors, unapproved replies, incomplete
+completions and oversized responses. HTTP error logs include only the status
+code; never include exception text, keys, URLs, questions or response bodies.
+The Documentation label alone does not show that a key is missing, since direct
+reviewed answers and several failure conditions also use documentation mode.
 
 Requests are scoped through the existing verified authentication/workspace
 helper. No dataset, decision or billing records are supplied to the model.

@@ -1,12 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-10-31",
-  "base_git_revision": "9175f0faf92b2b3f2007868d5157e2f455c049be",
+  "base_git_revision": "a4f7a261782319170fba6b5c2c25add82e4b7c8b",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/support/guidance.py",
-    "apps/api/app/modules/support/knowledge.py",
-    "apps/api/scripts/knowledge_repository.py",
-    "apps/web/features/support/product-guidance.tsx"
+    "apps/api/app/modules/support/guidance.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -80,7 +77,7 @@
     "apps/api/app/modules/reports/service.py": "0adad4ac54dbe0c746b9ef6bf366c019112aa38644c9bc9d705b1dde1bad5259",
     "apps/api/app/modules/reports/timing_validation.py": "01ef56cb0e3afd5709c4fef6df1d560aa3212009c6135d3d43b0a80c3467ef04",
     "apps/api/app/modules/reports/weekly.py": "bfad4fe3322626679a0732ea2939ff5b721d2016596f56cab3e2c2c3169120c3",
-    "apps/api/app/modules/support/guidance.py": "8ff9606e02df603687072db261100d0fd4590f2bb018b0127537b316c2e90eba",
+    "apps/api/app/modules/support/guidance.py": "86d88f17c1433ab45db85f7aa95829efb9d732cd099cfc03c639ab28884e3832",
     "apps/api/app/modules/support/knowledge.py": "702b25665448a155bcfb9a6d996aa0536221a9d1e6bf1e85182caff591a3b687",
     "apps/api/app/modules/support/router.py": "28368b36349c061351019c0cd4b96860e178c1d13489b964f9b3102318957775",
     "apps/api/app/modules/support/schemas.py": "babc40aaa2386da94287e91349ff8ea90e9827fef834eb05e47bf94ca7936b48",
@@ -156,7 +153,7 @@
   },
   "article_sha256": {
     "customer/performance-analysis.md": "1b4c159b4d62d3179d7a83339219663d511f64369b650521fc168e8dba5c112d",
-    "customer/budget-planner.md": "6c9ba26264a0decdf47f99cb1b70ab2cd8c854b6059529b203af2d3c4b5b8a1f",
+    "customer/budget-planner.md": "f8c624fc0092d9cd57247d9b2c23888394bfe898190c6ea2022530301340d8a4",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",
     "customer/getting-started.md": "810205b6f2af17f6cce9b613e1424fcb34e2653bf57b8fb64236b771cfd8496c",
     "customer/workspaces-access.md": "d3ba3619e1b7bdeed8c01a761a6f9d0fb06050e61236c433596cb345f7f171a5",
@@ -190,6 +187,6 @@
     "operator/ai-configuration.md": "8c026f1eea1e2cc11e3500f8d2a965c3b0e067ee2780d000739f6891b60a1caf",
     "operator/email-delivery.md": "f09f41ea0e55b76adee88f0aade89e66dd1e572245757db31a5cff2bc00d4b94",
     "operator/incident-curation.md": "ae001ce728502d5e3f1f9a030d732a4f35080b8d29e9219d82801dd5d20c15a0",
-    "operator/maintenance-integration.md": "fc433c6182bac35f30f9dbc96d156971c871bb4a0fe4fdb3b76896be6f06ac8f"
+    "operator/maintenance-integration.md": "8f0cb42a59914139a059f425da1083a9613af80a9af3cde346fa81b2fa41a06e"
   }
 }

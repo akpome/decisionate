@@ -32,8 +32,11 @@ AI to classify coverage and select approved sections, then composes the response
 on the server. Unsupported and partial questions receive explicit limitations.
 Reviewed, exact how-to questions can return their approved instructions directly
 without an AI call or an unnecessary uncertainty preamble. Other questions still
-use coverage classification, or clearly qualified related documentation when
-the provider is unavailable. Keyword similarity alone does not authorize a direct answer.
+use coverage classification, or related documentation when the provider is
+unavailable. Related guides lead with practical instructions and end with a
+scope note: they do not verify account facts or anything beyond the guide.
+An unavailable provider does not mean the product guidance is missing.
+Keyword similarity alone does not establish complete answer coverage.
 Regression tests cover fabricated claims with real citations, missing features,
 live-account questions, partial answers and unrelated follow-up questions.
 Relevant selection and source accuracy still need review; this is not a claim

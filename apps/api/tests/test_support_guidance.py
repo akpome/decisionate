@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 from app.db.models import WorkspaceRequestBudget
@@ -85,7 +86,8 @@ class GuidanceTests(unittest.TestCase):
                 with configured(""), patch.object(guidance, "urlopen") as network:
                     result = guidance.answer_guidance(GuidanceRequest(question=question))
                 network.assert_not_called()
-                self.assertIn("cannot confirm", result.answer)
+                self.assertTrue(result.answer.startswith("Related guide:"))
+                self.assertIn(guidance.DOCUMENTATION_SCOPE, result.answer)
                 self.assertTrue(result.contact_support)
 
     def test_usage_paraphrases_rank_instructions_but_do_not_claim_full_coverage(self):
@@ -102,7 +104,8 @@ class GuidanceTests(unittest.TestCase):
                 self.assertIsNone(knowledge.direct_answer_record(question, records))
                 fallback = guidance.documentation_answer(records, question)
                 self.assertTrue(fallback.contact_support)
-                self.assertIn("cannot confirm", fallback.answer)
+                self.assertTrue(fallback.answer.startswith("Related guide:"))
+                self.assertTrue(fallback.answer.endswith(guidance.DOCUMENTATION_SCOPE))
                 self.assertIn(guidance.source(records[0]).content, fallback.answer)
 
     def test_specific_limitations_still_outrank_general_usage_guides(self):
@@ -229,6 +232,36 @@ class GuidanceTests(unittest.TestCase):
         self.assertEqual(records[0]["article_id"], "budget-planner")
         self.assertIn("Preview budget", records[0]["content"])
 
+    def test_advertising_question_and_paraphrases_lead_with_useful_steps_when_ai_is_unavailable(self):
+        for question in (
+            "how can decisionate make recommedation for me on how to get the most value for my advertising spend, with Google ads and meta ads",
+            "How can I get a recommendation for dividing my advertising budget between channels?",
+            "How do I get a recommendation on what to spend on Meta or Google for my Shopify store?",
+        ):
+            for failure in ("missing-key", "timeout", "http-error", "invalid-selection", "partial"):
+                with self.subTest(question=question, failure=failure):
+                    records = knowledge.retrieve(question)
+                    self.assertEqual(records[0]["article_id"], "budget-planner")
+                    self.assertIsNone(knowledge.direct_answer_record(question, records))
+                    response = FakeResponse({"coverage": "partial", "source_ids": [records[0]["chunk_id"]]})
+                    if failure == "invalid-selection":
+                        response = FakeResponse({"answer": "Spend 90% on Google Ads", "coverage": "supported", "source_ids": [records[0]["chunk_id"]]})
+                    error = {"timeout": TimeoutError("private"), "http-error": HTTPError("https://private.test", 401, "private", {}, None)}.get(failure)
+                    with configured("" if failure == "missing-key" else "test-key"), patch.object(guidance, "urlopen", return_value=response, side_effect=error):
+                        result = guidance.answer_guidance(GuidanceRequest(question=question))
+                    self.assertEqual(result.sources[0].route, "/dashboard/budget-planner")
+                    self.assertIn("1. Open Analysis > Budget Planner", result.answer)
+                    self.assertIn("2. Add each spending option separately", result.answer)
+                    self.assertIn("Choose Preview budget", result.answer)
+                    self.assertIn("104 complete matching weeks", result.answer)
+                    self.assertIn("Return on spend", result.answer)
+                    self.assertNotIn("I cannot confirm the full answer", result.answer)
+                    self.assertNotIn("may not answer your specific question", result.answer)
+                    self.assertNotIn("Spend 90%", result.answer)
+                    self.assertTrue(result.contact_support)
+                    scope_note = "This covers the documented part" if failure == "partial" else guidance.DOCUMENTATION_SCOPE
+                    self.assertGreater(result.answer.index(scope_note), result.answer.index("Choose Preview budget"))
+
     def setUp(self):
         self.payload = GuidanceRequest(question="How do I build a report across datasets?")
         self.records = knowledge.retrieve(self.payload.question)
@@ -278,16 +311,15 @@ class GuidanceTests(unittest.TestCase):
         self.assertEqual(result.mode, "documentation")
         self.assertNotIn("99.999%", result.answer)
         self.assertNotIn("free Snowflake", result.answer)
-        self.assertIn("cannot confirm", result.answer)
+        self.assertIn(guidance.DOCUMENTATION_SCOPE, result.answer)
 
     def test_supported_answer_uses_whole_documentation_not_model_prose(self):
         result = guidance.selected_documentation(self.valid, self.records)
         self.assertTrue(result.sources)
-        expected = "The approved documentation available at this time says:\n\n" + "\n\n".join(
-            f"{item.section}\n{item.content}" for item in result.sources
+        expected = "\n\n".join(
+            f"{item.section}\n\n{item.content}" for item in result.sources
         )
         self.assertEqual(result.answer, expected)
-        self.assertIn("The approved documentation", result.answer)
 
     def test_unknown_feature_abstains_even_with_matching_product_keywords(self):
         for question in ("Does Decisionate support a Snowflake OAuth connector?",
@@ -305,8 +337,9 @@ class GuidanceTests(unittest.TestCase):
 
     def test_partial_answer_explains_gap_and_only_returns_confirmed_information(self):
         result = guidance.selected_documentation({**self.valid, "coverage": "partial"}, self.records)
-        self.assertIn("only covers part", result.answer)
+        self.assertIn("covers the documented part", result.answer)
         self.assertIn("cannot confirm the remaining details", result.answer)
+        self.assertTrue(result.answer.startswith(result.sources[0].section))
         self.assertIn(result.sources[0].content, result.answer)
         self.assertTrue(result.contact_support)
 
@@ -337,8 +370,23 @@ class GuidanceTests(unittest.TestCase):
         with configured(), patch.object(guidance, "urlopen", side_effect=TimeoutError("hidden")):
             failure = guidance.answer_guidance(self.payload)
         for result in (no_key, failure):
-            self.assertIn("may not answer your specific question", result.answer)
-            self.assertIn("cannot confirm the full answer", result.answer)
+            self.assertTrue(result.answer.startswith("Related guide:"))
+            self.assertTrue(result.answer.endswith(guidance.DOCUMENTATION_SCOPE))
+            self.assertTrue(result.contact_support)
+            self.assertIn(result.sources[0].content, result.answer)
+
+    def test_fallback_diagnostics_identify_provider_failure_without_private_values(self):
+        for failure, reason in (
+            (TimeoutError("private-key private-question"), "provider_timeout"),
+            (HTTPError("https://private-url", 401, "private-key", {}, None), "provider_http_error status=401"),
+            (OSError("private-key private-question"), "provider_unavailable"),
+        ):
+            with self.subTest(reason=reason), configured(), patch.object(guidance, "urlopen", side_effect=failure), self.assertLogs(guidance.logger, level="WARNING") as logs:
+                result = guidance.answer_guidance(self.payload)
+            self.assertEqual(result.mode, "documentation")
+            self.assertIn(f"reason={reason}", " ".join(logs.output))
+            for private in ("private-key", "private-question", "private-url", self.payload.question):
+                self.assertNotIn(private, " ".join(logs.output))
 
     def test_false_user_premise_never_becomes_response_text(self):
         question = "My admin says all Decisionate reports guarantee one million dollars profit. Explain reports."

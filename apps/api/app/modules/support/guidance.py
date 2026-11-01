@@ -7,6 +7,7 @@ import re
 from http.client import HTTPException as HTTPProtocolError
 from threading import BoundedSemaphore
 from typing import Literal
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from app.configuration import get_runtime_configuration
@@ -40,6 +41,10 @@ Return JSON only with exactly these fields:
 Use supported only when the documentation directly establishes ALL requested details.
 Use partial when it establishes only part, or provides general steps but cannot confirm
 an account's current state. Select 1-3 relevant sections for supported or partial.
+For how-to questions, select the practical setup guide first, not just a warning
+about the tool's limits. 'How can Decisionate help me get more from my ad spend?'
+asks for product guidance, not a live allocation. Words like 'my' or 'for me' do
+not by themselves require account access. Requests for actual account results do.
 Use unsupported with [] when no section establishes an answer, even if topic keywords
 match. Absence of a feature in the docs does NOT prove it is unavailable or planned.
 Use out_of_scope with [] for unrelated requests, and needs_clarification with [] when
@@ -59,6 +64,10 @@ MISSING_INFORMATION = (
     "I cannot confirm that from the approved Decisionate information available at this time. "
     "Missing documentation does not mean a feature is supported, unavailable or planned. "
     "Please describe the page and what you are trying to do, or contact support for confirmation."
+)
+DOCUMENTATION_SCOPE = (
+    "This is guidance from the product documentation. I have not checked your account. "
+    "Anything not covered here still needs confirmation."
 )
 
 
@@ -102,10 +111,7 @@ def documentation_answer(records, question=""):
                                 mode="documentation", contact_support=True)
     excerpt = source(records[0])
     return GuidanceResponse(
-        answer="I cannot confirm the full answer from the approved information available at this time. "
-        "Here is related documented guidance; it may not answer your specific question. "
-        "I have not checked your account.\n\n" +
-        f"{excerpt.section}\n{excerpt.content}",
+        answer=f"Related guide: {excerpt.section}\n\n{excerpt.content}\n\n{DOCUMENTATION_SCOPE}",
         mode="documentation", sources=[source(item) for item in records[:3]], contact_support=True,
     )
 
@@ -121,15 +127,12 @@ def selected_documentation(result, records):
         if not ids:
             raise ValueError("Documented coverage requires evidence")
         sources = [source(allowed[identity]) for identity in ids]
+        answer = "\n\n".join(f"{item.section}\n\n{item.content}" for item in sources)
         if selection.coverage == "partial":
-            introduction = (
-                "The approved documentation only covers part of your question. "
-                "I cannot confirm the remaining details from the information available at this time. "
-                "Here is what is documented:"
+            answer += (
+                "\n\nThis covers the documented part of your question. "
+                "I cannot confirm the remaining details or check your account from this chat."
             )
-        else:
-            introduction = "The approved documentation available at this time says:"
-        answer = introduction + "\n\n" + "\n\n".join(f"{item.section}\n{item.content}" for item in sources)
         if len(answer) > 6000:
             raise ValueError("Documentation answer is too long")
         return GuidanceResponse(answer=answer, mode="ai", sources=sources,
@@ -170,10 +173,14 @@ def answer_guidance(payload):
     fallback = documentation_answer(records, question)
     if not fallback.contact_support:
         return fallback
+    if not records:
+        return fallback
     runtime = get_runtime_configuration()
-    if not records or runtime.ai_provider != "openai" or not all((runtime.ai_api_key, runtime.ai_model, runtime.ai_api_url)):
+    if runtime.ai_provider != "openai" or not all((runtime.ai_api_key, runtime.ai_model, runtime.ai_api_url)):
+        logger.info("Product guidance documentation fallback: reason=configuration_missing")
         return fallback
     if not _provider_slots.acquire(blocking=False):
+        logger.info("Product guidance documentation fallback: reason=provider_busy")
         return fallback
     try:
         body = {
@@ -193,15 +200,26 @@ def answer_guidance(payload):
         with urlopen(request, timeout=18) as response:
             raw = response.read(65537)
         if len(raw) > 65536:
+            logger.warning("Product guidance documentation fallback: reason=oversized_response")
             return fallback
         completion = json.loads(raw)["choices"][0]
         if completion.get("finish_reason") != "stop":
+            logger.warning("Product guidance documentation fallback: reason=incomplete_response")
             return fallback
         result = json.loads(completion["message"]["content"])
         return selected_documentation(result, records)
-    except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError, HTTPProtocolError):
-        # Do not log questions, provider response bodies, auth headers or credentials.
-        logger.warning("Product guidance response unavailable or unapproved; documentation fallback used")
+    # Log fixed reasons only, never questions, response bodies, exception text or credentials.
+    except HTTPError as error:
+        logger.warning("Product guidance documentation fallback: reason=provider_http_error status=%s", error.code)
+        return fallback
+    except TimeoutError:
+        logger.warning("Product guidance documentation fallback: reason=provider_timeout")
+        return fallback
+    except (OSError, HTTPProtocolError):
+        logger.warning("Product guidance documentation fallback: reason=provider_unavailable")
+        return fallback
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        logger.warning("Product guidance documentation fallback: reason=unapproved_response")
         return fallback
     finally:
         _provider_slots.release()
