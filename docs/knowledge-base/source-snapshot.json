@@ -1,11 +1,10 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-05",
-  "base_git_revision": "1e27c4f322c67c43c26147f471417d3020fcfe07",
+  "base_git_revision": "7b07fdf831b017d8aeaf8959b2c773dd3671a12d",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/datasets/router.py",
-    "apps/web/features/datasets/components/csv-upload.tsx",
-    "apps/web/lib/api.ts"
+    "apps/api/app/modules/identity/service.py",
+    "apps/api/tests/test_internal_identity_backfill.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -56,6 +55,7 @@
     "apps/api/app/modules/decisions/router.py": "c6f3d5dadced6fdfc68db120df66b353f22b57d5887de02418da8618846db05b",
     "apps/api/app/modules/forecasting/router.py": "915428acd8e8d1d3202a29f9250f5cf2640f8c193cbd78c41239c86b79b60464",
     "apps/api/app/modules/forecasting/services.py": "72519291aa581d042ac1d7d6b77867a9d7dee6d87c897db82d4be1d10be8cadf",
+    "apps/api/app/modules/identity/service.py": "bdf46e73da17ed330591c726cad0dfc6de5de3af5dc92e65ed4936edef189eea",
     "apps/api/app/modules/marketing/config.py": "089681ca86246fc90e636568a388affd4c4ef624be4374ef7278888df9a5b379",
     "apps/api/app/modules/organizations/router.py": "d136c676c0e5a2a4504e7a4a956d217b977a1a3c5fe829ae9850c4ecc38b9905",
     "apps/api/app/modules/performance/growth_schemas.py": "b6f2825ddaa94e17686c0454f1c987516d646ca03ba7340803f0bb907b96d862",
@@ -89,6 +89,7 @@
     "apps/api/scripts/knowledge_repository.py": "1a163b9ddb6658b57d6185cc0aa5c442d724e0df4b7f3a2931f3a7cd5345aa72",
     "apps/api/scripts/run_analysis_worker.py": "e90ceecbe0713f06697a30c2a751ee313905283fa93d96f4e5c4b24c4d6ae01c",
     "apps/api/tests/test_billing_settings_transactions.py": "712bf366b251c9a537916320e6870c347f2ea250d8e7cb31d8e9712cd9aa0f83",
+    "apps/api/tests/test_internal_identity_backfill.py": "d55012243075ab5ce83f467d027f08354b2402f3daf7fd430cef29b1f6e280c2",
     "apps/web/app/dashboard/business-impact/page.tsx": "22c1dcc83d075f10fe4aa0fbb151558c9fb681688fc5e5c1942ed6a03a8d8a13",
     "apps/web/app/dashboard/dashboard-shell.tsx": "b1f1d34178e038f5d02ebfa7af5e213aa7ee0f6bd26c51fa9ed7b7720e8fc1dd",
     "apps/web/app/dashboard/decisions/[id]/page.tsx": "1840e58a69c2b6c71db6ebbff7a8eae5ac059287eabe7045eabcad5d3041837b",
@@ -193,7 +194,7 @@
     "operator/worker-verification.md": "0361853c7eeee8b3ee28d38e0a0899fd6be66452df559762be49172a321d3432",
     "operator/ai-configuration.md": "8c026f1eea1e2cc11e3500f8d2a965c3b0e067ee2780d000739f6891b60a1caf",
     "operator/email-delivery.md": "f09f41ea0e55b76adee88f0aade89e66dd1e572245757db31a5cff2bc00d4b94",
-    "operator/incident-curation.md": "ae001ce728502d5e3f1f9a030d732a4f35080b8d29e9219d82801dd5d20c15a0",
+    "operator/incident-curation.md": "d2501cd8b11d5d1ab7ecb7dabca609f4df5e543bf8bac49288fa39242ed23129",
     "operator/maintenance-integration.md": "8f0cb42a59914139a059f425da1083a9613af80a9af3cde346fa81b2fa41a06e"
   }
 }

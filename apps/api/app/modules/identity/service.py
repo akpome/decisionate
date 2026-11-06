@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from uuid import uuid4
 
-from sqlalchemy import func, text
+from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import IntegrityError
 
 from app.configuration import get_runtime_configuration
 from app.db.database import SessionLocal, engine, get_table_columns
@@ -11,12 +13,14 @@ from app.db.models import (
     AuthIdentity,
     Organization,
     OrganizationMember,
+    WorkspaceSubscription,
     utc_now,
 )
 from app.modules.marketing.service import capture_identity
 
 
 INTERNAL_USER_PREFIX = "usr_"
+logger = logging.getLogger(__name__)
 DEFAULT_AUTH_PROVIDER = (
     get_runtime_configuration().auth_provider
 )
@@ -155,6 +159,42 @@ def _map_workspace_value(
     return clean_value
 
 
+def _migrate_subscription_workspace(connection, current_value: str, mapped_value: str) -> None:
+    subscriptions = WorkspaceSubscription.__table__
+    canonical = subscriptions.alias("canonical_subscription")
+    canonical_exists = select(canonical.c.id).where(
+        canonical.c.workspace_id == mapped_value,
+    ).exists()
+    try:
+        # A savepoint keeps a concurrent canonical insert from aborting the
+        # rest of the identity migration on PostgreSQL.
+        with connection.begin_nested():
+            result = connection.execute(
+                update(subscriptions).where(
+                    subscriptions.c.workspace_id == current_value,
+                    ~canonical_exists,
+                ).values(workspace_id=mapped_value, updated_at=subscriptions.c.updated_at),
+            )
+        if result.rowcount:
+            return
+    except IntegrityError as error:
+        constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
+        workspace_conflict = constraint == "ix_workspace_subscriptions_workspace_id" or (
+            connection.dialect.name == "sqlite"
+            and getattr(error.orig, "sqlite_errorname", None) == "SQLITE_CONSTRAINT_UNIQUE"
+        )
+        if not workspace_conflict or not connection.execute(select(canonical_exists)).scalar():
+            raise
+
+    if connection.execute(select(canonical_exists)).scalar():
+        logger.warning(
+            "Subscription identity migration deferred: the canonical workspace "
+            "already has a subscription. Both records are preserved; billing "
+            "reconciliation is required.",
+            extra={"legacy_workspace_id": current_value, "workspace_id": mapped_value},
+        )
+
+
 def ensure_internal_identity_backfill() -> None:
     """Create internal users and migrate legacy identity values once safely."""
 
@@ -217,6 +257,10 @@ def ensure_internal_identity_backfill() -> None:
                     legacy_mapping,
                 )
                 if mapped_value == current_value:
+                    continue
+
+                if table_name == "workspace_subscriptions":
+                    _migrate_subscription_workspace(connection, current_value, mapped_value)
                     continue
 
                 connection.execute(

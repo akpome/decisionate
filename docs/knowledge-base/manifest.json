@@ -1437,6 +1437,8 @@
         "apps/api/app/modules/datasets/services/metric_selection.py",
         "apps/api/app/modules/billing/service.py",
         "apps/api/tests/test_billing_settings_transactions.py",
+        "apps/api/app/modules/identity/service.py",
+        "apps/api/tests/test_internal_identity_backfill.py",
         "apps/api/app/modules/decisions/duplicates.py",
         "apps/api/app/modules/reports/decision_drafts.py"
       ],

@@ -34,6 +34,23 @@ inspection. Do not merge by title alone, erase recorded outcomes or assume every
 legacy placeholder is the same decision. Repair must preserve ownership and
 history and be separately authorized if it changes persisted records.
 
+An identity backfill can fail during API and worker startup when both a legacy
+workspace ID and its internal replacement already have subscription records.
+The observed failure is a unique-constraint violation on the subscription's
+workspace ID, before request handling or report execution starts. Do not label
+this as a malformed upload or an analytics computation failure.
+
+The source correction migrates non-conflicting subscriptions normally. On a
+collision it preserves both records and leaves the canonical workspace's
+subscription unchanged, with a billing-reconciliation warning. A savepoint
+contains a collision caused by a concurrent insert. It does not merge plans,
+provider subscriptions, credit balances or charges. Reconciliation still needs
+an authorized review of the provider records and both local subscriptions,
+especially if the legacy record is paid and the canonical record is free.
+Tests cover startup repetition, unchanged billing fields and continuation of
+other workspace migrations, with separate PostgreSQL coverage. Do not mark the
+incident deployed or production-verified based only on those source tests.
+
 ## Publication gate
 
 Customer articles should contain safe observable symptoms, non-destructive
