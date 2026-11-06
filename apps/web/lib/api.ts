@@ -2095,6 +2095,8 @@ type AuthenticatedHeaders =
 // startup or token-refresh window.
 const clerkTokenTimeoutMs = 5000
 const apiRequestTimeoutMs = 30000
+const datasetUploadRequestTimeoutMs = 5 * 60 * 1000
+const datasetUploadMaxBytes = 100 * 1024 * 1024
 const connectorSyncRequestTimeoutMs = 120000
 const apiMutationTimeoutMs = 30000
 const datasetMetricSelectionTimeoutMs = 60000
@@ -3372,6 +3374,9 @@ export async function uploadDataset(
   userId: string,
   workspaceId?: string
 ) {
+  if (file.size === 0) throw new Error("This file is empty. Choose a file containing data.")
+  if (file.size > datasetUploadMaxBytes) throw new Error("Uploaded file exceeds the 100 MB import limit.")
+  const unconfirmedMessage = "The upload could not be confirmed. Check the dataset list before uploading this file again."
   const formData =
     new FormData()
 
@@ -3380,24 +3385,40 @@ export async function uploadDataset(
     file
   )
 
-  const response =
-    await apiFetch(
+  const headers = await workspaceHeaders(
+    userId,
+    workspaceId ?? userId
+  )
+  let response: Response
+  try {
+    response = await apiFetch(
       `${API_URL}/datasets/upload`,
       {
         method: "POST",
-        headers: await workspaceHeaders(
-          userId,
-          workspaceId ?? userId
-        ),
+        headers,
         body: formData,
-      }
+      },
+      datasetUploadRequestTimeoutMs
     )
+  } catch {
+    throw new Error(unconfirmedMessage)
+  }
 
   if (!response.ok) {
     await throwApiError(
       response,
       "Upload failed"
     )
+  }
+
+  let result: { status?: string; job_id?: number; file_name?: string } | null
+  try {
+    result = await response.json()
+  } catch {
+    throw new Error(unconfirmedMessage)
+  }
+  if (result?.status !== "queued" || !Number.isSafeInteger(result.job_id) || !result.job_id || result.job_id < 1) {
+    throw new Error(unconfirmedMessage)
   }
 
   invalidateApiReadCache([
@@ -3419,7 +3440,7 @@ export async function uploadDataset(
     )}`,
   ])
 
-  return response.json()
+  return result
 }
 
 export async function getDataIngestionJob(
@@ -3454,13 +3475,24 @@ export async function waitForDataIngestionJob(
   workspaceId?: string
 ): Promise<DataIngestionJobResponse> {
   const deadline = Date.now() + 10 * 60 * 1000
+  let failures = 0
 
   while (Date.now() < deadline) {
-    const job = await getDataIngestionJob(
-      jobId,
-      userId,
-      workspaceId
-    )
+    let job: DataIngestionJobResponse
+    try {
+      job = await getDataIngestionJob(jobId, userId, workspaceId)
+      failures = 0
+    } catch (error) {
+      const status = error instanceof ApiError ? error.status : undefined
+      if (status !== undefined && status < 500 && status !== 408 && status !== 429) throw error
+      if (++failures >= 3) {
+        throw new Error(
+          "Your file was received, but its import status could not be confirmed. Check the dataset list before uploading it again."
+        )
+      }
+      await new Promise(resolve => window.setTimeout(resolve, status === 429 ? 5000 : 2000))
+      continue
+    }
     if (
       ["succeeded", "no_data", "failed"].includes(
         job.status
@@ -3471,6 +3503,9 @@ export async function waitForDataIngestionJob(
           job.error_message ||
             "Data ingestion failed. Please try again."
         )
+      }
+      if (job.status === "succeeded") {
+        invalidateApiReadCache([`datasets:${getWorkspaceCacheIdentity(userId, workspaceId)}`])
       }
       return job
     }

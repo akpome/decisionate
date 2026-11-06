@@ -626,15 +626,19 @@ def persist_dataset_file(
     stored_file_path = file_path
     stored_reference = file_path
     storage_provider = None
-    storage = get_object_storage()
+    committed = False
+    storage = None
     try:
+        storage = get_object_storage()
         source_type, dataframe = load_dataset_file(
             file_path,
             upload_filename,
         )
         parquet_path = convert_dataframe_to_parquet(
             dataframe,
-            file_path,
+            # Queue staging cleanup must never address the saved dataset,
+            # including when the original upload is already Parquet.
+            f"{file_path}.parquet",
         )
 
         if parquet_path != file_path:
@@ -673,16 +677,19 @@ def persist_dataset_file(
         initialize_curated_selection(dataset, dataframe)
         db.add(dataset)
         db.commit()
+        committed = True
         db.refresh(dataset)
-        if stored_reference != file_path:
-            remove_dataset_file(file_path)
         return dataset
     except Exception:
-        remove_dataset_file(stored_reference)
-        remove_dataset_file(file_path)
-        if parquet_path and parquet_path != file_path:
-            remove_dataset_file(parquet_path)
+        if not committed:
+            remove_dataset_file(stored_reference)
+            remove_dataset_file(file_path)
+            if parquet_path and parquet_path != file_path:
+                remove_dataset_file(parquet_path)
         raise
+    finally:
+        if committed and storage.is_remote:
+            remove_dataset_file(file_path)
 
 
 def persist_entity_matching_dataframe(
@@ -3442,7 +3449,9 @@ def enqueue_file_ingestion_job(
     job_type: str,
     payload: dict,
     background_tasks: BackgroundTasks,
-):
+) -> int:
+    if durable_ingestion_enabled() and not ingestion_worker_ready(db):
+        raise HTTPException(503, "File imports are temporarily unavailable. Please try again shortly.")
     ensure_workspace_queue_capacity(db, workspace_id)
     job = DataIngestionJob(
         connection_id=None,
@@ -3453,11 +3462,12 @@ def enqueue_file_ingestion_job(
         request_payload=json.dumps(payload, sort_keys=True),
     )
     db.add(job)
+    db.flush()
+    job_id = job.id
     db.commit()
-    db.refresh(job)
     if not durable_ingestion_enabled():
-        background_tasks.add_task(run_file_ingestion_job, job.id)
-    return job
+        background_tasks.add_task(run_file_ingestion_job, job_id)
+    return job_id
 
 
 def generate_share_token():
@@ -3721,15 +3731,16 @@ def upload_dataset(
         raise
 
     staged_reference = None
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         storage = get_object_storage()
         if durable_ingestion_enabled() and storage.is_remote:
             staged_reference = storage.put_file(
                 file_path,
                 key=f"ingestion/{normalize_analytics_identifier(workspace_id, 'workspace')}/{uuid.uuid4().hex}-{upload_filename}",
             )
-        job = enqueue_file_ingestion_job(
+        job_id = enqueue_file_ingestion_job(
             db,
             user_id,
             workspace_id,
@@ -3748,7 +3759,7 @@ def upload_dataset(
             remove_dataset_file(file_path)
         return {
             "status": INGESTION_JOB_QUEUED,
-            "job_id": job.id,
+            "job_id": job_id,
             "file_name": upload_filename,
         }
     except Exception:
@@ -3756,7 +3767,8 @@ def upload_dataset(
         remove_dataset_file(staged_reference)
         raise
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 @router.post("/import-url", status_code=202)
@@ -3783,7 +3795,7 @@ async def import_dataset_from_signed_url(
 
     db = SessionLocal()
     try:
-        job = enqueue_file_ingestion_job(
+        job_id = enqueue_file_ingestion_job(
             db,
             user_id,
             workspace_id,
@@ -3797,7 +3809,7 @@ async def import_dataset_from_signed_url(
         )
         return {
             "status": INGESTION_JOB_QUEUED,
-            "job_id": job.id,
+            "job_id": job_id,
             "file_name": payload.file_name,
         }
     finally:
@@ -9901,11 +9913,15 @@ def run_file_ingestion_job(job_id: int):
         else:
             raise ValueError(f"Unsupported file ingestion job type: {job_type}")
 
+        # Persistence owns cleanup from here, including a failed confirmation
+        # after the dataset has already been committed.
+        persistence_path = file_path
+        file_path = None
         dataset = persist_dataset_file(
             db,
             job.user_id,
             job.workspace_id,
-            file_path,
+            persistence_path,
             upload_filename,
             source_config,
         )

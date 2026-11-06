@@ -159,6 +159,9 @@ class FakeFailingUploadDb:
             "database unavailable"
         )
 
+    def flush(self):
+        return None
+
     def refresh(self, item):
         return None
 
@@ -1654,6 +1657,8 @@ class DatasetSharingTests(unittest.TestCase):
                 return_value=fake_db,
             ), patch(
                 "app.modules.datasets.router.ensure_workspace_queue_capacity",
+            ), patch(
+                "app.modules.datasets.router.ingestion_worker_ready", return_value=True,
             ):
                 with self.assertRaises(
                     RuntimeError,

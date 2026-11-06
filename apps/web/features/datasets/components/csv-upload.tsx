@@ -55,7 +55,8 @@ export function CsvUpload({
     useActiveWorkspace(user?.id)
 
   const [fileName, setFileName] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [phase, setPhase] = useState<"uploading" | "processing" | null>(null)
+  const loading = phase !== null
   const [errorMessage, setErrorMessage] =
     useState("")
   const fileInputRef =
@@ -117,7 +118,12 @@ export function CsvUpload({
 
     setFileName(file.name)
     setErrorMessage("")
-    setLoading(true)
+    if (!acceptedExtensions.some(extension => file.name.trim().toLowerCase().endsWith(extension))) {
+      setErrorMessage(t("This file format is not supported."))
+      event.target.value = ""
+      return
+    }
+    setPhase("uploading")
 
     try {
       const queuedJob = await uploadDataset(
@@ -129,6 +135,7 @@ export function CsvUpload({
         queuedJob.status === "queued" &&
         queuedJob.job_id
       ) {
+        setPhase("processing")
         await waitForDataIngestionJob(
           queuedJob.job_id,
           user.id,
@@ -137,14 +144,13 @@ export function CsvUpload({
       }
       await onUploadSuccess()
     } catch (error) {
-      setFileName("")
       setErrorMessage(
         error instanceof Error
           ? error.message
           : t("Upload failed")
       )
     } finally {
-      setLoading(false)
+      setPhase(null)
 
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
@@ -217,7 +223,8 @@ export function CsvUpload({
           aria-live="polite"
           className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600"
         >
-          {t("Uploading data file...")}
+          <p>{t(phase === "processing" ? "Preparing your dataset..." : "Uploading data file...")}</p>
+          <p className="mt-1 break-all text-xs">{fileName}</p>
         </div>
       )}
 
@@ -226,12 +233,13 @@ export function CsvUpload({
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
         >
+          {fileName && <p className="mb-1 break-all font-medium">{fileName}</p>}
           {errorMessage}
         </div>
       )}
 
       {/* File Info */}
-      {fileName && !loading && (
+      {fileName && !loading && !errorMessage && (
         <div className="rounded-xl border bg-white p-4">
           <p className="font-medium">
             {t("Uploaded File")}

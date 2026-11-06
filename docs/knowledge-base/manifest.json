@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-01",
+  "reviewed_on": "2026-11-05",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -357,13 +357,18 @@
       ],
       "questions": [
         "Which files can I upload?",
-        "Why do the imported columns look different?"
+        "Why do the imported columns look different?",
+        "Why is my upload taking too long?"
       ],
       "routes": [
         "/dashboard/datasets"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
+        "apps/web/features/datasets/components/csv-upload.tsx",
+        "apps/web/lib/api.ts",
+        "apps/api/app/modules/datasets/router.py",
+        "apps/api/app/infrastructure/ingestion_worker.py",
         "apps/api/app/modules/datasets/services/file_loader.py",
         "apps/api/app/modules/datasets/services/metric_selection.py"
       ],

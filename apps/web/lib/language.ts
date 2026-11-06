@@ -1308,6 +1308,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Upload Data File": "Téléverser un fichier de données",
   "need workspace setup before upload.": "nécessitent une configuration de l'espace avant le téléversement.",
   "Uploading data file...": "Téléversement du fichier de données...",
+  "Preparing your dataset...": "Préparation de votre jeu de données...",
+  "This file format is not supported.": "Ce format de fichier n'est pas pris en charge.",
   "Uploaded File": "Fichier téléversé",
   "Sign in before uploading a dataset.": "Connectez-vous avant de téléverser un jeu de données.",
   "Upload failed": "Échec du téléversement",
