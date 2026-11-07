@@ -48,7 +48,7 @@ function elements(node, predicate) {
   return [...(predicate(node) ? [node] : []), ...elements(node.props.children, predicate)]
 }
 
-function harness(sourceType = "meta_ads", connectionOverrides = {}) {
+function harness(sourceType = "meta_ads", connectionOverrides = {}, propsOverrides = {}) {
   let hooks = [], cursor = 0, focusCount = 0
   const parentHooks = [], rowHooks = [], calls = []
   const loaded = { exports: {} }
@@ -90,6 +90,7 @@ function harness(sourceType = "meta_ads", connectionOverrides = {}) {
       calls.push({ connection: item, payload })
       return new Promise(() => {})
     },
+    ...propsOverrides,
   }
   function render() {
     hooks = parentHooks
@@ -109,13 +110,126 @@ function harness(sourceType = "meta_ads", connectionOverrides = {}) {
   const submit = () => buttons().find(button => button.props.children === "Sync selected range")
   const fields = () => elements(render(), node => node.type === "input" && node.props.type === "date")
   return {
-    calls, panel, trigger, submit, fields,
+    calls, panel, trigger, submit, fields, connection,
     open: () => trigger().props.onClick(),
     close: () => buttons().find(button => button.props["aria-label"] === "Close advanced date range"),
     focusCount: () => focusCount,
     alerts: () => elements(render(), node => node.props.role === "alert"),
     statuses: () => elements(render(), node => node.props.role === "status").map(node => node.props.children),
   }
+}
+
+const noMetaData = "Meta Ads returned no records from 2023-11-07 through 2023-11-23. Verify that the connected account contains data in this range."
+
+test("identical initial-import and job warnings are shown only once", () => {
+  const view = harness("meta_ads", { initial_sync_message: noMetaData, ingestion_job: { status: "no_data", job_type: "initial_connector_backfill", error_message: noMetaData } })
+  assert.equal(view.statuses().filter(message => message === noMetaData).length, 1)
+  assert.equal(view.alerts().length, 0)
+})
+
+test("duplicate notices are compared after trimming whitespace", () => {
+  const view = harness("meta_ads", { initial_sync_message: ` ${noMetaData}\n`, ingestion_job: { status: "no_data", error_message: `\n${noMetaData} ` } })
+  assert.equal(view.statuses().filter(message => message === noMetaData).length, 1)
+})
+
+test("different date-range warnings remain visible", () => {
+  const otherRange = noMetaData.replace("2023-11-07 through 2023-11-23", "2026-10-01 through 2026-10-31")
+  const view = harness("meta_ads", { initial_sync_message: noMetaData, ingestion_job: { status: "no_data", error_message: otherRange } })
+  assert.ok(view.statuses().includes(noMetaData))
+  assert.ok(view.statuses().includes(otherRange))
+})
+
+test("an initial warning is retained without a job and a job warning is retained without a summary", () => {
+  for (const fields of [{ initial_sync_message: noMetaData }, { ingestion_job: { status: "no_data", error_message: noMetaData } }]) {
+    assert.equal(harness("meta_ads", fields).statuses().filter(message => message === noMetaData).length, 1)
+  }
+})
+
+test("repeated failure text remains a single accessible error, not a warning", () => {
+  const message = "The import failed because the service is unavailable."
+  const view = harness("meta_ads", { initial_sync_status: "failed", initial_sync_error: message, initial_sync_message: message, ingestion_job: { status: "failed", error_message: message } })
+  assert.equal(view.alerts().filter(node => node.props.children === message).length, 1)
+  assert.equal(view.statuses().includes(message), false)
+})
+
+test("different import failures are not removed", () => {
+  const view = harness("meta_ads", { initial_sync_status: "failed", initial_sync_error: "The historical import failed.", ingestion_job: { status: "failed", error_message: "The latest sync failed." } })
+  assert.deepEqual(view.alerts().map(node => node.props.children), ["The historical import failed.", "The latest sync failed."])
+})
+
+test("temporary feedback does not repeat an already-visible warning", () => {
+  const view = harness("meta_ads", { initial_sync_message: noMetaData }, { connectionFeedback: { 1: { tone: "no_data", message: ` ${noMetaData} ` } } })
+  assert.equal(view.statuses().filter(message => message === noMetaData).length, 1)
+  assert.equal(view.statuses().length, 1)
+})
+
+test("distinct temporary feedback remains visible", () => {
+  const view = harness("meta_ads", { initial_sync_message: noMetaData }, { connectionFeedback: { 1: { tone: "success", message: "Schedule saved." } } })
+  assert.ok(view.statuses().includes(noMetaData))
+  assert.ok(view.statuses().includes("Schedule saved."))
+})
+
+test("repeated temporary error feedback retains its alert severity", () => {
+  const message = "The connection requires attention."
+  const view = harness("meta_ads", { initial_sync_message: message }, { connectionFeedback: { 1: { tone: "error", message } } })
+  assert.equal(view.alerts().filter(node => node.props.children === message).length, 1)
+  assert.equal(view.statuses().includes(message), false)
+})
+
+test("range-sync and missing-detail no-data fallbacks remain available", () => {
+  assert.ok(harness("meta_ads", { ingestion_job: { status: "no_data", job_type: "connector_range_sync" } }).statuses().includes("No data was returned for the latest import chunk."))
+  assert.ok(harness("meta_ads", { ingestion_job: { status: "no_data" } }).statuses().includes("No meta_ads data was found for the selected period."))
+})
+
+test("polling replaces the old job message without retaining duplicate notices", () => {
+  const view = harness("meta_ads", { initial_sync_message: noMetaData, ingestion_job: { status: "no_data", error_message: noMetaData } })
+  assert.equal(view.statuses().filter(message => message === noMetaData).length, 1)
+  view.connection.initial_sync_message = undefined
+  view.connection.ingestion_job = { status: "succeeded" }
+  assert.equal(view.statuses().includes(noMetaData), false)
+  view.connection.ingestion_job = { status: "no_data", error_message: noMetaData }
+  assert.equal(view.statuses().filter(message => message === noMetaData).length, 1)
+})
+
+const notificationConnectors = JSON.parse(readFileSync(new URL(
+  "../../../docs/knowledge-base/connector-catalog.json", import.meta.url
+), "utf8")).sources.filter(source => source.connection_type !== "upload")
+
+for (const source of notificationConnectors) {
+  const props = { sources: [{
+    type: source.type, label: source.label, status: "available",
+    connection_type: source.connection_type, config_keys: [],
+  }] }
+  const message = `${source.label} returned no records from 2023-11-07 through 2023-11-23.`
+
+  test(`${source.type}: repeated initial, job and temporary no-data notices appear once`, () => {
+    const view = harness(source.type, {
+      initial_sync_message: message,
+      ingestion_job: { status: "no_data", job_type: "initial_connector_backfill", error_message: message },
+    }, { ...props, connectionFeedback: { 1: { tone: "no_data", message } } })
+    assert.equal(view.statuses().filter(text => text === message).length, 1)
+    assert.equal(view.alerts().length, 0)
+  })
+
+  test(`${source.type}: repeated import failures remain one accessible error`, () => {
+    const error = `${source.label} import failed. Please reconnect.`
+    const view = harness(source.type, {
+      initial_sync_status: "failed", initial_sync_message: error, initial_sync_error: error,
+      ingestion_job: { status: "failed", error_message: error },
+    }, { ...props, connectionFeedback: { 1: { tone: "error", message: error } } })
+    assert.equal(view.alerts().filter(node => node.props.children === error).length, 1)
+    assert.equal(view.statuses().includes(error), false)
+  })
+
+  test(`${source.type}: distinct results and temporary feedback remain visible`, () => {
+    const other = `${source.label} returned no records from 2026-10-01 through 2026-10-31.`
+    const view = harness(source.type, {
+      initial_sync_message: message, ingestion_job: { status: "no_data", error_message: other },
+    }, { ...props, connectionFeedback: { 1: { tone: "success", message: "Schedule saved." } } })
+    assert.ok(view.statuses().includes(message))
+    assert.ok(view.statuses().includes(other))
+    assert.ok(view.statuses().includes("Schedule saved."))
+  })
 }
 
 for (const sourceType of connectorTypes) {

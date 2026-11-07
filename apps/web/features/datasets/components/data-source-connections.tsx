@@ -669,6 +669,35 @@ function DataSourceConnectionRow({
     "pending",
     "running",
   ].includes(connection.analysis_status ?? "")
+  // Initial import summaries and job results can contain the same message.
+  // Put failures first so a repeated warning cannot hide an error.
+  const syncNotices = [
+    {
+      error: true,
+      message: connection.initial_sync_status === "failed"
+        ? connection.initial_sync_error?.trim()
+        : undefined,
+    },
+    {
+      error: true,
+      message: connection.ingestion_job?.status === "failed"
+        ? connection.ingestion_job.error_message?.trim()
+        : undefined,
+    },
+    { error: false, message: connection.initial_sync_message?.trim() },
+    {
+      error: false,
+      message: connection.ingestion_job?.status === "no_data"
+        ? connection.ingestion_job.job_type === "connector_range_sync"
+          ? t("No data was returned for the latest import chunk.")
+          : connection.ingestion_job.error_message?.trim() ||
+            `No ${connection.source_label} data was found for the selected period.`
+        : undefined,
+    },
+  ].filter((notice, index, notices) =>
+    notice.message &&
+    notices.findIndex(candidate => candidate.message === notice.message) === index
+  )
   const isSageConnector =
     connection.source_type === "sage"
   const requiresOAuthAccountSelection =
@@ -1019,25 +1048,6 @@ function DataSourceConnectionRow({
           </p>
         )}
 
-        {connection.initial_sync_message && (
-          <p
-            className="mt-2 break-words text-xs text-amber-700"
-            role="status"
-          >
-            {connection.initial_sync_message}
-          </p>
-        )}
-
-        {connection.initial_sync_status === "failed" &&
-          connection.initial_sync_error && (
-            <p
-              className="mt-2 break-words text-xs text-red-700"
-              role="alert"
-            >
-              {connection.initial_sync_error}
-            </p>
-          )}
-
         {ingestionInProgress && (
           <p
             className="mt-2 break-words text-xs text-blue-700"
@@ -1065,27 +1075,21 @@ function DataSourceConnectionRow({
           </p>
         )}
 
-        {connection.ingestion_job?.status === "no_data" && (
-          <p
-            className="mt-2 break-words text-xs text-amber-700"
-            role="status"
-          >
-            {connection.ingestion_job?.job_type === "connector_range_sync"
-              ? t("No data was returned for the latest import chunk.")
-              : connection.ingestion_job.error_message ||
-                `No ${connection.source_label} data was found for the selected period.`}
-          </p>
-        )}
-
-        {connection.ingestion_job?.status === "failed" &&
-          connection.ingestion_job.error_message && (
+        {syncNotices.map(notice => {
+          const isError = notice.error || (
+            connectionFeedback?.tone === "error" &&
+            connectionFeedback.message.trim() === notice.message
+          )
+          return (
             <p
-              className="mt-2 break-words text-xs text-red-700"
-              role="alert"
+              key={notice.message}
+              className={`mt-2 break-words text-xs ${isError ? "text-red-700" : "text-amber-700"}`}
+              role={isError ? "alert" : "status"}
             >
-              {connection.ingestion_job.error_message}
+              {notice.message}
             </p>
-          )}
+          )
+        })}
 
         {connection.authorization_error && (
           <div
@@ -1828,7 +1832,7 @@ function DataSourceConnectionRow({
           </div>
         )}
 
-      {connectionFeedback && (
+      {connectionFeedback && !syncNotices.some(notice => notice.message === connectionFeedback.message.trim()) && (
         <div
           role={
             connectionFeedback.tone === "error"
