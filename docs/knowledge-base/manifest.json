@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-05",
+  "reviewed_on": "2026-11-10",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -1377,6 +1377,7 @@
         "apps/api/app/configuration.py",
         "apps/api/app/modules/ai/service.py",
         "apps/api/app/modules/ai/router.py",
+        "apps/api/tests/test_ai_service.py",
         "apps/web/app/platform-admin/page.tsx",
         "apps/web/lib/api.ts"
       ],

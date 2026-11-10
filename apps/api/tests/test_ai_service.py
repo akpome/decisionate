@@ -1,7 +1,12 @@
 import json
 import os
+from contextlib import ExitStack
+from http.client import IncompleteRead
+from io import BytesIO
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
 from app.modules.ai import service
 
@@ -235,6 +240,172 @@ class AIServiceTests(unittest.TestCase):
             {"value": 1},
         )
         self.assertEqual(first["source"], "openai")
+
+
+class AIProviderFailureDiagnosticsTests(unittest.TestCase):
+    def setUp(self):
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.secret = "sk-test-secret-not-real"
+        self.runtime = SimpleNamespace(
+            ai_provider="openai", ai_api_key=self.secret, ai_model="test-only-model",
+            ai_api_url=f"https://example.test/chat/completions?private={self.secret}",
+        )
+        self.stack.enter_context(patch.object(service, "get_runtime_configuration", return_value=self.runtime))
+        self.stack.enter_context(patch.object(service, "_get_cached_analysis", return_value=None))
+        self.cache = self.stack.enter_context(patch.object(service, "_cache_analysis"))
+        self.remote = self.stack.enter_context(patch.object(service, "urlopen"))
+        self.reserve = self.stack.enter_context(patch.object(service, "reserve_ai_credits", return_value={"id": "reservation"}))
+        self.release = self.stack.enter_context(patch.object(service, "release_ai_credits"))
+        self.settle = self.stack.enter_context(patch.object(service, "settle_ai_credits"))
+        self.stack.enter_context(patch.dict(os.environ, {"AI_REQUEST_TIMEOUT_SECONDS": "20", "AI_MAX_OUTPUT_TOKENS": "500"}))
+
+    def generate(self):
+        return service.generate_structured_analysis(
+            context="private-business-context", facts={"customer_note": "private-customer-data"},
+            fallback_summary="Calculated summary", fallback_recommendations=["Review the results"],
+            workspace_id="private-workspace", actor_user_id="private-actor",
+        )
+
+    def response(self, content, finish_reason="stop", headers=None, refusal=None):
+        response = FakeAIResponse({"choices": [{"finish_reason": finish_reason,
+            "message": {"content": content, "refusal": refusal}}]})
+        response.headers = headers or {"x-request-id": "req_0123456789abcdef"}
+        return response
+
+    def failure(self):
+        with self.assertLogs(service.logger, level="WARNING") as captured:
+            result = self.generate()
+        log = "\n".join(captured.output)
+        self.assertEqual(result["source"], "rules")
+        self.assertEqual(result["fallback_reason"], "provider_unavailable")
+        self.assertEqual(result["summary"], "Calculated summary")
+        self.assertEqual(len(captured.records), 1)
+        self.release.assert_called_once_with("reservation")
+        self.settle.assert_not_called()
+        self.cache.assert_not_called()
+        for private in (self.secret, self.runtime.ai_api_url, "private-customer-data", "private-business-context", "private-workspace", "private-actor"):
+            self.assertNotIn(private, log)
+        return log
+
+    def test_http_failure_records_status_safe_code_and_request_id_without_secrets(self):
+        body = BytesIO(json.dumps({"error": {"code": "insufficient_quota", "message": self.secret}}).encode())
+        self.remote.side_effect = HTTPError(self.runtime.ai_api_url, 429, self.secret,
+            {"x-request-id": "req_0123456789abcdef"}, body)
+        log = self.failure()
+        self.assertIn("reason=provider_http_error", log)
+        self.assertIn("status=429 code=insufficient_quota", log)
+        self.assertIn("request_id=req_0123456789abcdef", log)
+        self.assertTrue(body.closed)
+        self.remote.assert_called_once()
+
+    def test_an_invalid_key_is_identified_without_claiming_the_provider_is_down(self):
+        body = BytesIO(json.dumps({"error": {"code": "invalid_api_key", "message": self.secret}}).encode())
+        self.remote.side_effect = HTTPError(self.runtime.ai_api_url, 401, self.secret, {}, body)
+        self.assertIn("status=401 code=invalid_api_key", self.failure())
+
+    def test_unknown_error_codes_and_untrusted_request_headers_are_not_logged(self):
+        body = BytesIO(json.dumps({"error": {"code": self.secret, "message": "private-customer-data"}}).encode())
+        self.remote.side_effect = HTTPError(self.runtime.ai_api_url, 400, self.secret,
+            {"x-request-id": f"req_{self.secret}\nprivate-customer-data"}, body)
+        self.assertIn("status=400 code=None request_id=None", self.failure())
+
+    def test_unreadable_or_missing_http_error_body_cannot_break_fallback(self):
+        self.remote.side_effect = HTTPError(self.runtime.ai_api_url, 503, self.secret, None, None)
+        self.assertIn("reason=provider_http_error", self.failure())
+
+    def test_direct_timeout_is_distinguished_from_an_invalid_response(self):
+        self.remote.side_effect = TimeoutError(self.secret)
+        self.assertIn("reason=provider_timeout phase=provider_request", self.failure())
+        self.remote.assert_called_once()
+        self.assertEqual(self.remote.call_args.kwargs["timeout"], 20)
+
+    def test_url_wrapped_timeout_is_identified_without_logging_the_exception(self):
+        self.remote.side_effect = URLError(TimeoutError(self.secret))
+        self.assertIn("reason=provider_timeout", self.failure())
+
+    def test_connection_errors_are_distinguished_from_timeouts(self):
+        self.remote.side_effect = URLError(self.secret)
+        self.assertIn("reason=provider_network_error", self.failure())
+
+    def test_interrupted_http_body_keeps_the_fallback_without_exposing_partial_data(self):
+        class InterruptedResponse(FakeAIResponse):
+            def read(self):
+                raise IncompleteRead(b"private-customer-data", 100)
+        self.remote.return_value = InterruptedResponse({})
+        self.assertIn("reason=provider_network_error phase=response_body", self.failure())
+
+    def test_interrupted_error_body_cannot_replace_the_original_http_failure(self):
+        class InterruptedBody(BytesIO):
+            def read(self, *args):
+                raise IncompleteRead(b"private-customer-data", 100)
+        body = InterruptedBody()
+        self.remote.side_effect = HTTPError(self.runtime.ai_api_url, 502, self.secret, {}, body)
+        self.assertIn("reason=provider_http_error", self.failure())
+        self.assertTrue(body.closed)
+
+    def test_token_limited_json_is_identified_without_repeating_a_billable_request(self):
+        self.remote.return_value = self.response('{"summary":"private-customer-data', finish_reason="length")
+        log = self.failure()
+        self.assertIn("reason=response_incomplete", log)
+        self.assertIn("finish_reason=length", log)
+        self.remote.assert_called_once()
+        request = json.loads(self.remote.call_args.args[0].data)
+        self.assertEqual(request["max_tokens"], 500)
+
+    def test_invalid_outer_response_shape_is_logged_without_its_body(self):
+        self.remote.return_value = FakeAIResponse({"choices": [], "private": "private-customer-data"})
+        self.assertIn("reason=invalid_response phase=analysis_payload", self.failure())
+
+    def test_malformed_generated_json_is_not_mislabelled_as_a_timeout(self):
+        self.remote.return_value = self.response("private-customer-data")
+        log = self.failure()
+        self.assertIn("reason=invalid_response", log)
+        self.assertIn("finish_reason=stop", log)
+
+    def test_refused_output_is_identified_without_logging_the_refusal_text(self):
+        self.remote.return_value = self.response(None, refusal="private-customer-data")
+        self.assertIn("reason=response_refused", self.failure())
+
+    def test_invalid_analysis_shape_is_logged_after_normalization(self):
+        self.remote.return_value = self.response(json.dumps({"summary": "", "private": "private-customer-data"}))
+        self.assertIn("reason=invalid_response phase=analysis_validation", self.failure())
+
+    def test_invalid_timeout_setting_is_identified_before_any_provider_request(self):
+        with patch.dict(os.environ, {"AI_REQUEST_TIMEOUT_SECONDS": "invalid"}):
+            self.assertIn("reason=invalid_request_settings phase=request_settings", self.failure())
+        self.remote.assert_not_called()
+
+    def test_invalid_finish_reason_cannot_break_logging_or_expose_response_data(self):
+        self.remote.return_value = self.response("not JSON", finish_reason={"private": "private-customer-data"})
+        self.assertIn("finish_reason=None", self.failure())
+
+    def test_successful_response_preserves_the_original_request_and_credit_settlement(self):
+        self.remote.return_value = self.response(json.dumps({"summary": "A useful explanation.",
+            "recommendations": ["Review the results"], "risks": [], "confidence": "medium"}))
+        with self.assertNoLogs(service.logger, level="WARNING"):
+            result = self.generate()
+        self.assertEqual(result["source"], "openai")
+        self.settle.assert_called_once_with("reservation", None)
+        self.release.assert_not_called()
+        self.cache.assert_called_once()
+        self.remote.assert_called_once()
+
+    def test_unchanged_settings_can_succeed_then_receive_a_truncated_response(self):
+        complete = self.response(json.dumps({"summary": "A useful explanation.",
+            "recommendations": [], "risks": [], "confidence": "medium"}))
+        incomplete = self.response('{"summary":"private-customer-data', finish_reason="length")
+        self.remote.side_effect = [complete, incomplete]
+        self.assertEqual(self.generate()["source"], "openai")
+        self.settle.reset_mock()
+        self.cache.reset_mock()
+        self.assertIn("reason=response_incomplete", self.failure())
+        self.assertEqual(self.remote.call_count, 2)
+        first, second = [call.args[0] for call in self.remote.call_args_list]
+        self.assertEqual(first.data, second.data)
+        self.assertEqual(first.full_url, second.full_url)
+        self.assertEqual(first.headers, second.headers)
+        self.assertEqual(self.remote.call_args_list[0].kwargs, self.remote.call_args_list[1].kwargs)
 
 
 if __name__ == "__main__":

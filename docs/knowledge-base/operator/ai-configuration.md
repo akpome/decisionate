@@ -17,6 +17,15 @@ It does not validate a secret, endpoint syntax, account access, model availabili
 credits or a successful provider request. A placeholder string can pass a
 presence check and still fail interpretation.
 
+Previously successful settings do not rule out a timeout, a provider-side
+request rejection or a later response that cannot be read. The shared
+`provider_unavailable` fallback is not proof of a provider outage or a missing
+key. By default the request timeout is 20 seconds and output is capped at 500
+tokens; `AI_REQUEST_TIMEOUT_SECONDS` and `AI_MAX_OUTPUT_TOKENS` can override
+those values. A token-limited JSON response may be incomplete even when an
+earlier response with the same settings worked. Do not change credentials or
+increase paid-request budgets solely because the generic banner appeared.
+
 ## Trace a mismatch
 
 Compare live `/health` or authenticated `/ai/status` with the admin panel.
@@ -42,3 +51,26 @@ Generate a fresh authorized report with interpretation requested and inspect
 `rules`. Credits exhausted, unsupported/missing configuration, request failure
 or malformed output can cause fallback. Saved snapshots do not recompute after
 configuration changes. Do not infer provider token billing from internal credits.
+
+## Read safe failure diagnostics
+
+Generate a new preview, then look for `AI analysis fallback:` in the process
+that generated it. Reports normally run in the analytics worker; an API-only
+configuration check is not a worker request test. The warning distinguishes
+`provider_http_error`, `provider_timeout`, `provider_network_error`,
+`response_incomplete`, `response_refused`, `invalid_response` and
+`invalid_request_settings`. It includes the request/response phase, HTTP status,
+an allowlisted provider error code, a validated provider request ID when
+available, and a recognized completion reason.
+
+For example, HTTP 429 with `insufficient_quota` and HTTP 429 with
+`rate_limit_exceeded` are different failures. `response_incomplete` with
+`finish_reason=length` identifies a truncated response, not a network outage.
+These diagnostics never log credentials, URLs, raw errors, response text,
+user facts or refusal explanations. Unknown provider codes and request IDs
+that do not match the safe format are omitted. Failed interpretations retain
+calculated rules-based results, release internal credit reservations, are not
+cached as successful AI responses, and do not automatically repeat a paid
+provider request. Saved reports retain their earlier interpretation until a
+new report is generated. A locally passing diagnostic test does not establish
+the cause of a historical production failure.

@@ -1,8 +1,11 @@
 import json
 import hashlib
+import logging
 import os
+import re
 import time
 from copy import deepcopy
+from http.client import HTTPException as HTTPProtocolError
 from threading import Lock
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -37,6 +40,13 @@ FALLBACK_NOT_CONFIGURED = "not_configured"
 FALLBACK_PROVIDER_UNAVAILABLE = "provider_unavailable"
 FALLBACK_UNSUPPORTED_PROVIDER = "unsupported_provider"
 SUPPORTED_AI_PROVIDERS = {"openai"}
+logger = logging.getLogger(__name__)
+SAFE_PROVIDER_ERROR_CODES = {
+    "invalid_api_key", "insufficient_quota", "rate_limit_exceeded",
+    "model_not_found", "model_access_denied", "context_length_exceeded",
+    "unsupported_parameter", "unsupported_value", "invalid_request_error",
+    "invalid_value", "account_deactivated",
+}
 
 _analysis_cache: dict[
     str,
@@ -175,6 +185,54 @@ def _cache_analysis(
             now,
             deepcopy(analysis),
         )
+
+
+def _log_provider_failure(*, phase, error=None, headers=None, finish_reason=None, refused=False):
+    status = code = request_id = None
+    if isinstance(error, HTTPError):
+        reason = "provider_http_error"
+        status = error.code
+        headers = error.headers
+        try:
+            payload = json.loads(error.read(4096).decode("utf-8"))
+            provider_error = payload.get("error") if isinstance(payload, dict) else None
+            candidate = provider_error.get("code") if isinstance(provider_error, dict) else None
+            if isinstance(candidate, str) and candidate in SAFE_PROVIDER_ERROR_CODES:
+                code = candidate
+        except (AttributeError, HTTPProtocolError, OSError, TypeError, ValueError):
+            pass
+        finally:
+            try:
+                error.close()
+            except OSError:
+                pass
+    elif isinstance(error, (HTTPProtocolError, URLError, OSError)):
+        timeout = isinstance(error, TimeoutError) or (
+            isinstance(error, URLError) and isinstance(error.reason, TimeoutError)
+        )
+        reason = "provider_timeout" if timeout else "provider_network_error"
+    elif phase == "request_settings":
+        reason = "invalid_request_settings"
+    elif finish_reason == "length":
+        reason = "response_incomplete"
+    elif refused or finish_reason == "content_filter":
+        reason = "response_refused"
+    else:
+        reason = "invalid_response"
+
+    # Never log exception messages, response text, facts, URLs or credentials.
+    if headers:
+        candidate = headers.get("x-request-id") or headers.get("X-Request-ID")
+        if isinstance(candidate, str) and re.fullmatch(r"req_[0-9a-fA-F]{8,64}", candidate):
+            request_id = candidate
+    if not isinstance(finish_reason, str) or finish_reason not in {
+        "stop", "length", "content_filter", "tool_calls", "function_call",
+    }:
+        finish_reason = None
+    logger.warning(
+        "AI analysis fallback: reason=%s phase=%s status=%s code=%s request_id=%s finish_reason=%s",
+        reason, phase, status, code, request_id, finish_reason,
+    )
 
 
 def generate_structured_analysis(
@@ -317,6 +375,9 @@ def generate_structured_analysis(
         method="POST",
     )
 
+    phase = "request_settings"
+    response_headers = finish_reason = None
+    refused = False
     try:
         timeout = float(
             os.getenv(
@@ -324,14 +385,24 @@ def generate_structured_analysis(
                 "20",
             )
         )
+        phase = "provider_request"
         with urlopen(request, timeout=max(timeout, 1.0)) as response:
+            response_headers = getattr(response, "headers", None)
+            phase = "response_body"
             response_body = json.loads(
                 response.read().decode("utf-8")
             )
-        content = response_body["choices"][0]["message"]["content"]
+        phase = "analysis_payload"
+        choice = response_body["choices"][0]
+        if isinstance(choice, dict):
+            finish_reason = choice.get("finish_reason")
+            message = choice.get("message")
+            refused = isinstance(message, dict) and bool(message.get("refusal"))
+        content = choice["message"]["content"]
         model_output = json.loads(content)
     except (
         HTTPError,
+        HTTPProtocolError,
         URLError,
         TimeoutError,
         OSError,
@@ -339,7 +410,11 @@ def generate_structured_analysis(
         IndexError,
         TypeError,
         ValueError,
-    ):
+    ) as error:
+        _log_provider_failure(
+            phase=phase, error=error, headers=response_headers,
+            finish_reason=finish_reason, refused=refused,
+        )
         release_ai_credits(
             reservation["id"] if reservation else None,
         )
@@ -365,6 +440,10 @@ def generate_structured_analysis(
             time.monotonic(),
         )
     else:
+        _log_provider_failure(
+            phase="analysis_validation", headers=response_headers,
+            finish_reason=finish_reason, refused=refused,
+        )
         release_ai_credits(
             reservation["id"] if reservation else None,
         )
