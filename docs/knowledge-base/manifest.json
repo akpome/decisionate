@@ -1368,7 +1368,9 @@
       ],
       "questions": [
         "Why is the model blank after deployment?",
-        "Does Configured verify the provider key?"
+        "Does Configured verify the provider key?",
+        "Why did an unused app receive HTTP 429 from the AI provider?",
+        "Where can I find the worker's sanitized AI error details?"
       ],
       "routes": [
         "/platform-admin"

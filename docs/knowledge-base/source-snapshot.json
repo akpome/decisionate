@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-10",
-  "base_git_revision": "4fc8d980e16dad90503e63fbbdf00c43d1a3523c",
+  "base_git_revision": "0f7668a5bccbf88b21c4612bb73017d1409fe755",
   "referenced_sources_modified_in_worktree": [
     "apps/api/app/modules/ai/service.py",
     "apps/api/tests/test_ai_service.py"
@@ -18,7 +18,7 @@
     "apps/api/app/main.py": "72e3e9c1726d07ae7826dc416764a8e95f7348300cf7a94e898b5686862254d6",
     "apps/api/app/modules/ai/credits.py": "8b282448dc7a5fbb515fd2e39f6ff0beaeec641ee14a8b4c71d2d6d3da1fa3b0",
     "apps/api/app/modules/ai/router.py": "59cb0eafc4da4d174943bc531f594cec855098b1c6ecee00d3c6db530bd915cb",
-    "apps/api/app/modules/ai/service.py": "baf04bba93769da122af1ca4c56747e9255318d8c0f6f436b841dbc8bc4e9ef4",
+    "apps/api/app/modules/ai/service.py": "f3d7f9177ffcd670b436d869182e3054dc6b07e655953318e90a509e124fb5ef",
     "apps/api/app/modules/alerts/email_delivery.py": "8643920334b9b73e0007c4a10234a7efb390412a5c6706488d4bb9a1f89d6c6b",
     "apps/api/app/modules/alerts/router.py": "ab38f5c06842686e5e8e9194409be0581db3ea6c2d5d293e097faefe1f3c4648",
     "apps/api/app/modules/auth_context.py": "4b9576a774cba0b3613876c0981c9da82bfed384ac7030aa94c4f3e32839d78e",
@@ -88,7 +88,7 @@
     "apps/api/app/security/rate_limits.py": "277de5c54e318dadb1786e1dae72b8956f998449027d38e3e475307cde8c3579",
     "apps/api/scripts/knowledge_repository.py": "1a163b9ddb6658b57d6185cc0aa5c442d724e0df4b7f3a2931f3a7cd5345aa72",
     "apps/api/scripts/run_analysis_worker.py": "e90ceecbe0713f06697a30c2a751ee313905283fa93d96f4e5c4b24c4d6ae01c",
-    "apps/api/tests/test_ai_service.py": "18951e5014dda14c3607dd7d7924e59d7ca9e261a36ee84c6f2506b617377b07",
+    "apps/api/tests/test_ai_service.py": "e0c73768885debbe6ad81e28371c3f11579b63b1f81b2a93df8de6cb0b8ebec0",
     "apps/api/tests/test_billing_settings_transactions.py": "712bf366b251c9a537916320e6870c347f2ea250d8e7cb31d8e9712cd9aa0f83",
     "apps/api/tests/test_internal_identity_backfill.py": "d55012243075ab5ce83f467d027f08354b2402f3daf7fd430cef29b1f6e280c2",
     "apps/web/app/dashboard/business-impact/page.tsx": "22c1dcc83d075f10fe4aa0fbb151558c9fb681688fc5e5c1942ed6a03a8d8a13",
@@ -193,7 +193,7 @@
     "customer/joins-entities.md": "eca57c582ad48a03aef7686cef45f2260c1028716890177e9b943b89e5d1ee69",
     "operator/architecture.md": "47f7b80c9a18423c60bb80985e283eeb6f8151aa8783372444490d29dfd926b6",
     "operator/worker-verification.md": "0361853c7eeee8b3ee28d38e0a0899fd6be66452df559762be49172a321d3432",
-    "operator/ai-configuration.md": "bd0f7f36d9cf72d4b1bdaaa7a26a75a57c0b9c419ba0522f7c5b540a0bd4fb29",
+    "operator/ai-configuration.md": "faf7ffbfba84655f7d0f69f1d9bfbe5a1daa128ec14b36cfb2e86b1a1921b112",
     "operator/email-delivery.md": "f09f41ea0e55b76adee88f0aade89e66dd1e572245757db31a5cff2bc00d4b94",
     "operator/incident-curation.md": "d2501cd8b11d5d1ab7ecb7dabca609f4df5e543bf8bac49288fa39242ed23129",
     "operator/maintenance-integration.md": "8f0cb42a59914139a059f425da1083a9613af80a9af3cde346fa81b2fa41a06e"

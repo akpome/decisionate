@@ -5,6 +5,7 @@ import os
 import re
 import time
 from copy import deepcopy
+from email.utils import parsedate_to_datetime
 from http.client import HTTPException as HTTPProtocolError
 from threading import Lock
 from typing import Any
@@ -46,6 +47,24 @@ SAFE_PROVIDER_ERROR_CODES = {
     "model_not_found", "model_access_denied", "context_length_exceeded",
     "unsupported_parameter", "unsupported_value", "invalid_request_error",
     "invalid_value", "account_deactivated",
+    "credit_balance_exhausted", "organization_spend_limit_exceeded",
+    "project_spend_limit_exceeded", "organization_usage_limit_exceeded",
+    "slow_down", "server_is_overloaded",
+}
+SAFE_PROVIDER_ERROR_TYPES = {
+    "invalid_request_error", "authentication_error", "permission_error",
+    "not_found_error", "rate_limit_error", "insufficient_quota",
+    "server_error", "service_unavailable_error", "api_error",
+    "tokens", "requests",
+}
+RATE_LIMIT_COUNT_HEADERS = {
+    "x-ratelimit-limit-requests", "x-ratelimit-remaining-requests",
+    "x-ratelimit-limit-tokens", "x-ratelimit-remaining-tokens",
+    "x-ratelimit-limit-project-tokens", "x-ratelimit-remaining-project-tokens",
+}
+RATE_LIMIT_RESET_HEADERS = {
+    "x-ratelimit-reset-requests", "x-ratelimit-reset-tokens",
+    "x-ratelimit-reset-project-tokens",
 }
 
 _analysis_cache: dict[
@@ -187,8 +206,38 @@ def _cache_analysis(
         )
 
 
-def _log_provider_failure(*, phase, error=None, headers=None, finish_reason=None, refused=False):
-    status = code = request_id = None
+def _safe_rate_limit_headers(headers):
+    diagnostics = {}
+    if not headers:
+        return diagnostics
+    for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str) or len(value) > 40:
+            continue
+        name = name.lower()
+        if name in RATE_LIMIT_COUNT_HEADERS and re.fullmatch(r"[0-9]{1,12}", value):
+            diagnostics[name] = int(value)
+        elif name in RATE_LIMIT_RESET_HEADERS and re.fullmatch(
+            r"(?:[0-9]{1,6}(?:\.[0-9]{1,6})?(?:ms|s|m|h|d)){1,5}", value,
+        ):
+            diagnostics[name] = value
+        elif name == "retry-after":
+            if re.fullmatch(r"[0-9]{1,6}(?:\.[0-9]{1,3})?", value):
+                diagnostics[name] = value
+            else:
+                try:
+                    retry_at = parsedate_to_datetime(value)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if retry_at.tzinfo is not None:
+                    diagnostics[name] = retry_at.isoformat()
+    return diagnostics
+
+
+def _log_provider_failure(
+    *, phase, error=None, headers=None, finish_reason=None, refused=False,
+    request_bytes=None, estimated_input_tokens=None, max_output_tokens=None,
+):
+    status = code = error_type = request_id = None
     if isinstance(error, HTTPError):
         reason = "provider_http_error"
         status = error.code
@@ -196,9 +245,21 @@ def _log_provider_failure(*, phase, error=None, headers=None, finish_reason=None
         try:
             payload = json.loads(error.read(4096).decode("utf-8"))
             provider_error = payload.get("error") if isinstance(payload, dict) else None
-            candidate = provider_error.get("code") if isinstance(provider_error, dict) else None
-            if isinstance(candidate, str) and candidate in SAFE_PROVIDER_ERROR_CODES:
-                code = candidate
+            if isinstance(provider_error, dict):
+                candidate = provider_error.get("code")
+                if candidate is not None:
+                    code = (
+                        candidate
+                        if isinstance(candidate, str) and candidate in SAFE_PROVIDER_ERROR_CODES
+                        else "unrecognized"
+                    )
+                candidate = provider_error.get("type")
+                if candidate is not None:
+                    error_type = (
+                        candidate
+                        if isinstance(candidate, str) and candidate in SAFE_PROVIDER_ERROR_TYPES
+                        else "unrecognized"
+                    )
         except (AttributeError, HTTPProtocolError, OSError, TypeError, ValueError):
             pass
         finally:
@@ -230,8 +291,12 @@ def _log_provider_failure(*, phase, error=None, headers=None, finish_reason=None
     }:
         finish_reason = None
     logger.warning(
-        "AI analysis fallback: reason=%s phase=%s status=%s code=%s request_id=%s finish_reason=%s",
+        "AI analysis fallback: reason=%s phase=%s status=%s code=%s request_id=%s finish_reason=%s "
+        "error_type=%s rate_limits=%s request_bytes=%s estimated_input_tokens=%s max_output_tokens=%s",
         reason, phase, status, code, request_id, finish_reason,
+        error_type,
+        json.dumps(_safe_rate_limit_headers(headers), sort_keys=True, separators=(",", ":")),
+        request_bytes, estimated_input_tokens, max_output_tokens,
     )
 
 
@@ -341,12 +406,12 @@ def generate_structured_analysis(
         ],
     }
 
+    estimated_tokens = estimate_analysis_tokens(
+        request_body["messages"],
+        request_body["max_tokens"],
+    )
     reservation = None
     if workspace_id:
-        estimated_tokens = estimate_analysis_tokens(
-            request_body["messages"],
-            _get_analysis_max_output_tokens(),
-        )
         try:
             reservation = reserve_ai_credits(
                 workspace_id=workspace_id,
@@ -374,6 +439,11 @@ def generate_structured_analysis(
         },
         method="POST",
     )
+    request_metrics = {
+        "request_bytes": len(request.data),
+        "estimated_input_tokens": estimated_tokens - request_body["max_tokens"],
+        "max_output_tokens": request_body["max_tokens"],
+    }
 
     phase = "request_settings"
     response_headers = finish_reason = None
@@ -414,6 +484,7 @@ def generate_structured_analysis(
         _log_provider_failure(
             phase=phase, error=error, headers=response_headers,
             finish_reason=finish_reason, refused=refused,
+            **request_metrics,
         )
         release_ai_credits(
             reservation["id"] if reservation else None,
@@ -443,6 +514,7 @@ def generate_structured_analysis(
         _log_provider_failure(
             phase="analysis_validation", headers=response_headers,
             finish_reason=finish_reason, refused=refused,
+            **request_metrics,
         )
         release_ai_credits(
             reservation["id"] if reservation else None,

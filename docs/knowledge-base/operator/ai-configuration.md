@@ -60,17 +60,42 @@ configuration check is not a worker request test. The warning distinguishes
 `provider_http_error`, `provider_timeout`, `provider_network_error`,
 `response_incomplete`, `response_refused`, `invalid_response` and
 `invalid_request_settings`. It includes the request/response phase, HTTP status,
-an allowlisted provider error code, a validated provider request ID when
-available, and a recognized completion reason.
+an allowlisted provider error code and error type, a validated provider request
+ID when available, and a recognized completion reason. It also includes bounded
+request/token limit, remaining and reset headers (including project token
+limits), plus `Retry-After` when present and safe to parse. Retry delays are
+logged as seconds or a normalized timestamp; they do not trigger a retry.
 
-For example, HTTP 429 with `insufficient_quota` and HTTP 429 with
-`rate_limit_exceeded` are different failures. `response_incomplete` with
+`request_bytes`, `estimated_input_tokens` and `max_output_tokens` describe the
+failed request without exposing its contents. The input estimate uses character
+count, not the provider's tokenizer. It is not billed usage or proof that a
+token limit was exceeded. The actual configured model and output allowance
+remain unchanged.
+
+For example, HTTP 429 with `rate_limit_exceeded` and type `tokens` or `requests`
+differs from an account restriction. Recognized restriction codes include
+`credit_balance_exhausted`, `organization_spend_limit_exceeded`,
+`project_spend_limit_exceeded` and `organization_usage_limit_exceeded`.
+`insufficient_quota` may appear as an error type even when the code is null.
+`slow_down` identifies temporary throttling; `server_is_overloaded` identifies
+a provider capacity rejection. Do not assume a card-billed account needs
+prepaid credits, or that HTTP 429 proves heavy recent usage. The specific error
+code/type and headers must guide the diagnosis. `response_incomplete` with
 `finish_reason=length` identifies a truncated response, not a network outage.
 These diagnostics never log credentials, URLs, raw errors, response text,
-user facts or refusal explanations. Unknown provider codes and request IDs
-that do not match the safe format are omitted. Failed interpretations retain
-calculated rules-based results, release internal credit reservations, are not
+user facts or refusal explanations. Unknown provider codes/types are replaced
+with `unrecognized`, distinct from a missing or null field (`None`). Request IDs
+and header values that do not match the safe formats are omitted. Failed
+interpretations retain calculated rules-based results, release internal credit reservations, are not
 cached as successful AI responses, and do not automatically repeat a paid
 provider request. Saved reports retain their earlier interpretation until a
 new report is generated. A locally passing diagnostic test does not establish
 the cause of a historical production failure.
+
+After deploying a diagnostic change to the analytics worker, generate one new
+preview (rather than opening a saved snapshot), then inspect its warning and
+request ID in that worker's deployment logs. This makes a normal provider
+request and may incur usage charges if it succeeds. Share only the sanitized
+diagnostic line, never credentials or an environment dump. If the error details
+are still unavailable, preserve the request ID and timestamp for provider
+support rather than guessing a billing fix or repeatedly regenerating reports.
