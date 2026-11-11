@@ -91,6 +91,7 @@ class ImpactStudy(StrictModel):
 class ReportDefinition(AnalysisCreate):
     scope: Literal["single", "multi"] = "multi"
     include_relationships: bool = True
+    include_anomalies: bool = True
     metrics: list[MetricRef] = Field(min_length=1, max_length=25)
     dimension_filters: list[DatasetDimensionFilter] = Field(default_factory=list, max_length=25)
     seasonal_business: bool = False

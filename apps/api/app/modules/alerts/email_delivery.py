@@ -453,6 +453,8 @@ def report_dimension_lines(report):
 
 
 def report_anomaly_lines(report):
+    if report.get("definition", {}).get("include_anomalies") is False:
+        return ["Anomaly detection is off for this report."]
     if report.get("weekly_anomaly_analysis"):
         return ["Whole-week assessment", *anomaly_analysis_lines(report["weekly_anomaly_analysis"]),
                 "Daily changes", *anomaly_analysis_lines(report.get("anomaly_analysis"))]

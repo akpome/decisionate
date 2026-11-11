@@ -722,7 +722,8 @@ def build_weekly_report_digest(
         report_facts = report_analysis_facts(cross_report)
         ai_facts["cross_dataset_report"] = {key: value for key, value in report_facts.items() if key not in {"anomaly_analysis", "weekly_anomaly_analysis"}}
         ai_facts["limitations"] = cross_report["limitations"]
-        ai_facts["anomaly_analysis"] = report_facts["anomaly_analysis"]
+        if "anomaly_analysis" in report_facts:
+            ai_facts["anomaly_analysis"] = report_facts["anomaly_analysis"]
         if "weekly_anomaly_analysis" in report_facts:
             ai_facts["weekly_anomaly_analysis"] = report_facts["weekly_anomaly_analysis"]
         ai_facts["reporting_window"] = cross_report["window"]
@@ -866,8 +867,8 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                           impact_definition=impact_definition, summary_grain="daily",
                           relationship_history_end=previous_window(definition["date_range"])["end"], include_whole_week=True)
     result["weekly_report"] = True
-    evaluated = {item["metric_id"] for item in result["anomaly_analysis"]["metrics"]}
-    omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated]
+    evaluated = {item["metric_id"] for item in result.get("anomaly_analysis", {}).get("metrics", [])}
+    omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated] if definition.get("include_anomalies", True) else []
     if omitted:
         for key, grain in (("anomaly_analysis", "daily"), ("weekly_anomaly_analysis", "weekly")):
             unavailable_metrics = report_anomalies({}, omitted, {**definition, "grain": grain, "reporting_timezone": reporting_timezone()}, {},

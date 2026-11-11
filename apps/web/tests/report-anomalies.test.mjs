@@ -54,6 +54,52 @@ test("no-anomaly, partial, unavailable and legacy snapshots are distinguished", 
   assert.match(render(undefined), /not recorded in this saved report/)
 })
 
+test("disabled detection is not shown as a normal result or missing legacy evidence", () => {
+  const html = renderToStaticMarkup(React.createElement(ReportAnomalies, { enabled: false, analysis }))
+  assert.match(html, /Anomaly detection is off for this report/)
+  assert.doesNotMatch(html, /not recorded|No unusual changes detected|Above expected|Advertising \/ Spend/)
+})
+
+test("anomaly detection is checked by default and a saved opt-out survives all report modes", () => {
+  for (const mode of [{}, { include_relationships: false }, { scope: "single" }]) {
+    assert.equal(types.editableDefinition(mode).include_anomalies, true)
+    const off = types.editableDefinition({ ...mode, include_anomalies: false, seasonal_business: true })
+    assert.equal(off.include_anomalies, false)
+    assert.equal(types.editableDefinition(off).include_anomalies, false)
+    assert.equal(off.seasonal_business, true)
+  }
+})
+
+test("the actual anomaly controls toggle detection independently and disable seasonality while off", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let settings
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.getText(ast).includes('aria-label="Anomaly detection"')) settings = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(settings)
+  for (const enabled of [true, false]) {
+    const definition = types.editableDefinition({ include_anomalies: enabled, seasonal_business: true })
+    let changed
+    const element = vm.runInNewContext(ts.transpileModule(`(${settings})`, { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+    } }).outputText, { require, exports: {}, definition, t: text => text, edit: patch => { changed = patch } })
+    const inputs = element.props.children.filter(React.isValidElement).filter(node => node.type === "label").map(node => node.props.children[0])
+    assert.equal(inputs.length, 2)
+    assert.equal(inputs[0].props.checked, enabled)
+    assert.equal(inputs[1].props.checked, true)
+    assert.equal(inputs[1].props.disabled, !enabled)
+    inputs[0].props.onChange({ target: { checked: !enabled } })
+    assert.deepEqual(JSON.parse(JSON.stringify(changed)), { include_anomalies: !enabled })
+    const html = renderToStaticMarkup(element)
+    assert.match(html, /Anomaly detection/)
+    assert.match(html, /Detect unusual changes/)
+  }
+  assert.match(source, /"seasonal_business", "include_anomalies", "impact"/)
+})
+
 test("whole-week results show the expected range even when the week was not unusual", () => {
   const html = renderToStaticMarkup(React.createElement(ReportAnomalies, { title: "Whole-week assessment", analysis: {
     ...analysis, window: { start: "2026-10-12", end: "2026-10-18" },

@@ -1,11 +1,27 @@
 # Unusual changes and seasonal businesses
 
-Report anomaly detection assesses each selected metric separately. It runs
+Anomaly detection checks whether a metric is unusually high or low compared with
+its expected range based on earlier history. It is not simply the percentage
+change from the previous period and does not establish why a change happened.
+
+Relationships report, Combined metrics report and Single dataset report each have
+an Anomaly detection section. Detect unusual changes is checked by default for
+new reports and when editing older reports without an explicit choice. Clear it
+to skip the detection calculations while retaining totals, trends, earlier-period
+comparisons and any requested relationship analysis. Preview again after changing
+it, then save; saved reports and copies to Weekly Reports retain the choice.
+
+Business has seasonal activity is a separate, opt-in setting. It is disabled
+while detection is off, but its preference is retained for when detection is
+turned back on. An off report says Anomaly detection is off for this report;
+it does not claim No unusual changes detected or hide the choice as missing data.
+
+When enabled, report anomaly detection assesses each selected metric separately. It runs
 independently of whether relationship analysis finds an eligible or significant
 pair. No unusual change detected is a valid outcome; it is not proof that a
 worker failed.
 
-Weekly reports assess the last completed Monday-Sunday in two ways: the whole
+When detection is enabled, weekly reports assess the last completed Monday-Sunday in two ways: the whole
 week against earlier complete weeks, and individual days against their daily
 baseline. Each selected metric has separate results for both. A normal weekly
 value can hide unusual daily ups and downs; a run of small daily changes can

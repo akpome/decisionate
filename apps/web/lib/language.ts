@@ -744,6 +744,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Reset joined data": "Réinitialiser les données jointes",
   Period: "Période",
   "Anomaly detection": "Détection des anomalies",
+  "Detect unusual changes": "Détecter les changements inhabituels",
   "Statistical outliers in the selected dataset window. This identifies unusual values and does not infer their cause.": "Valeurs aberrantes statistiques dans la fenêtre du jeu de données sélectionné. Cette fonction repère les valeurs inhabituelles sans en déduire la cause.",
   Sensitivity: "Sensibilité",
   "Anomaly detection sensitivity": "Sensibilité de la détection des anomalies",

@@ -5,7 +5,7 @@ import { MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/feat
 import type { ImpactAnalysis, ImpactStudy } from "./impact-types"
 
 export type ReportScope = "single" | "multi"
-export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; include_relationships?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
+export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; include_relationships?: boolean; include_anomalies?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
 export type ReportAnomalyPoint = { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[]; unusual?: boolean }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
@@ -72,6 +72,7 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
   const relationships = value.scope !== "single" && value.include_relationships !== false
   return { name: value.name ?? "", business_question: value.business_question || "", scope: value.scope ?? "multi",
     include_relationships: value.include_relationships ?? true,
+    include_anomalies: value.include_anomalies ?? true,
     seasonal_business: value.seasonal_business ?? false,
     include_ai_analysis: true,
     impact: value.scope === "single" ? null : value.impact ?? null,

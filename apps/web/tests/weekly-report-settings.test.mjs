@@ -30,6 +30,15 @@ test("new weekly settings have weekly units and independent same-period defaults
   assert.equal(types.editableDefinition({}).grain, "daily")
 })
 
+test("weekly copies preserve anomaly detection opt-outs without changing seasonal preferences", () => {
+  const source = { metrics, grain: "daily", include_anomalies: false, seasonal_business: true }
+  const value = weeklyDefinition(source)
+  assert.equal(value.include_anomalies, false)
+  assert.equal(value.seasonal_business, true)
+  assert.equal(weeklyDefinition(value).include_anomalies, false)
+  assert.equal(weeklyDefinition({ metrics }).include_anomalies, true)
+})
+
 test("copying a combined report to weekly monitoring does not turn correlation back on", () => {
   const value = weeklyDefinition({ include_relationships: false, metrics, grain: "daily", pair_directions: [direction],
     seasonal_business: true, dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }] })

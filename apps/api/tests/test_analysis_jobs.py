@@ -38,6 +38,30 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in result["result"]["metrics"]], ["1:spend", "2:net_sales"])
         self.assertEqual(result["result"]["definition"]["filters"]["minimum_observations"], 24)
 
+    def test_anomaly_opt_out_survives_queue_save_reopen_and_weekly_copy(self):
+        for mode in ({}, {"include_relationships": False}, {"scope": "single", "metrics": fixtures.definition()["metrics"][:1]}):
+            with self.subTest(mode=mode):
+                identity = self.enqueue(**mode, include_anomalies=False, seasonal_business=True)
+                self.assertFalse(self.state(identity)["definition"]["include_anomalies"])
+                with patch("app.modules.reports.service.report_anomalies", side_effect=AssertionError("No detection")):
+                    worker.execute_job(identity)
+                state = self.state(identity)
+                self.assertEqual(state["status"], "succeeded", state)
+                self.assertFalse(state["result"]["definition"]["include_anomalies"])
+                self.assertNotIn("anomaly_analysis", state["result"])
+                saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save")
+                self.assertEqual(saved.status_code, 201, saved.text)
+                report_id = saved.json()["report_id"]
+                reopened = self.client.get(f"/api/v2/business-reports/{report_id}").json()
+                self.assertFalse(reopened["definition"]["include_anomalies"])
+                self.assertTrue(reopened["definition"]["seasonal_business"])
+                self.assertNotIn("anomaly_analysis", reopened)
+                if mode.get("scope") != "single":
+                    self.assertEqual(self.client.post(f"/api/v2/business-reports/{report_id}/weekly").status_code, 200)
+                    with self.Session() as db:
+                        preference = db.query(WeeklyReportPreference).filter_by(workspace_id="owner").one()
+                        self.assertFalse(alerts.weekly_business_template(db, preference, "owner")["include_anomalies"])
+
     def test_combined_report_mode_survives_queue_save_reopen_and_weekly_copy(self):
         identity = self.enqueue(include_relationships=False)
         self.assertFalse(self.state(identity)["definition"]["include_relationships"])

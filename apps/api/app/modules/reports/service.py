@@ -149,6 +149,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     single = definition.get("scope", "multi") == "single"
     relationships = not single and not definition.get("impact") and definition.get("include_relationships", True)
+    detect_anomalies = definition.get("include_anomalies", True)
     if report_test_count(definition) > 1000:
         raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
@@ -305,7 +306,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         warnings.append("A previous-period comparison is unavailable for some metrics. This does not by itself prevent the business impact assessment."
                         if definition.get("impact") else
                         "A previous-period comparison is unavailable for some metrics. This does not by itself prevent a relationship or business-change analysis." if relationships else
-                        "A previous-period comparison is unavailable for some metrics. Their available totals and unusual-change checks are shown separately.")
+                        "A previous-period comparison is unavailable for some metrics. Their available totals and unusual-change checks are shown separately." if detect_anomalies else
+                        "A previous-period comparison is unavailable for some metrics. Their available totals are shown separately.")
     movements = sorted((metric for metric in metrics if metric["change_percent"] is not None), key=lambda item: abs(item["change_percent"]), reverse=True)
     observations = [f"{metric['dataset_label']} / {metric['label']}: {metric['change_percent']:+.1f}% versus the previous comparable period."
                     for metric in movements[:6]]
@@ -323,10 +325,10 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     if not actions:
         actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if not relationships else
                        "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
-    anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
+    anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor) if detect_anomalies else None
     weekly_anomalies = report_anomalies(frames, references, {**actual_definition, "grain": "weekly"}, metadata,
-                                       anchor=history_anchor, whole_week=True) if include_whole_week else None
-    if anomalies["anomaly_count"] or weekly_anomalies and weekly_anomalies["anomaly_count"]:
+                                       anchor=history_anchor, whole_week=True) if detect_anomalies and include_whole_week else None
+    if (anomalies and anomalies["anomaly_count"]) or (weekly_anomalies and weekly_anomalies["anomaly_count"]):
         actions.append("Check unusual changes against your normal busy and quiet times, recent business events, and whether the data import finished.")
     impact = None
     if definition.get("impact"):
@@ -349,7 +351,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
             "dataset_count": dataset_count, "status": "ready" if dataset_count >= required_datasets else "limited_coverage",
             "analysis_source": "deterministic", "generated_at": datetime.now(timezone.utc).isoformat(),
             "metrics": metrics, "findings": findings, "included_findings": selected_ids,
-            "anomaly_analysis": anomalies,
+            **({"anomaly_analysis": anomalies} if anomalies is not None else {}),
             **({"weekly_anomaly_analysis": weekly_anomalies} if weekly_anomalies is not None else {}),
             "impact_analysis": impact,
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
@@ -373,6 +375,7 @@ def report_analysis_facts(report):
     facts["dimension_filters"] = report["definition"].get("dimension_filters", [])
     facts["summary_grouping"] = report["grain"]
     facts["analysis_grouping"] = report.get("analysis_grain", report["grain"])
+    facts["anomaly_detection"] = "included" if report["definition"].get("include_anomalies", True) else "not_requested"
     facts["relationship_analysis"] = "not_requested" if report["definition"].get("include_relationships") is False or report["definition"].get("scope") == "single" or is_impact_report(report) else "included"
     facts["findings"] = [] if is_impact_report(report) else [
         {key: value for key, value in item.items() if key != "evidence"}

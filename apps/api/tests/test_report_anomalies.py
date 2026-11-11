@@ -194,6 +194,54 @@ class ReportAnomalyTests(unittest.TestCase):
         self.assertNotIn("weekly_anomaly_analysis", result)
 
     @patch.dict("os.environ", FLAGS)
+    def test_detection_defaults_on_for_new_and_legacy_reports_but_can_be_disabled_in_all_three_modes(self):
+        from app.modules.reports.schemas import ReportDefinition
+
+        self.assertTrue(definition()["include_anomalies"])
+        legacy = definition()
+        legacy.pop("include_anomalies")
+        self.assertTrue(ReportDefinition(**legacy).include_anomalies)
+        for mode in ({}, {"include_relationships": False}, {"scope": "single", "metrics": definition()["metrics"][:1]}):
+            with self.subTest(mode=mode):
+                sources = fixture()
+                baseline = build_report(sources, definition(**mode))
+                with patch("app.modules.reports.service.report_anomalies", side_effect=AssertionError("Detection is disabled")):
+                    result = build_report(sources, definition(**mode, include_anomalies=False, seasonal_business=True), include_whole_week=True)
+                self.assertFalse(result["definition"]["include_anomalies"])
+                self.assertEqual(result["metrics"], baseline["metrics"])
+                self.assertEqual(result["findings"], baseline["findings"])
+                self.assertNotIn("anomaly_analysis", result)
+                self.assertNotIn("weekly_anomaly_analysis", result)
+                facts = report_analysis_facts(result)
+                self.assertEqual(facts["anomaly_detection"], "not_requested")
+                self.assertNotIn("anomaly_analysis", facts)
+                self.assertFalse(any("Check unusual changes" in text for text in result["recommendations"]))
+
+    @patch.dict("os.environ", FLAGS)
+    def test_weekly_detection_opt_out_skips_daily_whole_week_and_unavailable_metric_checks(self):
+        frames = fixture()
+        preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
+        template = definition(include_anomalies=False)
+        with patch("app.modules.reports.service.report_anomalies", side_effect=AssertionError("No detection")), \
+             patch("app.modules.alerts.router.report_anomalies", side_effect=AssertionError("No unavailable metric detection")):
+            for sources in (frames, {1: frames[1]}):
+                result = build_weekly_cross_dataset_report(sources, preference, template, analysis_date=date(2026, 4, 1))
+                self.assertFalse(result["definition"]["include_anomalies"])
+                self.assertNotIn("anomaly_analysis", result)
+                self.assertNotIn("weekly_anomaly_analysis", result)
+        with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]), \
+             patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: frames[dataset.id][1].copy()), \
+             patch("app.modules.alerts.router.generate_structured_analysis", return_value=None) as ai:
+            digest = build_weekly_report_digest(preference, [item[0] for item in frames.values()], report_definition=template)
+        facts = ai.call_args.kwargs["facts"]
+        self.assertEqual(facts["cross_dataset_report"]["anomaly_detection"], "not_requested")
+        self.assertNotIn("anomaly_analysis", facts)
+        for content in (build_weekly_report_email_text(digest), build_weekly_report_email_html(digest)):
+            self.assertIn("Anomaly detection is off for this report.", content)
+            self.assertNotIn("No unusual changes detected", content)
+            self.assertNotIn("Anomaly detection was not recorded", content)
+
+    @patch.dict("os.environ", FLAGS)
     def test_unavailable_selected_dataset_has_an_explicit_anomaly_result(self):
         report = build_report({1: fixture()[1]}, definition(), unavailable=["Sales unavailable"])
         self.assertEqual(len(report["anomaly_analysis"]["metrics"]), 2)

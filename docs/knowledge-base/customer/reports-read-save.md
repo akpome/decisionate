@@ -54,6 +54,9 @@ unusual-change checks across multiple datasets, without Relationship findings,
 correlation coefficients or delay tests. Single dataset report uses one source
 and also omits cross-dataset relationships. Saved reports retain this choice
 and reopen in the matching tab rather than switching analysis mode.
+Anomaly detection is on by default. If the saved report explicitly disabled it,
+the preview states that detection is off, not that no unusual changes occurred.
+Reopening a snapshot does not run a detector that was disabled when it was created.
 
 ## Indexed and actual metric comparison
 

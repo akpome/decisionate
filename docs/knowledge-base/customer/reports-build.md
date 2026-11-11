@@ -26,7 +26,10 @@ Under Business Analysis > Compare metrics, choose one of three tabs:
   and optional dimension filter. It does not calculate cross-dataset relationships.
 
 All three use the selected report dates and grouping, support dimension filters,
-and require a preview before saving. A saved report reopens in its original tab;
+and require a preview before saving. Anomaly detection has Detect unusual changes
+checked by default in all three tabs; clear it to skip the detection calculations.
+The seasonal-business choice is separate and disabled while detection is off.
+A saved report reopens in its original tab and keeps its detection choice;
 older multi-dataset reports remain Relationships reports. A Combined metrics report
 does not join source rows or infer which metric caused another to change.
 Copying a saved Combined metrics report to Weekly Reports preserves its metric-only
@@ -316,8 +319,10 @@ business change. Existing saved reports keep their original workflow.
    reports require at least two sources. Single dataset reports use exactly one.
 4. Review each preselected Date column. Apply a dataset-local Dimension column
    filter and Unique values if you want a segment rather than all eligible rows.
-5. Set Start, End and Group results by. Business has seasonal activity belongs to
-   Unusual changes; it does not adjust correlations or prove matching seasonality.
+5. Set Start, End and Group results by. Under Anomaly detection, Detect unusual
+   changes is checked by default. Clear it to skip those checks. Business has
+   seasonal activity belongs to this section and is disabled while detection is
+   off; it does not adjust correlations or prove matching seasonality.
 6. For Relationships report, configure Relationship analysis. Remove unwanted
    pairs and set each remaining pair's Relationship direction. Delay to check is always
    available above the pairs; Maximum delay names the selected unit (days, weeks,

@@ -17,10 +17,10 @@ function statusLabel(metric: ReportAnomalyMetric) {
   return metric.status === "limited_history" ? `${findings} / Partial assessment` : findings
 }
 
-export function ReportAnomalies({ analysis, title = "Anomaly detection" }: { analysis?: ReportAnomalyAnalysis; title?: string }) {
+export function ReportAnomalies({ analysis, title = "Anomaly detection", enabled = true }: { analysis?: ReportAnomalyAnalysis; title?: string; enabled?: boolean }) {
   return <section aria-label={title} className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
     <h3 className="text-lg font-semibold">{title}</h3>
-    {!analysis ? <p className="text-sm text-gray-600">Anomaly detection was not recorded in this saved report.</p> : <>
+    {!enabled ? <p className="text-sm text-gray-600">Anomaly detection is off for this report.</p> : !analysis ? <p className="text-sm text-gray-600">Anomaly detection was not recorded in this saved report.</p> : <>
       <p className="text-sm text-gray-600">Rolling history: up to {analysis.lookback_years} years / Seasonal adjustment: {analysis.seasonal_business ? "Enabled when supported" : "Off"}</p>
       {analysis.metrics.some(metric => metric.assessments) && <p className="text-sm text-gray-600">Whole week: {analysis.window.start} to {analysis.window.end}</p>}
       <ul className="min-w-0 list-none divide-y divide-gray-200" aria-label="Selected metric anomaly results">
