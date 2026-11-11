@@ -2,7 +2,7 @@ export const RELATIONSHIP_DEFAULTS = {
   method: "spearman",
   period: "daily",
   aggregation: "sum",
-  minimumObservations: 52,
+  minimumObservations: 30,
   maximumLag: 12,
   minimumAbsCoefficient: 0.3,
   lagMode: "manual",

@@ -73,7 +73,7 @@ test("all business tools have focused setup guidance and current decision entry 
   assert.match(JSON.stringify(faqItems), /It is no longer a separate sidebar page/)
 })
 
-test("report timing guidance matches the 52-observation daily default and pair-specific calendar lags", () => {
+test("report timing guidance matches the 30-observation daily default and pair-specific calendar lags", () => {
   const text = chapter("analysis")
   assert.match(text, /New multi dataset reports open directly with correlation controls/)
   assert.match(text, /Business impact is a tool within Business Analysis/)
@@ -84,15 +84,17 @@ test("report timing guidance matches the 52-observation daily default and pair-s
   assert.match(text, /Analyze business impact runs the assessment and opens its preview without saving or creating a decision/)
   assert.match(text, /no relationship shortcuts inside the assessment form/)
   assert.match(text, /Open the earlier analysis is retained only when a specific evidence report is linked/)
-  assert.match(text, /defaults to 52/)
+  assert.match(text, /Minimum historical observations defaults to 30/)
   assert.match(text, /limited to 12/)
   assert.match(text, /includes lag zero/)
   assert.match(text, /every relevant pair independently/)
-  assert.match(text, /Twelve monthly observations do not meet the default minimum of 52/)
+  assert.match(text, /Twelve monthly observations do not meet the default minimum of 30/)
   assert.match(read("../features/reports/types.ts"), /minimum_observations: Math.max\(MINIMUM_RELATIONSHIP_OBSERVATIONS/)
-  assert.match(read("../features/reports/report-pair-directions.tsx"), /Same period only/)
+  assert.match(read("../features/relationships/direction-options.ts"), /Same-period comparison only/)
+  assert.match(text, /Relationship direction uses the same choices as Relationships/)
+  assert.doesNotMatch(text, /Minimum matching|Timing to test/)
   assert.match(text, /Business Analysis and Relationships share the same new-analysis defaults/)
-  assert.match(chapter("relationships-alerts"), /Spearman, daily Group by, Sum aggregation, 52 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
+  assert.match(chapter("relationships-alerts"), /Spearman, daily Group by, Sum aggregation, 30 Minimum historical observations, Maximum lag 12, and Same-period comparison only/)
   assert.match(chapter("relationships-alerts"), /Maximum lag appears only for a directional timing search/)
 })
 

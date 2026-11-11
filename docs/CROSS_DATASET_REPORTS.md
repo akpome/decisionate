@@ -346,7 +346,7 @@ buckets ending before the report week. Raw daily history remains available for
 seasonal anomaly baselines; weekly and daily observations are never mixed in
 one relationship series. Business-impact studies retain weekly grouping.
 Weekly relationship defaults are
-Spearman, 52 matched weeks (floor 24), same-period comparison, maximum lag 12 weeks.
+Spearman, 30 matched weeks (floor 24), same-period comparison, maximum lag 12 weeks.
 The worker enforces this split, including legacy fallback paths. A non-weekly
 legacy template keeps its selected metrics/date columns/dimension filters/question,
 but resets directional timing to same-period; a numeric daily lag never becomes

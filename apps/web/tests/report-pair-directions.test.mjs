@@ -15,6 +15,7 @@ function load(relative, imports = {}) {
 }
 const pairs = load("../features/reports/pair-directions.ts")
 const defaults = load("../features/relationships/defaults.ts")
+const directions = load("../features/relationships/direction-options.ts")
 const { reportExcludedPairs, reportPairDirections, reportPairKey, reportTestCount, unorderedReportPairKey } = pairs
 const { editableDefinition } = load("../features/reports/types.ts", { "./pair-directions": pairs, "@/features/relationships/defaults": defaults })
 const key = (dataset_id, metric_key) => ({ dataset_id, metric_key })
@@ -139,13 +140,14 @@ test("pair controls offer same-period by default and two named lead directions o
   const { ReportPairDirections } = load("../features/reports/report-pair-directions.tsx", {
     "react": { ...React, useState: () => ["", () => {}] }, "./pair-directions": pairs,
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: value => value }) },
+    "@/features/relationships/direction-options": directions,
   })
   const datasets = metrics.map(metric => ({ dataset_id: metric.dataset_id, dataset_label: `Source ${metric.dataset_id}`, metrics: [{ ...metric, label: metric.metric_key }] }))
   const opened = [], removed = [], restored = []
   const props = { pairs: reportPairDirections(metrics, []), excludedPairs: [], datasets, onChange: (...value) => opened.push(value), onRemove: pair => removed.push(pair), onRestore: pair => restored.push(pair) }
   const html = renderToStaticMarkup(React.createElement(ReportPairDirections, props))
-  for (const label of ["Check whether spend comes first", "Check whether revenue comes first", "Check whether clicks comes first", "Source 1", "Source 2", "Source 4", "Same period only"]) assert.ok(html.includes(label))
-  assert.doesNotMatch(html, /Earlier selected|Later selected|Test both directions|value="both"/)
+  for (const label of ["Source 1 / spend leads", "Source 2 / revenue leads", "Source 4 / clicks leads", "Same-period comparison only", "Relationship direction"]) assert.ok(html.includes(label))
+  assert.doesNotMatch(html, /Earlier selected|Later selected|Test both directions|value="both"|Timing to test|Check whether/)
   assert.doesNotMatch(html, /overflow-y-|max-h-|tabindex=/)
   assert.doesNotMatch(html, /md:grid-cols/)
   const selects = [], buttons = []
@@ -160,6 +162,8 @@ test("pair controls offer same-period by default and two named lead directions o
   for (const select of selects) {
     assert.equal(select.props.value, "same_period")
     assert.deepEqual(React.Children.toArray(select.props.children).map(option => option.props.value), ["same_period", "a_leads_b", "b_leads_a"])
+    assert.match(select.props["aria-label"], /^Relationship direction:/)
+    assert.match(select.props.className, /\bh-10\b/)
   }
   selects[2].props.onChange({ target: { value: "b_leads_a" } })
   assert.equal(opened[0][0].metric_a.dataset_id, 2)
@@ -180,8 +184,23 @@ test("pair controls offer same-period by default and two named lead directions o
   assert.doesNotMatch(empty, /<select/)
   const sameLabels = datasets.map(dataset => ({ ...dataset, metrics: dataset.metrics.map(metric => ({ ...metric, label: "Total" })) }))
   const ambiguous = renderToStaticMarkup(React.createElement(ReportPairDirections, { ...props, datasets: sameLabels }))
-  assert.match(ambiguous, /Check whether Source 1 \/ Total comes first/)
-  assert.match(ambiguous, /Check whether Source 2 \/ Total comes first/)
+  assert.match(ambiguous, /Source 1 \/ Total leads/)
+  assert.match(ambiguous, /Source 2 \/ Total leads/)
+})
+
+test("both pages use the same translated direction options without changing metric identities", () => {
+  const labels = { "Same-period comparison only": "Same period", "{metric} leads": "Leader: {metric}" }
+  const options = directions.relationshipDirectionOptions("Ads / spend", "Store / orders", value => labels[value])
+  assert.deepEqual(json(options), [
+    { value: "same_period", label: "Same period" },
+    { value: "a_leads_b", label: "Leader: Ads / spend" },
+    { value: "b_leads_a", label: "Leader: Store / orders" },
+  ])
+  for (const path of ["../app/dashboard/relationships/page.tsx", "../features/reports/report-pair-directions.tsx"]) {
+    const source = readFileSync(new URL(path, import.meta.url), "utf8")
+    assert.match(source, /import \{ relationshipDirectionOptions \} from "@\/features\/relationships\/direction-options"/)
+    assert.match(source, /relationshipDirectionOptions\(/)
+  }
 })
 
 test("report dates stay in a nonshrinking row outside the settings scroll area", () => {
@@ -228,7 +247,8 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.ok(relationshipSettings.includes("<ReportPairDirections"))
   assert.match(relationshipSettings, /<section aria-label="Relationship analysis"/)
   assert.match(relationshipSettings, /<h3[^>]*>\{t\("Relationship analysis"\)\}<\/h3>/)
-  assert.match(relationshipSettings, /Minimum matching [^\n]+<input[^>]*min=\{MINIMUM_RELATIONSHIP_OBSERVATIONS\}/)
+  assert.match(relationshipSettings, /Minimum historical observations[^\n]+<input[^>]*min=\{MINIMUM_RELATIONSHIP_OBSERVATIONS\}/)
+  assert.doesNotMatch(relationshipSettings, /Minimum matching/)
   assert.match(relationshipSettings, /<section aria-label=\{t\("Delay to check"\)\}/)
   assert.doesNotMatch(source, /Include AI interpretation|checked=\{definition\.lag\.enabled\}|definition\.lag\.enabled &&/)
   assert.doesNotMatch(settings, /<details|<summary|cursor-pointer/)

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Search, Trash2, Undo2 } from "lucide-react"
 import type { CatalogDataset } from "@/features/relationships/types"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { relationshipDirectionOptions } from "@/features/relationships/direction-options"
 import { reportPairKey, unorderedReportPairKey, type PairDirection, type ReportMetricKey, type ReportMetricPair, type ReportPairDirection } from "./pair-directions"
 
 export function ReportPairDirections({ pairs, excludedPairs, datasets, onChange, onRemove, onRestore }: {
@@ -30,16 +31,10 @@ export function ReportPairDirections({ pairs, excludedPairs, datasets, onChange,
     <div>
       {active.map(({ pair, left, right }) => {
         const first = `${left.dataset} / ${left.metric}`, second = `${right.dataset} / ${right.metric}`
-        const firstLabel = left.metric === right.metric ? first : left.metric
-        const secondLabel = left.metric === right.metric ? second : right.metric
-        const options = [
-          { value: "same_period", label: t("Same period only") },
-          { value: "a_leads_b", label: t("Check whether {metric} comes first").replace("{metric}", firstLabel) },
-          { value: "b_leads_a", label: t("Check whether {metric} comes first").replace("{metric}", secondLabel) },
-        ]
+        const options = relationshipDirectionOptions(first, second, t)
         return <div key={reportPairKey(pair)} className="grid min-w-0 gap-2 border-t border-gray-100 py-3">
           <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1 space-y-1 text-sm"><p className="break-words"><span className="text-gray-500">{left.dataset}</span> / <span className="font-medium">{left.metric}</span></p><p className="break-words"><span className="text-gray-500">{right.dataset}</span> / <span className="font-medium">{right.metric}</span></p></div><button type="button" title={t("Remove relationship pair")} aria-label={`${t("Remove relationship pair")}: ${first} / ${second}`} onClick={() => onRemove(pair)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-red-700 hover:bg-red-50"><Trash2 size={16} aria-hidden="true" /></button></div>
-          <label className="block min-w-0 text-xs text-gray-600">{t("Timing to test")}<select aria-label={`${t("Timing to test")}: ${first} / ${second}`} title={options.find(option => option.value === pair.direction)?.label} value={pair.direction} onChange={event => onChange(pair, event.target.value as PairDirection)} className="mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950">{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label className="block min-w-0 text-xs text-gray-600">{t("Relationship direction")}<select aria-label={`${t("Relationship direction")}: ${first} / ${second}`} title={options.find(option => option.value === pair.direction)?.label} value={pair.direction} onChange={event => onChange(pair, event.target.value as PairDirection)} className="mt-1 h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-950 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         </div>
       })}
     </div>

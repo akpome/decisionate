@@ -24,6 +24,7 @@ import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-p
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/features/relationships/defaults"
+import { relationshipDirectionOptions } from "@/features/relationships/direction-options"
 
 const aggregationOptions: Array<{
   value: DashboardValueAggregation
@@ -517,11 +518,13 @@ export default function RelationshipsPage() {
                     aria-label={t("Relationship direction")}
                     value={lagMode === "automatic" ? lagDirection : Number(lagPeriods) > 0 ? "legacy_fixed" : "same_period"}
                     onChange={event => changeRelationshipDirection(event.target.value)}
-                    className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
-                    <option value="same_period">{t("Same-period comparison only")}</option>
-                    <option value="a_leads_b">{t("{metric} leads").replace("{metric}", `${datasets.find(item => String(item.id) === leftDatasetId)?.file_name || t("Dataset A")} / ${resolvedLeftMetric}`)}</option>
-                    <option value="b_leads_a">{t("{metric} leads").replace("{metric}", `${datasets.find(item => String(item.id) === rightDatasetId)?.file_name || t("Dataset B")} / ${resolvedRightMetric}`)}</option>
+                    {relationshipDirectionOptions(
+                      `${datasets.find(item => String(item.id) === leftDatasetId)?.file_name || t("Dataset A")} / ${resolvedLeftMetric}`,
+                      `${datasets.find(item => String(item.id) === rightDatasetId)?.file_name || t("Dataset B")} / ${resolvedRightMetric}`,
+                      t,
+                    ).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     {lagMode === "manual" && Number(lagPeriods) > 0 && <option value="legacy_fixed">{t("Saved fixed lag")}: {lagPeriods} {t(formatPeriodUnit(period))}{Number(lagPeriods) === 1 ? "" : "s"}</option>}
                   </select>
                 </label>

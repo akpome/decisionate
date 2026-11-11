@@ -29,7 +29,7 @@ class RelationshipAnalysisDefaultTests(unittest.TestCase):
                                   metrics=[{"dataset_id": identity, "date_column": "date", "metric_key": "value"} for identity in (1, 2)],
                                   date_range={"start": "2000-01-01", "end": "2000-02-01"})
         self.assertEqual((monitor.method, monitor.period, monitor.aggregation, monitor.minimum_observations, monitor.maximum_lag, monitor.lag_periods),
-                         ("spearman", "daily", "sum", 52, 12, 0))
+                         ("spearman", "daily", "sum", 30, 12, 0))
         self.assertEqual((monitor.method, monitor.period, monitor.minimum_observations, monitor.maximum_lag),
                          (report.method, report.grain, report.filters.minimum_observations, report.lag.maximum))
         self.assertEqual(DatasetRelationshipResponse.model_fields["lag_mode"].default, monitor.lag_mode)
@@ -39,12 +39,12 @@ class RelationshipAnalysisDefaultTests(unittest.TestCase):
     def test_minimum_history_is_enforced_in_manual_and_automatic_modes(self):
         for mode in ("manual", "automatic"):
             with self.subTest(mode=mode):
-                result = relationships.build_dataset_relationship(sources(51), definition(lag_mode=mode))
+                result = relationships.build_dataset_relationship(sources(29), definition(lag_mode=mode))
                 self.assertIsNone(result["correlation"])
                 self.assertEqual(result["status"], "insufficient_data")
                 self.assertTrue(all(candidate["correlation"] is None and not candidate["credible"] for candidate in result["lag_candidates"]))
-                self.assertIn("At least 52 matched observations", result["association_summary"])
-        enough = relationships.build_dataset_relationship(sources(52), definition())
+                self.assertIn("At least 30 matched observations", result["association_summary"])
+        enough = relationships.build_dataset_relationship(sources(30), definition())
         self.assertAlmostEqual(enough["correlation"], 1)
         self.assertEqual(enough["status"], "ready")
         self.assertNotIn("Insufficient", enough["association_summary"])
@@ -69,6 +69,12 @@ class RelationshipAnalysisDefaultTests(unittest.TestCase):
         result = relationships.build_dataset_relationship(sources(40, frequency="MS"), definition(period="monthly", method="pearson", minimum_observations=41))
         self.assertEqual((result["method"], result["period"], result["minimum_observations"]), ("pearson", "monthly", 41))
         self.assertIsNone(result["correlation"])
+
+    def test_saved_previous_default_is_not_replaced_by_the_new_default(self):
+        settings = DatasetRelationshipRequest(**definition(minimum_observations=52))
+        result = relationships.build_dataset_relationship(sources(40), settings.model_dump())
+        self.assertEqual(result["minimum_observations"], 52)
+        self.assertEqual(result["status"], "insufficient_data")
 
     def test_saved_24_observation_setting_remains_valid_and_fixed_timing_is_not_rewritten(self):
         settings = DatasetRelationshipRequest(**definition(minimum_observations=24, period="daily", lag_mode="manual", lag_periods=2))

@@ -175,7 +175,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
     assert.equal(value.impact, null)
     assert.equal(value.method, "spearman")
     assert.equal(value.grain, "daily")
-    assert.equal(value.filters.minimum_observations, 52)
+    assert.equal(value.filters.minimum_observations, 30)
   }
   assert.match(workspace, /<ImpactResult analysis=\{report.impact_analysis\}/)
   const assessment = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,

@@ -20,7 +20,7 @@ const { editableDefinition, formatReportValue, selectedReportDimensionFilters } 
 
 test("report defaults share the monitor's method, grouping, observation floor and lag limit", () => {
   const defaultsValue = defaults.exports.RELATIONSHIP_DEFAULTS
-  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 52, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0, lagDirection: "a_leads_b" })
+  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 30, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0, lagDirection: "a_leads_b" })
   const value = editableDefinition({})
   assert.equal(value.method, defaultsValue.method)
   assert.equal(value.grain, defaultsValue.period)
@@ -131,9 +131,9 @@ test("legacy analysis transfer respects report safety limits", () => {
   assert.equal(value.filters.minimum_abs_coefficient, 0)
 })
 
-test("reports default to 52 historical observations while retaining lower and higher saved settings", () => {
-  assert.equal(editableDefinition({}).filters.minimum_observations, 52)
-  for (const minimum of [24, 30, 48, 3653]) {
+test("reports default to 30 historical observations while retaining lower and higher saved settings", () => {
+  assert.equal(editableDefinition({}).filters.minimum_observations, 30)
+  for (const minimum of [24, 30, 48, 52, 3653]) {
     assert.equal(editableDefinition({ filters: { minimum_observations: minimum } }).filters.minimum_observations, minimum)
   }
 })

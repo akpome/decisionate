@@ -30,10 +30,10 @@ zero also restricts every retained pair to its same-period test.
 
 ## Why one year can be insufficient
 
-Reports and Relationships share a default minimum of 52 matched observations
-and daily grouping, not 52 dates in the form. Explicit saved grouping and
+Reports and Relationships share a default minimum of 30 matched observations
+and daily grouping, not 30 dates in the form. Explicit saved grouping and
 thresholds are retained, including the previously saved 24-observation setting.
-The editable minimum remains 24; 52 is the new default, not a new lower bound. Twelve
+The editable minimum remains 24; 30 is the new default, not a new lower bound. Twelve
 monthly source points fail that threshold. Filtering, non-overlapping dates,
 missing buckets and shifting for lag can reduce the usable pair further.
 The minimum must still be met after lagging. Positive-lag searches therefore

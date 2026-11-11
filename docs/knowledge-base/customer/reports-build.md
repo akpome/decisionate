@@ -296,20 +296,21 @@ business change. Existing saved reports keep their original workflow.
 5. Set Start, End and Group results by. Business has seasonal activity belongs to
    Unusual changes; it does not adjust correlations or prove matching seasonality.
 6. For exploratory multi dataset analysis, configure Relationship analysis. Remove unwanted
-   pairs and set each remaining pair's Timing to test. Delay to check is always
+   pairs and set each remaining pair's Relationship direction. Delay to check is always
    available above the pairs; Maximum delay names the selected unit (days, weeks,
-   months or quarters). Check whether a metric comes first is a hypothesis to
-   test, not a conclusion. Same period only does not test positive delays. Single dataset
+   months or quarters). Both pages offer Same-period comparison only or either
+   named dataset and metric followed by leads. A lead direction is a hypothesis
+   to test, not a conclusion. Same-period comparison only does not test positive delays. Single dataset
    reports omit cross-source relationships.
 7. Choose Preview analysis and wait for analysis to finish before saving.
 
 ## Limits and evidence
 
 New analyses share their defaults with Relationships: Spearman, daily grouping,
-Sum aggregation where applicable, 52 minimum historical observations, maximum
+Sum aggregation where applicable, 30 minimum historical observations, maximum
 lag 12 grouped periods and same-period comparison. Valid saved choices are
 retained rather than replaced simply because the defaults changed.
-Minimum matching days/weeks/months/quarters counts matched observations in the
+Minimum historical observations counts matched observations in the
 chosen grouping, not just the length of the calendar window. Weekly Reports uses
 weeks for its relationship history regardless of the grouping on Business Analysis.
 
@@ -319,7 +320,7 @@ and test-count limits do not apply to Business impact analysis, which does not
 run those tests. Reduce metrics or timing complexity if the correlation
 analysis exceeds these limits. Removed pairs do not consume relationship tests;
 they can be restored without removing the selected metrics. The default
-relationship observation threshold is 52 matched periods; selecting more calendar
+relationship observation threshold is 30 matched periods; selecting more calendar
 dates is not equivalent to having more observations.
 
 Exploratory report previews request AI interpretation automatically, with a clearly

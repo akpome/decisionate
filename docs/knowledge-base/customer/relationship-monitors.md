@@ -12,7 +12,7 @@ needed. Set the period and aggregation to fit the business question, then check
 the actual overlapping source dates.
 
 New analyses on both pages default to Spearman, daily grouping, Sum aggregation
-where applicable, 52 minimum historical observations, a maximum lag of 12 grouped
+where applicable, 30 minimum historical observations, a maximum lag of 12 grouped
 periods, and same-period comparison. Correlation method, Minimum historical
 observations and Maximum lag are visible in Relationship analysis rather than
 hidden in advanced options. Valid deliberately saved settings are retained.
@@ -33,7 +33,7 @@ The observation minimum is enforced after filtering, grouping and lagging.
 Insufficient observations produce insufficient data, not a usable correlation.
 Observation and lag limits persist with each monitor and are reused for its
 scheduled evaluation. Existing monitors without a saved history threshold use
-24 for backward compatibility; newly created analyses default to 52. Read the
+24 for backward compatibility; newly created analyses default to 30. Read the
 matched periods, timing, strength and credibility before
 saving. Shared defaults do not make the two workflows identical: the saved
 monitor retains its fixed/automatic timing and stability scoring, while Reports

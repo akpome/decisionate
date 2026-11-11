@@ -90,7 +90,7 @@ for interpretation. Earlier relationship history is
 grouped into complete weekly periods, ending on the Sunday before the report
 week; daily points are not mixed into the weekly relationship series.
 There is no manual Start/End or Group by selector on the weekly page. Relationship
-defaults are Spearman, 52 minimum matched weeks, same-period comparison, and a
+defaults are Spearman, 30 minimum matched weeks, same-period comparison, and a
 maximum directional lag of 12 weeks. The minimum can be changed independently
 within allowed bounds. Lag zero compares the same week. The selected metric's
 approved aggregation policy is preserved: weekly grouping does not turn every

@@ -100,10 +100,10 @@ class BusinessReportEngineTests(unittest.TestCase):
         from app.modules.correlation.schemas import ResultFilters
 
         self.assertEqual(definition()["filters"]["minimum_observations"], 24)
-        self.assertEqual(definition(filters={"minimum_abs_coefficient": .5})["filters"]["minimum_observations"], 52)
-        self.assertEqual(ResultFilters().minimum_observations, 52)
+        self.assertEqual(definition(filters={"minimum_abs_coefficient": .5})["filters"]["minimum_observations"], 30)
+        self.assertEqual(ResultFilters().minimum_observations, 30)
         self.assertEqual(ResultFilters(minimum_observations=2).minimum_observations, 2)
-        for minimum in (24, 30, 48, 3653):
+        for minimum in (24, 30, 48, 52, 3653):
             self.assertEqual(definition(filters={"minimum_observations": minimum})["filters"]["minimum_observations"], minimum)
         for minimum in (23, 3654):
             with self.assertRaises(ValidationError):
@@ -128,9 +128,9 @@ class BusinessReportEngineTests(unittest.TestCase):
         higher = build_report(sources, definition(date_range=window, filters={"minimum_observations": 30}))["findings"][0]
         self.assertFalse(higher["eligible"])
 
-    def test_weekly_reports_default_to_52_and_preserve_explicit_template_thresholds(self):
+    def test_weekly_reports_share_the_30_default_and_preserve_explicit_template_thresholds(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=["1:spend", "2:net_sales"], include_recommendations=True)
-        for template, expected in ((None, 52), (definition(), 24), (definition(filters={"minimum_observations": 48}), 48), (definition(filters={"minimum_observations": 60}), 60)):
+        for template, expected in ((None, 30), (definition(), 24), (definition(filters={"minimum_observations": 48}), 48), (definition(filters={"minimum_observations": 52}), 52), (definition(filters={"minimum_observations": 60}), 60)):
             with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]):
                 report = build_weekly_cross_dataset_report(self.frames, preference, template)
             self.assertEqual(report["definition"]["filters"]["minimum_observations"], expected)
@@ -346,7 +346,7 @@ class BusinessReportEngineTests(unittest.TestCase):
         self.assertEqual(report["analysis_grain"], "weekly")
         self.assertEqual(report["grain"], "daily")
         self.assertEqual(report["window"], {"start": "2026-03-23", "end": "2026-03-29"})
-        self.assertEqual(report["definition"]["filters"]["minimum_observations"], 52)
+        self.assertEqual(report["definition"]["filters"]["minimum_observations"], 30)
         self.assertTrue(all(item["lag_unit"] == "calendar weekly periods" for item in report["findings"]))
 
     def test_weekly_ai_receives_bounded_summaries_not_raw_trends_or_evidence(self):
