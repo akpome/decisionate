@@ -14,7 +14,7 @@ def pair_key(left, right):
 
 
 def report_pairs(definition, metrics=None):
-    if definition.get("impact"):
+    if definition.get("impact") or definition.get("scope") == "single" or not definition.get("include_relationships", True):
         return []
     excluded = {pair_key(item["metric_a"], item["metric_b"]) for item in definition.get("excluded_pairs", [])}
     return [(left, right) for left, right in combinations(definition["metrics"] if metrics is None else metrics, 2)

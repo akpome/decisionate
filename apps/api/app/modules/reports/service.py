@@ -148,6 +148,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     single = definition.get("scope", "multi") == "single"
+    relationships = not single and not definition.get("impact") and definition.get("include_relationships", True)
     if report_test_count(definition) > 1000:
         raise ValueError("Reports support at most 1,000 pair-lag tests")
     frames = {identity: prepare_report_source(dataset, frame) for identity, (dataset, frame) in frames.items()}
@@ -286,7 +287,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                 "status": "unavailable", "message": "The relationship did not pass the report's reliability checks."}
     findings.sort(key=lambda item: (item["eligible"], abs(item["coefficient"] or 0)), reverse=True)
     # Older impact snapshots may still contain correlation finding selections.
-    requested = None if definition.get("impact") else definition.get("included_findings")
+    requested = definition.get("included_findings") if relationships else None
     if requested is not None:
         unknown = set(requested) - {finding["id"] for finding in findings}
         if unknown:
@@ -303,7 +304,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     if any(metric["change_percent"] is None for metric in metrics):
         warnings.append("A previous-period comparison is unavailable for some metrics. This does not by itself prevent the business impact assessment."
                         if definition.get("impact") else
-                        "A previous-period comparison is unavailable for some metrics. This does not by itself prevent a relationship or business-change analysis.")
+                        "A previous-period comparison is unavailable for some metrics. This does not by itself prevent a relationship or business-change analysis." if relationships else
+                        "A previous-period comparison is unavailable for some metrics. Their available totals and unusual-change checks are shown separately.")
     movements = sorted((metric for metric in metrics if metric["change_percent"] is not None), key=lambda item: abs(item["change_percent"]), reverse=True)
     observations = [f"{metric['dataset_label']} / {metric['label']}: {metric['change_percent']:+.1f}% versus the previous comparable period."
                     for metric in movements[:6]]
@@ -319,7 +321,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     if any(finding["eligible"] for finding in selected):
         actions.append("Try a small, fair comparison before expanding a change. Record the result you expect and when you will review it.")
     if not actions:
-        actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if single else
+        actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if not relationships else
                        "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
     anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor)
     weekly_anomalies = report_anomalies(frames, references, {**actual_definition, "grain": "weekly"}, metadata,
@@ -353,7 +355,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
             "observations": observations, "contrasts": contrasts[:5], "recommendations": actions, "warnings": warnings,
             "limitations": impact["limitations"] if impact else ["Missing observations remain unavailable and are not zero-filled.",
                             "An unusual change is not proof of its cause. Check source quality and business context.",
-                            "No attribution, currency conversion, profit or ROAS is inferred from unrelated totals."] if single else
+                            "No attribution, currency conversion, profit or ROAS is inferred from unrelated totals."] if not relationships else
                            ["Association does not establish causation. Shared seasonality and other channels may explain co-movement.",
                             "Report lag tests use calendar-aligned periods. Missing observations remain unavailable and are not zero-filled.",
                             "No attribution, currency conversion, profit or ROAS is inferred from unrelated totals.",
@@ -371,6 +373,7 @@ def report_analysis_facts(report):
     facts["dimension_filters"] = report["definition"].get("dimension_filters", [])
     facts["summary_grouping"] = report["grain"]
     facts["analysis_grouping"] = report.get("analysis_grain", report["grain"])
+    facts["relationship_analysis"] = "not_requested" if report["definition"].get("include_relationships") is False or report["definition"].get("scope") == "single" or is_impact_report(report) else "included"
     facts["findings"] = [] if is_impact_report(report) else [
         {key: value for key, value in item.items() if key != "evidence"}
         for item in report["findings"] if item["id"] in report["included_findings"]][:10]

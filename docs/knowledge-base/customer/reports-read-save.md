@@ -31,7 +31,7 @@ first measured period is not presented as a guessed implementation date.
 
 Supporting business results contains the selected-metric charts, unusual
 changes and metric movements, not a second correlation analysis. Relationship
-findings are available in Compare metrics instead. Older impact snapshots
+findings are available under Compare metrics > Relationships report instead. Older impact snapshots
 also omit their old relationship findings when displayed, without changing the
 stored snapshot. These results support the main answer rather than replacing
 it. Decisions and outcomes remains the place to open the central
@@ -44,10 +44,16 @@ dates lack usable dataset values. Saving a report does not make missing data
 usable; a strong correlation or previous-period baseline is not required.
 
 Read the metric movements, unusual changes, impact checks, follow-up
-actions and limitations together. In Compare metrics, read the relationship
+actions and limitations together. In Relationships report, read the relationship
 findings alongside the other evidence. A significant relationship is not required for
 a period comparison to be useful; nor does it establish that a change caused
 the business outcome.
+
+Combined metrics report includes totals, trends, earlier-period changes and
+unusual-change checks across multiple datasets, without Relationship findings,
+correlation coefficients or delay tests. Single dataset report uses one source
+and also omits cross-dataset relationships. Saved reports retain this choice
+and reopen in the matching tab rather than switching analysis mode.
 
 ## Indexed and actual metric comparison
 

@@ -18,6 +18,53 @@ vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.Mo
   { module: loadedModule, exports: loadedModule.exports, require: name => name === "./pair-directions" ? pairModule.exports : name === "@/features/relationships/defaults" ? defaults.exports : require(name), Intl, Number, Math })
 const { editableDefinition, formatReportValue, selectedReportDimensionFilters } = loadedModule.exports
 
+test("combined reports retain metrics and filters but cannot revive saved relationship settings", () => {
+  const metrics = [{ dataset_id: 1, metric_key: "spend", aggregation: "sum", date_column: "date" },
+    { dataset_id: 2, metric_key: "orders", aggregation: "sum", date_column: "date" }]
+  const dimension_filters = [{ dataset_id: 1, column: "country", values: ["CA"] }]
+  const value = editableDefinition({ scope: "multi", include_relationships: false, metrics, dimension_filters,
+    seasonal_business: true, included_findings: ["old-finding"], source_run_id: "old-correlation-run",
+    lag: { enabled: true, minimum: 0, maximum: 12, direction: "b_leads_a" } })
+  assert.equal(value.include_relationships, false)
+  assert.equal(value.lag.enabled, false)
+  assert.equal(value.metrics.length, 2)
+  assert.equal(value.dimension_filters[0].column, "country")
+  assert.equal(value.seasonal_business, true)
+  assert.equal(value.source_run_id, null)
+  assert.equal(value.included_findings, null)
+  assert.equal(value.pair_directions.length, 0)
+  assert.equal(value.excluded_pairs.length, 0)
+  assert.equal(editableDefinition(value).include_relationships, false)
+  assert.equal(editableDefinition({ metrics }).include_relationships, true)
+  assert.equal(editableDefinition({ metrics }).pair_directions.length, 1)
+})
+
+test("single and combined reports never count or render hidden relationship tests", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const expressions = {}
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && ["relationships", "taskCount"].includes(node.name.getText(ast))) {
+      expressions[node.name.getText(ast)] = node.initializer.getText(ast)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(expressions.relationships)
+  assert.ok(expressions.taskCount)
+  for (const [value, expected] of [[{ scope: "multi", include_relationships: false }, false],
+    [{ scope: "single" }, false], [{ scope: "multi", impact: { decision_id: 1 } }, false], [{ scope: "multi" }, true]]) {
+    const definition = editableDefinition(value)
+    const relationships = vm.runInNewContext(expressions.relationships, { definition, single: definition.scope === "single" })
+    assert.equal(relationships, expected)
+    const count = vm.runInNewContext(expressions.taskCount, { relationships, definition,
+      reportTestCount: () => { assert.equal(relationships, true); return 3900 } })
+    assert.equal(count, expected ? 3900 : 0)
+  }
+  assert.match(source, /\{relationships && <section aria-label="Relationship analysis"/)
+  assert.match(source, /\{relationships && <ReportRelationshipFindings/)
+})
+
 test("report defaults share the monitor's method, grouping, observation floor and lag limit", () => {
   const defaultsValue = defaults.exports.RELATIONSHIP_DEFAULTS
   assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 30, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0, lagDirection: "a_leads_b" })

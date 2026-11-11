@@ -877,6 +877,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Report navigation": "Navigation des rapports",
   "Single dataset report": "Rapport sur un seul jeu de données",
   "Multi dataset report": "Rapport sur plusieurs jeux de données",
+  "Relationships report": "Rapport sur les relations",
+  "Combined metrics report": "Rapport des indicateurs combinés",
   "Single dataset insight": "Analyse d'un seul jeu de données",
   "Multi dataset insight": "Analyse de plusieurs jeux de données",
   "Insight scope": "Portée de l'analyse",

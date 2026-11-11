@@ -10,7 +10,20 @@ const loaded = { exports: {} }
 vm.runInNewContext(ts.transpileModule(read("../features/reports/report-navigation.ts"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { module: loaded, exports: loaded.exports })
-const { reportPagePath, reportHistoryQuery } = loaded.exports
+const { reportPagePath, reportHistoryQuery, reportSourceTabs } = loaded.exports
+
+test("three report tabs distinguish relationships, combined results and one dataset", () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(reportSourceTabs)), [
+    { href: "/dashboard/reports", label: "Relationships report" },
+    { href: "/dashboard/reports/combined", label: "Combined metrics report" },
+    { href: "/dashboard/reports/dataset", label: "Single dataset report" },
+  ])
+  assert.equal(reportPagePath(false, false, "multi", false), "/dashboard/reports/combined")
+  assert.equal(reportPagePath(false, false, "single", false), "/dashboard/reports/dataset")
+  assert.equal(reportPagePath(true, false, "multi", false), "/dashboard/reports/weekly")
+  assert.equal(reportPagePath(false, true, "multi", false), "/dashboard/reports/impact")
+  assert.match(read("../app/dashboard/reports/combined/page.tsx"), /<ReportPage includeRelationships=\{false\}/)
+})
 
 test("saved definitions and resumed jobs route to their own workflow, including legacy weekly assessments", () => {
   for (const [weekly, impact, scope, path] of [
@@ -19,8 +32,8 @@ test("saved definitions and resumed jobs route to their own workflow, including 
     [true, false, "multi", "/dashboard/reports/weekly"],
   ]) assert.equal(reportPagePath(weekly, impact, scope), path)
   const source = read("../features/reports/report-workspace.tsx")
-  assert.match(source, /reportPagePath\(job.kind !== "report", Boolean\(job.definition\?\.impact\), job.definition\?\.scope\)/)
-  assert.equal((source.match(/reportPagePath\(Boolean\(result.weekly_report\), Boolean\(result.definition.impact\), result.definition.scope\)/g) || []).length, 2)
+  assert.match(source, /reportPagePath\(job.kind !== "report", Boolean\(job.definition\?\.impact\), job.definition\?\.scope, job.definition\?\.include_relationships\)/)
+  assert.equal((source.match(/reportPagePath\(Boolean\(result.weekly_report\), Boolean\(result.definition.impact\), result.definition.scope, result.definition.include_relationships\)/g) || []).length, 2)
   assert.match(source, /controller.abort\(\)\s+router.replace\(`\$\{destination\}\?job=/)
 })
 

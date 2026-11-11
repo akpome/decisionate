@@ -30,6 +30,19 @@ test("new weekly settings have weekly units and independent same-period defaults
   assert.equal(types.editableDefinition({}).grain, "daily")
 })
 
+test("copying a combined report to weekly monitoring does not turn correlation back on", () => {
+  const value = weeklyDefinition({ include_relationships: false, metrics, grain: "daily", pair_directions: [direction],
+    seasonal_business: true, dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }] })
+  assert.equal(value.include_relationships, false)
+  assert.equal(value.grain, "weekly")
+  assert.equal(value.lag.enabled, false)
+  assert.equal(value.pair_directions.length, 0)
+  assert.equal(value.metrics.length, 2)
+  assert.equal(value.dimension_filters[0].column, "region")
+  assert.equal(value.seasonal_business, true)
+  assert.equal(weeklyDefinition(value).include_relationships, false)
+})
+
 test("weekly copies and reopened settings replace only generated names without changing the source", () => {
   const generated = "Report (034a3449-983d-4130-8cb4-c6d870713c06)"
   for (const name of [generated, `Weekly ${generated}`, "Regional sales report"]) {

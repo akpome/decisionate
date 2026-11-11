@@ -97,7 +97,8 @@ def generate(db, payload, user, workspace, progress=None):
         if progress:
             progress("interpreting")
         result["ai_analysis"] = generate_structured_analysis(
-            context="business report selected-metric interpretation",
+            context="business report selected-metric interpretation" if payload.include_relationships else
+                    "business report metric summaries and unusual changes only; relationship analysis was not requested. Do not infer correlations or delays between metrics",
             facts=report_analysis_facts(result),
             fallback_summary=report_summary(result),
             fallback_recommendations=result["recommendations"],

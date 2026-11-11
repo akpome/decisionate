@@ -59,6 +59,46 @@ class BusinessReportEngineTests(unittest.TestCase):
         patcher.start(); self.addCleanup(patcher.stop)
         self.frames = fixture()
 
+    def test_combined_report_keeps_metric_and_anomaly_results_without_running_correlation(self):
+        from app.modules.reports.relationships import report_test_count
+        from app.modules.reports.service import report_analysis_facts
+
+        original = definition(seasonal_business=True)
+        relationship_report = build_report(self.frames, original)
+        combined = {**original, "include_relationships": False, "included_findings": ["stale-finding"]}
+        with patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("No correlation")), \
+             patch("app.modules.reports.service.adjust_bh", side_effect=AssertionError("No significance test")):
+            result = build_report(self.frames, combined)
+        self.assertEqual(result["metrics"], relationship_report["metrics"])
+        self.assertEqual(result["anomaly_analysis"], relationship_report["anomaly_analysis"])
+        self.assertEqual(result["observations"], relationship_report["observations"])
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(result["included_findings"], [])
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(report_test_count(combined), 0)
+        self.assertFalse(any("lag" in text or "significance" in text for text in result["limitations"]))
+        self.assertEqual(report_analysis_facts(result)["relationship_analysis"], "not_requested")
+        self.assertEqual(report_analysis_facts(result)["findings"], [])
+
+    def test_combined_report_clears_stale_relationship_configuration_and_keeps_multi_source_contract(self):
+        value = definition(include_relationships=False, source_run_id="old-run", included_findings=["old-finding"],
+                           lag={"enabled": True, "maximum": 60}, pair_directions=[{
+                               "metric_a": {"dataset_id": 1, "metric_key": "spend"},
+                               "metric_b": {"dataset_id": 2, "metric_key": "net_sales"}, "direction": "a_leads_b"}])
+        self.assertFalse(value["include_relationships"])
+        self.assertFalse(value["lag"]["enabled"])
+        self.assertEqual(value["pair_directions"], [])
+        self.assertEqual(value["excluded_pairs"], [])
+        self.assertIsNone(value["included_findings"])
+        self.assertIsNone(value["source_run_id"])
+        self.assertEqual(ReportDefinition(**value).model_dump(mode="json"), value)
+        with self.assertRaises(ValidationError):
+            definition(include_relationships=False, metrics=definition()["metrics"][:1])
+        legacy = definition()
+        legacy.pop("include_relationships")
+        self.assertTrue(ReportDefinition(**legacy).include_relationships)
+        self.assertGreater(len(build_report(self.frames, legacy)["findings"]), 0)
+
     def test_single_and_multi_reports_share_metric_and_anomaly_calculations(self):
         multi = build_report(self.frames, definition(seasonal_business=True))
         single = build_report({1: self.frames[1]}, definition(scope="single", metrics=definition()["metrics"][:1], seasonal_business=True))

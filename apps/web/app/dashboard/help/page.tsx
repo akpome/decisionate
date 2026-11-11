@@ -133,7 +133,7 @@ const faqItems = [
   {
     question: "Where have Insights and dashboard Analysis moved?",
     answer:
-      "Business Analysis is the on-demand workspace, with Multi dataset report opening by default and Single dataset report available separately. Weekly Reports has a separate page with independent settings. Use the sidebar to move between these workflows, not tabs inside the pages. Old Insights links redirect to Business Analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
+      "Business Analysis is the on-demand workspace. Under Compare metrics, Relationships report opens by default; Combined metrics report reviews multiple datasets without correlation, and Single dataset report uses one source. Weekly Reports has a separate page with independent settings. Use the sidebar to move between Business Analysis and Weekly Reports. Old Insights links redirect to Business Analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
   },
   {
     question: "Why can a year-long report have insufficient relationship evidence?",
@@ -438,7 +438,7 @@ const referenceChapters: ReferenceChapter[] = [
     id: "reference-analysis",
     title: "7. Business Analysis, reports, and forecasts",
     summary:
-      "Business Analysis brings together metric comparisons, business impact, spending returns, profitability, repeat purchases, sales conversion and cash planning. Choose the tool that matches your question, preview the result, then save. Multi dataset report opens by default under Compare metrics. Weekly Reports, Budget Planner and Forecasts remain separate; old Insights links redirect to Business Analysis.",
+      "Business Analysis brings together metric comparisons, business impact, spending returns, profitability, repeat purchases, sales conversion and cash planning. Choose the tool that matches your question, preview the result, then save. Relationships report opens by default under Compare metrics, alongside Combined metrics report and Single dataset report. Weekly Reports, Budget Planner and Forecasts remain separate; old Insights links redirect to Business Analysis.",
     howTos: [
       {
         title: "Choose the right analysis tool",
@@ -499,9 +499,10 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Analyze metrics and findings",
         steps: [
-          "Open Business Analysis in the sidebar. Multi dataset report opens by default; Single dataset report uses the same analysis engine for one source. Use Build analysis and Analysis preview to move between setup and results.",
+          "Open Business Analysis in the sidebar. Under Compare metrics, choose Relationships report for metrics from multiple datasets with correlation, Combined metrics report for multiple datasets without correlation, or Single dataset report for one source. Relationships report opens by default. Use Build analysis and Analysis preview to move between setup and results.",
           "For Single dataset report, choose one Dataset from the dropdown in Dataset and metrics. Only its metrics, Date column and Dimension column are shown. Choose Unique values to filter that source. Changing the dataset clears the previous metrics, filters and date choices; removing every metric does not clear the chosen dataset.",
           "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
+          "Combined metrics report keeps totals, trends, previous-period changes and unusual-change checks, but does not calculate correlation or test delays. Saved reports reopen in the correct tab; older multi-dataset reports remain Relationships reports. Copying a combined report to Weekly Reports keeps relationship analysis off.",
           "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
           "New multi dataset reports open directly with correlation controls. Relationship analysis is expanded, with the correlation method, Minimum historical observations, delay and metric-pair controls. Business impact is a tool within Business Analysis, alongside Compare metrics and the other analysis tools. Saved reports retain their original type; old links open the appropriate page.",
           "Set Start, End and Group results by. Business has seasonal activity is under Unusual changes and applies to those checks, not to correlation. Missing history cannot be replaced by a wider date selection.",
@@ -648,7 +649,7 @@ const referenceChapters: ReferenceChapter[] = [
     ],
     notes: [
       "A relationship reports association, not proven causation.",
-      "Relationships saves a two-metric monitor. For multiple metrics across multiple datasets, use Multi dataset report in Business Analysis. The retired advanced relationship explorer has been removed.",
+      "Relationships saves a two-metric monitor. For relationships between multiple metrics across multiple datasets, use Relationships report in Business Analysis. Combined metrics report reviews the same selected metrics without correlation. The retired advanced relationship explorer has been removed.",
       "The current KPI target is a digest and AI benchmark; it does not by itself create a separate threshold-triggered alert.",
       "Alerts are workspace-scoped. A workspace must not receive another workspace's datasets, targets, relationships, recipients, or recommendations.",
     ],

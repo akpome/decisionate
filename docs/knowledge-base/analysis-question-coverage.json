@@ -10,6 +10,7 @@
     {"id":"budget-usage","tool":"budget-planner","chunk_id":"budget-planner:how-to-compare-advertising-spend-and-get-a-budget-recommendation","questions":["How do I use Budget Planner?","How do I create a budget plan?"]},
     {"id":"impact-usage","tool":"business-impact","chunk_id":"reports-build:where-is-business-impact-and-how-do-i-use-it","questions":["How do I use Business impact?","How do I use Business impact analysis?"]},
     {"id":"metrics-usage","tool":"compare-metrics","chunk_id":"reports-build:build-an-analysis","questions":["How do I use Compare metrics?","How do I create a multi dataset report?"]},
+    {"id":"report-tabs","tool":"compare-metrics","chunk_id":"reports-build:which-report-should-i-choose","questions":["Which report tab should I choose?","How do I use Combined metrics report?","Can I report on multiple datasets without correlation?","What is the difference between Relationships report and Combined metrics report?"]},
     {"id":"single-usage","tool":"compare-metrics","chunk_id":"reports-build:analyze-one-dataset","questions":["How do I create a single dataset report?","How do I use Single dataset report?"]},
     {"id":"relationships-usage","tool":"relationships","chunk_id":"relationship-monitors:set-up-a-two-metric-monitor","questions":["How do I use Relationships?","How do I use the Relationships page?"]},
     {"id":"forecasts-usage","tool":"forecasts","chunk_id":"forecasts:generate-a-forecast","questions":["How do I use Forecasts?","How do I create a forecast?"]},

@@ -38,6 +38,37 @@ class AnalysisJobTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in result["result"]["metrics"]], ["1:spend", "2:net_sales"])
         self.assertEqual(result["result"]["definition"]["filters"]["minimum_observations"], 24)
 
+    def test_combined_report_mode_survives_queue_save_reopen_and_weekly_copy(self):
+        identity = self.enqueue(include_relationships=False)
+        self.assertFalse(self.state(identity)["definition"]["include_relationships"])
+        with patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("No correlation")):
+            worker.execute_job(identity)
+        state = self.state(identity)
+        self.assertEqual(state["status"], "succeeded", state)
+        self.assertEqual(state["result"]["findings"], [])
+        self.assertEqual(len(state["result"]["metrics"]), 2)
+        self.assertEqual(len(state["result"]["anomaly_analysis"]["metrics"]), 2)
+        self.assertFalse(state["result"]["definition"]["include_relationships"])
+        saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        report_id = saved.json()["report_id"]
+        reopened = self.client.get(f"/api/v2/business-reports/{report_id}").json()
+        self.assertFalse(reopened["definition"]["include_relationships"])
+        self.assertEqual(reopened["metrics"], saved.json()["metrics"])
+        self.assertEqual(reopened["findings"], [])
+        self.assertEqual(self.client.post(f"/api/v2/business-reports/{report_id}/weekly").status_code, 200)
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).filter_by(workspace_id="owner").one()
+            template = alerts.weekly_business_template(db, preference, "owner")
+        self.assertFalse(template["include_relationships"])
+        with patch("app.modules.reports.service.compute_report_pair", side_effect=AssertionError("No weekly correlation")), \
+             patch.object(alerts, "complete_week", return_value=fixtures.definition()["date_range"]):
+            weekly = alerts.build_weekly_cross_dataset_report(self.frames, alerts.WeeklyReportPreferenceResponse(
+                enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[],
+                metric_focus=["1:spend", "2:net_sales"], include_recommendations=False), template)
+        self.assertEqual(weekly["findings"], [])
+        self.assertFalse(weekly["definition"]["include_relationships"])
+
     def test_save_reuses_completed_snapshot_and_is_idempotent(self):
         identity = self.enqueue()
         worker.execute_job(identity)

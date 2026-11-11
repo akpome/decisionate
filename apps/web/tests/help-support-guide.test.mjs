@@ -52,7 +52,8 @@ test("dashboard period guidance matches one-year defaults and removed five-year 
 
 test("Business Analysis is the documented analysis entry and date and dimension filtering is explained for each workflow", () => {
   assert.match(chapter("orientation"), /cross-dataset decision-intelligence/)
-  assert.match(chapter("analysis"), /Multi dataset report opens by default/)
+  assert.match(chapter("analysis"), /Relationships report opens by default/)
+  assert.match(chapter("analysis"), /Combined metrics report/)
   assert.match(chapter("analysis"), /choose one Dataset from the dropdown/)
   assert.match(chapter("analysis"), /Changing the dataset clears the previous metrics, filters and date choices/)
   assert.match(chapter("analysis"), /old Insights links redirect to Business Analysis/)

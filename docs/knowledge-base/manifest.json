@@ -639,6 +639,8 @@
         "limits"
       ],
       "questions": [
+        "Which report tab should I choose?",
+        "Can I report on several datasets without correlation?",
         "How do I select metrics from multiple datasets?",
         "How do I choose one dataset and filter its metrics by dimension?",
         "Where is Business Impact and how do I assess an existing decision?",
@@ -647,11 +649,13 @@
       ],
       "routes": [
         "/dashboard/reports",
+        "/dashboard/reports/combined",
         "/dashboard/reports/dataset",
         "/dashboard/reports/impact"
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/app/dashboard/reports/combined/page.tsx",
         "apps/web/app/dashboard/business-impact/page.tsx",
         "apps/web/app/dashboard/reports/impact/page.tsx",
         "apps/web/features/reports/report-page.tsx",
@@ -690,6 +694,7 @@
         "decisions-outcomes"
       ],
       "section_routes": {
+        "Which report should I choose?": "/dashboard/reports/combined",
         "Where is Business impact and how do I use it?": "/dashboard/reports/impact",
         "Did my business change help?": "/dashboard/reports/impact",
         "How does Business impact allow time for results?": "/dashboard/reports/impact",
@@ -701,6 +706,15 @@
         "Analyze one dataset": "/dashboard/reports/dataset"
       },
       "section_questions": {
+        "Which report should I choose?": [
+          "How do I use Combined metrics report?",
+          "Can I report on multiple datasets without correlation?",
+          "What is the difference between Relationships report and Combined metrics report?"
+        ],
+        "Analyze one dataset": [
+          "Where can I choose metrics for a single dataset report?",
+          "How do I analyze just one dataset?"
+        ],
         "Where is Business impact and how do I use it?": [
           "How do I get started with Business impact analysis?",
           "What are the steps to assess the impact of a decision?"

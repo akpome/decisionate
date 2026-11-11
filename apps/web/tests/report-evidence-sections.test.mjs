@@ -59,6 +59,12 @@ test("relationship findings are read-only results with no checkbox or print-only
   assert.doesNotMatch(html, /<input|<label|checkbox|print:hidden/)
 })
 
+test("combined and single reports never show relationship findings, including stale selections", () => {
+  assert.equal(renderFindings({ definition: { scope: "multi", include_relationships: false } }), "")
+  assert.equal(renderFindings({ definition: { scope: "single" } }), "")
+  assert.match(renderFindings({ definition: { scope: "multi" } }), /Relationship findings/)
+})
+
 test("coefficient and lag are visible without expanding the report details", () => {
   for (const coefficient of [0.83, -0.61, 0]) {
     const html = renderFindings({ findings: [{ ...finding, eligible: true, coefficient, lag: 2, lead_metric: "visits" }] })

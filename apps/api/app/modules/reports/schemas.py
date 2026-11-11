@@ -90,6 +90,7 @@ class ImpactStudy(StrictModel):
 
 class ReportDefinition(AnalysisCreate):
     scope: Literal["single", "multi"] = "multi"
+    include_relationships: bool = True
     metrics: list[MetricRef] = Field(min_length=1, max_length=25)
     dimension_filters: list[DatasetDimensionFilter] = Field(default_factory=list, max_length=25)
     seasonal_business: bool = False
@@ -134,6 +135,16 @@ class ReportDefinition(AnalysisCreate):
                 raise ValueError("Include dates both before and after the business change")
         if not self.name.strip():
             raise ValueError("An analysis name is required")
+        return self
+
+    @model_validator(mode="after")
+    def metric_only_report(self):
+        if not self.include_relationships:
+            self.lag = LagPolicy(enabled=False)
+            self.pair_directions = []
+            self.excluded_pairs = []
+            self.included_findings = None
+            self.source_run_id = None
         return self
 
     @model_validator(mode="after")

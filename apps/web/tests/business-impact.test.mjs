@@ -170,7 +170,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
   assert.ok(initialize)
   for (const scope of ["single", "multi"]) {
     const value = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
-      { weekly: false, impactPage: false, initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
+      { weekly: false, impactPage: false, includeRelationships: true, initialScope: scope, editableDefinition, newImpactStudy: () => { throw new Error("Impact must be an explicit choice") } })
     assert.equal(value.scope, scope)
     assert.equal(value.impact, null)
     assert.equal(value.method, "spearman")
@@ -179,7 +179,7 @@ test("fresh reports open with correlation settings and do not initialize an impa
   }
   assert.match(workspace, /<ImpactResult analysis=\{report.impact_analysis\}/)
   const assessment = vm.runInNewContext(ts.transpileModule(`(${initialize})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
-    { weekly: false, impactPage: true, initialScope: "multi", editableDefinition, newImpactStudy })
+    { weekly: false, impactPage: true, includeRelationships: true, initialScope: "multi", editableDefinition, newImpactStudy })
   assert.ok(assessment.impact)
   assert.equal(assessment.impact.outcome, null)
   assert.equal(assessment.metrics.length, 0)
@@ -209,7 +209,7 @@ test("saved impact reports restore their explicit analysis type without changing
 
 test("impact previews are not blocked by unused correlation tests and do not label earlier relationships", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
-  assert.match(source, /!single && !weekly && !definition\.impact && <div[^>]*><CorrelationInsights/)
+  assert.match(source, /relationships && !weekly && <div[^>]*><CorrelationInsights/)
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let count, evidence
   function visit(node) {
@@ -222,7 +222,7 @@ test("impact previews are not blocked by unused correlation tests and do not lab
   assert.ok(evidence)
   const computeCount = impact => vm.runInNewContext(ts.transpileModule(count, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
-  }).outputText, { definition: { impact }, reportTestCount: () => 3900 })
+  }).outputText, { relationships: !impact, definition: { impact }, reportTestCount: () => 3900 })
   assert.equal(computeCount(study), 0)
   assert.equal(computeCount(null), 3900)
   const renderEvidence = impact => {
@@ -230,7 +230,7 @@ test("impact previews are not blocked by unused correlation tests and do not lab
       limitations: ["Old correlation-only caution"], history_window: { start: "2023-01-01", end: "2025-12-31" } }
     const node = vm.runInNewContext(ts.transpileModule(`(${evidence})`, { compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-    } }).outputText, { require, exports: {}, report, single: false,
+    } }).outputText, { require, exports: {}, report, relationships: !impact,
       Statements: ({ statements }) => React.createElement("p", null, statements.join("; ")) })
     return renderToStaticMarkup(node)
   }

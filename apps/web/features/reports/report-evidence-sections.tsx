@@ -7,7 +7,7 @@ import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
 const decisionAction = "inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-md border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 print:hidden"
 
 export function ReportRelationshipFindings({ report }: { report: BusinessReport }) {
-  if (report.definition?.impact || report.impact_analysis) return null
+  if (report.definition?.impact || report.impact_analysis || report.definition?.include_relationships === false || report.definition?.scope === "single") return null
   const included = new Set(report.included_findings)
   const findings = report.findings.filter(finding => included.has(finding.id))
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings">

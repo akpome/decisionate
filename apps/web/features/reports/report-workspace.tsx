@@ -33,7 +33,7 @@ import { weeklyDefinition, weeklyDeliveryIssue, type WeeklySettings } from "./we
 import { automaticImpactDefinition, decisionReviewDefinition, decisionReviewDetails, type DecisionReviewContext } from "./decision-review"
 import { ImpactDecisionPicker } from "./impact-decision-picker"
 import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-update"
-import { reportHistoryQuery, reportPagePath } from "./report-navigation"
+import { reportHistoryQuery, reportPagePath, reportSourceTabs } from "./report-navigation"
 import { AnalysisTools } from "./analysis-tools"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
@@ -70,8 +70,8 @@ async function loadDecisionDefinition(userId: string, workspaceId: string | unde
   return { definition: decisionReviewDefinition(current, context, page.datasets[0]), datasets: page.datasets }
 }
 
-export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEditDecisions = false, initialScope = "multi", weekly = false, impactPage = false }: {
-  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean; canEditDecisions?: boolean; initialScope?: "single" | "multi"; weekly?: boolean; impactPage?: boolean
+export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEditDecisions = false, initialScope = "multi", weekly = false, impactPage = false, includeRelationships = true }: {
+  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean; canEditDecisions?: boolean; initialScope?: "single" | "multi"; weekly?: boolean; impactPage?: boolean; includeRelationships?: boolean
 }) {
   const { t } = useDecisionateText()
   const router = useRouter()
@@ -99,7 +99,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [weeklySettings, setWeeklySettings] = useState<WeeklySettings | null>(null)
   const [weeklyDirty, setWeeklyDirty] = useState(false)
   const [saved, setSaved] = useState<SavedReport[]>([])
-  const [draftDefinition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope, impact: impactPage ? newImpactStudy() : null }))
+  const [draftDefinition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope, include_relationships: includeRelationships, impact: impactPage ? newImpactStudy() : null }))
   const [report, setReport] = useState<BusinessReport | null>(null)
   const [view, setView] = useState<"explore" | "report">("explore")
   const [impactContext, setImpactContext] = useState<{ key: string; value: DecisionReviewContext | null; error: boolean } | null>(null)
@@ -119,14 +119,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
+  const relationships = !single && !definition.impact && definition.include_relationships !== false
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
   const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
-  const pagePath = reportPagePath(weekly, impactPage, initialScope)
+  const pagePath = reportPagePath(weekly, impactPage, initialScope, includeRelationships)
   const pageTitle = weekly ? "Weekly Reports" : "Business Analysis"
   const setupLabel = weekly ? "Report setup" : impactPage ? "Assessment setup" : "Build analysis"
   const previewLabel = weekly ? "Report preview" : impactPage ? "Assessment preview" : "Analysis preview"
   const historyLabel = weekly ? "Weekly history" : impactPage ? "Saved assessments" : "Saved reports"
-  const taskCount = definition.impact ? 0 : reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs)
+  const taskCount = relationships ? reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs) : 0
   const showPairDirections = definition.pair_directions.length > 0
   const previewDisabled = Boolean(periodIssue) || datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
@@ -230,7 +231,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             const value = await waitForAnalysis<BusinessReport | { cross_dataset_report: BusinessReport } | WeeklyReportDeliveryResult>(
               (path, init) => correlationRequest(userId, `/business-reports${path}`, init, workspaceId),
               params.get("job")!, { signal: controller.signal, onUpdate: job => { if (current) {
-                const destination = reportPagePath(job.kind !== "report", Boolean(job.definition?.impact), job.definition?.scope)
+                const destination = reportPagePath(job.kind !== "report", Boolean(job.definition?.impact), job.definition?.scope, job.definition?.include_relationships)
                 if (destination !== pagePath) {
                   controller.abort()
                   router.replace(`${destination}?job=${encodeURIComponent(job.job_id)}`)
@@ -266,7 +267,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (params.get("report")) {
           const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope)
+          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope, result.definition.include_relationships)
           if (destination !== pagePath) {
             router.replace(`${destination}?report=${encodeURIComponent(result.report_id!)}`)
             return
@@ -306,6 +307,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (!weekly && params.get("run")) {
           const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
+          if (pagePath !== "/dashboard/reports") {
+            router.replace(`/dashboard/reports?${params}`)
+            return
+          }
           setDefinition(editableDefinition({ ...result, name: draftName.current }))
           void addSelectedDatasets(result)
         } else if (!weekly && params.get("dataset")) {
@@ -376,7 +381,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     const nextName = !weekly && report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
-      return { ...next, impact: retainedImpactStudy(next.impact, next.metrics, "metrics" in patch || "dimension_filters" in patch), pair_directions: reportPairDirections(next.metrics, next.pair_directions), excluded_pairs: reportExcludedPairs(next.metrics, next.excluded_pairs) }
+      return { ...next, impact: retainedImpactStudy(next.impact, next.metrics, "metrics" in patch || "dimension_filters" in patch), pair_directions: next.scope === "multi" && next.include_relationships !== false ? reportPairDirections(next.metrics, next.pair_directions) : [], excluded_pairs: next.scope === "multi" && next.include_relationships !== false ? reportExcludedPairs(next.metrics, next.excluded_pairs) : [] }
     })
     setReport(null); setError(""); setMessage("")
     setAnalysisJob(null)
@@ -593,7 +598,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       </div>
     </header>
     {!weekly && <AnalysisTools active={impactPage ? "impact" : "metrics"} />}
-    {!weekly && !impactPage && <nav aria-label="Analysis sources" className="flex flex-wrap gap-4 text-sm print:hidden">{[{ scope: "multi", href: "/dashboard/reports", label: "Multi dataset report" }, { scope: "single", href: "/dashboard/reports/dataset", label: "Single dataset report" }].map(item => <Link key={item.scope} href={item.href} aria-current={definition.scope === item.scope ? "page" : undefined} className={definition.scope === item.scope ? "font-semibold text-blue-800 underline underline-offset-8" : "text-gray-600"}>{t(item.label)}</Link>)}</nav>}
+    {!weekly && !impactPage && <nav aria-label="Analysis sources" className="flex flex-wrap gap-x-5 gap-y-3 text-sm print:hidden">{reportSourceTabs.map(item => <Link key={item.href} href={item.href} aria-current={pagePath === item.href ? "page" : undefined} className={`inline-flex min-h-10 items-center border-b-2 ${pagePath === item.href ? "border-blue-700 font-semibold text-blue-800" : "border-transparent text-gray-600"}`}>{t(item.label)}</Link>)}</nav>}
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {weekly && !weeklySettings && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />Retry weekly settings</button>}
     {message && <p role="status" className="text-sm text-green-800">{t(message)}</p>}
@@ -617,7 +622,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }
         void execute(async () => {
           const result = await request<BusinessReport>(`/${id}`)
-          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope)
+          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope, result.definition.include_relationships)
           if (destination !== pagePath) {
             router.push(`${destination}?report=${encodeURIComponent(id)}`)
             return
@@ -680,7 +685,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
                 {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Report week: daily detail</p><p>Earlier history: grouped weekly.</p><p>Historical window: {weeklySettings?.history_window.start} to {weeklySettings?.history_window.end} (up to 3 years).</p></div> : <label className="block text-xs text-gray-600">Group results by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>}
                 <section aria-label="Unusual changes" className="space-y-3"><h3 className="text-sm font-medium">{t("Unusual changes")}</h3><label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.seasonal_business} onChange={event => edit({ seasonal_business: event.target.checked })} />{t("Business has seasonal activity")}</label></section>
-                {!single && !definition.impact && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
+                {relationships && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
                   <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman (rank-based)</option><option value="pearson">Pearson (straight-line)</option></select></label>
                   <label className="block text-xs text-gray-600">{t("Minimum historical observations")}<input className={input} type="number" min={MINIMUM_RELATIONSHIP_OBSERVATIONS} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
                   <section aria-label={t("Delay to check")} className="space-y-3"><h4 className="text-sm font-medium">{t("Delay to check")}</h4><label className="block text-xs text-gray-600">Maximum delay ({weekly ? "weeks" : { daily: "days", weekly: "weeks", monthly: "months", quarterly: "quarters" }[definition.grain]})<input className={input} type="number" min={definition.lag.minimum} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label></section>
@@ -690,7 +695,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                     onRestore={pair => edit({ excluded_pairs: definition.excluded_pairs.filter(item => unorderedReportPairKey(item) !== unorderedReportPairKey(pair)) })} />}
                 </div></section>}
               </div>
-              <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{!single && !definition.impact && <> / {taskCount} relationship checks</>}</p>
+              <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{relationships && <> / {taskCount} relationship checks</>}</p>
               {taskCount > 1000 && <p className="shrink-0 text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
               {previewButton}
             </section>
@@ -713,15 +718,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         {report.weekly_anomaly_analysis && <ReportAnomalies analysis={report.weekly_anomaly_analysis} title="Whole-week assessment" />}
         <ReportAnomalies analysis={report.anomaly_analysis} title={report.weekly_anomaly_analysis ? "Daily changes" : "Unusual changes"} />
         {weekly && <WeeklyDecisionUpdate report={report} />}
-        <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : single ? "Unusual changes are checked separately." : "Relationships between the selected metrics are checked separately."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
-        {!single && <ReportRelationshipFindings report={report} />}
+        <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : !relationships ? "Unusual changes are checked separately." : "Relationships between the selected metrics are checked separately."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
+        {relationships && <ReportRelationshipFindings report={report} />}
         {!report.impact_analysis && <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>}
-        <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{!single && !report.definition.impact && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
+        <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
         <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />
       </>}
     </section>
-    {!single && !weekly && !definition.impact && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
+    {relationships && !weekly && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
   </div>
 }
 

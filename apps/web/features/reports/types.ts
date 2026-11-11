@@ -5,7 +5,7 @@ import { MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/feat
 import type { ImpactAnalysis, ImpactStudy } from "./impact-types"
 
 export type ReportScope = "single" | "multi"
-export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
+export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; include_relationships?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
 export type ReportAnomalyPoint = { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[]; unusual?: boolean }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
@@ -69,7 +69,9 @@ export function formatReportValue(value: number | null, currency?: string | null
 }
 
 export function editableDefinition(value: Partial<ReportDefinition>): ReportDefinition {
+  const relationships = value.scope !== "single" && value.include_relationships !== false
   return { name: value.name ?? "", business_question: value.business_question || "", scope: value.scope ?? "multi",
+    include_relationships: value.include_relationships ?? true,
     seasonal_business: value.seasonal_business ?? false,
     include_ai_analysis: true,
     impact: value.scope === "single" ? null : value.impact ?? null,
@@ -77,10 +79,10 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
     dimension_filters: value.dimension_filters || [],
     date_range: value.date_range || { start: "", end: "" }, advanced: false,
     filters: { minimum_abs_coefficient: value.filters?.minimum_abs_coefficient ?? RELATIONSHIP_DEFAULTS.minimumAbsCoefficient, minimum_observations: Math.max(MINIMUM_RELATIONSHIP_OBSERVATIONS, value.filters?.minimum_observations ?? RELATIONSHIP_DEFAULTS.minimumObservations) },
-    lag: value.lag ? { ...value.lag, enabled: value.scope !== "single", minimum: Math.min(RELATIONSHIP_DEFAULTS.maximumLag, value.lag.minimum), maximum: Math.min(RELATIONSHIP_DEFAULTS.maximumLag, value.lag.maximum) } : { enabled: value.scope !== "single", minimum: RELATIONSHIP_DEFAULTS.lagPeriods, maximum: RELATIONSHIP_DEFAULTS.maximumLag, direction: "a_leads_b" },
-    included_findings: value.included_findings ?? null, source_run_id: value.source_run_id ?? null,
-    excluded_pairs: reportExcludedPairs(value.metrics || [], value.excluded_pairs),
-    pair_directions: reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) }
+    lag: value.lag ? { ...value.lag, enabled: relationships, minimum: Math.min(RELATIONSHIP_DEFAULTS.maximumLag, value.lag.minimum), maximum: Math.min(RELATIONSHIP_DEFAULTS.maximumLag, value.lag.maximum) } : { enabled: relationships, minimum: RELATIONSHIP_DEFAULTS.lagPeriods, maximum: RELATIONSHIP_DEFAULTS.maximumLag, direction: "a_leads_b" },
+    included_findings: relationships ? value.included_findings ?? null : null, source_run_id: relationships ? value.source_run_id ?? null : null,
+    excluded_pairs: relationships ? reportExcludedPairs(value.metrics || [], value.excluded_pairs) : [],
+    pair_directions: relationships ? reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) : [] }
 }
 
 export function selectedReportDimensionFilters(value: Pick<ReportDefinition, "metrics" | "dimension_filters">) {
