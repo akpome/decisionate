@@ -11,9 +11,10 @@ to skip the detection calculations while retaining totals, trends, earlier-perio
 comparisons and any requested relationship analysis. Preview again after changing
 it, then save; saved reports and copies to Weekly Reports retain the choice.
 
-Business has seasonal activity is a separate, opt-in setting. It is disabled
-while detection is off, but its preference is retained for when detection is
-turned back on. An off report says Anomaly detection is off for this report;
+Business has seasonal activity is a separate, opt-in setting under Business
+context, above the Anomaly detection section. It remains selectable when
+detection is off, and its preference is retained. It affects anomaly checks
+when they run; it does not adjust correlations. An off report says Anomaly detection is off for this report;
 it does not claim No unusual changes detected or hide the choice as missing data.
 
 When enabled, report anomaly detection assesses each selected metric separately. It runs

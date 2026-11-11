@@ -28,7 +28,8 @@ Under Business Analysis > Compare metrics, choose one of three tabs:
 All three use the selected report dates and grouping, support dimension filters,
 and require a preview before saving. Anomaly detection has Detect unusual changes
 checked by default in all three tabs; clear it to skip the detection calculations.
-The seasonal-business choice is separate and disabled while detection is off.
+The seasonal-business choice is under a separate Business context section and
+remains selectable while detection is off.
 A saved report reopens in its original tab and keeps its detection choice;
 older multi-dataset reports remain Relationships reports. A Combined metrics report
 does not join source rows or infer which metric caused another to change.
@@ -321,8 +322,9 @@ business change. Existing saved reports keep their original workflow.
    filter and Unique values if you want a segment rather than all eligible rows.
 5. Set Start, End and Group results by. Under Anomaly detection, Detect unusual
    changes is checked by default. Clear it to skip those checks. Business has
-   seasonal activity belongs to this section and is disabled while detection is
-   off; it does not adjust correlations or prove matching seasonality.
+   seasonal activity is under the separate Business context section, above
+   Anomaly detection, and remains selectable when detection is off. It affects
+   anomaly checks when they run; it does not adjust correlations or prove matching seasonality.
 6. For Relationships report, configure Relationship analysis. Remove unwanted
    pairs and set each remaining pair's Relationship direction. Delay to check is always
    available above the pairs; Maximum delay names the selected unit (days, weeks,

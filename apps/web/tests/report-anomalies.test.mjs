@@ -70,32 +70,42 @@ test("anomaly detection is checked by default and a saved opt-out survives all r
   }
 })
 
-test("the actual anomaly controls toggle detection independently and disable seasonality while off", () => {
+test("business context and anomaly detection are sibling settings with independent checkboxes", () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  let settings
+  const sections = {}
+  const parents = {}
   function visit(node) {
-    if (ts.isJsxElement(node) && node.openingElement.getText(ast).includes('aria-label="Anomaly detection"')) settings = node.getText(ast)
+    if (ts.isJsxElement(node)) {
+      for (const label of ["Business context", "Anomaly detection"]) {
+        if (node.openingElement.getText(ast).includes(`aria-label="${label}"`)) {
+          sections[label] = node.getText(ast)
+          parents[label] = node.parent
+        }
+      }
+    }
     ts.forEachChild(node, visit)
   }
   visit(ast)
-  assert.ok(settings)
+  assert.ok(sections["Business context"])
+  assert.ok(sections["Anomaly detection"])
+  assert.equal(parents["Business context"], parents["Anomaly detection"])
+  assert.doesNotMatch(sections["Anomaly detection"], /seasonal_business|Business has seasonal activity/)
   for (const enabled of [true, false]) {
     const definition = types.editableDefinition({ include_anomalies: enabled, seasonal_business: true })
     let changed
-    const element = vm.runInNewContext(ts.transpileModule(`(${settings})`, { compilerOptions: {
-      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-    } }).outputText, { require, exports: {}, definition, t: text => text, edit: patch => { changed = patch } })
-    const inputs = element.props.children.filter(React.isValidElement).filter(node => node.type === "label").map(node => node.props.children[0])
-    assert.equal(inputs.length, 2)
-    assert.equal(inputs[0].props.checked, enabled)
-    assert.equal(inputs[1].props.checked, true)
-    assert.equal(inputs[1].props.disabled, !enabled)
-    inputs[0].props.onChange({ target: { checked: !enabled } })
-    assert.deepEqual(JSON.parse(JSON.stringify(changed)), { include_anomalies: !enabled })
-    const html = renderToStaticMarkup(element)
-    assert.match(html, /Anomaly detection/)
-    assert.match(html, /Detect unusual changes/)
+    for (const [label, key, checked] of [["Business context", "seasonal_business", true], ["Anomaly detection", "include_anomalies", enabled]]) {
+      const element = vm.runInNewContext(ts.transpileModule(`(${sections[label]})`, { compilerOptions: {
+        module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+      } }).outputText, { require, exports: {}, definition, t: text => text, edit: patch => { changed = patch } })
+      const inputs = element.props.children.filter(React.isValidElement).filter(node => node.type === "label").map(node => node.props.children[0])
+      assert.equal(inputs.length, 1)
+      assert.equal(inputs[0].props.checked, checked)
+      assert.notEqual(inputs[0].props.disabled, true)
+      inputs[0].props.onChange({ target: { checked: !checked } })
+      assert.deepEqual(JSON.parse(JSON.stringify(changed)), { [key]: !checked })
+      assert.ok(renderToStaticMarkup(element).includes(label))
+    }
   }
   assert.match(source, /"seasonal_business", "include_anomalies", "impact"/)
 })
