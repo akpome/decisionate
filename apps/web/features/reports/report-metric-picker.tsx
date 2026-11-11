@@ -65,7 +65,8 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
-  const scoped = useMemo(() => singleDataset ? datasets.filter(dataset => dataset.dataset_id === selectedDatasetId) : datasets.filter(dataset => !isJoinedReportDataset(dataset)), [datasets, singleDataset, selectedDatasetId])
+  const eligible = useMemo(() => datasets.filter(dataset => !isJoinedReportDataset(dataset)), [datasets])
+  const scoped = useMemo(() => singleDataset ? eligible.filter(dataset => dataset.dataset_id === selectedDatasetId) : eligible, [eligible, singleDataset, selectedDatasetId])
   const visible = useMemo(() => singleDataset ? scoped : filterReportDatasets(scoped, deferredSearch), [scoped, deferredSearch, singleDataset])
   const selected = useMemo(() => new Set(metrics.map(metricIdentity)), [metrics])
   const counts = useMemo(() => {
@@ -81,10 +82,10 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
       {singleDataset && <div className="w-full max-w-xl">
         <SearchableSelect id="report-dataset" label={t("Dataset")} placeholder={t("Choose or search datasets")} value={selectedDatasetId === null ? null : String(selectedDatasetId)}
           selectedLabel={selectedDatasetId === null ? "" : t("Selected dataset unavailable.")} disabled={selectionDisabled} loading={loading} loadingLabel={t("Loading datasets...")} emptyLabel={t("No matching datasets.")}
-          options={[{ value: "", label: t("Choose a dataset") }, ...datasets.map(dataset => ({ value: String(dataset.dataset_id), label: `${dataset.dataset_label} / ${dataset.connector}` }))]}
+          options={[{ value: "", label: t("Choose a dataset") }, ...eligible.map(dataset => ({ value: String(dataset.dataset_id), label: `${dataset.dataset_label} / ${dataset.connector}` }))]}
           onSearchChange={onDatasetSearch} footer={error && onRetry ? <button type="button" disabled={loading} onClick={onRetry} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button> : footer} onChange={value => {
           const identity = value ? Number(value) : null
-          if (identity !== null && !datasets.some(dataset => dataset.dataset_id === identity)) return
+          if (identity !== null && !eligible.some(dataset => dataset.dataset_id === identity)) return
           onDatasetChange?.(identity)
         }} />
       </div>}

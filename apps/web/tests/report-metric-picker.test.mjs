@@ -49,15 +49,21 @@ const render = (updates = {}) => renderToStaticMarkup(React.createElement(Report
   datasets: [dataset()], metrics: [], dateColumns: {}, onToggleMetric() {}, onDateColumnChange() {}, ...updates,
 }))
 
-test("multi dataset selection excludes joined sources while single reports retain them", () => {
+test("all report selectors exclude joined sources, including single dataset choices and stale selections", () => {
   const joined = dataset({ dataset_id: 2, connector: " Joined ", dataset_label: "Combined source.parquet", metrics: [metric("orders", 2)] })
   const original = dataset({ dataset_label: "joined-looking-name.csv" })
   const html = render({ datasets: [original, joined] })
   assert.doesNotMatch(html, /Combined source.parquet|>orders</)
   assert.match(html, /joined-looking-name.csv/)
-  const single = render({ datasets: [original, joined], singleDataset: true, selectedDatasetId: 2 })
-  assert.match(single, /Combined source.parquet/)
-  assert.match(single, />orders</)
+  const calls = []
+  for (const selectedDatasetId of [1, 2]) {
+    datasetSelectProps.length = 0
+    const single = render({ datasets: [original, joined], singleDataset: true, selectedDatasetId, onDatasetChange: value => calls.push(value) })
+    assert.doesNotMatch(single, /Combined source.parquet|>orders</)
+    assert.ok(datasetSelectProps[0].options.every(option => option.value !== "2"))
+    datasetSelectProps[0].onChange("2")
+  }
+  assert.deepEqual(calls, [])
 })
 
 test("legacy joined selections can be removed before recalculation without changing other sources", () => {
@@ -82,6 +88,7 @@ test("legacy joined selections can be removed before recalculation without chang
   assert.deepEqual(JSON.parse(JSON.stringify(result)), { metrics: [reference()], dimension_filters: [definition.dimension_filters[0]], source_run_id: null })
   assert.equal(JSON.stringify(definition), original)
   assert.match(source, /const previewDisabled = joinedSelection \|\|/)
+  assert.match(source, /const joinedDatasetIds = new Set\(datasets.filter\(isJoinedReportDataset\)/)
 })
 
 test("a single report at the metric limit can switch sources without widening a multi report's limit", () => {

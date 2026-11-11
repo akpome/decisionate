@@ -34,7 +34,8 @@ test("multi report catalog scope follows metadata pages, file reads and retries"
   assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=25&scope=multi", "/catalog?dataset_id=26&scope=multi", "/catalog?dataset_id=26&scope=multi"])
   paths.length = 0
   await loadReportCatalogPage(request, 0, new AbortController().signal, () => {}, () => assert.fail("No file reads"), { scope: "single", metadataOnly: true })
-  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=0&scope=single"])
+  await loadReportCatalogDataset(request, entry(26), new AbortController().signal, "single")
+  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=0&scope=single", "/catalog?dataset_id=26&scope=single"])
 })
 
 test("dataset names arrive before scans; a slow source does not delay healthy metric results", async () => {

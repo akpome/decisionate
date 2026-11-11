@@ -36,9 +36,9 @@ does not join source rows or infer which metric caused another to change.
 Copying a saved Combined metrics report to Weekly Reports preserves its metric-only
 setting; automatic weekly dates and weekly history still apply.
 
-Joined datasets are excluded from Relationships report and Combined metrics report.
-Choose the original datasets to analyze multiple sources, or use Single dataset
-report to analyze a joined dataset. This rule applies to new multi-dataset report
+Joined datasets are excluded from all three tabs: Relationships report, Combined
+metrics report and Single dataset report. Choose original datasets instead.
+This rule applies to new single- and multi-dataset report
 calculations and weekly setups, not to reading existing saved snapshots. If an
 older setup contains joined sources, Remove joined datasets clears only those
 sources and their dimension filters; the remaining selections are kept. Preview

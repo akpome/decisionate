@@ -68,7 +68,7 @@ def generate(db, payload, user, workspace, progress=None):
         raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests.")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
-    require_report_sources(datasets.values(), payload.scope)
+    require_report_sources(datasets.values())
     frames, unavailable = {}, []
     for key, dataset in datasets.items():
         try:
@@ -116,7 +116,7 @@ def catalog(request: Request, db=Depends(database), offset: int = Query(0, ge=0)
             metadata_only: bool = Query(False), search: str = Query("", max_length=200), scope: Literal["single", "multi"] | None = None):
     user, workspace = identity(request)
     query = db.query(Dataset).filter(dataset_scope(user, workspace))
-    if scope == "multi":
+    if scope is not None:
         query = query.filter(or_(Dataset.source_type.is_(None), func.lower(func.trim(Dataset.source_type)) != "joined"))
     if dataset_id is not None:
         query = query.filter(Dataset.id == dataset_id)

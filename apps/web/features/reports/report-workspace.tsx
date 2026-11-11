@@ -119,7 +119,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
-  const joinedDatasetIds = new Set(single ? [] : datasets.filter(isJoinedReportDataset).map(dataset => dataset.dataset_id))
+  const joinedDatasetIds = new Set(datasets.filter(isJoinedReportDataset).map(dataset => dataset.dataset_id))
   const joinedSelection = definition.metrics.some(metric => joinedDatasetIds.has(metric.dataset_id))
   const relationships = !single && !definition.impact && definition.include_relationships !== false
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
@@ -171,7 +171,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     if (!singleDataset || singleDataset.catalog_status !== "pending") return
     const controller = new AbortController()
     const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
-    void loadReportCatalogDataset(request, singleDataset, controller.signal)
+    void loadReportCatalogDataset(request, singleDataset, controller.signal, "single")
       .then(dataset => { if (!controller.signal.aborted) setDatasets(current => mergeCatalog(current, [dataset])) })
       .catch(() => { /* A different dataset or workspace cancels this read. */ })
     return () => controller.abort()
@@ -318,7 +318,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (!weekly && params.get("dataset")) {
           const identity = Number(params.get("dataset"))
           if (Number.isSafeInteger(identity) && identity > 0) {
-            const selectedDataset = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}`, { signal: controller.signal }, workspaceId)
+            const selectedDataset = await correlationRequest<{ datasets: CatalogDataset[] }>(userId, `/business-reports/catalog?dataset_id=${identity}&scope=${initialScope}`, { signal: controller.signal }, workspaceId)
             if (!current) return
             setSelectedDatasetId(identity)
             setDatasets(existing => mergeCatalog(existing, selectedDataset.datasets))
@@ -340,7 +340,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     }
     void load()
     return () => { current = false; controller.abort() }
-  }, [userId, workspaceId, weekly, impactPage, pagePath, router, canManage])
+  }, [userId, workspaceId, weekly, impactPage, pagePath, initialScope, router, canManage])
 
   function refreshCatalog() {
     if (catalogBusy || catalogRetry.current) return
@@ -667,7 +667,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy || weekly && !canManage || weekly && !weeklySettings} className="min-w-0 space-y-5">
           {joinedSelection && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-amber-500 pl-3 text-sm text-amber-900">
-            <p>{t("Joined datasets are available only in Single dataset report.")}</p>
+            <p>{t("Joined datasets are not available in these reports.")}</p>
             <button type="button" className={button} onClick={() => edit({ metrics: definition.metrics.filter(metric => !joinedDatasetIds.has(metric.dataset_id)), dimension_filters: definition.dimension_filters?.filter(filter => !joinedDatasetIds.has(filter.dataset_id)), source_run_id: null })}><X size={16} />{t("Remove joined datasets")}</button>
           </div>}
           {definition.impact && weekly ? <WeeklyAssessmentSetup definition={definition} issue={impactSetupIssue(definition, datasets)} preview={canManage ? previewButton : null} onSwitch={canManage ? () => {

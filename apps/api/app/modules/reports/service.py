@@ -148,7 +148,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     selected_datasets = {reference["dataset_id"] for reference in definition["metrics"]}
-    require_report_sources((dataset for identity, (dataset, _) in frames.items() if identity in selected_datasets), definition.get("scope", "multi"))
+    require_report_sources(dataset for identity, (dataset, _) in frames.items() if identity in selected_datasets)
     single = definition.get("scope", "multi") == "single"
     relationships = not single and not definition.get("impact") and definition.get("include_relationships", True)
     detect_anomalies = definition.get("include_anomalies", True)

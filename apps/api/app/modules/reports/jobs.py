@@ -39,7 +39,7 @@ def validate_definition(db, payload, user, workspace):
     definition = payload.model_dump(mode="json")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
-    require_report_sources(datasets.values(), payload.scope)
+    require_report_sources(datasets.values())
     bind_decision_review(db, definition, user, workspace, required=True, editable=True)
     return definition, datasets
 
@@ -133,7 +133,7 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
                 if template else {item.id: item for item in get_alert_datasets(db, workspace)})
     authorize_datasets(db, user, workspace, datasets)
     if template:
-        require_report_sources(datasets.values(), "multi")
+        require_report_sources(datasets.values())
     kind = "weekly_owner_send" if owner_only else "weekly_send" if send else "weekly_preview"
     return enqueue(db, user, workspace, kind, definition, datasets, request_key)
 

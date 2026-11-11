@@ -16,9 +16,9 @@ from app.modules.datasets.services.salesforce_metrics import uses_salesforce_def
 from app.modules.datasets.services.sources import IMPLEMENTED_CONNECTOR_TYPES
 
 
-def require_report_sources(datasets, scope):
-    if scope != "single" and any(str(dataset.source_type or "").strip().lower() == "joined" for dataset in datasets):
-        raise HTTPException(400, "Joined datasets are available only in Single dataset report. Choose the original datasets for multi-dataset analysis.")
+def require_report_sources(datasets):
+    if any(str(dataset.source_type or "").strip().lower() == "joined" for dataset in datasets):
+        raise HTTPException(400, "Joined datasets are not available in these reports. Choose original datasets instead.")
 
 
 def _view(dataset, config):
