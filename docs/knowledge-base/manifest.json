@@ -663,6 +663,8 @@
         "apps/web/components/searchable-select.tsx",
         "apps/web/features/reports/report-metric-picker.tsx",
         "apps/web/features/reports/report-catalog-loading.ts",
+        "apps/api/app/modules/reports/catalog.py",
+        "apps/api/tests/test_joined_report_sources.py",
         "apps/web/features/reports/types.ts",
         "apps/web/features/reports/report-pair-directions.tsx",
         "apps/web/features/relationships/defaults.ts",

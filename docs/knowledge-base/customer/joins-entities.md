@@ -19,6 +19,12 @@ can prevent a useful joined comparison. A join does not create missing business
 activity or make different currencies equivalent. Use Reports for a broader
 multi-metric review and a frozen analysis snapshot.
 
+Joined datasets are excluded from multi-dataset report selection in Business
+Analysis and Weekly Reports. Use their original datasets for Relationships report
+or Combined metrics report, or choose the joined dataset in Single dataset report.
+Existing saved report snapshots remain readable. An older multi-dataset setup
+with joined sources must remove them before running again.
+
 ## Match customer or product identities
 
 Entity Matching selects source datasets, customer or product type, matching-key

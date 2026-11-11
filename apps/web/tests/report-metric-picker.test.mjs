@@ -11,6 +11,10 @@ const { renderToStaticMarkup } = require("react-dom/server")
 const source = readFileSync(new URL("../features/reports/report-metric-picker.tsx", import.meta.url), "utf8")
 const dimensionProps = []
 const datasetSelectProps = []
+const catalogModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/report-catalog-loading.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 },
+}).outputText, { module: catalogModule, exports: catalogModule.exports })
 const searchableModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../components/searchable-select.tsx", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2021 },
@@ -24,6 +28,7 @@ vm.runInNewContext(ts.transpileModule(source, {
     if (name === "next/link") return { __esModule: true, default: props => React.createElement("a", props) }
     if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
     if (name === "@/features/relationships/types") return { metricIdentity: metric => `${metric.dataset_id}:${metric.metric_key}` }
+    if (name === "./report-catalog-loading") return catalogModule.exports
     if (name === "@/components/searchable-select") return { SearchableSelect: props => {
       datasetSelectProps.push(props)
       return React.createElement(searchableModule.exports.SearchableSelect, props)
@@ -43,6 +48,41 @@ const reference = (key = "spend", date = "date") => ({ dataset_id: 1, metric_key
 const render = (updates = {}) => renderToStaticMarkup(React.createElement(ReportMetricPicker, {
   datasets: [dataset()], metrics: [], dateColumns: {}, onToggleMetric() {}, onDateColumnChange() {}, ...updates,
 }))
+
+test("multi dataset selection excludes joined sources while single reports retain them", () => {
+  const joined = dataset({ dataset_id: 2, connector: " Joined ", dataset_label: "Combined source.parquet", metrics: [metric("orders", 2)] })
+  const original = dataset({ dataset_label: "joined-looking-name.csv" })
+  const html = render({ datasets: [original, joined] })
+  assert.doesNotMatch(html, /Combined source.parquet|>orders</)
+  assert.match(html, /joined-looking-name.csv/)
+  const single = render({ datasets: [original, joined], singleDataset: true, selectedDatasetId: 2 })
+  assert.match(single, /Combined source.parquet/)
+  assert.match(single, />orders</)
+})
+
+test("legacy joined selections can be removed before recalculation without changing other sources", () => {
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let action
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "button" && node.getText(ast).includes('t("Remove joined datasets")')) {
+      action = node.openingElement.attributes.properties.find(attribute => attribute.name?.getText(ast) === "onClick").initializer.expression.getText(ast)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(action)
+  let result
+  const definition = { metrics: [reference(), { ...reference(), dataset_id: 2 }],
+    dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }, { dataset_id: 2, column: "region", values: ["West"] }] }
+  const original = JSON.stringify(definition)
+  const remove = vm.runInNewContext(ts.transpileModule(action, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
+    { definition, joinedDatasetIds: new Set([2]), edit: patch => { result = patch } })
+  remove()
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { metrics: [reference()], dimension_filters: [definition.dimension_filters[0]], source_run_id: null })
+  assert.equal(JSON.stringify(definition), original)
+  assert.match(source, /const previewDisabled = joinedSelection \|\|/)
+})
 
 test("a single report at the metric limit can switch sources without widening a multi report's limit", () => {
   const metrics = Array.from({ length: 25 }, (_, index) => reference(`metric_${index}`))

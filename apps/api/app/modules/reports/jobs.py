@@ -15,6 +15,7 @@ from app.infrastructure.ingestion_jobs import lock_workspace_queue
 from app.modules.correlation.catalog import reporting_timezone
 from app.modules.correlation.service import allowed_run, authorize_datasets, digest, encode, snapshot
 from .models import BusinessReport, CurrentWeeklyReport, ReportAnalysisJob
+from .catalog import require_report_sources
 from .relationships import report_test_count
 from .job_constants import ACTIVE, WORKER_NAME
 
@@ -38,6 +39,7 @@ def validate_definition(db, payload, user, workspace):
     definition = payload.model_dump(mode="json")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
+    require_report_sources(datasets.values(), payload.scope)
     bind_decision_review(db, definition, user, workspace, required=True, editable=True)
     return definition, datasets
 
@@ -130,6 +132,8 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
     datasets = (authorize_datasets(db, user, workspace, [item["dataset_id"] for item in template["metrics"]])
                 if template else {item.id: item for item in get_alert_datasets(db, workspace)})
     authorize_datasets(db, user, workspace, datasets)
+    if template:
+        require_report_sources(datasets.values(), "multi")
     kind = "weekly_owner_send" if owner_only else "weekly_send" if send else "weekly_preview"
     return enqueue(db, user, workspace, kind, definition, datasets, request_key)
 

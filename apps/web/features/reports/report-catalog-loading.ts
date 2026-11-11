@@ -2,6 +2,9 @@ import type { CatalogDataset } from "@/features/relationships/types"
 
 export type CatalogPage = { datasets: CatalogDataset[]; next_offset: number | null }
 type CatalogRequest = <T>(path: string, init: RequestInit) => Promise<T>
+type CatalogScope = "single" | "multi"
+
+export const isJoinedReportDataset = (dataset: CatalogDataset) => String(dataset.connector || "").trim().toLowerCase() === "joined"
 
 export function mergeReportCatalog(current: CatalogDataset[], added: CatalogDataset[]) {
   const result = new Map(current.map(dataset => [dataset.dataset_id, dataset]))
@@ -14,10 +17,10 @@ export function mergeReportCatalog(current: CatalogDataset[], added: CatalogData
   return [...result.values()]
 }
 
-export async function loadReportCatalogDataset(request: CatalogRequest, dataset: CatalogDataset, signal: AbortSignal): Promise<CatalogDataset> {
+export async function loadReportCatalogDataset(request: CatalogRequest, dataset: CatalogDataset, signal: AbortSignal, scope?: CatalogScope): Promise<CatalogDataset> {
   signal.throwIfAborted()
   try {
-    const result = await request<CatalogPage>(`/catalog?dataset_id=${dataset.dataset_id}`, { signal })
+    const result = await request<CatalogPage>(`/catalog?dataset_id=${dataset.dataset_id}${scope ? `&scope=${scope}` : ""}`, { signal })
     signal.throwIfAborted()
     const resolved = result.datasets.find(item => item.dataset_id === dataset.dataset_id)
     if (resolved) return resolved
@@ -28,9 +31,9 @@ export async function loadReportCatalogDataset(request: CatalogRequest, dataset:
 }
 
 export async function loadReportCatalogPage(request: CatalogRequest, offset: number, signal: AbortSignal,
-  onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void, options: { metadataOnly?: boolean; search?: string } = {}) {
+  onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void, options: { metadataOnly?: boolean; search?: string; scope?: CatalogScope } = {}) {
   signal.throwIfAborted()
-  const page = await request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}${options.search ? `&search=${encodeURIComponent(options.search)}` : ""}`, { signal })
+  const page = await request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}${options.search ? `&search=${encodeURIComponent(options.search)}` : ""}${options.scope ? `&scope=${options.scope}` : ""}`, { signal })
   if (signal.aborted) return
   onPage(page)
   if (options.metadataOnly) return
@@ -40,7 +43,7 @@ export async function loadReportCatalogPage(request: CatalogRequest, offset: num
     while (!signal.aborted && index < pending.length) {
       const dataset = pending[index++]
       try {
-        const resolved = await loadReportCatalogDataset(request, dataset, signal)
+        const resolved = await loadReportCatalogDataset(request, dataset, signal, options.scope)
         if (signal.aborted) return
         onDataset(resolved)
       } catch {

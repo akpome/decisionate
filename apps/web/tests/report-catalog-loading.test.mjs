@@ -9,12 +9,33 @@ const loaded = { exports: {} }
 const source = readFileSync(new URL("../features/reports/report-catalog-loading.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   { module: loaded, exports: loaded.exports, Promise })
-const { loadReportCatalogPage, loadReportCatalogDataset, mergeReportCatalog } = loaded.exports
+const { loadReportCatalogPage, loadReportCatalogDataset, mergeReportCatalog, isJoinedReportDataset } = loaded.exports
 const entry = id => ({ dataset_id: id, dataset_label: `Source ${id}`, connector: "csv", metrics: [], date_columns: [], availability: {}, catalog_status: "pending" })
 const ready = id => ({ ...entry(id), catalog_status: undefined, metrics: [{ metric_key: "spend" }] })
 const page = ids => ({ datasets: ids.map(entry), next_offset: null })
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve() }
+
+test("joined classification uses the source type, not a filename or entity matching", () => {
+  assert.equal(isJoinedReportDataset({ ...entry(1), connector: " Joined " }), true)
+  assert.equal(isJoinedReportDataset({ ...entry(1), dataset_label: "joined-sales.csv" }), false)
+  assert.equal(isJoinedReportDataset({ ...entry(1), connector: "entity_matching" }), false)
+  assert.equal(isJoinedReportDataset({ ...entry(1), connector: null }), false)
+})
+
+test("multi report catalog scope follows metadata pages, file reads and retries", async () => {
+  const paths = []
+  const request = async path => {
+    paths.push(path)
+    return path.includes("metadata_only") ? { datasets: [entry(26)], next_offset: 50 } : { datasets: [ready(26)] }
+  }
+  await loadReportCatalogPage(request, 25, new AbortController().signal, () => {}, () => {}, { scope: "multi" })
+  await loadReportCatalogDataset(request, entry(26), new AbortController().signal, "multi")
+  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=25&scope=multi", "/catalog?dataset_id=26&scope=multi", "/catalog?dataset_id=26&scope=multi"])
+  paths.length = 0
+  await loadReportCatalogPage(request, 0, new AbortController().signal, () => {}, () => assert.fail("No file reads"), { scope: "single", metadataOnly: true })
+  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=0&scope=single"])
+})
 
 test("dataset names arrive before scans; a slow source does not delay healthy metric results", async () => {
   const slow = deferred(), healthy = deferred(), events = [], controller = new AbortController()

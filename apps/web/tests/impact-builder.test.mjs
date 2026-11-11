@@ -28,6 +28,7 @@ const datasets = [1, 2, 3].map(dataset_id => ({ dataset_id, dataset_label: `Stor
 const picker = load("../features/reports/report-metric-picker.tsx", {
   "@/app/use-decisionate-language": {}, "@/features/relationships/types": {},
   "@/features/datasets/components/dimension-filter": {}, "@/components/searchable-select": {},
+  "./report-catalog-loading": load("../features/reports/report-catalog-loading.ts"),
 })
 const imports = { "./report-metric-picker": picker,
   "./impact-timing": load("../features/reports/impact-timing.tsx") }

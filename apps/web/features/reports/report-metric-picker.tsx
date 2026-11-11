@@ -8,6 +8,7 @@ import { metricIdentity, type CatalogDataset, type CatalogMetricIssue, type Metr
 import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
 import { SearchableSelect } from "@/components/searchable-select"
 import type { DatasetDimensionFilter as DimensionSelection, DimensionFilter } from "@/lib/api"
+import { isJoinedReportDataset } from "./report-catalog-loading"
 
 const issueLabels: Record<string, string> = {
   selection_not_saved: "Metric selection not saved.",
@@ -64,7 +65,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
-  const scoped = useMemo(() => singleDataset ? datasets.filter(dataset => dataset.dataset_id === selectedDatasetId) : datasets, [datasets, singleDataset, selectedDatasetId])
+  const scoped = useMemo(() => singleDataset ? datasets.filter(dataset => dataset.dataset_id === selectedDatasetId) : datasets.filter(dataset => !isJoinedReportDataset(dataset)), [datasets, singleDataset, selectedDatasetId])
   const visible = useMemo(() => singleDataset ? scoped : filterReportDatasets(scoped, deferredSearch), [scoped, deferredSearch, singleDataset])
   const selected = useMemo(() => new Set(metrics.map(metricIdentity)), [metrics])
   const counts = useMemo(() => {

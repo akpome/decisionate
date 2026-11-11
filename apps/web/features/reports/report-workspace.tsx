@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Square, Trash2 } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Square, Trash2, X } from "lucide-react"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces, type WeeklyReportDeliveryResult } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
@@ -13,7 +13,7 @@ import type { CatalogDataset } from "@/features/relationships/types"
 import { CorrelationInsights } from "@/features/relationships/correlation-widgets"
 import { getAIAnalysisProvenance } from "@/features/ai/lib/analysis-copy"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
-import { loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as mergeCatalog } from "./report-catalog-loading"
+import { isJoinedReportDataset, loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as mergeCatalog } from "./report-catalog-loading"
 import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
@@ -119,6 +119,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
+  const joinedDatasetIds = new Set(single ? [] : datasets.filter(isJoinedReportDataset).map(dataset => dataset.dataset_id))
+  const joinedSelection = definition.metrics.some(metric => joinedDatasetIds.has(metric.dataset_id))
   const relationships = !single && !definition.impact && definition.include_relationships !== false
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
   const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
@@ -129,7 +131,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const historyLabel = weekly ? "Weekly history" : impactPage ? "Saved assessments" : "Saved reports"
   const taskCount = relationships ? reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs) : 0
   const showPairDirections = definition.pair_directions.length > 0
-  const previewDisabled = Boolean(periodIssue) || datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
+  const previewDisabled = joinedSelection || Boolean(periodIssue) || datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
@@ -158,7 +160,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     const request = <T,>(path: string, init: RequestInit) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
     const timer = setTimeout(() => { void loadReportCatalogPage(request, catalogOffset, controller.signal, page => {
       setDatasets(current => mergeCatalog(current, page.datasets)); setNextOffset(page.next_offset)
-    }, dataset => setDatasets(current => mergeCatalog(current, [dataset])), { metadataOnly: single, search: single ? catalogSearch : "" })
+    }, dataset => setDatasets(current => mergeCatalog(current, [dataset])), { metadataOnly: single, search: single ? catalogSearch : "", scope: single ? "single" : "multi" })
       .catch(() => { if (!controller.signal.aborted) setCatalogError(true) })
       .finally(() => { if (!controller.signal.aborted) setCatalogBusy(false) })
     }, single && catalogSearch ? 200 : 0)
@@ -365,7 +367,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     catalogRetry.current = true
     setRetryingDataset(dataset.dataset_id)
     try {
-      const resolved = await loadReportCatalogDataset(request, dataset, signal)
+      const resolved = await loadReportCatalogDataset(request, dataset, signal, definition.scope)
       if (!signal.aborted) setDatasets(current => mergeCatalog(current, [resolved]))
     } catch { /* Navigation cancels the source retry without changing the new workspace. */ }
     finally {
@@ -664,6 +666,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
       <form onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy || weekly && !canManage || weekly && !weeklySettings} className="min-w-0 space-y-5">
+          {joinedSelection && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-amber-500 pl-3 text-sm text-amber-900">
+            <p>{t("Joined datasets are available only in Single dataset report.")}</p>
+            <button type="button" className={button} onClick={() => edit({ metrics: definition.metrics.filter(metric => !joinedDatasetIds.has(metric.dataset_id)), dimension_filters: definition.dimension_filters?.filter(filter => !joinedDatasetIds.has(filter.dataset_id)), source_run_id: null })}><X size={16} />{t("Remove joined datasets")}</button>
+          </div>}
           {definition.impact && weekly ? <WeeklyAssessmentSetup definition={definition} issue={impactSetupIssue(definition, datasets)} preview={canManage ? previewButton : null} onSwitch={canManage ? () => {
             if (window.confirm("Switch this weekly setup to metric monitoring? The current setup is replaced only after you preview and save. Saved decision assessments and historical reports are kept.")) edit({ impact: null })
           } : undefined} /> : definition.impact && !weekly ? <ImpactBuilder definition={definition} datasets={datasets} userId={userId} workspaceId={workspaceId} weekly={false} weeklySettings={null}

@@ -13,7 +13,7 @@ from app.modules.datasets.services.curated_metric_analytics import aggregate_met
 from app.modules.datasets.services.joins import _bucket_dates, _infer_explicit_year, _parse_dates
 from app.modules.datasets.services.numeric import coerce_numeric_series
 from app.modules.datasets.services.dimension_filters import apply_dimension_filter
-from .catalog import prepare_report_source
+from .catalog import prepare_report_source, require_report_sources
 from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
 from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, pair_direction, report_pairs, report_test_count
@@ -147,6 +147,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                  summary_grain=None, relationship_history_end=None, include_whole_week=False):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
+    selected_datasets = {reference["dataset_id"] for reference in definition["metrics"]}
+    require_report_sources((dataset for identity, (dataset, _) in frames.items() if identity in selected_datasets), definition.get("scope", "multi"))
     single = definition.get("scope", "multi") == "single"
     relationships = not single and not definition.get("impact") and definition.get("include_relationships", True)
     detect_anomalies = definition.get("include_anomalies", True)

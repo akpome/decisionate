@@ -6,7 +6,7 @@ from typing import Literal
 import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.db.database import SessionLocal
 from app.db.models import Dataset, WeeklyReportPreference, utc_now
@@ -22,7 +22,7 @@ from app.modules.forecasting.services import prepare_forecast_dataframe
 from app.modules.decisions.metric_scope import selected_report_metrics
 from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport, CurrentWeeklyReport
-from .catalog import prepare_report_source, report_metric_catalog
+from .catalog import prepare_report_source, report_metric_catalog, require_report_sources
 from .schemas import ReportDecision, ReportDefinition, WeeklyReportSettings
 from .service import attach_report_decisions, build_report, report_analysis_facts, report_anomalies, report_dates, report_summary
 from .relationships import report_test_count
@@ -68,6 +68,7 @@ def generate(db, payload, user, workspace, progress=None):
         raise HTTPException(400, "Reduce the report's metrics or lag window to at most 1,000 pair-lag tests.")
     definition["reporting_timezone"] = reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
+    require_report_sources(datasets.values(), payload.scope)
     frames, unavailable = {}, []
     for key, dataset in datasets.items():
         try:
@@ -112,9 +113,11 @@ def generate(db, payload, user, workspace, progress=None):
 
 @router.get("/catalog")
 def catalog(request: Request, db=Depends(database), offset: int = Query(0, ge=0), dataset_id: int | None = Query(None, ge=1),
-            metadata_only: bool = Query(False), search: str = Query("", max_length=200)):
+            metadata_only: bool = Query(False), search: str = Query("", max_length=200), scope: Literal["single", "multi"] | None = None):
     user, workspace = identity(request)
     query = db.query(Dataset).filter(dataset_scope(user, workspace))
+    if scope == "multi":
+        query = query.filter(or_(Dataset.source_type.is_(None), func.lower(func.trim(Dataset.source_type)) != "joined"))
     if dataset_id is not None:
         query = query.filter(Dataset.id == dataset_id)
     if search.strip():

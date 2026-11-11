@@ -3,6 +3,8 @@
 import json
 from types import SimpleNamespace
 
+from fastapi import HTTPException
+
 from app.modules.correlation.catalog import metric_catalog
 from app.modules.datasets.services.connector_schema import COLUMN_MAPPING_ATTR
 from app.modules.datasets.services.curated_metric_analytics import frame_policy, prepare_curated_dataframe
@@ -12,6 +14,11 @@ from app.modules.datasets.services.metric_selection import build_metric_selectio
 from app.modules.datasets.services.receipt_metrics import RECEIPT_CONNECTOR_POLICIES, receipt_document_columns, receipt_metric_aliases, uses_receipt_defaults
 from app.modules.datasets.services.salesforce_metrics import uses_salesforce_defaults
 from app.modules.datasets.services.sources import IMPLEMENTED_CONNECTOR_TYPES
+
+
+def require_report_sources(datasets, scope):
+    if scope != "single" and any(str(dataset.source_type or "").strip().lower() == "joined" for dataset in datasets):
+        raise HTTPException(400, "Joined datasets are available only in Single dataset report. Choose the original datasets for multi-dataset analysis.")
 
 
 def _view(dataset, config):

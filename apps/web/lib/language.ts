@@ -878,6 +878,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Analysis navigation": "Navigation d'analyse",
   "Report navigation": "Navigation des rapports",
   "Single dataset report": "Rapport sur un seul jeu de données",
+  "Joined datasets are available only in Single dataset report.": "Les jeux de données joints sont disponibles uniquement dans le rapport sur un seul jeu de données.",
+  "Remove joined datasets": "Retirer les jeux de données joints",
   "Multi dataset report": "Rapport sur plusieurs jeux de données",
   "Relationships report": "Rapport sur les relations",
   "Combined metrics report": "Rapport des indicateurs combinés",
