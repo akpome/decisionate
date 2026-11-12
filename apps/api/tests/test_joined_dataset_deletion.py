@@ -1,4 +1,3 @@
-import asyncio
 import json
 import unittest
 from unittest.mock import patch
@@ -56,7 +55,10 @@ class JoinedDatasetDeletionTests(unittest.TestCase):
             db.commit()
 
     def delete(self):
-        return asyncio.run(router.delete_dataset(self.request, 3))
+        return router.delete_dataset(self.request, 3)
+
+    def reset_cache(self, dataset_id=1):
+        return router.delete_dataset_join_cache(self.request, dataset_id=dataset_id, dashboard="general-business")
 
     def assert_removed(self):
         with self.Session() as db:
@@ -103,6 +105,45 @@ class JoinedDatasetDeletionTests(unittest.TestCase):
             db.commit()
         with self.assertRaises(HTTPException) as error:
             self.delete()
+        self.assertEqual(error.exception.status_code, 409)
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Dataset, 3))
+            self.assertEqual(db.query(DatasetJoinCache).count(), 1)
+        self.assertEqual(self.removed, [])
+
+    def test_cache_reset_deletes_the_join_and_all_shared_references(self):
+        self.add_cache(dashboard="general-business")
+        self.add_cache(dashboard="sales")
+        self.add_cache(user="another-user")
+        self.add_cache(user="unrelated-user", derived_id=4)
+        self.assertEqual(self.reset_cache(), {"deleted": True, "deleted_dataset_id": 3})
+        self.assert_removed()
+        with self.Session() as db:
+            self.assertEqual([json.loads(row.result)["derived_dataset_id"] for row in db.query(DatasetJoinCache)], [4])
+
+    def test_cache_reset_for_a_different_source_does_not_delete_any_dataset(self):
+        self.add_cache(dashboard="general-business")
+        self.assertEqual(self.reset_cache(4), {"deleted": False, "deleted_dataset_id": None})
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Dataset, 3))
+            self.assertEqual(db.query(DatasetJoinCache).count(), 1)
+        self.assertEqual(self.removed, [])
+
+    def test_read_only_cache_reset_is_denied(self):
+        self.add_cache(dashboard="general-business")
+        self.request.state._decisionate_auth_context = AuthContext("owner", "workspace", "read_only")
+        with self.assertRaises(HTTPException) as error:
+            self.reset_cache()
+        self.assertEqual(error.exception.status_code, 403)
+        self.assertEqual(self.removed, [])
+
+    def test_busy_cache_reset_keeps_the_dataset_and_all_references(self):
+        self.add_cache(dashboard="general-business")
+        with self.Session() as db:
+            db.add(DataIngestionJob(user_id="owner", workspace_id="workspace", job_type="file_upload", status="running", request_payload="{}"))
+            db.commit()
+        with self.assertRaises(HTTPException) as error:
+            self.reset_cache()
         self.assertEqual(error.exception.status_code, 409)
         with self.Session() as db:
             self.assertIsNotNone(db.get(Dataset, 3))

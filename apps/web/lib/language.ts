@@ -743,6 +743,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "Create decision from evidence": "Créer une décision à partir des éléments probants",
   "Remove the joined view and return to the original dataset": "Supprimer la vue jointe et revenir au jeu de données original",
   "Reset joined data": "Réinitialiser les données jointes",
+  "The saved join could not be found. Refresh the dashboard and try again.": "La jointure enregistrée est introuvable. Actualisez le tableau de bord et réessayez.",
   Period: "Période",
   "Anomaly detection": "Détection des anomalies",
   "Detect unusual changes": "Détecter les changements inhabituels",

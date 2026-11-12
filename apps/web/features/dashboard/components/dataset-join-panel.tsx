@@ -19,6 +19,7 @@ import { DatasetDimensionFilter } from "@/features/datasets/components/dimension
 type DatasetJoinPanelProps = {
   datasets: DatasetSummary[]
   selectedDatasetId?: number
+  joinedDatasetId?: number
   dashboardKey: string
   userId?: string
   workspaceId?: string
@@ -68,6 +69,7 @@ function formatJoinValue(
 export function DatasetJoinPanel({
   datasets,
   selectedDatasetId,
+  joinedDatasetId,
   dashboardKey,
   userId,
   workspaceId,
@@ -89,6 +91,8 @@ export function DatasetJoinPanel({
     useState<Record<number, JoinConfiguration>>({})
   const [result, setResult] =
     useState<DatasetJoinResult | null>(null)
+  const [savedJoinResult, setSavedJoinResult] =
+    useState<DatasetJoinResult | null>(persistedResult ?? null)
   const [loadingMetadata, setLoadingMetadata] =
     useState(false)
   const [joining, setJoining] =
@@ -97,12 +101,15 @@ export function DatasetJoinPanel({
     useState(false)
   const [error, setError] = useState("")
   const activeResult = result ?? persistedResult ?? null
+  const resetResult = activeResult ?? savedJoinResult
+  const canResetJoin = Boolean(joinedDatasetId || resetResult)
 
   function updateJoinResult(
     nextResult: DatasetJoinResult | null,
     deletedDatasetId?: number
   ) {
     setResult(nextResult)
+    if (nextResult) setSavedJoinResult(nextResult)
     onJoinResult?.(nextResult, deletedDatasetId)
   }
 
@@ -120,6 +127,7 @@ export function DatasetJoinPanel({
       }
 
       setResult(persistedResult)
+      setSavedJoinResult(persistedResult)
       setSelectedDatasetIds(persistedResult.dataset_ids)
       setConfigurations(current => {
         const next: Record<number, JoinConfiguration> = {}
@@ -255,20 +263,18 @@ export function DatasetJoinPanel({
     [metadata, selectedDatasetIds]
   )
 
-  function toggleDataset(datasetId: number) {
-    if (datasetId === selectedDatasetId) return
-
-    setSelectedDatasetIds(current => {
-      if (current.includes(datasetId)) {
-        return current.filter(id => id !== datasetId)
-      }
-
-      if (current.length >= 5) {
-        return current
-      }
-
-      return [...current, datasetId]
-    })
+  async function toggleDataset(datasetId: number) {
+    if (datasetId === selectedDatasetId || joining || resetting) return
+    const removing = selectedDatasetIds.includes(datasetId)
+    if (!removing && selectedDatasetIds.length >= 5) return
+    const nextDatasetIds = removing
+      ? selectedDatasetIds.filter(id => id !== datasetId)
+      : [...selectedDatasetIds, datasetId]
+    if (removing && nextDatasetIds.length < 2 && canResetJoin) {
+      await resetJoinedDataset()
+      return
+    }
+    setSelectedDatasetIds(nextDatasetIds)
     updateJoinResult(null)
   }
 
@@ -363,25 +369,28 @@ export function DatasetJoinPanel({
 
   async function resetJoinedDataset() {
     if (joining || resetting || !userId || !selectedDatasetId) {
-      return
+      return false
     }
 
     setError("")
     setResetting(true)
 
     try {
-      const derivedDatasetId = activeResult?.derived_dataset_id ?? activeResult?.derived_dataset?.id
+      let derivedDatasetId = joinedDatasetId ?? resetResult?.derived_dataset_id ?? resetResult?.derived_dataset?.id
       if (derivedDatasetId) {
         await deleteDataset(derivedDatasetId, userId, workspaceId)
       } else {
-        await deleteDatasetJoinCache(
+        const response = await deleteDatasetJoinCache(
           selectedDatasetId,
           dashboardKey,
           userId,
           workspaceId
         )
+        if (!response.deleted) throw new Error(t("The saved join could not be found. Refresh the dashboard and try again."))
+        derivedDatasetId = response.deleted_dataset_id ?? undefined
       }
 
+      setSavedJoinResult(null)
       updateJoinResult(null, derivedDatasetId)
       setSelectedDatasetIds([selectedDatasetId])
       setConfigurations(current => ({
@@ -392,12 +401,14 @@ export function DatasetJoinPanel({
         },
       }))
       setMetadata([])
+      return true
     } catch (resetError) {
       setError(
         resetError instanceof Error
           ? resetError.message
           : "Unable to reset the joined dataset cache."
       )
+      return false
     } finally {
       setResetting(false)
     }
@@ -472,7 +483,7 @@ export function DatasetJoinPanel({
 
   if (
     !selectedDatasetId ||
-    (datasets.length < 2 && !activeResult)
+    (datasets.length < 2 && !canResetJoin)
   ) {
     return null
   }
@@ -519,8 +530,8 @@ export function DatasetJoinPanel({
               <input
                 type="checkbox"
                 checked={selected}
-                disabled={primary}
-                onChange={() => toggleDataset(dataset.id)}
+                disabled={primary || joining || resetting}
+                onChange={() => void toggleDataset(dataset.id)}
                 className="mt-0.5 accent-[var(--decisionate-brand-primary)]"
               />
               <span className="min-w-0 truncate font-medium text-gray-700">
@@ -562,7 +573,7 @@ export function DatasetJoinPanel({
                       <select
                         id={`join-date-column-${item.dataset_id}`}
                         value={configuration?.date_column ?? ""}
-                        disabled={joining || loadingMetadata}
+                        disabled={joining || resetting || loadingMetadata}
                         onChange={event =>
                           updateConfiguration(
                             item.dataset_id,
@@ -581,7 +592,7 @@ export function DatasetJoinPanel({
                       </select>
                     </div>
                     {userId && <DatasetDimensionFilter key={`${workspaceId}:${item.dataset_id}`} datasetId={item.dataset_id} userId={userId} workspaceId={workspaceId}
-                      embedded disabled={joining || loadingMetadata} value={configuration?.dimension_filter} onChange={value => setConfigurations(current => ({
+                      embedded disabled={joining || resetting || loadingMetadata} value={configuration?.dimension_filter} onChange={value => setConfigurations(current => ({
                         ...current, [item.dataset_id]: { ...current[item.dataset_id], dataset_id: item.dataset_id, dimension_filter: value },
                       }))} />}
                   </div>
@@ -594,7 +605,7 @@ export function DatasetJoinPanel({
                       <button
                         type="button"
                         onClick={() => clearMetricColumns(item.dataset_id)}
-                        disabled={!configuration?.metric_columns?.length}
+                        disabled={joining || resetting || !configuration?.metric_columns?.length}
                         className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
                         title={t("Unselect all metrics or columns")}
                       >
@@ -604,6 +615,7 @@ export function DatasetJoinPanel({
                       <button
                         type="button"
                         onClick={() => resetMetricColumns(item.dataset_id)}
+                        disabled={joining || resetting}
                         className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800"
                         title={t("Reset metrics or columns to the default selection")}
                       >
@@ -624,6 +636,7 @@ export function DatasetJoinPanel({
                             <input
                               type="checkbox"
                               checked={configuration?.metric_columns?.includes(column) ?? false}
+                              disabled={joining || resetting}
                               onChange={() => toggleMetricColumn(item.dataset_id, column)}
                               className="h-3.5 w-3.5 shrink-0 accent-blue-600"
                             />
@@ -650,20 +663,33 @@ export function DatasetJoinPanel({
               ? t("Select one or more additional datasets to continue.")
               : `${t("Inner join on shared month-year periods using")} ${aggregationType}. ${t("Dashboard grouping is")} ${aggregation}.`}
         </p>
-        <button
-          type="button"
-          onClick={() => void handleJoin()}
-          disabled={
-            joining ||
-            resetting ||
-            loadingMetadata ||
-            selectedDatasetIds.length < 2
-          }
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-3 text-xs font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Play size={14} />
-          {joining ? t("Joining data...") : t("Join selected data")}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canResetJoin && <button
+            type="button"
+            onClick={() => void resetJoinedDataset()}
+            disabled={joining || resetting}
+            aria-busy={resetting}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            title={t("Remove the joined view and return to the original dataset")}
+          >
+            <RotateCcw size={14} />
+            {t("Reset joined data")}
+          </button>}
+          <button
+            type="button"
+            onClick={() => void handleJoin()}
+            disabled={
+              joining ||
+              resetting ||
+              loadingMetadata ||
+              selectedDatasetIds.length < 2
+            }
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-3 text-xs font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Play size={14} />
+            {joining ? t("Joining data...") : t("Join selected data")}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -686,18 +712,6 @@ export function DatasetJoinPanel({
                 {activeResult.matched_period_count} {t("shared periods from")} {activeResult.dataset_ids.length} {t("datasets and")} {activeResult.datasets.length} {t("joined columns, with")} {activeResult.coverage_percent}% {t("period coverage.")}
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={() => void resetJoinedDataset()}
-              disabled={joining || resetting}
-              aria-busy={resetting}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              title={t("Remove the joined view and return to the original dataset")}
-            >
-              <RotateCcw size={14} />
-              {t("Reset joined data")}
-            </button>
           </div>
 
           <div className="mt-3 overflow-x-auto rounded-md border border-gray-200 bg-white">

@@ -79,6 +79,7 @@ function harness(overrides = {}) {
     dashboardDatasetIds: { business: 30, sales: 2 }, datasetSelectionRequestRef: { current: 0 },
     dashboardPreferenceSaveQueueRef: { current: Promise.resolve() }, dashboardDatasetHydrationRef: { current: "loaded" },
     dataset: { metrics: [{ column: "revenue" }] }, selectedMetrics: [], showJoinPanel: true,
+    isJoinedDataset: item => item.source_type === "joined",
     setDataset: value => { context.dataset = value }, setTargets() {}, setDashboardTitle() {}, setDashboardSubtitle() {},
     defaultDashboardTitle: "Business", defaultDashboardSubtitle: "",
     setLoading: value => { context.loading = value }, setDashboardError: value => { context.error = value }, setDashboardErrorRetryMode() {},
@@ -135,6 +136,16 @@ test("editing join settings does not remove its generated dataset; a confirmed r
   assert.ok(reset.persisted.every(([, value]) => value === null))
 })
 
+test("reset after editing removes the selected joined dataset even without its preview context", async () => {
+  const h = harness({ joinedDatasetResult: null, datasets: [{ id: 31, source_type: "joined" }, { id: 1 }, { id: 30, source_type: "joined" }],
+    dashboardDatasetIds: { business: 30, sales: 30 } })
+  h.handleJoinedDatasetResult(null, 30)
+  await flush()
+  assert.equal(h.context.selectedDatasetId, 1)
+  assert.deepEqual(h.context.datasets.map(item => item.id), [31, 1])
+  assert.deepEqual({ ...h.context.dashboardDatasetIds }, { business: 1 })
+})
+
 test("a failed earlier selection cannot restore the join after a newer dataset has been selected", async () => {
   let fail
   const first = new Promise((resolve, reject) => { fail = reject })
@@ -182,5 +193,6 @@ test("joined selections retain source-based review controls on both dashboard la
   assert.equal(compile(variable("joinPanelDatasetId").initializer.getText(ast), scope), 1)
   assert.equal(compile(variable("canCompareDashboardData").initializer.getText(ast), scope), true)
   assert.equal(source.match(/selectedDatasetId=\{joinPanelDatasetId\}/g)?.length, 2)
+  assert.equal(source.match(/joinedDatasetId=\{isSelectedDerivedDataset \? selectedDatasetId : undefined\}/g)?.length, 2)
   assert.doesNotMatch(source, /showJoinPanel && (?:selectedDashboardNeedsDataset && )?!isSelectedDerivedDataset/)
 })

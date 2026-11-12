@@ -977,8 +977,11 @@ export default function DashboardPage() {
         )
       )
       const nextDatasetId = result?.derived_dataset_id ?? result?.derived_dataset?.id ??
-        (deletedDatasetId && deletedDatasetId === selectedDatasetId ? joinedDatasetResult?.dataset_ids[0] : undefined)
-      if (nextDatasetId) {
+        (deletedDatasetId && deletedDatasetId === selectedDatasetId
+          ? joinedDatasetResult?.dataset_ids.find(id => id !== deletedDatasetId && datasets.some(item => item.id === id && !isJoinedDataset(item))) ??
+            datasets.find(item => item.id !== deletedDatasetId && !isJoinedDataset(item))?.id
+          : undefined)
+      if (nextDatasetId || (deletedDatasetId && deletedDatasetId === selectedDatasetId)) {
         void handleDatasetSelectionChange(nextDatasetId, deletedDatasetId)
         setShowJoinPanel(Boolean(result))
       }
@@ -1011,7 +1014,7 @@ export default function DashboardPage() {
       })
     },
     [
-      activeWorkspaceId, dataset, handleDatasetSelectionChange,
+      activeWorkspaceId, dataset, datasets, handleDatasetSelectionChange,
       joinedDatasetResult, selectedDatasetId, selectedDashboard, userId,
     ]
   )
@@ -3206,6 +3209,7 @@ export default function DashboardPage() {
           key={`dataset-join-${activeWorkspaceId}-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
           datasets={sourceDatasets}
           selectedDatasetId={joinPanelDatasetId}
+          joinedDatasetId={isSelectedDerivedDataset ? selectedDatasetId : undefined}
           dashboardKey={selectedDashboard}
           userId={userId}
           workspaceId={activeWorkspaceId}
@@ -3483,6 +3487,7 @@ export default function DashboardPage() {
             key={`dataset-join-${activeWorkspaceId}-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
             datasets={sourceDatasets}
             selectedDatasetId={joinPanelDatasetId}
+            joinedDatasetId={isSelectedDerivedDataset ? selectedDatasetId : undefined}
             dashboardKey={selectedDashboard}
             userId={userId}
             workspaceId={activeWorkspaceId}

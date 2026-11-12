@@ -115,6 +115,6 @@ test("joined source date and dimension controls share an aligned row before metr
   const join = readFileSync(new URL("../features/dashboard/components/dataset-join-panel.tsx", import.meta.url), "utf8")
   assert.match(join, /@min-\[28rem\]:grid-cols-\[minmax\(0,1fr\)_minmax\(0,3fr\)\]/)
   assert.match(join, /htmlFor=\{`join-date-column-\$\{item.dataset_id\}`\}/)
-  assert.match(join, /embedded disabled=\{joining \|\| loadingMetadata\}/)
+  assert.match(join, /embedded disabled=\{joining \|\| resetting \|\| loadingMetadata\}/)
   assert.ok(join.indexOf("<DatasetDimensionFilter") < join.indexOf('{t("Metrics or columns to include")}'))
 })

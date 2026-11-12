@@ -846,14 +846,6 @@ def get_joined_dataset_id_from_result(result):
     return dataset_id if dataset_id > 0 else None
 
 
-def get_joined_dataset_id_from_cache(cache):
-    try:
-        cached_result = json.loads(cache.result or "{}")
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return None
-    return get_joined_dataset_id_from_result(cached_result)
-
-
 def materialize_joined_dataset_record(
     db,
     result: dict,
@@ -4738,7 +4730,7 @@ def get_dataset_join_cache(
 
 
 @router.delete("/join/cache")
-async def delete_dataset_join_cache(
+def delete_dataset_join_cache(
     request: Request,
     dataset_id: int = Query(..., ge=1),
     dashboard: str | None = Query(None),
@@ -4748,9 +4740,11 @@ async def delete_dataset_join_cache(
         request,
         user_id,
     )
+    require_workspace_data_manager(request)
     dashboard_key = clean_dashboard_share_key(dashboard)
     db = SessionLocal()
     deleted = False
+    derived_dataset_id = None
 
     try:
         cache = (
@@ -4783,7 +4777,8 @@ async def delete_dataset_join_cache(
                 dataset_id in cached_dataset_ids
                 or dataset_id == derived_dataset_id
             ):
-                derived_reference = None
+                derived_references = []
+                cache_removed_by_dataset = False
                 if derived_dataset_id:
                     derived_dataset = (
                         db.query(Dataset)
@@ -4795,48 +4790,23 @@ async def delete_dataset_join_cache(
                         .first()
                     )
                     if derived_dataset:
-                        other_cache_references = (
-                            db.query(DatasetJoinCache)
-                            .filter(
-                                DatasetJoinCache.workspace_id == workspace_id,
-                                DatasetJoinCache.id != cache.id,
-                            )
-                            .all()
-                        )
-                        is_shared = any(
-                            get_joined_dataset_id_from_cache(other_cache)
-                            == derived_dataset_id
-                            for other_cache in other_cache_references
-                        )
-                        if not is_shared:
-                            derived_reference = (
-                                get_dataset_storage_reference(
-                                    derived_dataset
-                                )
-                            )
-                            cleanup_deleted_dataset_preferences(
-                                db,
-                                derived_dataset,
-                            )
-                            cleanup_deleted_dataset_relationships(
-                                db,
-                                derived_dataset,
-                            )
-                            db.delete(derived_dataset)
+                        ensure_workspace_jobs_idle(db, [workspace_id], include_queued=True)
+                        derived_references.append(get_dataset_storage_reference(derived_dataset))
+                        cleanup_deleted_dataset_preferences(db, derived_dataset)
+                        derived_references.extend(cleanup_deleted_dataset_join_caches(db, derived_dataset))
+                        cache_removed_by_dataset = True
+                        cleanup_deleted_dataset_relationships(db, derived_dataset)
+                        db.query(DatasetAnalysis).filter(DatasetAnalysis.dataset_id == derived_dataset.id).delete(synchronize_session=False)
+                        db.delete(derived_dataset)
 
-                db.delete(cache)
+                if not cache_removed_by_dataset:
+                    db.delete(cache)
                 db.commit()
                 deleted = True
-                if derived_reference:
-                    try:
-                        remove_dataset_file(derived_reference)
-                    except Exception:
-                        logger.warning(
-                            "Unable to remove joined dataset file after reset",
-                            exc_info=True,
-                        )
+                for reference in derived_references:
+                    remove_dataset_file(reference)
 
-        return {"deleted": deleted}
+        return {"deleted": deleted, "deleted_dataset_id": derived_dataset_id if deleted else None}
     finally:
         db.close()
 
@@ -11624,7 +11594,7 @@ async def stop_dataset_sharing(
 
 
 @router.delete("/{dataset_id}")
-async def delete_dataset(
+def delete_dataset(
     request: Request,
     dataset_id: int,
 ):

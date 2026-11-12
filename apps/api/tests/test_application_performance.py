@@ -70,7 +70,7 @@ class DatasetReadConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         for name in (
             "dataset_preview", "dataset_metrics", "dataset_insights", "dataset_chart_data",
             "dataset_anomalies", "dataset_details", "dataset_ai_analysis", "get_dataset_join_cache",
-            "get_dataset_join_metadata", "dataset_dimensions",
+            "get_dataset_join_metadata", "dataset_dimensions", "delete_dataset", "delete_dataset_join_cache",
             "sync_due_source_connections",
             "update_dataset_metric_selection",
             "get_entity_matching_metadata", "preview_entity_matching", "run_entity_matching",

@@ -3961,7 +3961,7 @@ export async function deleteDatasetJoinCache(
   dashboardKey: string,
   userId: string,
   workspaceId?: string
-) {
+): Promise<{ deleted: boolean; deleted_dataset_id?: number | null }> {
   const params = new URLSearchParams({
     dataset_id: String(
       cleanPositiveIntegerId(

@@ -15,6 +15,7 @@ function find(predicate) {
   return found
 }
 const resetSource = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "resetJoinedDataset").getText(ast)
+const toggleSource = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "toggleDataset").getText(ast)
 const compile = (code, globals) => vm.runInNewContext(ts.transpileModule(code, { compilerOptions: {
   target: ts.ScriptTarget.ES2022,
 } }).outputText, globals)
@@ -22,7 +23,8 @@ const joined = { derived_dataset_id: 30, derived_dataset: { id: 30 }, dataset_id
 function harness(overrides = {}) {
   const requests = [], updates = [], notifications = []
   const context = {
-    activeResult: joined, selectedDatasetId: 1, dashboardKey: "business", userId: "owner", workspaceId: "workspace",
+    activeResult: joined, savedJoinResult: null, joinedDatasetId: undefined, selectedDatasetId: 1,
+    selectedDatasetIds: [1, 2], dashboardKey: "business", userId: "owner", workspaceId: "workspace", t: value => value,
     joining: false, resetting: false, error: "", Error,
     configurations: { 1: { dataset_id: 1, date_column: "date", metric_columns: ["revenue"] }, 2: { dataset_id: 2 } },
     setResetting: value => { context.resetting = value }, setError: value => { context.error = value },
@@ -30,11 +32,15 @@ function harness(overrides = {}) {
     setSelectedDatasetIds: value => { context.selectedDatasetIds = value },
     setConfigurations: update => { context.configurations = update(context.configurations) },
     setMetadata: value => { context.metadata = value },
+    setSavedJoinResult: value => { context.savedJoinResult = value },
     deleteDataset: async (...args) => { requests.push({ kind: "dataset", args }) },
-    deleteDatasetJoinCache: async (...args) => { requests.push({ kind: "cache", args }) },
+    deleteDatasetJoinCache: async (...args) => { requests.push({ kind: "cache", args }); return { deleted: true } },
     ...overrides,
   }
-  return { context, requests, updates, notifications, reset: compile(`${resetSource}\nresetJoinedDataset`, context) }
+  context.resetResult = context.activeResult ?? context.savedJoinResult
+  context.canResetJoin = Boolean(context.joinedDatasetId || context.resetResult)
+  const handlers = compile(`${resetSource}\n${toggleSource}\n({ resetJoinedDataset, toggleDataset })`, context)
+  return { context, requests, updates, notifications, reset: handlers.resetJoinedDataset, toggle: handlers.toggleDataset }
 }
 
 test("reset deletes the generated dataset, not an original source or just its dashboard cache", async () => {
@@ -62,6 +68,55 @@ test("legacy joins without a generated dataset still use the dashboard cache res
   await h.reset()
   assert.deepEqual(h.requests, [{ kind: "cache", args: [1, "business", "owner", "workspace"] }])
   assert.deepEqual(h.updates, [null])
+})
+
+test("reset retains the saved join identity after the preview has been cleared by an edit", async () => {
+  for (const overrides of [{ activeResult: null, savedJoinResult: joined }, { activeResult: null, joinedDatasetId: 30 }]) {
+    const h = harness(overrides)
+    assert.equal(await h.reset(), true)
+    assert.deepEqual(h.requests, [{ kind: "dataset", args: [30, "owner", "workspace"] }])
+    assert.deepEqual(h.notifications, [[null, 30]])
+    assert.equal(h.context.savedJoinResult, null)
+  }
+})
+
+test("removing the last joined source deletes the generated dataset before clearing the join", async () => {
+  const h = harness()
+  await h.toggle(2)
+  assert.deepEqual(h.requests, [{ kind: "dataset", args: [30, "owner", "workspace"] }])
+  assert.deepEqual(h.notifications, [[null, 30]])
+  assert.deepEqual(Array.from(h.context.selectedDatasetIds), [1])
+})
+
+test("a failed unjoin preserves the selected sources and the saved join", async () => {
+  const h = harness({ deleteDataset: async () => { throw new Error("Deletion was rejected") } })
+  await h.toggle(2)
+  assert.deepEqual(h.context.selectedDatasetIds, [1, 2])
+  assert.equal(h.context.activeResult, joined)
+  assert.deepEqual(h.updates, [])
+  assert.equal(h.context.error, "Deletion was rejected")
+})
+
+test("editing a multi-source draft does not delete a join until only one source remains", async () => {
+  const h = harness({ selectedDatasetIds: [1, 2, 3] })
+  await h.toggle(3)
+  assert.deepEqual(Array.from(h.context.selectedDatasetIds), [1, 2])
+  assert.equal(h.requests.length, 0)
+  await h.toggle(2)
+  assert.equal(h.requests[0].kind, "dataset")
+})
+
+test("an unconfirmed cache reset is never displayed as a successful unjoin", async () => {
+  const h = harness({ activeResult: { dataset_ids: [1, 2] }, deleteDatasetJoinCache: async () => ({ deleted: false }) })
+  assert.equal(await h.reset(), false)
+  assert.match(h.context.error, /saved join could not be found/)
+  assert.deepEqual(h.updates, [])
+})
+
+test("a legacy reset reports the dataset deleted by the server so the selector can remove it", async () => {
+  const h = harness({ activeResult: { dataset_ids: [1, 2] }, deleteDatasetJoinCache: async () => ({ deleted: true, deleted_dataset_id: 30 }) })
+  await h.reset()
+  assert.deepEqual(h.notifications, [[null, 30]])
 })
 
 test("reset keeps the joined view until deletion succeeds and blocks duplicate actions while pending", async () => {
