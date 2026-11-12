@@ -307,8 +307,33 @@ class JoinedDatasetCacheTests(unittest.TestCase):
         self.stack.enter_context(patch.object(routes, "build_join_dataset_metadata", return_value={}))
         self.stack.enter_context(patch.object(routes, "remove_dataset_file"))
 
-    def get_cache(self):
-        return routes.get_dataset_join_cache(object(), dataset_id=1, dashboard="general-business")
+    def get_cache(self, dataset_id=1):
+        return routes.get_dataset_join_cache(object(), dataset_id=dataset_id, dashboard="general-business")
+
+    def test_selected_joined_dataset_loads_its_own_cached_evidence(self):
+        self.assertEqual(self.get_cache(200), self.result)
+        self.assertEqual(self.owner.call_count, 2)
+        self.load.assert_not_called()
+        self.persist.assert_not_called()
+
+    def test_unrelated_dataset_never_restores_another_join(self):
+        self.assertIsNone(self.get_cache(3))
+        self.owner.assert_not_called()
+        self.load.assert_not_called()
+        self.persist.assert_not_called()
+
+    def test_selected_join_still_requires_access_to_all_sources(self):
+        self.owner.side_effect = HTTPException(403, "Forbidden")
+        with self.assertRaises(HTTPException) as error:
+            self.get_cache(200)
+        self.assertEqual(error.exception.status_code, 403)
+        self.fingerprint.assert_not_called()
+
+    def test_deleted_selected_join_cannot_be_recreated_by_its_cache(self):
+        self.derived = None
+        self.assertIsNone(self.get_cache(200))
+        self.db.delete.assert_called_once_with(self.cache)
+        self.persist.assert_not_called()
 
     def test_unchanged_sources_skip_all_dataframe_loading(self):
         self.assertEqual(self.get_cache(), self.result)

@@ -27,7 +27,8 @@ type DatasetJoinPanelProps = {
   aggregation: DashboardAggregation
   aggregationType: DashboardValueAggregation
   onJoinResult?: (
-    result: DatasetJoinResult | null
+    result: DatasetJoinResult | null,
+    deletedDatasetId?: number
   ) => void
   persistedResult?: DatasetJoinResult | null
 }
@@ -98,10 +99,11 @@ export function DatasetJoinPanel({
   const activeResult = result ?? persistedResult ?? null
 
   function updateJoinResult(
-    nextResult: DatasetJoinResult | null
+    nextResult: DatasetJoinResult | null,
+    deletedDatasetId?: number
   ) {
     setResult(nextResult)
-    onJoinResult?.(nextResult)
+    onJoinResult?.(nextResult, deletedDatasetId)
   }
 
   useEffect(() => {
@@ -380,7 +382,7 @@ export function DatasetJoinPanel({
         )
       }
 
-      updateJoinResult(null)
+      updateJoinResult(null, derivedDatasetId)
       setSelectedDatasetIds([selectedDatasetId])
       setConfigurations(current => ({
         [selectedDatasetId]: current[selectedDatasetId] ?? {

@@ -4623,7 +4623,14 @@ def get_dataset_join_cache(
             int(dataset_id)
             for dataset_id in json.loads(cache.dataset_ids)
         }
-        if dataset_id not in cached_dataset_ids:
+        try:
+            cached_result = json.loads(cache.result or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            cached_result = {}
+        if not isinstance(cached_result, dict):
+            cached_result = {}
+        cached_derived_id = get_joined_dataset_id_from_result(cached_result)
+        if dataset_id not in cached_dataset_ids and dataset_id != cached_derived_id:
             return None
 
         source_datasets = []
@@ -4642,17 +4649,7 @@ def get_dataset_join_cache(
         source_fingerprint = build_dataset_source_fingerprint(
             source_datasets
         )
-        try:
-            cached_result = json.loads(cache.result or "{}")
-        except (TypeError, ValueError, json.JSONDecodeError):
-            cached_result = {}
-        if not isinstance(cached_result, dict):
-            cached_result = {}
-
         existing_derived_dataset = None
-        cached_derived_id = get_joined_dataset_id_from_result(
-            cached_result
-        )
         if cached_derived_id:
             existing_derived_dataset = (
                 db.query(Dataset)

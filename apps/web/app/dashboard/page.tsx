@@ -273,6 +273,15 @@ function isJoinedDataset(
   return dataset?.source_type === "joined"
 }
 
+function isJoinedDatasetResultForDataset(
+  result: DatasetJoinResult | null | undefined,
+  datasetId: number
+): result is DatasetJoinResult {
+  // A join is its own dataset, not a replacement for any of its sources.
+  return isCurrentJoinedDatasetResult(result) &&
+    (result.derived_dataset_id ?? result.derived_dataset?.id) === datasetId
+}
+
 function findPersistedJoinedDatasetResult(
   dashboardPreferences:
     Record<string, DashboardViewPreference> | undefined,
@@ -291,8 +300,7 @@ function findPersistedJoinedDatasetResult(
           ?.joinedDatasetResult
 
         if (
-          isCurrentJoinedDatasetResult(result) &&
-          result.dataset_ids.includes(datasetId)
+          isJoinedDatasetResultForDataset(result, datasetId)
         ) {
           candidates.push(result)
         }
@@ -307,8 +315,7 @@ function findPersistedJoinedDatasetResult(
       ]?.joinedDatasetResult
 
       if (
-        isCurrentJoinedDatasetResult(result) &&
-        result.dataset_ids.includes(datasetId)
+        isJoinedDatasetResultForDataset(result, datasetId)
       ) {
         candidates.push(result)
       }
@@ -598,6 +605,10 @@ export default function DashboardPage() {
   const dimensionFilter = dimensionSelection?.context === dimensionContext ? dimensionSelection.value : undefined
   const selectedDashboardRef =
     useRef(defaultDashboardKey)
+  const datasetSelectionRequestRef = useRef(0)
+  useEffect(() => {
+    datasetSelectionRequestRef.current += 1
+  }, [activeWorkspaceId, selectedDashboard, userId, workspaceVersion])
   // Dataset preferences are loaded independently of dashboard-tab changes.
   // This ref lets that async loader use the latest tab without adding the tab
   // to its dependency list and triggering an unnecessary dataset reload.
@@ -856,8 +867,77 @@ export default function DashboardPage() {
       selectedDashboard
     )
 
+  const clearSelectedDashboard =
+    useCallback((preserveCurrentView = false) => {
+      if (!preserveCurrentView) {
+        setDataset(null)
+        setSelectedMetrics([])
+        setTargets({})
+        setDashboardTitle(defaultDashboardTitle)
+        setDashboardSubtitle(defaultDashboardSubtitle)
+        setLoading(false)
+      }
+      dashboardDatasetHydrationRef.current = ""
+      setJoinedDatasetResult(null)
+      setShowJoinPanel(false)
+      setDashboardError("")
+      setDashboardErrorRetryMode(null)
+      setShareEnabled(false)
+      clearShareStatus()
+    }, [clearShareStatus])
+
+  const handleDatasetSelectionChange = useCallback(async (
+    datasetId: number | undefined,
+    deletedDatasetId?: number
+  ) => {
+    const selectionRequest = ++datasetSelectionRequestRef.current
+    const previousDatasetId = selectedDatasetId
+    const previousDashboardDatasetIds = dashboardDatasetIds
+    const nextDashboardDatasetIds = Object.fromEntries(
+      Object.entries(dashboardDatasetIds).filter(([, id]) => id !== deletedDatasetId)
+    )
+
+    if (datasetId) {
+      nextDashboardDatasetIds[selectedDashboard] = datasetId
+    } else {
+      delete nextDashboardDatasetIds[selectedDashboard]
+    }
+
+    clearSelectedDashboard(Boolean(datasetId))
+    setLoading(Boolean(datasetId))
+    setSelectedDatasetId(datasetId)
+    setDashboardDatasetIds(nextDashboardDatasetIds)
+    if (datasetId === previousDatasetId) setDatasetLoadRetryKey(current => current + 1)
+
+    if (!datasetId || !userId) return
+
+    try {
+      const saveRequest = dashboardPreferenceSaveQueueRef.current.then(() =>
+        updateDatasetPreference(
+          datasetId, userId, "", undefined, undefined,
+          activeWorkspaceId, nextDashboardDatasetIds
+        )
+      )
+      dashboardPreferenceSaveQueueRef.current = saveRequest.then(() => undefined, () => undefined)
+      await saveRequest
+      if (selectionRequest !== datasetSelectionRequestRef.current) return
+      setDatasetPreferenceError("")
+    } catch (error) {
+      if (selectionRequest !== datasetSelectionRequestRef.current) return
+      if (!deletedDatasetId) {
+        setSelectedDatasetId(previousDatasetId)
+        setDashboardDatasetIds(previousDashboardDatasetIds)
+      }
+      setDashboardError(getErrorMessage(error, "Unable to save your selected dataset."))
+      setDashboardErrorRetryMode(null)
+    }
+  }, [
+    activeWorkspaceId, clearSelectedDashboard, dashboardDatasetIds,
+    selectedDashboard, selectedDatasetId, userId,
+  ])
+
   const handleJoinedDatasetResult = useCallback(
-    (result: DatasetJoinResult | null) => {
+    (result: DatasetJoinResult | null, deletedDatasetId?: number) => {
       setJoinedDatasetResult(result)
       if (result) {
         setShowJoinPanel(true)
@@ -870,12 +950,12 @@ export default function DashboardPage() {
             ),
           ])
         }
-      } else if (joinedDatasetResult?.derived_dataset_id) {
+      } else if (deletedDatasetId) {
         setDatasets(current =>
           current.filter(
             datasetSummary =>
               datasetSummary.id !==
-              joinedDatasetResult.derived_dataset_id
+              deletedDatasetId
           )
         )
       }
@@ -884,19 +964,24 @@ export default function DashboardPage() {
       }
       const persistedDatasetIds = Array.from(
         new Set(
-          (
-            result?.dataset_ids ??
-            joinedDatasetResult?.dataset_ids ??
-            (selectedDatasetId
-              ? [selectedDatasetId]
-              : [])
-          ).filter(
-            datasetId =>
+          (result
+              ? [result.derived_dataset_id ?? result.derived_dataset?.id]
+              : deletedDatasetId
+                ? [...(joinedDatasetResult?.dataset_ids ?? []), deletedDatasetId]
+                : []).filter(
+            (datasetId): datasetId is number =>
+              typeof datasetId === "number" &&
               Number.isInteger(datasetId) &&
               datasetId > 0
           )
         )
       )
+      const nextDatasetId = result?.derived_dataset_id ?? result?.derived_dataset?.id ??
+        (deletedDatasetId && deletedDatasetId === selectedDatasetId ? joinedDatasetResult?.dataset_ids[0] : undefined)
+      if (nextDatasetId) {
+        void handleDatasetSelectionChange(nextDatasetId, deletedDatasetId)
+        setShowJoinPanel(Boolean(result))
+      }
       persistedDatasetIds.forEach(datasetId => {
         persistJoinedDataset(
           getJoinedDatasetStorageKey(
@@ -918,26 +1003,16 @@ export default function DashboardPage() {
         : dataset?.metrics.map(
           metric => metric.column
         ) ?? []
-      const availableColumnSet = new Set(
-        availableColumns
-      )
+      const availableColumnSet = new Set(availableColumns)
 
       setSelectedMetrics(current => {
-        const retained = current.filter(metric =>
-          availableColumnSet.has(metric)
-        )
-        return retained.length > 0
-          ? retained
-          : availableColumns.slice(0, 1)
+        const retained = current.filter(metric => availableColumnSet.has(metric))
+        return retained.length > 0 ? retained : availableColumns.slice(0, 1)
       })
     },
     [
-      activeWorkspaceId,
-      dataset,
-      joinedDatasetResult,
-      selectedDatasetId,
-      selectedDashboard,
-      userId,
+      activeWorkspaceId, dataset, handleDatasetSelectionChange,
+      joinedDatasetResult, selectedDatasetId, selectedDashboard, userId,
     ]
   )
 
@@ -1008,151 +1083,34 @@ export default function DashboardPage() {
         return
       }
 
-      const stored = readPersistedJoinedDataset(
-        joinedDatasetStorageKey
-      )
-      if (
-        !stored ||
-        !stored.dataset_ids.includes(selectedDatasetId)
-      ) {
+      const stored = readPersistedJoinedDataset(joinedDatasetStorageKey)
+      if (!isJoinedDatasetResultForDataset(stored, selectedDatasetId)) {
         return
       }
 
       setJoinedDatasetResult(current =>
-        isCurrentJoinedDatasetResult(current) &&
-        current.dataset_ids.includes(selectedDatasetId)
-          ? current
-          : stored
+        isJoinedDatasetResultForDataset(current, selectedDatasetId) ? current : stored
       )
       const availableColumns = stored.datasets
-        .filter(
-          column => column.column_type === "numeric"
-        )
+        .filter(column => column.column_type === "numeric")
         .map(column => column.label)
-      const availableColumnSet = new Set(
-        availableColumns
-      )
+      const availableColumnSet = new Set(availableColumns)
       setSelectedMetrics(current => {
-        const retained = current.filter(metric =>
-          availableColumnSet.has(metric)
-        )
-        const next = retained.length > 0
-          ? retained
-          : availableColumns.slice(0, 1)
-        return current.length === next.length &&
-          current.every(
-            (metric, index) => metric === next[index]
-          )
-          ? current
-          : next
+        const retained = current.filter(metric => availableColumnSet.has(metric))
+        const next = retained.length > 0 ? retained : availableColumns.slice(0, 1)
+        return current.length === next.length && current.every((metric, index) => metric === next[index]) ? current : next
       })
-
     })
 
     return () => {
       cancelled = true
     }
-  }, [
-    dataset,
-    joinedDatasetStorageKey,
-    selectedDatasetId,
-    selectedDashboard,
-    userId,
-  ])
+  }, [dataset, joinedDatasetStorageKey, selectedDatasetId, selectedDashboard, userId])
 
   useEffect(() => {
-    if (
-      !joinedDatasetResult ||
-      isCurrentJoinedDatasetResult(joinedDatasetResult)
-    ) {
-      return
-    }
-
-    queueMicrotask(() => {
-      setJoinedDatasetResult(null)
-    })
+    if (!joinedDatasetResult || isCurrentJoinedDatasetResult(joinedDatasetResult)) return
+    queueMicrotask(() => { setJoinedDatasetResult(null) })
   }, [joinedDatasetResult])
-
-  const clearSelectedDashboard =
-    useCallback((preserveCurrentView = false) => {
-      if (!preserveCurrentView) {
-        setDataset(null)
-        setSelectedMetrics([])
-        setTargets({})
-        setDashboardTitle(defaultDashboardTitle)
-        setDashboardSubtitle(
-          defaultDashboardSubtitle
-        )
-        setLoading(false)
-      }
-      dashboardDatasetHydrationRef.current = ""
-      setDashboardError("")
-      setDashboardErrorRetryMode(null)
-      setShareEnabled(false)
-      clearShareStatus()
-    }, [
-      clearShareStatus,
-    ])
-
-  async function handleDatasetSelectionChange(
-    datasetId: number | undefined
-  ) {
-    const previousDatasetId = selectedDatasetId
-    const previousDashboardDatasetIds =
-      dashboardDatasetIds
-    const nextDashboardDatasetIds = {
-      ...dashboardDatasetIds,
-    }
-
-    if (datasetId) {
-      nextDashboardDatasetIds[selectedDashboard] =
-        datasetId
-    } else {
-      delete nextDashboardDatasetIds[selectedDashboard]
-    }
-
-    clearSelectedDashboard(Boolean(datasetId))
-    setLoading(Boolean(datasetId))
-    setJoinedDatasetResult(null)
-    if (isJoinedDataset(
-      datasets.find(
-        datasetSummary => datasetSummary.id === datasetId
-      )
-    )) {
-      setShowJoinPanel(false)
-    }
-    setSelectedDatasetId(datasetId)
-    setDashboardDatasetIds(nextDashboardDatasetIds)
-
-    if (!datasetId || !userId) {
-      return
-    }
-
-    try {
-      await updateDatasetPreference(
-        datasetId,
-        userId,
-        "",
-        undefined,
-        undefined,
-        activeWorkspaceId,
-        nextDashboardDatasetIds
-      )
-      setDatasetPreferenceError("")
-    } catch (error) {
-      setSelectedDatasetId(previousDatasetId)
-      setDashboardDatasetIds(
-        previousDashboardDatasetIds
-      )
-      setDashboardError(
-        getErrorMessage(
-          error,
-          "Unable to save your selected dataset."
-        )
-      )
-      setDashboardErrorRetryMode(null)
-    }
-  }
 
   /* =========================
      Load Selected Dataset
@@ -1254,7 +1212,8 @@ export default function DashboardPage() {
             ? preferenceResult.value
             : undefined
         const cachedJoinedDatasetResult =
-          joinCacheResult.status === "fulfilled"
+          joinCacheResult.status === "fulfilled" &&
+          isJoinedDatasetResultForDataset(joinCacheResult.value, datasetId)
             ? joinCacheResult.value
             : null
         const locallyPersistedJoinedDatasetResult =
@@ -1294,11 +1253,8 @@ export default function DashboardPage() {
         }
         const savedJoinedDatasetResult =
           cachedJoinedDatasetResult ??
-          (isCurrentJoinedDatasetResult(
-            savedDashboardPreference.joinedDatasetResult
-          ) &&
-          savedDashboardPreference.joinedDatasetResult.dataset_ids.includes(
-            datasetId
+          (isJoinedDatasetResultForDataset(
+            savedDashboardPreference.joinedDatasetResult, datasetId
           )
             ? savedDashboardPreference.joinedDatasetResult
             : findPersistedJoinedDatasetResult(
@@ -1307,11 +1263,8 @@ export default function DashboardPage() {
                 selectedDashboard,
                 datasetId
               )) ??
-          (isCurrentJoinedDatasetResult(
-            locallyPersistedJoinedDatasetResult
-          ) &&
-          locallyPersistedJoinedDatasetResult.dataset_ids.includes(
-            datasetId
+          (isJoinedDatasetResultForDataset(
+            locallyPersistedJoinedDatasetResult, datasetId
           )
             ? locallyPersistedJoinedDatasetResult
             : null)
@@ -2464,30 +2417,6 @@ export default function DashboardPage() {
         return
       }
 
-      const savedJoinResult =
-        currentSavedDashboardPreference.joinedDatasetResult ??
-        findPersistedJoinedDatasetResult(
-          dashboardPreferencesByDataset,
-          dashboardViewsByDataset,
-          selectedDashboard,
-          selectedDatasetId
-        )
-      const activeJoinResult =
-        joinedDatasetResult ??
-        savedJoinResult
-      const joinedDatasetIds =
-        activeJoinResult &&
-        Array.isArray(activeJoinResult.dataset_ids)
-          ? Array.from(
-              new Set(
-                activeJoinResult.dataset_ids.filter(
-                  datasetId =>
-                    Number.isInteger(datasetId) &&
-                    datasetId > 0
-                )
-              )
-            )
-          : [selectedDatasetId]
       const nextDashboardPreferences = {
         ...dashboardPreferencesByDataset,
       }
@@ -2495,21 +2424,19 @@ export default function DashboardPage() {
         ...dashboardViewsByDataset,
       }
 
-      joinedDatasetIds.forEach(joinedDatasetId => {
-        const joinedDatasetKey = String(joinedDatasetId)
-        const existingPreference = {
-          ...(nextDashboardPreferences[joinedDatasetKey] ?? {}),
-        }
-        delete existingPreference.joinedDatasetResult
-        nextDashboardPreferences[joinedDatasetKey] = {
-          ...existingPreference,
-          ...preferenceToSave,
-        }
-        nextDashboardViews[joinedDatasetKey] = {
-          ...(nextDashboardViews[joinedDatasetKey] ?? {}),
-          [selectedDashboard]: preferenceToSave,
-        }
-      })
+      const datasetKey = String(selectedDatasetId)
+      const existingPreference = {
+        ...(nextDashboardPreferences[datasetKey] ?? {}),
+      }
+      delete existingPreference.joinedDatasetResult
+      nextDashboardPreferences[datasetKey] = {
+        ...existingPreference,
+        ...preferenceToSave,
+      }
+      nextDashboardViews[datasetKey] = {
+        ...(nextDashboardViews[datasetKey] ?? {}),
+        [selectedDashboard]: preferenceToSave,
+      }
 
       const saveVersion =
         ++dashboardPreferenceSaveVersionRef.current
@@ -2608,7 +2535,6 @@ export default function DashboardPage() {
       dashboardPreferencesByDataset,
       dashboardViewsByDataset,
       dataset,
-      joinedDatasetResult,
       loading,
       dimensionFilter,
       currentSavedDashboardPreference,
@@ -3092,10 +3018,12 @@ export default function DashboardPage() {
   const sourceDatasets = datasets.filter(
     datasetSummary => !isJoinedDataset(datasetSummary)
   )
+  const joinPanelDatasetId = isSelectedDerivedDataset
+    ? joinedDatasetResult?.dataset_ids[0] ?? sourceDatasets[0]?.id
+    : selectedDatasetId
   const canCompareDashboardData =
     selectedDashboardNeedsDataset &&
     Boolean(selectedDatasetId) &&
-    !isSelectedDerivedDataset &&
     sourceDatasets.length > 1
 
   const filterLabel = templateProps.filterLabel
@@ -3273,11 +3201,11 @@ export default function DashboardPage() {
         </DashboardCard>
       )}
 
-      {showJoinPanel && !isSelectedDerivedDataset && (
+      {showJoinPanel && (
         <DatasetJoinPanel
-          key={`dataset-join-${selectedDatasetId ?? "none"}`}
+          key={`dataset-join-${activeWorkspaceId}-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
           datasets={sourceDatasets}
-          selectedDatasetId={selectedDatasetId}
+          selectedDatasetId={joinPanelDatasetId}
           dashboardKey={selectedDashboard}
           userId={userId}
           workspaceId={activeWorkspaceId}
@@ -3550,11 +3478,11 @@ export default function DashboardPage() {
           />
         )}
 
-        {showJoinPanel && selectedDashboardNeedsDataset && !isSelectedDerivedDataset && (
+        {showJoinPanel && selectedDashboardNeedsDataset && (
           <DatasetJoinPanel
-            key={`dataset-join-${selectedDatasetId ?? "none"}`}
+            key={`dataset-join-${activeWorkspaceId}-${selectedDashboard}-${selectedDatasetId ?? "none"}`}
             datasets={sourceDatasets}
-            selectedDatasetId={selectedDatasetId}
+            selectedDatasetId={joinPanelDatasetId}
             dashboardKey={selectedDashboard}
             userId={userId}
             workspaceId={activeWorkspaceId}

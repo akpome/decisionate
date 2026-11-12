@@ -20,13 +20,13 @@ const compile = (code, globals) => vm.runInNewContext(ts.transpileModule(code, {
 } }).outputText, globals)
 const joined = { derived_dataset_id: 30, derived_dataset: { id: 30 }, dataset_ids: [1, 2] }
 function harness(overrides = {}) {
-  const requests = [], updates = []
+  const requests = [], updates = [], notifications = []
   const context = {
     activeResult: joined, selectedDatasetId: 1, dashboardKey: "business", userId: "owner", workspaceId: "workspace",
     joining: false, resetting: false, error: "", Error,
     configurations: { 1: { dataset_id: 1, date_column: "date", metric_columns: ["revenue"] }, 2: { dataset_id: 2 } },
     setResetting: value => { context.resetting = value }, setError: value => { context.error = value },
-    updateJoinResult: value => { updates.push(value); context.activeResult = value },
+    updateJoinResult: (value, deletedDatasetId) => { updates.push(value); notifications.push([value, deletedDatasetId]); context.activeResult = value },
     setSelectedDatasetIds: value => { context.selectedDatasetIds = value },
     setConfigurations: update => { context.configurations = update(context.configurations) },
     setMetadata: value => { context.metadata = value },
@@ -34,7 +34,7 @@ function harness(overrides = {}) {
     deleteDatasetJoinCache: async (...args) => { requests.push({ kind: "cache", args }) },
     ...overrides,
   }
-  return { context, requests, updates, reset: compile(`${resetSource}\nresetJoinedDataset`, context) }
+  return { context, requests, updates, notifications, reset: compile(`${resetSource}\nresetJoinedDataset`, context) }
 }
 
 test("reset deletes the generated dataset, not an original source or just its dashboard cache", async () => {
@@ -42,6 +42,7 @@ test("reset deletes the generated dataset, not an original source or just its da
   await h.reset()
   assert.deepEqual(h.requests, [{ kind: "dataset", args: [30, "owner", "workspace"] }])
   assert.deepEqual(h.updates, [null])
+  assert.deepEqual(h.notifications, [[null, 30]])
   assert.equal(h.context.resetting, false)
   assert.deepEqual(Array.from(h.context.selectedDatasetIds), [1])
   assert.deepEqual(Object.keys(h.context.configurations), ["1"])
