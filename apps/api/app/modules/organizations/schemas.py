@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 
 
 class OrganizationCreate(BaseModel):
@@ -24,6 +24,10 @@ class OrganizationCreate(BaseModel):
 class ClientWorkspaceCreate(BaseModel):
     name: str
     client_email: str
+
+
+class ClientWorkspaceStatusUpdate(BaseModel):
+    is_paused: StrictBool
 
 
 class AgencyOwnerAccessUpdate(BaseModel):
@@ -72,6 +76,7 @@ class OrganizationWorkspaceResponse(BaseModel):
     agency_client_count: str | None = None
     primary_goal: str | None = None
     agency_owner_access_enabled: bool = False
+    is_paused: bool = False
     billing_notice: str | None = None
 
 

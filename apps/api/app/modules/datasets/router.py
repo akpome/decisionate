@@ -10225,6 +10225,9 @@ def queue_due_source_connection(
     background_tasks: BackgroundTasks,
     now: datetime,
 ):
+    from app.modules.workspace_lifecycle import workspace_is_paused
+    if workspace_is_paused(db, connection.workspace_id or connection.user_id):
+        return {"connection_id": connection.id, "status": "skipped", "detail": "Client workspace is paused"}
     source = get_dataset_source(connection.source_type)
     if (
         source
@@ -10381,6 +10384,12 @@ def sync_due_source_connections(
                         "on the next scheduled run."
                     ),
                 }
+            except HTTPException as error:
+                from app.modules.workspace_lifecycle import PAUSED_MESSAGE
+                if error.status_code != 403 or error.detail != PAUSED_MESSAGE:
+                    raise
+                db.rollback()
+                result = {"connection_id": connection_id, "status": "skipped", "detail": "Client workspace is paused"}
             if result is not None:
                 results.append(result)
 

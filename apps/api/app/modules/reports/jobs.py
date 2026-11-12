@@ -59,6 +59,8 @@ def weekly_configuration(db, preference, workspace, user=None):
 
 def enqueue(db, user, workspace, kind, definition, datasets, request_key=None):
     lock_workspace_queue(db, "reports-analysis:" + workspace)
+    from app.modules.workspace_lifecycle import require_workspace_active
+    require_workspace_active(workspace, db)
     key = digest([workspace, user, kind, request_key or str(uuid4())])
     existing = db.query(ReportAnalysisJob).filter_by(request_key=key).first()
     if existing:
@@ -140,6 +142,8 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
 
 def verify_job_actor(job):
     from app.modules.auth_context import is_agency_managed_client_workspace, is_agency_owner_access_enabled, verify_workspace_membership
+    from app.modules.workspace_lifecycle import require_workspace_active
+    require_workspace_active(job.workspace_id)
 
     if job.user_id == job.workspace_id:
         role = "owner"

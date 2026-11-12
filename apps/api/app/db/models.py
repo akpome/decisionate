@@ -964,6 +964,8 @@ class Organization(Base):
         default=False,
     )
 
+    is_paused = Column(Boolean, nullable=False, default=False)
+
     owner_user_id = Column(
         String,
         nullable=False,

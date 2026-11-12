@@ -2031,6 +2031,7 @@ export type OrganizationWorkspaceRecord = {
   agency_client_count?: string | null
   primary_goal?: string | null
   agency_owner_access_enabled?: boolean
+  is_paused?: boolean
   billing_notice?: string | null
 }
 
@@ -6387,6 +6388,25 @@ export async function createClientWorkspace(
     `organization-workspaces:${userId.trim()}`,
   ])
 
+  return response.json()
+}
+
+export async function updateClientWorkspaceStatus(
+  organizationId: number,
+  isPaused: boolean,
+  userId: string
+): Promise<OrganizationWorkspaceRecord> {
+  const id = cleanPositiveIntegerId(organizationId, "Client workspace id")
+  const response = await fetchOrganizationRequest(
+    `${API_URL}/organizations/client-workspaces/${id}`,
+    {
+      method: "PATCH",
+      headers: { ...await organizationOwnerHeaders(userId), "Content-Type": "application/json" },
+      body: JSON.stringify({ is_paused: isPaused }),
+    }
+  )
+  if (!response.ok) await throwApiError(response, "Unable to change client account status")
+  invalidateApiReadCache([`organization-workspaces:${userId.trim()}`])
   return response.json()
 }
 

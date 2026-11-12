@@ -1197,7 +1197,12 @@ export function DashboardShell({
           <MaintenanceBanner notice={maintenanceNotice} />
         )}
 
-        {subscriptionAccessBlocked && subscriptionAccess ? (
+        {activeWorkspaceRecord?.is_paused ? (
+          <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
+            <h1 className="text-lg font-semibold">Client account paused</h1>
+            <p className="mt-2 text-sm text-gray-600">Your data is preserved. Contact your agency to resume access.</p>
+          </section>
+        ) : subscriptionAccessBlocked && subscriptionAccess ? (
           <SubscriptionRequiredPanel
             access={subscriptionAccess}
             canManageBilling={canConfigureWorkspace}

@@ -20,6 +20,8 @@ def digest(value):
 
 
 def authorize_datasets(db, user_id, workspace_id, dataset_ids):
+    from app.modules.workspace_lifecycle import require_workspace_active
+    require_workspace_active(workspace_id, db)
     result = {}
     for identity in sorted(set(dataset_ids)):
         dataset = db.get(Dataset, identity)

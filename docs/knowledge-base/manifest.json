@@ -327,8 +327,18 @@
       ],
       "questions": [
         "Can an agency owner see client data?",
-        "Whose logo do agency clients receive?"
+        "Whose logo do agency clients receive?",
+        "How do I pause or resume a client account?",
+        "How do I delete a client workspace?"
       ],
+      "direct_questions": {
+        "Pause, resume or delete a client account": [
+          "How do I pause or resume a client account?",
+          "How do I delete a client workspace?",
+          "Does pausing a client delete their data?",
+          "Does pausing a client change my agency subscription?"
+        ]
+      },
       "routes": [
         "/dashboard/settings",
         "/dashboard/reports"
@@ -337,7 +347,10 @@
         "apps/web/app/dashboard/help/page.tsx",
         "apps/api/app/modules/auth_context.py",
         "apps/api/app/modules/alerts/router.py",
-        "apps/api/app/modules/alerts/email_delivery.py"
+        "apps/api/app/modules/alerts/email_delivery.py",
+        "apps/api/app/modules/workspace_lifecycle.py",
+        "apps/api/app/modules/organizations/router.py",
+        "apps/web/app/dashboard/settings/settings-client.tsx"
       ],
       "related": [
         "workspaces-access",

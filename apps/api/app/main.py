@@ -292,6 +292,7 @@ def ensure_organization_branding_columns():
                 "agency_owner_access_enabled",
                 "BOOLEAN DEFAULT FALSE",
             ),
+            ("is_paused", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ]:
             if column_name not in column_names:
                 connection.execute(

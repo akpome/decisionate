@@ -558,6 +558,10 @@ def get_public_shared_dashboard(
         ):
             raise_shared_dashboard_not_found()
 
+        from app.modules.workspace_lifecycle import workspace_is_paused
+        if workspace_is_paused(db, dataset.workspace_id or dataset.user_id):
+            raise_shared_dashboard_not_found()
+
         try:
             dataframe = load_dataframe_from_dataset(
                 dataset

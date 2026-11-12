@@ -2,6 +2,8 @@
 
 import {
   AlertTriangle,
+  Pause,
+  Play,
   RotateCcw,
   Trash2,
   X,
@@ -25,6 +27,7 @@ import {
   removeOrganizationInvite,
   removeOrganizationMember,
   updateAgencyOwnerWorkspaceAccess,
+  updateClientWorkspaceStatus,
   updateOrganizationMemberRole,
   updateMyOrganization,
   type OrganizationInviteRecord,
@@ -159,6 +162,7 @@ export function SettingsClient({
     useState(false)
   const [deletingClientWorkspace, setDeletingClientWorkspace] =
     useState(false)
+  const [updatingClientWorkspaceStatus, setUpdatingClientWorkspaceStatus] = useState(false)
   const [clientWorkspaceDeleteTarget, setClientWorkspaceDeleteTarget] =
     useState<OrganizationWorkspaceRecord | null>(null)
   const [clientWorkspaceDeleteConfirmation, setClientWorkspaceDeleteConfirmation] =
@@ -520,7 +524,8 @@ export function SettingsClient({
     async function loadClientWorkspaceAccess() {
       if (
         !canConfigureWorkspace ||
-        !selectedClientWorkspaceOwnerId
+        !selectedClientWorkspaceOwnerId ||
+        selectedClientWorkspace?.is_paused
       ) {
         setClientWorkspaceMembers([])
         setClientWorkspaceInvites([])
@@ -579,6 +584,7 @@ export function SettingsClient({
   }, [
     canConfigureWorkspace,
     clientWorkspaceAccessRetryKey,
+    selectedClientWorkspace?.is_paused,
     selectedClientWorkspaceOwnerId,
     userId,
   ])
@@ -1031,11 +1037,28 @@ export function SettingsClient({
   }
 
   function handleOpenDeleteClientWorkspace() {
-    if (!selectedClientWorkspace || deletingClientWorkspace) return
+    if (!selectedClientWorkspace || deletingClientWorkspace || updatingClientWorkspaceStatus) return
 
     setClientWorkspaceDeleteTarget(selectedClientWorkspace)
     setClientWorkspaceDeleteConfirmation("")
     setClientWorkspaceDeleteError("")
+  }
+
+  async function handleToggleClientWorkspaceStatus() {
+    if (!selectedClientWorkspace || !canManageClientWorkspaces || deletingClientWorkspace || updatingClientWorkspaceStatus) return
+    const target = selectedClientWorkspace
+    setUpdatingClientWorkspaceStatus(true)
+    setClientWorkspaceError("")
+    setClientWorkspaceNotice("")
+    try {
+      const updated = await updateClientWorkspaceStatus(target.id, !target.is_paused, userId)
+      setOrganizationWorkspaces(current => current.map(workspace => workspace.id === updated.id ? updated : workspace))
+      setClientWorkspaceNotice(updated.is_paused ? `${updated.name} is paused. Its data is preserved and billing is unchanged.` : `${updated.name} is active again. Its saved sync and report schedules can run.`)
+    } catch (error) {
+      setClientWorkspaceError(getSettingsErrorMessage(error, "Client account status could not be updated."))
+    } finally {
+      setUpdatingClientWorkspaceStatus(false)
+    }
   }
 
   function handleCloseDeleteClientWorkspace() {
@@ -1908,7 +1931,7 @@ export function SettingsClient({
 
             <p className="mt-1 text-sm text-gray-500">
               Client workspace data stays isolated from the agency. Manage
-              members or delete client workspaces here; client users access
+              members, pause access or delete client workspaces here; client users access
               their workspace by signing in.
             </p>
           </div>
@@ -1969,7 +1992,7 @@ export function SettingsClient({
           {selectedClientWorkspace && (
             <div className="mt-5 space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <select
                     aria-label="Client workspace to manage"
                     value={selectedClientWorkspaceOwnerId}
@@ -1978,7 +2001,7 @@ export function SettingsClient({
                         event.target.value
                       )
                     }
-                    disabled={deletingClientWorkspace}
+                    disabled={deletingClientWorkspace || updatingClientWorkspaceStatus}
                     className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 sm:w-64"
                   >
                     {managedClientWorkspaces.map(workspace => (
@@ -1986,15 +2009,29 @@ export function SettingsClient({
                         key={workspace.id}
                         value={workspace.owner_user_id}
                       >
-                        {workspace.name}
+                        {workspace.name}{workspace.is_paused ? " (Paused)" : ""}
                       </option>
                     ))}
                   </select>
 
+                  <span className={`inline-flex w-14 shrink-0 items-center text-xs font-medium ${selectedClientWorkspace.is_paused ? "text-amber-700" : "text-green-700"}`}>
+                    {selectedClientWorkspace.is_paused ? "Paused" : "Active"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleClientWorkspaceStatus()}
+                    disabled={deletingClientWorkspace || updatingClientWorkspaceStatus}
+                    aria-busy={updatingClientWorkspaceStatus}
+                    title={selectedClientWorkspace.is_paused ? "Resume client account" : "Pause client account"}
+                    className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-40"
+                  >
+                    {selectedClientWorkspace.is_paused ? <Play size={15} /> : <Pause size={15} />}
+                    {updatingClientWorkspaceStatus ? "Updating..." : selectedClientWorkspace.is_paused ? "Resume account" : "Pause account"}
+                  </button>
                   <button
                     type="button"
                     onClick={handleOpenDeleteClientWorkspace}
-                    disabled={deletingClientWorkspace}
+                    disabled={deletingClientWorkspace || updatingClientWorkspaceStatus}
                     title="Delete client workspace"
                     className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400"
                   >
@@ -2006,6 +2043,7 @@ export function SettingsClient({
                 </div>
               </div>
 
+              {!selectedClientWorkspace.is_paused && <>
               <div className="flex min-h-12 flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                   {loadingClientWorkspaceAccess ? (
                     <p className="text-sm text-gray-500">
@@ -2237,6 +2275,7 @@ export function SettingsClient({
                   </p>
                 )}
               </div>
+              </>}
             </div>
           )}
         </section>

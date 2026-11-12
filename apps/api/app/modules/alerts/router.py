@@ -1791,6 +1791,10 @@ def send_due_weekly_reports(request: Request):
         preferences = db.query(WeeklyReportPreference).filter_by(enabled=1, delivery_day=delivery_day).all()
         for preference in preferences:
             workspace = preference.workspace_id
+            from app.modules.workspace_lifecycle import workspace_is_paused
+            if workspace_is_paused(db, workspace):
+                results.append({"workspace_id": workspace, "status": "skipped", "detail": "Client workspace is paused"})
+                continue
             if was_weekly_report_sent_today(preference, current_time):
                 results.append({"workspace_id": workspace, "status": "skipped", "detail": "Already sent today"})
                 continue
@@ -1800,7 +1804,9 @@ def send_due_weekly_reports(request: Request):
                 results.append({"workspace_id": workspace, "status": status, "job_id": job.id, "detail": job.error})
             except HTTPException as error:
                 db.rollback()
-                results.append({"workspace_id": workspace, "status": "deferred" if error.status_code == 429 else "failed",
+                from app.modules.workspace_lifecycle import PAUSED_MESSAGE
+                paused = error.status_code == 403 and error.detail == PAUSED_MESSAGE
+                results.append({"workspace_id": workspace, "status": "skipped" if paused else "deferred" if error.status_code == 429 else "failed",
                                 "detail": str(error.detail)})
             except Exception:
                 db.rollback()

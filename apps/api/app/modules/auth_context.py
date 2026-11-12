@@ -127,6 +127,11 @@ def get_auth_context(
         allow_managed_client_workspace=allow_managed_client_workspace,
     )
 
+    # Keep workspace discovery available so a paused client can switch accounts.
+    if getattr(request, "scope", {}).get("path") != "/organizations/workspaces":
+        from app.modules.workspace_lifecycle import require_workspace_active
+        require_workspace_active(workspace_id)
+
     return AuthContext(
         user_id=user_id,
         workspace_id=workspace_id,

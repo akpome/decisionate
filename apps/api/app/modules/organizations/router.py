@@ -48,6 +48,7 @@ from app.modules.platform_admin import delete_workspace_records
 from app.modules.organizations.schemas import (
     OrganizationCreate,
     ClientWorkspaceCreate,
+    ClientWorkspaceStatusUpdate,
     ClientWorkspaceDeleteResponse,
     OrganizationInviteCreate,
     OrganizationInviteResponse,
@@ -1107,6 +1108,8 @@ def claim_pending_invites(
         organization = organizations_by_id.get(
             invite.organization_id
         )
+        if organization and organization.is_paused:
+            continue
         invite_role = canonical_client_workspace_role(
             organization,
             invite.role,
@@ -1440,6 +1443,7 @@ async def get_accessible_workspaces(
                     agency_owner_access_enabled=bool(
                         organization.agency_owner_access_enabled
                     ),
+                    is_paused=bool(organization.is_paused),
                 )
             )
 
@@ -1479,6 +1483,7 @@ async def get_accessible_workspaces(
                     agency_owner_access_enabled=bool(
                         organization.agency_owner_access_enabled
                     ),
+                    is_paused=bool(organization.is_paused),
                 )
             )
 
@@ -1511,6 +1516,7 @@ async def get_accessible_workspaces(
                         agency_owner_access_enabled=bool(
                             client_workspace.agency_owner_access_enabled
                         ),
+                        is_paused=bool(client_workspace.is_paused),
                     )
                 )
 
@@ -1855,11 +1861,57 @@ async def create_client_workspace(
         db.close()
 
 
+def get_agency_client_for_management(db, auth_context, organization_id):
+    agency = get_managed_organization_or_404(db, auth_context)
+    if agency.owner_user_id != auth_context.user_id or auth_context.workspace_id != auth_context.user_id:
+        raise HTTPException(403, "Only the agency workspace owner can manage client accounts")
+    client = db.query(Organization).filter(Organization.id == organization_id).with_for_update().first()
+    if client is None:
+        raise HTTPException(404, "Client workspace not found")
+    if not client.owner_user_id.startswith(f"{agency.owner_user_id}:client:"):
+        raise HTTPException(403, "Only client workspaces managed by this agency can be changed")
+    return client
+
+
+def ensure_client_workspace_idle(db, workspace_id):
+    from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, lock_workspace_queue
+    from app.modules.reports.models import ReportAnalysisJob
+    try:
+        ensure_workspace_jobs_idle(db, [workspace_id], include_queued=True)
+    except HTTPException as error:
+        if error.status_code == 409:
+            raise HTTPException(409, "An import is active. Wait for it to finish before pausing or deleting this client workspace.") from error
+        raise
+    lock_workspace_queue(db, "reports-analysis:" + workspace_id)
+    if db.query(ReportAnalysisJob).filter(
+        ReportAnalysisJob.workspace_id == workspace_id,
+        ReportAnalysisJob.status.in_({"queued", "running"}),
+    ).first():
+        raise HTTPException(409, "An analysis is active. Wait for it to finish before pausing or deleting this client workspace.")
+
+
+@router.patch("/client-workspaces/{organization_id}", response_model=OrganizationWorkspaceResponse)
+def update_client_workspace_status(organization_id: int, payload: ClientWorkspaceStatusUpdate, request: Request):
+    auth_context = get_auth_context(request)
+    with SessionLocal() as db:
+        client = get_agency_client_for_management(db, auth_context, organization_id)
+        if payload.is_paused and not client.is_paused:
+            ensure_client_workspace_idle(db, client.owner_user_id)
+        client.is_paused = payload.is_paused
+        db.commit()
+        return OrganizationWorkspaceResponse(
+            id=client.id, name=client.name, owner_user_id=client.owner_user_id, role="managed_client",
+            logo_url=client.logo_url, primary_color=client.primary_color, accent_color=client.accent_color,
+            report_display_name=client.report_display_name,
+            agency_owner_access_enabled=bool(client.agency_owner_access_enabled), is_paused=bool(client.is_paused),
+        )
+
+
 @router.delete(
     "/client-workspaces/{organization_id}",
     response_model=ClientWorkspaceDeleteResponse,
 )
-async def delete_client_workspace(
+def delete_client_workspace(
     organization_id: int,
     request: Request,
 ):
@@ -1867,34 +1919,8 @@ async def delete_client_workspace(
     db = SessionLocal()
 
     try:
-        agency_organization = get_managed_organization_or_404(
-            db,
-            auth_context,
-        )
-
-        if agency_organization.owner_user_id != auth_context.user_id:
-            raise HTTPException(
-                status_code=403,
-                detail="Only the agency workspace owner can delete client workspaces",
-            )
-
-        client_workspace = (
-            db.query(Organization)
-            .filter(Organization.id == organization_id)
-            .first()
-        )
-        if client_workspace is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Client workspace not found",
-            )
-
-        client_owner_prefix = f"{agency_organization.owner_user_id}:client:"
-        if not client_workspace.owner_user_id.startswith(client_owner_prefix):
-            raise HTTPException(
-                status_code=403,
-                detail="Only client workspaces managed by this agency can be deleted",
-            )
+        client_workspace = get_agency_client_for_management(db, auth_context, organization_id)
+        ensure_client_workspace_idle(db, client_workspace.owner_user_id)
 
         summary = delete_workspace_records(
             db,

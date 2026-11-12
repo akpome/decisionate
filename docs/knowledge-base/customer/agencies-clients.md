@@ -17,6 +17,23 @@ Client users have the client-workspace data and analysis access supported for
 their role. Granting agency-owner access remains a client-owner operation;
 another client user or a support prompt cannot grant it implicitly.
 
+## Pause, resume or delete a client account
+
+The agency workspace owner can manage their own clients in Settings under
+Client Workspaces, without needing the client's permission to view their data.
+Choose the client, then Pause account or Resume account. Pausing preserves the
+client's data, members, invitations and saved schedules. It blocks workspace
+access, shared dashboard links, automatic connector syncs and weekly reports.
+Resuming restores access and allows saved schedules to run again. An import or
+analysis that is queued or running must finish before pausing or deleting.
+
+Delete Workspace requires typing the client's workspace name to confirm. It
+permanently removes that workspace's data and access. It does not delete the
+agency workspace or a person's access to other workspaces. Pausing or deleting a
+client does not automatically change the agency subscription or purchased
+workspace capacity. These actions are not available to agency team members or
+client users.
+
 ## Branding
 
 Reports emailed to agency-managed clients use the managing agency's configured

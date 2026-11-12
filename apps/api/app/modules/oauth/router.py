@@ -725,6 +725,12 @@ def process_oauth_callback(
             db.commit()
             return oauth_redirect("missing_connection")
 
+        from app.modules.workspace_lifecycle import workspace_is_paused
+        if workspace_is_paused(db, state.workspace_id):
+            db.delete(state)
+            db.commit()
+            return oauth_redirect("workspace_paused")
+
         state_source_type = state.source_type
         state_connection_id = state.connection_id
 

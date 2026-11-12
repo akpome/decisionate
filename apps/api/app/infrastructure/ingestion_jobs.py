@@ -27,6 +27,10 @@ def durable_ingestion_enabled() -> bool:
 
 
 def claim_ingestion_job(db, job) -> bool:
+    from app.modules.workspace_lifecycle import require_workspace_active
+    workspace_id = job.workspace_id or job.user_id
+    lock_workspace_queue(db, workspace_id)
+    require_workspace_active(workspace_id, db)
     claimed = db.query(DataIngestionJob).filter(
         DataIngestionJob.id == job.id,
         DataIngestionJob.status == "queued",
@@ -55,6 +59,8 @@ def lock_workspace_queue(db, workspace_id):
 
 def ensure_workspace_queue_capacity(db, workspace_id: str):
     lock_workspace_queue(db, workspace_id)
+    from app.modules.workspace_lifecycle import require_workspace_active
+    require_workspace_active(workspace_id, db)
     if get_runtime_configuration().app_env == "production":
         from app.db.models import Organization
         if db.query(Organization.id).filter(Organization.owner_user_id == workspace_id).first() is None:
