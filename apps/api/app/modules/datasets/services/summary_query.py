@@ -183,11 +183,11 @@ def aggregate_summary_aware_dataframe(
     if aggregation == "daily":
         buckets = parsed_dates.dt.normalize()
     elif aggregation == "weekly":
-        buckets = parsed_dates.dt.to_period("W-SUN").dt.start_time
+        buckets = parsed_dates.dt.tz_localize(None).dt.to_period("W-SUN").dt.start_time
     elif aggregation == "quarterly":
-        buckets = parsed_dates.dt.to_period("Q").dt.start_time
+        buckets = parsed_dates.dt.tz_localize(None).dt.to_period("Q").dt.start_time
     else:
-        buckets = parsed_dates.dt.to_period("M").dt.start_time
+        buckets = parsed_dates.dt.tz_localize(None).dt.to_period("M").dt.start_time
 
     metric_columns = _metric_columns(valid_dataframe)
     grouped = {}

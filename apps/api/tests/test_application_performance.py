@@ -8,8 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pandas as pd
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import run_endpoint_function
+from fastapi.testclient import TestClient
 
 from app import main
 from app.modules.datasets import router as routes
@@ -68,12 +70,81 @@ class DatasetReadConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         for name in (
             "dataset_preview", "dataset_metrics", "dataset_insights", "dataset_chart_data",
             "dataset_anomalies", "dataset_details", "dataset_ai_analysis", "get_dataset_join_cache",
+            "get_dataset_join_metadata", "dataset_dimensions",
             "sync_due_source_connections",
             "update_dataset_metric_selection",
             "get_entity_matching_metadata", "preview_entity_matching", "run_entity_matching",
         ):
             with self.subTest(endpoint=name):
                 self.assertFalse(inspect.iscoroutinefunction(getattr(routes, name)))
+
+    async def test_join_metadata_does_not_block_other_requests_during_storage_or_profiling(self):
+        loop = asyncio.get_running_loop()
+        event_loop_thread = threading.get_ident()
+        for blocked_stage in ("load", "profile"):
+            with self.subTest(stage=blocked_stage):
+                threads = {}
+                started = asyncio.Event()
+                release = threading.Event()
+                dataset = SimpleNamespace(id=103)
+                frame = pd.DataFrame({"revenue": [10]})
+
+                def stage(name, result=None):
+                    def call(*args, **kwargs):
+                        threads[name] = threading.get_ident()
+                        if name == blocked_stage:
+                            loop.call_soon_threadsafe(started.set)
+                            release.wait(1)
+                        return result
+                    return call
+
+                db = SimpleNamespace(close=stage("close"))
+                query, load = stage("query", dataset), stage("load", frame)
+                with ExitStack() as stack:
+                    for name, value in (
+                        ("SessionLocal", stage("open", db)),
+                        ("get_user_id", stage("auth", "owner")),
+                        ("get_workspace_id", stage("workspace", "workspace")),
+                        ("load_dataset", query),
+                        ("verify_dataset_owner", stage("ownership")),
+                        ("load_dataframe_from_dataset", load),
+                        ("build_join_dataset_metadata", stage("profile", {"dataset_id": 103})),
+                    ):
+                        stack.enter_context(patch.object(routes, name, side_effect=value))
+                    stack.enter_context(patch("app.modules.datasets.services.dataset_loader.load_dataset", side_effect=query))
+                    stack.enter_context(patch("app.modules.datasets.services.dataset_loader.load_dataframe_from_dataset", side_effect=load))
+                    request = asyncio.create_task(dispatch(routes.get_dataset_join_metadata, request=object(), dataset_ids=[103]))
+                    try:
+                        await asyncio.wait_for(started.wait(), 0.5)
+                        self.assertFalse(request.done())
+                        self.assertNotEqual(threads[blocked_stage], event_loop_thread)
+                        health = await asyncio.wait_for(dispatch(main.root), 0.5)
+                        self.assertEqual(health, {"message": "Decisionate API"})
+                        self.assertNotIn("close", threads)
+                    finally:
+                        release.set()
+                        result = await request
+                self.assertEqual(result, {"datasets": [{"dataset_id": 103}]})
+                self.assertEqual(set(threads.values()), {threads["open"]})
+                self.assertIn("close", threads)
+
+    async def test_join_metadata_checks_dataset_access_before_opening_storage(self):
+        db = SimpleNamespace(close=Mock())
+        load = Mock(return_value=pd.DataFrame({"revenue": [10]}))
+        with patch.object(routes, "SessionLocal", return_value=db), patch.object(
+            routes, "get_user_id", return_value="owner"
+        ), patch.object(routes, "get_workspace_id", return_value="workspace"), patch.object(
+            routes, "load_dataset", return_value=SimpleNamespace(id=103)
+        ), patch("app.modules.datasets.services.dataset_loader.load_dataset", return_value=SimpleNamespace(id=103)), patch.object(
+            routes, "verify_dataset_owner", side_effect=HTTPException(403, "Forbidden")
+        ), patch.object(routes, "load_dataframe_from_dataset", load), patch(
+            "app.modules.datasets.services.dataset_loader.load_dataframe_from_dataset", load
+        ):
+            with self.assertRaises(HTTPException) as error:
+                await dispatch(routes.get_dataset_join_metadata, request=object(), dataset_ids=[103])
+        self.assertEqual(error.exception.status_code, 403)
+        load.assert_not_called()
+        db.close.assert_called_once()
 
     async def test_entity_workflows_keep_io_and_database_on_one_worker_thread(self):
         loop = asyncio.get_running_loop()
@@ -228,6 +299,57 @@ class DatasetReadConcurrencyTests(unittest.IsolatedAsyncioTestCase):
                 routes._load_owned_dataset_dataframe(object(), 1, "user", "workspace")
         self.assertEqual(error.exception.status_code, 403)
         load.assert_not_called()
+
+
+class JoinMetadataResponseTests(unittest.TestCase):
+    def setUp(self):
+        app = FastAPI()
+        app.include_router(routes.router, prefix="/datasets")
+        self.origin = "https://www.decisionate.ca"
+        app.add_middleware(CORSMiddleware, allow_origins=[self.origin], allow_headers=["*"], allow_methods=["*"])
+        self.client = TestClient(app)
+        self.db = SimpleNamespace(close=Mock())
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        for name, value in (("SessionLocal", self.db), ("get_user_id", "owner"), ("get_workspace_id", "workspace"),
+                            ("build_join_dataset_metadata", {"dataset_id": 103})):
+            self.stack.enter_context(patch.object(routes, name, return_value=value))
+        self.load = self.stack.enter_context(patch.object(routes, "_load_owned_dataset_dataframe",
+            return_value=(SimpleNamespace(id=103), pd.DataFrame({"revenue": [10]}))))
+
+    def request(self, query="dataset_ids=103"):
+        return self.client.get("/datasets/join/metadata?" + query, headers={"Origin": self.origin})
+
+    def test_success_preserves_metadata_and_cors_headers(self):
+        response = self.request()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"datasets": [{"dataset_id": 103}]})
+        self.assertEqual(response.headers["access-control-allow-origin"], self.origin)
+        self.load.assert_called_once_with(self.db, 103, "owner", "workspace", apply_metric_selection=False)
+        self.db.close.assert_called_once()
+
+    def test_storage_failures_return_a_readable_cors_enabled_error(self):
+        self.load.side_effect = RuntimeError("Private storage diagnostics")
+        with patch.object(routes.logger, "exception"):
+            response = self.request()
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["access-control-allow-origin"], self.origin)
+        self.assertEqual(response.json()["detail"], "Dataset metadata is temporarily unavailable. Try again shortly.")
+        self.assertNotIn("Private storage", response.text)
+        self.db.close.assert_called_once()
+
+    def test_denied_requests_keep_their_status_and_cors_header(self):
+        self.load.side_effect = HTTPException(403, "Forbidden")
+        response = self.request()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.headers["access-control-allow-origin"], self.origin)
+        self.db.close.assert_called_once()
+
+    def test_invalid_selections_do_not_load_any_files(self):
+        for query in ("dataset_ids=103&dataset_ids=103", "&".join(f"dataset_ids={identity}" for identity in range(6))):
+            with self.subTest(query=query):
+                self.assertEqual(self.request(query).status_code, 400)
+        self.load.assert_not_called()
 
 
 class AuthenticationConcurrencyTests(unittest.IsolatedAsyncioTestCase):

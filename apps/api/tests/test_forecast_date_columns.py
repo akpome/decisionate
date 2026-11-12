@@ -1,4 +1,5 @@
 import unittest
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -8,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.modules.datasets import router as datasets
 from app.modules.forecasting import router as forecasts
-from app.modules.forecasting.services import forecast_date_columns, generate_forecast
+from app.modules.forecasting.services import forecast_date_columns, generate_forecast, prepare_forecast_dataframe
 
 
 def sample():
@@ -120,6 +121,65 @@ class ForecastDateColumnTests(unittest.TestCase):
         frame = sample().rename(columns={"date": "booked", "paid_date": "settled"})
         result = generate_forecast(frame, metric="revenue", date_column="settled", aggregation="daily")
         self.assertEqual(result["date_column"], "settled")
+
+
+class ForecastCalendarTimezoneTests(unittest.TestCase):
+    def prepare(self, frame, **options):
+        original = frame.copy(deep=True)
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always", UserWarning)
+            result = prepare_forecast_dataframe(frame, "date", **options)
+        self.assertFalse([str(warning.message) for warning in captured if "drop timezone information" in str(warning.message)])
+        pd.testing.assert_frame_equal(frame, original)
+        return result
+
+    def test_calendar_grouping_does_not_warn_for_date_only_or_timezone_aware_inputs(self):
+        dates = pd.date_range("2026-01-01", periods=4)
+        for values in (dates, dates.tz_localize("UTC"), dates.tz_localize("America/Halifax"), dates.strftime("%Y-%m-%d")):
+            for grain, label in (("weekly", "2025-12-29"), ("monthly", "2026-01-01"), ("quarterly", "2026-01-01")):
+                with self.subTest(dtype=str(values.dtype), grain=grain):
+                    result = self.prepare(pd.DataFrame({"date": values, "revenue": [10, 20, 30, 40]}), aggregation=grain)
+                    self.assertEqual(result["date"].tolist(), [pd.Timestamp(label)])
+                    self.assertEqual(result["revenue"].tolist(), [100])
+                    self.assertIsNone(result["date"].dt.tz)
+
+    def test_offset_timestamps_still_use_utc_week_month_and_quarter_boundaries(self):
+        for grain, dates, labels in (
+            ("weekly", ["2026-02-01T23:30:00-04:00", "2026-02-02T00:30:00+02:00"], ["2026-01-26", "2026-02-02"]),
+            ("monthly", ["2026-01-31T23:30:00-04:00", "2026-02-01T00:30:00+02:00"], ["2026-01-01", "2026-02-01"]),
+            ("quarterly", ["2026-03-31T23:30:00-04:00", "2026-04-01T00:30:00+02:00"], ["2026-01-01", "2026-04-01"]),
+        ):
+            with self.subTest(grain=grain):
+                result = self.prepare(pd.DataFrame({"date": dates, "revenue": [10, 20]}), aggregation=grain)
+                self.assertEqual(result["date"].dt.strftime("%Y-%m-%d").tolist(), labels)
+                self.assertEqual(result["revenue"].tolist(), [20, 10])
+
+    def test_date_windows_are_applied_before_removing_the_utc_timezone(self):
+        frame = pd.DataFrame({"date": ["2026-01-31T23:30:00-04:00", "2026-02-01T00:30:00+02:00", "2026-03-01T00:00:00+00:00"],
+                              "revenue": [10, 20, 1000]})
+        result = self.prepare(frame, aggregation="monthly", start_date="2026-02-01T00:00:00Z", period_filter="1m")
+        self.assertEqual(result["date"].tolist(), [pd.Timestamp("2026-02-01")])
+        self.assertEqual(result["revenue"].tolist(), [10])
+
+    def test_daily_grouping_and_ungrouped_dates_retain_their_utc_timezone(self):
+        frame = pd.DataFrame({"date": ["2026-01-31T23:30:00-04:00", "2026-02-01T00:30:00+02:00"], "revenue": [10, 20]})
+        daily = self.prepare(frame, aggregation="daily")
+        self.assertEqual(daily["date"].tolist(), [pd.Timestamp("2026-01-31", tz="UTC"), pd.Timestamp("2026-02-01", tz="UTC")])
+        self.assertEqual(daily["revenue"].tolist(), [20, 10])
+        ungrouped = self.prepare(frame)
+        self.assertEqual(ungrouped["date"].tolist(), pd.to_datetime(frame["date"], utc=True).tolist())
+
+    def test_historical_summary_rows_and_raw_rows_keep_correct_totals_and_weighted_averages(self):
+        frame = pd.DataFrame({"date": pd.date_range("2026-01-01", periods=2, tz="UTC"),
+                              "__decisionate_summary__": [True, False], "revenue": [None, 30],
+                              "revenue__sum": [100, None], "revenue__count": [2, None],
+                              "revenue__min": [40, None], "revenue__max": [60, None]})
+        for grain, label in (("weekly", "2025-12-29"), ("monthly", "2026-01-01"), ("quarterly", "2026-01-01")):
+            for operation, expected in (("sum", 130), ("avg", 130 / 3), ("count", 3), ("min", 30), ("max", 60)):
+                with self.subTest(grain=grain, operation=operation):
+                    result = self.prepare(frame, aggregation=grain, aggregation_type=operation)
+                    self.assertEqual(result["date"].tolist(), [pd.Timestamp(label)])
+                    self.assertAlmostEqual(result["revenue"].iloc[0], expected)
 
 
 class ForecastDateColumnRouteTests(unittest.TestCase):

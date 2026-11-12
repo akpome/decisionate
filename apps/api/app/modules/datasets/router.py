@@ -3928,7 +3928,7 @@ async def get_analytics_status(
 
 
 @router.get("/join/metadata")
-async def get_dataset_join_metadata(
+def get_dataset_join_metadata(
     request: Request,
     dataset_ids: list[int] = Query(...),
 ):
@@ -3957,15 +3957,12 @@ async def get_dataset_join_metadata(
         failed_dataset_id = None
         for dataset_id in clean_dataset_ids:
             failed_dataset_id = dataset_id
-            dataset, dataframe = load_dataframe(
+            dataset, dataframe = _load_owned_dataset_dataframe(
                 db,
                 dataset_id,
-                apply_metric_selection=False,
-            )
-            verify_dataset_owner(
-                dataset,
                 user_id,
                 workspace_id,
+                apply_metric_selection=False,
             )
             metadata.append(
                 build_join_dataset_metadata(

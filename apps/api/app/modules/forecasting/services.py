@@ -423,20 +423,24 @@ def prepare_forecast_dataframe(
             date_column
         ].dt.normalize()
     elif clean_aggregation == "weekly":
+        # Parsing above already normalized UTC; calendar periods have no timezone.
         buckets = (
             scoped_dataframe[date_column]
+            .dt.tz_localize(None)
             .dt.to_period("W-SUN")
             .dt.start_time
         )
     elif clean_aggregation == "quarterly":
         buckets = (
             scoped_dataframe[date_column]
+            .dt.tz_localize(None)
             .dt.to_period("Q")
             .dt.start_time
         )
     else:
         buckets = (
             scoped_dataframe[date_column]
+            .dt.tz_localize(None)
             .dt.to_period("M")
             .dt.start_time
         )
