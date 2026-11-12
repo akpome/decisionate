@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react"
 
-import { deleteDatasetJoinCache, getDatasetJoinMetadata, joinDatasets, type DatasetJoinMetadata, type DatasetJoinResult, type DatasetJoinSelection, type DatasetSummary, type DashboardAggregation, type DashboardValueAggregation, type ForecastPeriodFilter } from "@/lib/api";
+import { deleteDataset, deleteDatasetJoinCache, getDatasetJoinMetadata, joinDatasets, type DatasetJoinMetadata, type DatasetJoinResult, type DatasetJoinSelection, type DatasetSummary, type DashboardAggregation, type DashboardValueAggregation, type ForecastPeriodFilter } from "@/lib/api";
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
 
@@ -91,6 +91,8 @@ export function DatasetJoinPanel({
   const [loadingMetadata, setLoadingMetadata] =
     useState(false)
   const [joining, setJoining] =
+    useState(false)
+  const [resetting, setResetting] =
     useState(false)
   const [error, setError] = useState("")
   const activeResult = result ?? persistedResult ?? null
@@ -358,44 +360,45 @@ export function DatasetJoinPanel({
   }
 
   async function resetJoinedDataset() {
-    setError("")
+    if (joining || resetting || !userId || !selectedDatasetId) {
+      return
+    }
 
-    if (userId && selectedDatasetId) {
-      try {
+    setError("")
+    setResetting(true)
+
+    try {
+      const derivedDatasetId = activeResult?.derived_dataset_id ?? activeResult?.derived_dataset?.id
+      if (derivedDatasetId) {
+        await deleteDataset(derivedDatasetId, userId, workspaceId)
+      } else {
         await deleteDatasetJoinCache(
           selectedDatasetId,
           dashboardKey,
           userId,
           workspaceId
         )
-      } catch (resetError) {
-        setError(
-          resetError instanceof Error
-            ? resetError.message
-            : "Unable to reset the joined dataset cache."
-        )
-        return
-      }
-    }
-
-    updateJoinResult(null)
-    setSelectedDatasetIds(
-      selectedDatasetId ? [selectedDatasetId] : []
-    )
-    setConfigurations(current => {
-      if (!selectedDatasetId) {
-        return {}
       }
 
-      return {
+      updateJoinResult(null)
+      setSelectedDatasetIds([selectedDatasetId])
+      setConfigurations(current => ({
         [selectedDatasetId]: current[selectedDatasetId] ?? {
           dataset_id: selectedDatasetId,
           date_column: "",
           metric_columns: [],
         },
-      }
-    })
-    setMetadata([])
+      }))
+      setMetadata([])
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : "Unable to reset the joined dataset cache."
+      )
+    } finally {
+      setResetting(false)
+    }
   }
 
   async function handleJoin() {
@@ -650,6 +653,7 @@ export function DatasetJoinPanel({
           onClick={() => void handleJoin()}
           disabled={
             joining ||
+            resetting ||
             loadingMetadata ||
             selectedDatasetIds.length < 2
           }
@@ -684,7 +688,9 @@ export function DatasetJoinPanel({
             <button
               type="button"
               onClick={() => void resetJoinedDataset()}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+              disabled={joining || resetting}
+              aria-busy={resetting}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               title={t("Remove the joined view and return to the original dataset")}
             >
               <RotateCcw size={14} />
