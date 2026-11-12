@@ -64,3 +64,25 @@ Explain that the platform sender and agency display name are distinct, preserve
 the agency logo requirement, and state whether an address was verified from
 current settings or only an older delivery. Never claim that changing a logo
 verifies a sender domain or fixes authentication.
+
+## Workspace invitations
+
+Client workspace creation and adding a member invitation call
+`organizations/invitations.py` after the workspace and invitation are committed.
+The helper uses the platform system email provider, with agency branding for a
+managed client, and a trusted `WEB_URL` sign-in link targeting that workspace.
+An email failure leaves the invitation pending and the workspace intact.
+`email_status`, `email_attempted_at`, `email_sent_at` and a safe `email_error`
+record the attempt separately from invitation acceptance. Sent means provider
+acceptance, not recipient delivery. A sending or unknown state after interruption
+must not be automatically retried. Check provider records before a deliberate
+resend using Settings > Client Workspaces > Send invitation. The endpoint has a
+one-minute per-invitation cooldown and supplies a Resend idempotency header.
+
+First sign-in claims invitations only using a verified email from the session or
+the authenticated subject's verified primary Clerk email. Standard Clerk session
+tokens may omit verified-email claims; configure `CLERK_SECRET_KEY` on the API
+server for that server-side lookup. The browser email header is only a lookup
+hint, not evidence of ownership. Missing configuration or a provider failure
+returns a safe access/service error instead of silently creating a personal
+workspace. Do not paste the secret key or invitation email body into diagnostics.

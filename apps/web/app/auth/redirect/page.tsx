@@ -75,7 +75,11 @@ export default function AuthRedirectPage() {
       if (adminResult.status === "rejected" && adminResult.reason instanceof ApiError && adminResult.reason.status === 401) {
         throw adminResult.reason
       }
-      const workspace = chooseAuthWorkspace(workspaceResult.value, authenticatedUserId, getActiveWorkspaceId(authenticatedUserId))
+      const requestedWorkspaceId = returnTo ? new URL(returnTo, window.location.origin).searchParams.get("workspace_id") : null
+      const workspace = chooseAuthWorkspace(workspaceResult.value, authenticatedUserId, getActiveWorkspaceId(authenticatedUserId), requestedWorkspaceId)
+      if (requestedWorkspaceId && !workspace) {
+        throw new ApiError("Sign in using the email address invited to this workspace.", 403)
+      }
       if (adminResult.status === "rejected" && (!workspace || returnTo?.startsWith("/platform-admin"))) {
         throw adminResult.reason
       }

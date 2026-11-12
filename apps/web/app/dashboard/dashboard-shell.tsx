@@ -65,6 +65,7 @@ import {
   getWorkspaceBrand,
 } from "@/lib/workspace-brand"
 import { ThemeToggle } from "@/app/theme-toggle"
+import { isClientWorkspaceRole } from "@/features/auth/lib/auth-workspaces"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   decisionateLanguageChangedEvent,
@@ -510,8 +511,7 @@ export function DashboardShell({
           const clientWorkspaces =
             sharedWorkspaces.filter(
               (workspace) =>
-                workspace.role.toLowerCase() ===
-                "client"
+                isClientWorkspaceRole(workspace.role)
             )
           let defaultWorkspaceId = userId
 
@@ -1372,7 +1372,7 @@ function getWorkspaceOptions(
         workspace.owner_user_id === activeWorkspaceId
     )
   const isClientPortalWorkspace =
-    activeWorkspace?.role.toLowerCase() === "client"
+    Boolean(activeWorkspace && isClientWorkspaceRole(activeWorkspace.role))
 
   if (isClientPortalWorkspace) {
     return sharedWorkspaces

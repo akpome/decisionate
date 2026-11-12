@@ -1054,6 +1054,11 @@ class OrganizationInvite(Base):
         default=utc_now,
     )
 
+    email_status = Column(String, nullable=True)
+    email_attempted_at = Column(DateTime, nullable=True)
+    email_sent_at = Column(DateTime, nullable=True)
+    email_error = Column(Text, nullable=True)
+
 
 class WorkspaceSubscription(Base):
     __tablename__ = "workspace_subscriptions"

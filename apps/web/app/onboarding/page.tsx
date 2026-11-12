@@ -254,7 +254,9 @@ export default function OnboardingPage() {
         setErrorMessage("")
         const workspaces = await getOrganizationWorkspaces(userId, userEmail)
         if (cancelled) return
-        const workspace = chooseAuthWorkspace(workspaces, userId, getActiveWorkspaceId(userId))
+        const requestedWorkspaceId = new URL(getWorkspaceReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin), window.location.origin).searchParams.get("workspace_id")
+        const workspace = chooseAuthWorkspace(workspaces, userId, getActiveWorkspaceId(userId), requestedWorkspaceId)
+        if (requestedWorkspaceId && !workspace) throw new Error("Sign in using the email address invited to this workspace.")
 
         if (workspace) {
           setActiveWorkspaceId(userId, workspace.owner_user_id)

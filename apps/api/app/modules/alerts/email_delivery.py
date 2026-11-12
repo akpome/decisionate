@@ -345,6 +345,8 @@ def _send_resend_message(
         },
         method="POST",
     )
+    if message.get("X-Decisionate-Idempotency-Key"):
+        request.add_header("Idempotency-Key", str(message["X-Decisionate-Idempotency-Key"]))
     try:
         with urlopen(
             request,
@@ -388,6 +390,7 @@ def send_platform_system_email(
     *,
     sender_name: str | None = None,
     branding: dict | None = None,
+    idempotency_key: str | None = None,
 ) -> None:
     """Send a Decisionate-owned system message through the platform provider."""
     clean_recipient = str(recipient or "").strip()
@@ -408,6 +411,8 @@ def send_platform_system_email(
     message["Subject"] = subject
     message["From"] = formataddr((from_name, from_email))
     message["To"] = clean_recipient
+    if idempotency_key:
+        message["X-Decisionate-Idempotency-Key"] = idempotency_key
     if reply_to:
         message["Reply-To"] = reply_to
     message.set_content(body)

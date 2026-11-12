@@ -146,6 +146,24 @@ test("managed client workspaces cannot be selected unless owner access is enable
   assert.equal(workspaces.chooseAuthWorkspace([enabled], "reviewer", enabled.owner_user_id), enabled)
 })
 
+test("all client roles open their client workspace instead of a default personal account", () => {
+  for (const role of ["client", "client_owner", "client_user"]) {
+    const client = { ...shared, role }
+    assert.equal(workspaces.chooseAuthWorkspace([own, client], "reviewer", "reviewer"), client)
+    const another = { ...client, id: 3, owner_user_id: "agency:client:three" }
+    assert.equal(workspaces.chooseAuthWorkspace([own, client, another], "reviewer", another.owner_user_id), another)
+  }
+})
+
+test("invitation links choose only their authorized workspace and never fall back to another account", () => {
+  assert.equal(workspaces.chooseAuthWorkspace([own, shared], "reviewer", "reviewer", shared.owner_user_id), shared)
+  assert.equal(workspaces.chooseAuthWorkspace([own, shared], "reviewer", shared.owner_user_id, "unrelated:client:other"), undefined)
+  const denied = { ...shared, role: "managed_client", agency_owner_access_enabled: false }
+  assert.equal(workspaces.chooseAuthWorkspace([own, denied], "reviewer", "reviewer", denied.owner_user_id), undefined)
+  const resolver = readFileSync(new URL("../app/auth/redirect/page.tsx", import.meta.url), "utf8")
+  assert.match(resolver, /requestedWorkspaceId && !workspace/)
+})
+
 function proxyHarness({ selfRewrite = false } = {}) {
   let clerkCalls = 0
   const proxy = load("../proxy.ts", {

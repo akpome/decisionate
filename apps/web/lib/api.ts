@@ -2033,6 +2033,8 @@ export type OrganizationWorkspaceRecord = {
   agency_owner_access_enabled?: boolean
   is_paused?: boolean
   billing_notice?: string | null
+  invitation_email_status?: string | null
+  invitation_email_error?: string | null
 }
 
 export type ClientWorkspaceCreatePayload = {
@@ -2054,6 +2056,8 @@ export type OrganizationInviteRecord = {
   email: string
   role: string
   status: string
+  email_status?: string | null
+  email_error?: string | null
 }
 
 export type OrganizationMemberCreatePayload = {
@@ -6597,6 +6601,20 @@ export async function addOrganizationInvite(
     )
   }
 
+  return response.json()
+}
+
+export async function sendOrganizationInvite(
+  inviteId: number,
+  userId: string,
+  workspaceId?: string
+): Promise<OrganizationInviteRecord> {
+  const id = cleanPositiveIntegerId(inviteId, "Invitation id")
+  const response = await fetchOrganizationRequest(`${API_URL}/organizations/invites/${id}/send`, {
+    method: "POST",
+    headers: await workspaceJsonHeaders(userId, workspaceId),
+  })
+  if (!response.ok) await throwApiError(response, "Invitation email could not be sent")
   return response.json()
 }
 

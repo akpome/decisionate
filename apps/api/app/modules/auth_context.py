@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import re
 
 import jwt
 from fastapi import HTTPException, Request
@@ -28,6 +29,10 @@ CLIENT_WORKSPACE_ROLES = frozenset(
 
 def is_client_workspace_role(role: str | None) -> bool:
     return str(role or "").strip().lower() in CLIENT_WORKSPACE_ROLES
+
+
+def is_organization_management_path(path: str) -> bool:
+    return bool(re.fullmatch(r"/organizations/(?:members(?:/[1-9][0-9]*)?|invites(?:/[1-9][0-9]*(?:/send)?)?)", path))
 
 
 @dataclass

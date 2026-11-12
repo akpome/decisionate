@@ -97,6 +97,7 @@ from app.modules.decisions.models import Decision as Decision
 from app.modules.decisions.activity_models import DecisionActivity as DecisionActivity
 from app.modules.auth_context import (
     get_auth_context,
+    is_organization_management_path,
 )
 from app.modules.usage_activity import (
     collect_usage_activity,
@@ -303,6 +304,18 @@ def ensure_organization_branding_columns():
 
 
 ensure_organization_branding_columns()
+
+
+def ensure_organization_invite_email_columns():
+    with engine.begin() as connection:
+        columns = get_table_columns(connection, "organization_invites")
+        for name, kind in (("email_status", "VARCHAR"), ("email_attempted_at", "TIMESTAMP"),
+                           ("email_sent_at", "TIMESTAMP"), ("email_error", "TEXT")):
+            if name not in columns:
+                connection.execute(text(f"ALTER TABLE organization_invites ADD COLUMN {name} {kind}"))
+
+
+ensure_organization_invite_email_columns()
 
 
 def ensure_onboarding_profile_columns():
@@ -1689,9 +1702,11 @@ async def enforce_product_route_auth(
         }
     ):
         try:
+            management_options = {"allow_managed_client_workspace": True} if is_organization_management_path(request.url.path) else {}
             request.state.auth_context = await run_in_threadpool(
                 get_auth_context,
                 request,
+                **management_options,
             )
         except HTTPException as error:
             return JSONResponse(

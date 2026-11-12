@@ -78,6 +78,8 @@ class OrganizationWorkspaceResponse(BaseModel):
     agency_owner_access_enabled: bool = False
     is_paused: bool = False
     billing_notice: str | None = None
+    invitation_email_status: str | None = None
+    invitation_email_error: str | None = None
 
 
 class ClientWorkspaceDeleteResponse(BaseModel):
@@ -99,6 +101,8 @@ class OrganizationInviteResponse(BaseModel):
     email: str
     role: str
     status: str
+    email_status: str | None = None
+    email_error: str | None = None
 
 
 class OrganizationInviteCreate(BaseModel):

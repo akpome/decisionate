@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Mail,
   Pause,
   Play,
   RotateCcw,
@@ -26,6 +27,7 @@ import {
   getOrganizationWorkspaces,
   removeOrganizationInvite,
   removeOrganizationMember,
+  sendOrganizationInvite,
   updateAgencyOwnerWorkspaceAccess,
   updateClientWorkspaceStatus,
   updateOrganizationMemberRole,
@@ -929,7 +931,7 @@ export function SettingsClient({
         ]
       )
       setMemberInviteEmail("")
-      setInviteError("")
+      setInviteError(invite.email_status === "sent" ? "" : invite.email_error || "Invitation saved, but the email was not confirmed. Check the recipient's inbox before resending.")
     } catch (error) {
       console.error(error)
       setInviteError(
@@ -1021,8 +1023,11 @@ export function SettingsClient({
       setClientWorkspaceName("")
       setClientWorkspaceEmail("")
       setClientWorkspaceNotice(
-        `${workspace.name} is ready. The client invite is waiting for ${cleanEmail} to sign in.${workspace.billing_notice ? ` ${workspace.billing_notice}` : ""}`
+        `${workspace.name} was created. ${workspace.invitation_email_status === "sent" ? `Invitation email sent to ${cleanEmail}.` : "Invitation saved."}${workspace.billing_notice ? ` ${workspace.billing_notice}` : ""}`
       )
+      if (workspace.invitation_email_status !== "sent") {
+        setClientWorkspaceError(workspace.invitation_email_error || "Invitation email was not confirmed. Check the recipient's inbox before using Send invitation below.")
+      }
     } catch (error) {
       console.error(error)
       setClientWorkspaceError(
@@ -1146,7 +1151,7 @@ export function SettingsClient({
     setClientWorkspaceAccessError("")
 
     try {
-      await addOrganizationInvite(
+      const invite = await addOrganizationInvite(
         {
           email: cleanEmail,
           role: "client_user",
@@ -1158,6 +1163,7 @@ export function SettingsClient({
       setClientWorkspaceAccessRetryKey(
         currentKey => currentKey + 1
       )
+      if (invite.email_status !== "sent") setClientWorkspaceAccessError(invite.email_error || "Invitation email was not confirmed. Check the recipient's inbox before resending.")
     } catch (error) {
       console.error(error)
       setClientWorkspaceAccessError(
@@ -1166,6 +1172,24 @@ export function SettingsClient({
           "Client member invite could not be created."
         )
       )
+    } finally {
+      setClientAccessAction(null)
+    }
+  }
+
+  async function handleSendClientInvitation(invite: OrganizationInviteRecord) {
+    if (!canManageClientWorkspaces || !selectedClientWorkspaceOwnerId || clientAccessAction) return
+    setClientAccessAction("invite")
+    setClientWorkspaceAccessError("")
+    setClientWorkspaceError("")
+    setClientWorkspaceNotice("")
+    try {
+      const updated = await sendOrganizationInvite(invite.id, userId, selectedClientWorkspaceOwnerId)
+      setClientWorkspaceInvites(current => current.map(item => item.id === updated.id ? updated : item))
+      if (updated.email_status === "sent") setClientWorkspaceNotice(`Invitation email sent to ${updated.email}.`)
+      else setClientWorkspaceAccessError(updated.email_error || "Invitation email was not confirmed. Check the recipient's inbox before resending.")
+    } catch (error) {
+      setClientWorkspaceAccessError(getSettingsErrorMessage(error, "Invitation email could not be sent."))
     } finally {
       setClientAccessAction(null)
     }
@@ -2066,7 +2090,7 @@ export function SettingsClient({
                       </div>
                     </div>
                   ) : selectedClientWorkspaceOwnerInvite ? (
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
                       <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
                         Owner
                       </span>
@@ -2075,9 +2099,14 @@ export function SettingsClient({
                           {selectedClientWorkspaceOwnerInvite.email}
                         </p>
                         <span className="text-xs text-gray-500">
-                          Invitation pending
+                          {selectedClientWorkspaceOwnerInvite.email_status === "sent" ? "Email sent; awaiting sign-in" : "Invitation email not confirmed"}
                         </span>
                       </div>
+                      <button type="button" onClick={() => void handleSendClientInvitation(selectedClientWorkspaceOwnerInvite)}
+                        disabled={Boolean(clientAccessAction)} title="Send client invitation email"
+                        className="inline-flex h-8 min-w-36 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-xs font-medium text-gray-700 disabled:opacity-50">
+                        <Mail size={14} />{clientAccessAction === "invite" ? "Sending..." : "Send invitation"}
+                      </button>
                       <button
                         type="button"
                         onClick={() =>
@@ -2220,11 +2249,16 @@ export function SettingsClient({
                       {selectedClientWorkspaceMemberInvites.map(invite => (
                         <div
                           key={invite.id}
-                          className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
                         >
                           <span className="break-all text-sm text-gray-700">
                             {invite.email}
                           </span>
+                          <button type="button" onClick={() => void handleSendClientInvitation(invite)}
+                            disabled={Boolean(clientAccessAction)} title="Send client invitation email"
+                            className="inline-flex h-8 min-w-36 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-xs font-medium text-gray-700 disabled:opacity-50">
+                            <Mail size={14} />Send invitation
+                          </button>
                           <button
                             type="button"
                             onClick={() =>

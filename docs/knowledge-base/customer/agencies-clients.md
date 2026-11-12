@@ -17,6 +17,30 @@ Client users have the client-workspace data and analysis access supported for
 their role. Granting agency-owner access remains a client-owner operation;
 another client user or a support prompt cannot grant it implicitly.
 
+## Invitations and first sign-in
+
+Creating a client workspace in Settings sends an invitation to the client
+owner's email address. The email names the agency and client workspace and links
+to that workspace's sign-in page. The client signs in or creates an account with
+the invited email address and verifies it. After sign-in, Decisionate accepts
+the pending invitation and opens the client workspace, not a new personal
+workspace. A client owner or client user signing in without the invitation link
+also defaults to their client workspace unless they already selected another
+accessible client workspace. An invitation link does not grant access to a
+different signed-in account; switch to the invited account instead.
+
+For an existing pending invitation, the agency owner can select the client under
+Settings > Client Workspaces and choose Send invitation. Check the recipient's
+inbox and spam folder before sending again. There is a one-minute wait between
+send attempts. Revoking an invitation removes that pending access.
+
+An email problem does not undo client workspace creation. If the screen says the
+invitation email was not confirmed, keep the existing workspace and use Send
+invitation; do not create the client again. Email sent means the email service
+accepted the message, not that it reached the inbox. If sending or verified-email
+lookup remains unavailable, contact support. A paused client must be resumed
+before an invitation can be sent or accepted.
+
 ## Pause, resume or delete a client account
 
 The agency workspace owner can manage their own clients in Settings under

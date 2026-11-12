@@ -20,7 +20,10 @@ from app.db.models import (
 from app.modules.auth_context import (
     clean_auth_value,
     get_auth_context,
+    get_auth_jwks_url,
 )
+from app.modules.identity.clerk import get_verified_clerk_primary_email
+from app.modules.organizations.invitations import send_invitation_email
 from app.modules.billing.service import (
     BillingProviderUnavailable,
     FREE_PLAN,
@@ -1372,7 +1375,7 @@ def clean_member_role(
     "/workspaces",
     response_model=list[OrganizationWorkspaceResponse],
 )
-async def get_accessible_workspaces(
+def get_accessible_workspaces(
     request: Request,
     include_managed_client_workspaces: bool = False,
 ):
@@ -1387,13 +1390,30 @@ async def get_accessible_workspaces(
     db = SessionLocal()
 
     try:
+        invite_email = auth_context.email if auth_context.email_verified else None
+        if not invite_email and auth_context.auth_provider == "clerk" and auth_context.external_user_id and get_auth_jwks_url():
+            # The browser address is only a lookup hint, never proof of ownership.
+            # Avoid a provider call on every read when no matching invitation exists.
+            hint = str(request.headers.get("X-User-Email") or "").strip().lower()
+            pending = db.query(OrganizationInvite.id).filter_by(email=hint, status="pending").first() if hint else None
+            if pending:
+                invite_email = get_verified_clerk_primary_email(auth_context.external_user_id)
+                if not invite_email:
+                    raise HTTPException(403, "Verify your sign-in email address before accepting the workspace invitation.")
         claimed_invite_count = claim_pending_invites(
             db,
             user_id,
-            auth_context.email if auth_context.email_verified else None,
-            email_verified=auth_context.email_verified,
+            invite_email,
+            email_verified=bool(invite_email),
         )
         if claimed_invite_count:
+            user = db.get(AppUser, user_id)
+            if user and not user.email:
+                user.email = invite_email
+            if auth_context.external_user_id:
+                db.query(AuthIdentity).filter_by(
+                    user_id=user_id, provider=auth_context.auth_provider, subject=auth_context.external_user_id,
+                ).update({"email": invite_email}, synchronize_session=False)
             db.commit()
 
         memberships = (
@@ -1700,7 +1720,7 @@ async def create_organization(
     "/client-workspaces",
     response_model=OrganizationWorkspaceResponse,
 )
-async def create_client_workspace(
+def create_client_workspace(
     request: Request,
     payload: ClientWorkspaceCreate,
 ):
@@ -1830,17 +1850,17 @@ async def create_client_workspace(
         db.add(client_workspace)
         db.flush()
 
-        db.add(
-            OrganizationInvite(
-                organization_id=client_workspace.id,
-                email=client_email,
-                role="client_owner",
-                status="pending",
-            )
+        invite = OrganizationInvite(
+            organization_id=client_workspace.id,
+            email=client_email,
+            role="client_owner",
+            status="pending",
         )
+        db.add(invite)
 
         db.commit()
         db.refresh(client_workspace)
+        invite = send_invitation_email(db, client_workspace, invite)
 
         return OrganizationWorkspaceResponse(
             id=client_workspace.id,
@@ -1855,6 +1875,8 @@ async def create_client_workspace(
                 client_workspace.agency_owner_access_enabled
             ),
             billing_notice=billing_notice,
+            invitation_email_status=invite.email_status,
+            invitation_email_error=invite.email_error,
         )
 
     finally:
@@ -2271,7 +2293,7 @@ async def get_organization_invites(
     "/invites",
     response_model=OrganizationInviteResponse,
 )
-async def add_organization_invite(
+def add_organization_invite(
     request: Request,
     payload: OrganizationInviteCreate,
 ):
@@ -2342,7 +2364,7 @@ async def add_organization_invite(
             db.commit()
             db.refresh(existing_invite)
 
-            return existing_invite
+            return send_invitation_email(db, organization, existing_invite)
 
         validate_client_workspace_role_capacity(
             db,
@@ -2363,10 +2385,21 @@ async def add_organization_invite(
 
         db.refresh(invite)
 
-        return invite
+        return send_invitation_email(db, organization, invite)
 
     finally:
         db.close()
+
+
+@router.post("/invites/{invite_id}/send", response_model=OrganizationInviteResponse)
+def resend_organization_invite(invite_id: int, request: Request):
+    auth_context = get_auth_context(request, allow_managed_client_workspace=True)
+    with SessionLocal() as db:
+        organization = get_managed_organization_or_404(db, auth_context)
+        invite = db.query(OrganizationInvite).filter_by(id=invite_id, organization_id=organization.id).first()
+        if invite is None:
+            raise HTTPException(404, "Invitation not found.")
+        return send_invitation_email(db, organization, invite, resend=True)
 
 
 # =========================

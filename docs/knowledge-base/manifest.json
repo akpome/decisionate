@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-11",
+  "reviewed_on": "2026-11-12",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -328,10 +328,18 @@
       "questions": [
         "Can an agency owner see client data?",
         "Whose logo do agency clients receive?",
+        "How does a client receive and accept their workspace invitation?",
+        "Why did creating a client workspace not send an invitation email?",
         "How do I pause or resume a client account?",
         "How do I delete a client workspace?"
       ],
       "direct_questions": {
+        "Invitations and first sign-in": [
+          "How does a client receive and accept their workspace invitation?",
+          "Why did creating a client workspace not send an invitation email?",
+          "How do I resend a client invitation?",
+          "Why does my client sign in to a personal workspace instead of their client workspace?"
+        ],
         "Pause, resume or delete a client account": [
           "How do I pause or resume a client account?",
           "How do I delete a client workspace?",
@@ -350,6 +358,8 @@
         "apps/api/app/modules/alerts/email_delivery.py",
         "apps/api/app/modules/workspace_lifecycle.py",
         "apps/api/app/modules/organizations/router.py",
+        "apps/api/app/modules/organizations/invitations.py",
+        "apps/web/features/auth/lib/auth-workspaces.ts",
         "apps/web/app/dashboard/settings/settings-client.tsx"
       ],
       "related": [
