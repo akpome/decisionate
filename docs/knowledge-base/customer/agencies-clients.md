@@ -20,7 +20,8 @@ another client user or a support prompt cannot grant it implicitly.
 ## Invitations and first sign-in
 
 Creating a client workspace in Settings sends an invitation to the client
-owner's email address. The email names the agency and client workspace and links
+owner's email address automatically; no separate send action is needed. The
+email names the agency and client workspace and links
 to that workspace's sign-in page. The client signs in or creates an account with
 the invited email address and verifies it. After sign-in, Decisionate accepts
 the pending invitation and opens the client workspace, not a new personal

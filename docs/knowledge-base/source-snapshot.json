@@ -1,18 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-12",
-  "base_git_revision": "b6a2f002df816cfc481e9093311eb4f701ce437f",
+  "base_git_revision": "c08b7b60326fbcb3151246de559112150da83222",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/db/models.py",
-    "apps/api/app/main.py",
-    "apps/api/app/modules/alerts/email_delivery.py",
-    "apps/api/app/modules/auth_context.py",
-    "apps/api/app/modules/organizations/invitations.py",
-    "apps/api/app/modules/organizations/router.py",
-    "apps/web/app/dashboard/dashboard-shell.tsx",
-    "apps/web/app/dashboard/settings/settings-client.tsx",
-    "apps/web/features/auth/lib/auth-workspaces.ts",
-    "apps/web/lib/api.ts"
+    "apps/api/app/modules/organizations/invitations.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -65,7 +56,7 @@
     "apps/api/app/modules/forecasting/services.py": "86429055b3a17627cec2e6eb921d6f41c350eaf57e82d91b57e6728fde8d7e9b",
     "apps/api/app/modules/identity/service.py": "bdf46e73da17ed330591c726cad0dfc6de5de3af5dc92e65ed4936edef189eea",
     "apps/api/app/modules/marketing/config.py": "089681ca86246fc90e636568a388affd4c4ef624be4374ef7278888df9a5b379",
-    "apps/api/app/modules/organizations/invitations.py": "b3d2c9ca0d0c7023abb7e1dd6964cdc9d3bf8e5803faf03820caeb52e9cfe50b",
+    "apps/api/app/modules/organizations/invitations.py": "fcf736ea1dcb87a125f57a275f2d26c4f9fb502c0b72886b8c3f355580e990b1",
     "apps/api/app/modules/organizations/router.py": "94acb3bf71a1738c6440b28db0e8a43207a8f0318d207e254215f123574cba0d",
     "apps/api/app/modules/performance/growth_schemas.py": "b6f2825ddaa94e17686c0454f1c987516d646ca03ba7340803f0bb907b96d862",
     "apps/api/app/modules/performance/growth_service.py": "ab9bf89bc494962f763d99ddca3aaab45a591a3f00c1b383a9a8fa5a2dd3b36e",
@@ -182,7 +173,7 @@
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",
     "customer/getting-started.md": "810205b6f2af17f6cce9b613e1424fcb34e2653bf57b8fb64236b771cfd8496c",
     "customer/workspaces-access.md": "d3ba3619e1b7bdeed8c01a761a6f9d0fb06050e61236c433596cb345f7f171a5",
-    "customer/agencies-clients.md": "f7cc153df7f283107cfee8db5b895f4820040cee73a517fbc8307e6d90a6aaa5",
+    "customer/agencies-clients.md": "71a6221c7c173f0fcd79e566ceb9ac084e87ca1bed7febf7ec382305d5068c8c",
     "customer/uploads-datasets.md": "493d4f26f6f355dd0927cdc03794a386c397dcd45c6617561e5420705e5e3ce3",
     "customer/connectors.md": "2ef0ce6e93c1f1b152dcf61c60a40de59bf0a10c51807a9b08a01d65a8f6f3b3",
     "customer/sync-retention.md": "2c556bd7ab87ceeaad9b6e6d6314f97f16f1041e9d7d613e6c54b88c59f2d721",
@@ -210,7 +201,7 @@
     "operator/architecture.md": "47f7b80c9a18423c60bb80985e283eeb6f8151aa8783372444490d29dfd926b6",
     "operator/worker-verification.md": "0361853c7eeee8b3ee28d38e0a0899fd6be66452df559762be49172a321d3432",
     "operator/ai-configuration.md": "faf7ffbfba84655f7d0f69f1d9bfbe5a1daa128ec14b36cfb2e86b1a1921b112",
-    "operator/email-delivery.md": "c25e363c9646f110c603ab5e897ba2b2fe3f86fcf3f15b1e9323a58216c43385",
+    "operator/email-delivery.md": "b13ebdb5a709e48c1240236d356cf3e96d508265b8f45571c72f3f3b2f11190a",
     "operator/incident-curation.md": "d2501cd8b11d5d1ab7ecb7dabca609f4df5e543bf8bac49288fa39242ed23129",
     "operator/maintenance-integration.md": "8f0cb42a59914139a059f425da1083a9613af80a9af3cde346fa81b2fa41a06e"
   }

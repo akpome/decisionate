@@ -4,6 +4,7 @@ from datetime import timedelta
 from email.message import EmailMessage
 from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException
@@ -110,6 +111,71 @@ class ClientInvitationFlowTests(unittest.TestCase):
         with self.Session() as db:
             self.assertIsNotNone(db.get(Organization, response.json()["id"]))
             invite = db.query(OrganizationInvite).filter_by(email="new@example.test").one()
+            self.assertEqual(invite.status, "pending")
+            self.assertIsNone(invite.email_sent_at)
+
+    def test_creation_automatically_sends_to_the_client_owner_through_each_platform_transport(self):
+        self.send.side_effect = email_delivery.send_platform_system_email
+        for provider in ("resend", "smtp"):
+            settings = {
+                "provider": provider, "configured": True, "smtp_host": "smtp.example.test", "smtp_port": 587,
+                "smtp_from_email": "no-reply@example.test", "smtp_from_name": "Decisionate",
+                "smtp_use_tls": True, "smtp_use_ssl": False, "smtp_username": "", "smtp_password": "",
+                "smtp_timeout_seconds": 5, "resend_api_url": "https://email.example.test",
+                "resend_api_key": "test-only", "resend_from_email": "no-reply@example.test", "resend_from_name": "Decisionate",
+            }
+            with self.subTest(provider=provider), patch.object(email_delivery, "get_platform_email_settings", return_value=settings), \
+                    patch.object(email_delivery, "urlopen") as network, patch.object(email_delivery.smtplib, "SMTP") as smtp, \
+                    self.assertLogs(invitations.logger, level="INFO") as logs:
+                network.return_value.__enter__.return_value.status = 200
+                smtp.return_value.__enter__.return_value.send_message.return_value = {}
+                response = self.create()
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["invitation_email_status"], "sent")
+                if provider == "resend":
+                    network.assert_called_once()
+                    request = network.call_args.args[0]
+                    message = json.loads(request.data)
+                    self.assertEqual(message["to"], ["new@example.test"])
+                    self.assertIn("North Star Agency via Decisionate", message["from"])
+                    self.assertIn("https://app.example.test/sign-in?redirect_url=", message["html"])
+                    self.assertTrue(request.get_header("Idempotency-key").startswith("workspace-invite-"))
+                    smtp.assert_not_called()
+                else:
+                    connection = smtp.return_value.__enter__.return_value
+                    connection.starttls.assert_called_once()
+                    connection.send_message.assert_called_once()
+                    message = connection.send_message.call_args.args[0]
+                    self.assertEqual(message["To"], "new@example.test")
+                    self.assertIn("North Star Agency via Decisionate", message["From"])
+                    self.assertIn("https://app.example.test/sign-in?redirect_url=", message.get_body(preferencelist=("plain",)).get_content())
+                    network.assert_not_called()
+                with self.Session() as db:
+                    invite = db.query(OrganizationInvite).filter_by(organization_id=response.json()["id"]).one()
+                    self.assertEqual(invite.role, "client_owner")
+                    self.assertEqual(invite.status, "pending")
+                    self.assertEqual(invite.email_status, "sent")
+                    self.assertIsNotNone(invite.email_sent_at)
+                self.assertIn("accepted by provider", logs.output[0])
+                self.assertNotIn("new@example.test", " ".join(logs.output))
+
+    def test_automatic_transport_failure_is_not_reported_as_a_sent_invitation(self):
+        self.send.side_effect = email_delivery.send_platform_system_email
+        settings = {"provider": "resend", "configured": True, "resend_from_email": "no-reply@example.test",
+                    "resend_from_name": "Decisionate", "resend_api_url": "https://email.example.test",
+                    "resend_api_key": "test-only", "smtp_timeout_seconds": 5}
+        with patch.object(email_delivery, "get_platform_email_settings", return_value=settings), \
+                patch.object(email_delivery, "urlopen", side_effect=URLError("private transport detail")), \
+                self.assertLogs(invitations.logger, level="WARNING") as logs:
+            response = self.create()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["invitation_email_status"], "unknown")
+        self.assertNotIn("private transport detail", response.text)
+        self.assertIn("status=502", logs.output[0])
+        self.assertNotIn("private transport detail", logs.output[0])
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Organization, response.json()["id"]))
+            invite = db.query(OrganizationInvite).filter_by(organization_id=response.json()["id"]).one()
             self.assertEqual(invite.status, "pending")
             self.assertIsNone(invite.email_sent_at)
 

@@ -70,7 +70,7 @@ verifies a sender domain or fixes authentication.
 Client workspace creation and adding a member invitation call
 `organizations/invitations.py` after the workspace and invitation are committed.
 The helper uses the platform system email provider, with agency branding for a
-managed client, and a trusted `WEB_URL` sign-in link targeting that workspace.
+managed client, and a trusted `DECISIONATE_WEB_APP_URL` sign-in link targeting that workspace.
 An email failure leaves the invitation pending and the workspace intact.
 `email_status`, `email_attempted_at`, `email_sent_at` and a safe `email_error`
 record the attempt separately from invitation acceptance. Sent means provider
@@ -78,6 +78,12 @@ acceptance, not recipient delivery. A sending or unknown state after interruptio
 must not be automatically retried. Check provider records before a deliberate
 resend using Settings > Client Workspaces > Send invitation. The endpoint has a
 one-minute per-invitation cooldown and supplies a Resend idempotency header.
+With INFO logging enabled, the API logs `Workspace invitation email accepted by provider`
+on a successful automatic send. A `Workspace invitation email was not confirmed` warning records
+the invitation ID, organization ID, safe status and exception type without the
+recipient's address, credentials or private provider response. Check the API
+deployment containing this creation request, then the email provider's delivery
+records; provider acceptance alone does not establish inbox delivery.
 
 First sign-in claims invitations only using a verified email from the session or
 the authenticated subject's verified primary Clerk email. Standard Clerk session

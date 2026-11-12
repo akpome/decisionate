@@ -57,12 +57,20 @@ def send_invitation_email(db, organization, invite, *, resend=False):
             idempotency_key=f"workspace-invite-{invite.id}-{now.strftime('%Y%m%d%H%M%S%f')}",
         )
     except Exception as error:
-        logger.warning("Workspace invitation email was not confirmed: invite_id=%s error_type=%s", invite.id, type(error).__name__)
         invite.email_status = "failed" if isinstance(error, HTTPException) and error.status_code == 503 else "unknown"
         invite.email_error = "Invitation email could not be confirmed. Check the recipient's inbox before resending."
+        logger.warning(
+            "Workspace invitation email was not confirmed: invite_id=%s organization_id=%s email_status=%s status=%s error_type=%s",
+            invite.id, organization.id, invite.email_status,
+            error.status_code if isinstance(error, HTTPException) else None, type(error).__name__,
+        )
     else:
         invite.email_status = "sent"
         invite.email_sent_at = utc_now()
+        logger.info(
+            "Workspace invitation email accepted by provider: invite_id=%s organization_id=%s role=%s",
+            invite.id, organization.id, invite.role,
+        )
     db.commit()
     db.refresh(invite)
     return invite
