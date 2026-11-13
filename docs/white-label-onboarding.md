@@ -18,9 +18,19 @@ send email or change a live application's settings.
    Prices are entered in currency units, not cents. Annual prices are the total
    annual charge. All eight existing products are listed so an enabled checkout
    or add-on does not unexpectedly lack configuration. Drafts may be incomplete.
-3. **Deployment:** save the setup, then download the setup package. Use the actual
-   Railway API service name to generate worker references. No secrets are saved
-   in this form or included in the download.
+3. **Deployment:** complete the required brand and billing fields and save before
+   downloading. Missing fields are listed with links back to their step. The API
+   must have `DECISIONATE_API_URL` set to its public HTTPS origin; there is no
+   localhost fallback. Use the actual Railway API service name to generate worker
+   references. No secrets are saved in this form or included in the download.
+4. **Launch review:** after deploying, choose **Check deployment**. Resolve
+   configuration differences, perform the listed launch tests, choose **Save
+   launch tests**, then **Confirm launch**. This records the operator's sign-off,
+   not automatic deployment or verification by the providers.
+
+**Save and continue** saves the current step. Selecting a saved setup returns to
+its first incomplete stage. Switching applications or reloading with unsaved
+edits asks whether to discard them; failed saves preserve the entered values.
 
 ## What the package contains
 
@@ -35,9 +45,9 @@ send email or change a live application's settings.
 | `launch-checks.json` | Provider, frontend, worker and isolation acceptance checks |
 
 Merge the variables into existing deployment settings. **Do not replace all
-service variables.** Blank non-secret settings remain blank; they are shown as
-incomplete in readiness checks. Add these credentials separately using the
-prefix in the downloaded file:
+service variables.** Required fields and all eight price IDs and amounts must be
+complete before export; a logo is optional. Add these credentials separately
+using the prefix in the downloaded file:
 
 - Clerk secret key for the separate authentication application.
 - Stripe secret key for the brand's billing account.
@@ -77,10 +87,26 @@ Complete and save the launch checkboxes only after testing:
 - Jobs running in each worker with the same registration and secret references.
 - Tokens and workspaces rejected across application boundaries.
 
-Changing the draft clears saved launch confirmations. Saving never activates
-changes. Concurrent edits are protected by revisions; reload rather than
-overwriting another administrator's changes. Only unregistered setup drafts can
-be deleted here. No workspaces or customer subscriptions are deleted.
+The application list distinguishes **Draft**, **Ready to deploy**, **Deployment
+incomplete**, **Ready for launch review**, **Launch confirmed**, and **Launch needs
+review**. A confirmed launch shows its recorded time. Editing setup fields clears
+the manual checks and invalidates the confirmation. Deployed configuration or
+credential changes also invalidate it when the setup is next fetched; review,
+save the launch tests and confirm again. This is not continuous monitoring.
+
+Concurrent saves, downloads from the wizard and confirmations are protected by
+revisions. When a conflict occurs, **Reload setup** can discard your local edits
+and fetch the latest version. Saving and confirming never activate changes. Only
+unregistered setup drafts can be deleted here; no workspaces or subscriptions
+are deleted.
+
+Launch confirmations use the additive `white_label_launch_confirmations` table,
+created by the existing database initialization. It records application ID,
+revision, operator and time, plus a configuration digest to detect changes; no
+credential values are stored in that table or returned to the browser. The
+full-access-only `POST /admin/white-label/{application_id}/complete` accepts the
+saved revision, rechecks readiness and records an audit event. Database backups
+and normal staging checks still apply before rollout.
 
 ## Frontend integration and boundaries
 

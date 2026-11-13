@@ -41,6 +41,18 @@ class WhiteLabelSetup(Base):
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
 
+class WhiteLabelLaunchConfirmation(Base):
+    """Operator sign-off for one setup revision and its deployed configuration."""
+
+    __tablename__ = "white_label_launch_confirmations"
+
+    application_id = Column(String, primary_key=True)
+    revision = Column(Integer, nullable=False)
+    configuration_digest = Column(String(64), nullable=False)
+    confirmed_by_user_id = Column(String, nullable=False)
+    confirmed_at = Column(DateTime, nullable=False, default=utc_now)
+
+
 class AppUser(Base):
     """Provider-independent Decisionate user identity."""
 

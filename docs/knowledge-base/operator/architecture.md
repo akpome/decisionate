@@ -49,6 +49,12 @@ non-secret setup drafts, download deployment variables and Railway worker
 references, and check configuration. Drafts do not activate applications or
 provision provider accounts. Configuration checks are local to the API process;
 saved launch confirmations are operator attestations, not live provider tests.
+The four stages are Brand, Sign-in and billing, Deployment, and Launch review.
+Export requires complete fields and a public HTTPS API URL. Confirm launch
+requires a saved revision, matching API configuration and all saved manual
+checks. Setup edits or detected deployed configuration changes invalidate that
+confirmation. The additive `white_label_launch_confirmations` table stores its
+revision, operator, time and a change-detection digest, never raw credentials.
 See `docs/white-label-onboarding.md` for the onboarding sequence and limits.
 
 Knowledge articles are static approved guidance. An authenticated live-data tool

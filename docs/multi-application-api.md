@@ -10,7 +10,9 @@ authentication/Stripe accounts, or change a customer's subscription.
 
 For the easiest setup, use **Platform Admin > White-label setup**. It saves
 non-secret drafts, generates application variables and Railway worker
-references, and provides configuration and launch checks. See
+references, and guides operators through configuration checks, manual launch
+tests and a recorded launch confirmation. This confirmation does not activate
+the application or automatically verify external services. See
 [White-label onboarding](white-label-onboarding.md). The manual configuration
 below remains supported.
 

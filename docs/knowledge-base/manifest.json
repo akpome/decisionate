@@ -1395,7 +1395,8 @@
         "docs/multi-application-api.md",
         "docs/white-label-onboarding.md",
         "apps/api/app/modules/white_label.py",
-        "apps/web/features/white-label/setup.tsx"
+        "apps/web/features/white-label/setup.tsx",
+        "apps/web/features/white-label/state.ts"
       ],
       "related": [
         "operator-worker-verification",

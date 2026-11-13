@@ -1,6 +1,7 @@
 """Guided, non-secret deployment preparation. Saving a draft never activates a brand."""
 
 from io import BytesIO
+from hashlib import sha256
 import json
 import os
 import re
@@ -14,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.application_context import DEFAULT_APPLICATION_ID, _origin, applications
 from app.db.database import SessionLocal
-from app.db.models import WhiteLabelSetup
+from app.db.models import WhiteLabelLaunchConfirmation, WhiteLabelSetup, utc_now
 from app.modules.platform_admin import require_platform_admin_full_access, record_platform_admin_audit
 
 
@@ -127,6 +128,42 @@ class SetupSave(BaseModel):
     revision: int = Field(default=0, ge=0)
 
 
+class SetupCompletion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(gt=0, strict=True)
+
+
+def deployment_api_url():
+    value = os.getenv("DECISIONATE_API_URL", "").strip()
+    try:
+        origin = _origin(value)
+        return origin if origin.startswith("https://") else ""
+    except ValueError:
+        return ""
+
+
+def setup_checks(config):
+    fields = (
+        ("name", "Brand name", 0), ("web_url", "Frontend HTTPS URL", 0),
+        ("support_email", "Support email", 0), ("sender_email", "Sender email", 0),
+        ("privacy_url", "Privacy page", 0), ("terms_url", "Terms page", 0),
+        ("auth_issuer", "Clerk HTTPS issuer", 1),
+    )
+    checks = []
+    for key, label, step in fields:
+        value = getattr(config, key)
+        complete = bool(value) and (key not in {"web_url", "auth_issuer"} or value.startswith("https://"))
+        checks.append({"key": key, "label": label, "step": step, "complete": complete})
+    for key, label, _ in PRICES:
+        price = config.prices.get(key, PriceSetup())
+        complete = (bool(price.price_id) and price.amount_cents is not None
+                    and not any(word in price.price_id.upper() for word in ("REPLACE", "YOUR_", "SET_IN")))
+        checks.append({"key": key, "label": label + " price and amount", "step": 1, "complete": complete})
+    checks.append({"key": "api_url", "label": "API HTTPS URL (DECISIONATE_API_URL)", "step": 2,
+                   "complete": bool(deployment_api_url())})
+    return checks
+
+
 def registration(config):
     existing = applications().get(config.id)
     return {
@@ -190,6 +227,7 @@ def readiness(config):
     def check(key, label, ok, detail):
         checks.append({"key": key, "label": label, "complete": bool(ok), "detail": detail})
 
+    check("api_url", "API HTTPS URL", deployment_api_url(), "Set DECISIONATE_API_URL to the public HTTPS API address and redeploy.")
     check("registration", "Application registered", registered and registered.name == config.name
           and registered.web_url == config.web_url and set(registered.allowed_origins) == {config.web_url, *config.allowed_origins},
           "Save the generated registry on the API and workers, then redeploy.")
@@ -203,15 +241,38 @@ def readiness(config):
         value = os.getenv(prefix + name, "").strip()
         valid = value and not any(word in value.upper() for word in ("REPLACE", "SET_IN", "YOUR_", "${{"))
         check(name, prefix + name, valid, "Add this application's credential in the deployment secret store.")
-    return {"registered": bool(registered), "configuration_complete": all(row["complete"] for row in checks),
+    inputs = setup_checks(config)
+    package_ready = all(item["complete"] for item in inputs)
+    return {"registered": bool(registered), "configuration_complete": package_ready and all(row["complete"] for row in checks),
+            "package_ready": package_ready, "setup_checks": inputs, "api_url": deployment_api_url(),
             "checks": checks, "launch_checks": list(MANUAL_CHECKS),
             "scope": "Configuration on this API process only. Provider credentials, workers and live delivery are not verified."}
 
 
-def serialize(row):
+def configuration_digest(config):
+    # Detect credential rotation without storing or returning credential values.
+    app = applications().get(config.id)
+    prefix = registration(config)["environment_prefix"]
+    deployed = {key: os.getenv(prefix + key, "").strip() for key in (*public_variables(config), *SECRET_NAMES)}
+    deployed["registration"] = vars(app) if app else None
+    deployed["api_url"] = deployment_api_url()
+    return sha256(json.dumps(deployed, sort_keys=True).encode()).hexdigest()
+
+
+def serialize(row, confirmation=None):
     config = SetupConfiguration.model_validate_json(row.configuration)
+    status = readiness(config)
+    all_confirmed = config.confirmed_checks == list(range(len(MANUAL_CHECKS)))
+    current = bool(confirmation and confirmation.revision == row.revision and status["configuration_complete"]
+                   and all_confirmed and confirmation.configuration_digest == configuration_digest(config))
+    if confirmation and confirmation.revision == row.revision and not current:
+        config.confirmed_checks = []
+    stage = ("launch_confirmed" if current else "needs_review" if confirmation else
+             "draft" if not status["package_ready"] else "ready_to_deploy" if not status["registered"] else
+             "launch_review" if status["configuration_complete"] else "deployment_incomplete")
     return {"configuration": config.model_dump(), "revision": row.revision,
-            "updated_at": row.updated_at.isoformat(), "readiness": readiness(config)}
+            "updated_at": row.updated_at.isoformat(), "readiness": status, "stage": stage,
+            "completion": {"confirmed_at": confirmation.confirmed_at.isoformat() + "Z", "current": current} if confirmation else None}
 
 
 @router.get("")
@@ -219,7 +280,8 @@ def list_setups(request: Request, response: Response):
     require_platform_admin_full_access(request)
     response.headers["Cache-Control"] = "no-store"
     with SessionLocal() as db:
-        return {"setups": [serialize(row) for row in db.query(WhiteLabelSetup).order_by(WhiteLabelSetup.updated_at.desc())],
+        confirmations = {item.application_id: item for item in db.query(WhiteLabelLaunchConfirmation)}
+        return {"setups": [serialize(row, confirmations.get(row.application_id)) for row in db.query(WhiteLabelSetup).order_by(WhiteLabelSetup.updated_at.desc())],
                 "registered": [{"id": app.id, "name": app.name, "web_url": app.web_url} for app in applications().values()],
                 "products": [{"key": key, "label": label} for key, label, _ in PRICES]}
 
@@ -259,7 +321,48 @@ def save_setup(application_id: str, payload: SetupSave, request: Request, respon
         except IntegrityError:
             db.rollback()
             raise HTTPException(409, "This setup already exists. Reload it before saving.") from None
-        return serialize(row)
+        return serialize(row, db.get(WhiteLabelLaunchConfirmation, config.id))
+
+
+@router.post("/{application_id}/complete")
+def complete_setup(application_id: str, payload: SetupCompletion, request: Request, response: Response):
+    auth = require_platform_admin_full_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    with SessionLocal() as db:
+        row = db.get(WhiteLabelSetup, application_id)
+        if not row:
+            raise HTTPException(404, "Setup not found")
+        if row.revision != payload.revision:
+            raise HTTPException(409, "This setup changed. Reload it before confirming launch.")
+        config = SetupConfiguration.model_validate_json(row.configuration)
+        validate_registration(config, db)
+        if not readiness(config)["configuration_complete"]:
+            raise HTTPException(409, "Complete deployment and refresh the API configuration checks before confirming launch.")
+        if config.confirmed_checks != list(range(len(MANUAL_CHECKS))):
+            raise HTTPException(409, "Complete and save every launch check before confirming launch.")
+        confirmation = db.get(WhiteLabelLaunchConfirmation, application_id)
+        if confirmation and serialize(row, confirmation)["completion"]["current"]:
+            return serialize(row, confirmation)
+        if confirmation and confirmation.revision == row.revision:
+            raise HTTPException(409, "Configuration changed. Review and save the launch checks again before confirming.")
+        # A concurrent setup edit cannot be certified by this request.
+        changed = db.execute(update(WhiteLabelSetup).where(
+            WhiteLabelSetup.application_id == application_id, WhiteLabelSetup.revision == payload.revision,
+        ).values(revision=payload.revision + 1, updated_by_user_id=auth.user_id))
+        if changed.rowcount != 1:
+            raise HTTPException(409, "This setup changed. Reload it before confirming launch.")
+        if not confirmation:
+            confirmation = WhiteLabelLaunchConfirmation(application_id=application_id)
+            db.add(confirmation)
+        confirmation.revision = payload.revision + 1
+        confirmation.configuration_digest = configuration_digest(config)
+        confirmation.confirmed_by_user_id = auth.user_id
+        confirmation.confirmed_at = utc_now()
+        record_platform_admin_audit(db, admin_user_id=auth.user_id, action="white_label_launch_confirmed",
+                                    details=f"application={application_id}; revision={confirmation.revision}")
+        db.commit()
+        db.refresh(row)
+        return serialize(row, confirmation)
 
 
 @router.delete("/{application_id}")
@@ -271,6 +374,7 @@ def delete_setup(application_id: str, request: Request):
         row = db.get(WhiteLabelSetup, application_id)
         if not row:
             raise HTTPException(404, "Setup not found")
+        db.query(WhiteLabelLaunchConfirmation).filter_by(application_id=application_id).delete(synchronize_session=False)
         db.delete(row)
         record_platform_admin_audit(db, admin_user_id=auth.user_id, action="white_label_draft_deleted", details=f"application={application_id}")
         db.commit()
@@ -286,7 +390,7 @@ def build_package(config):
     variables["DECISIONATE_APPLICATIONS"] = json.dumps(registry, separators=(",", ":"))
     secrets = [prefix + name for name in SECRET_NAMES]
     references = {key: "${{" + config.railway_api_service + "." + key + "}}" for key in [*variables, *secrets]}
-    api_url = os.getenv("DECISIONATE_API_URL", "http://localhost:8000").rstrip("/")
+    api_url = deployment_api_url()
     missing = [prefix + key for key, value in public_variables(config).items() if not value and key != "APPLICATION_LOGO_URL"]
     guide = f"""# {config.name}: white-label setup
 
@@ -315,7 +419,9 @@ an application. Existing Decisionate.ca variables and subscriptions stay unchang
    X-Application-Id for server calls, and X-Workspace-Id for workspace requests.
    Implement /sign-in, /dashboard, /dashboard/billing and /dashboard/connections.
 7. Refresh Platform Admin > White-label setup to check the API configuration.
-   Complete every launch check in launch-checks.json before admitting customers.
+   Complete and save every launch check in launch-checks.json, then choose
+   Confirm launch in the wizard. This records operator sign-off; it does not
+   deploy services or verify provider accounts automatically.
 
 The registry was merged at download time. Download a fresh package if another
 brand has since been added; never overwrite a newer registry with an old package.
@@ -345,16 +451,19 @@ roll back to a backend without application isolation after customers have joined
 
 
 @router.get("/{application_id}/package")
-def download_package(application_id: str, request: Request):
+def download_package(application_id: str, request: Request, revision: int | None = None):
     require_platform_admin_full_access(request)
     with SessionLocal() as db:
         row = db.get(WhiteLabelSetup, application_id)
         if not row:
             raise HTTPException(404, "Setup not found")
+        if revision is not None and row.revision != revision:
+            raise HTTPException(409, "This setup changed. Reload it before downloading.")
         config = SetupConfiguration.model_validate_json(row.configuration)
         validate_registration(config, db)
-    if not config.auth_issuer.startswith("https://"):
-        raise HTTPException(422, "Add the separate Clerk application's HTTPS issuer before downloading setup.")
+    missing = [item["label"] for item in setup_checks(config) if not item["complete"]]
+    if missing:
+        raise HTTPException(422, "Complete setup before downloading: " + ", ".join(missing) + ".")
     buffer = BytesIO()
     with ZipFile(buffer, "w", ZIP_DEFLATED) as bundle:
         for name, content in build_package(config).items():

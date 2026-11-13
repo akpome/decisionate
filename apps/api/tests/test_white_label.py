@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.application_context import application_branding, application_scope, applications
 from app.db.database import Base
-from app.db.models import Organization, PlatformAdminRole, WhiteLabelSetup, WorkspaceSubscription, utc_now
+from app.db.models import Organization, PlatformAdminRole, WhiteLabelLaunchConfirmation, WhiteLabelSetup, WorkspaceSubscription, utc_now
 from app.infrastructure.email_branding import build_system_email_html, build_decisionate_logo_url
 from app.modules import applications as application_api, platform_admin, white_label
 from app.modules.alerts.router import get_weekly_report_branding
@@ -57,6 +57,8 @@ class WhiteLabelTests(unittest.TestCase):
             "currency": "USD", "support_email": "support@northstar.example", "sender_email": "no-reply@northstar.example",
             "auth_issuer": "https://northstar.clerk.test", "privacy_url": "https://northstar.example/privacy",
             "terms_url": "https://northstar.example/terms", "primary_color": "#008844",
+            "prices": {key: {"price_id": "price_" + str(index), "amount_cents": 4900}
+                       for index, (key, _, _) in enumerate(white_label.PRICES)},
         }
 
     def save(self, configuration=None, revision=0):
@@ -73,6 +75,7 @@ class WhiteLabelTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["revision"], 1)
         self.assertFalse(response.json()["readiness"]["registered"])
+        self.assertEqual(response.json()["stage"], "ready_to_deploy")
         self.assertNotIn("north-star", applications())
         listing = self.client.get("/admin/white-label")
         self.assertEqual(listing.headers["cache-control"], "no-store")
@@ -84,6 +87,7 @@ class WhiteLabelTests(unittest.TestCase):
         self.assertEqual(self.save().status_code, 403)
         self.assertEqual(self.client.get("/admin/white-label/north-star/package").status_code, 403)
         self.assertEqual(self.client.delete("/admin/white-label/north-star").status_code, 403)
+        self.assertEqual(self.client.post("/admin/white-label/north-star/complete", json={"revision": 1}).status_code, 403)
 
     def test_limited_admin_cannot_provision_an_application(self):
         with self.Session() as db:
@@ -168,6 +172,118 @@ class WhiteLabelTests(unittest.TestCase):
         self.config["auth_issuer"] = ""
         self.assertEqual(self.save().status_code, 200)
         self.assertEqual(self.client.get("/admin/white-label/north-star/package").status_code, 422)
+
+    def deploy(self):
+        config = self.register()
+        os.environ.update({"NORTH_STAR_" + name: value for name, value in white_label.public_variables(config).items()})
+        os.environ.update({"NORTH_STAR_" + name: "test-credential" for name in white_label.SECRET_NAMES})
+
+    def confirm(self, revision):
+        return self.client.post("/admin/white-label/north-star/complete", json={"revision": revision})
+
+    def test_incomplete_drafts_can_be_saved_but_not_deployed(self):
+        self.config["prices"] = {}
+        result = self.save()
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["stage"], "draft")
+        self.assertFalse(result.json()["readiness"]["package_ready"])
+        response = self.client.get("/admin/white-label/north-star/package")
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("Professional monthly price and amount", response.text)
+        self.assertEqual(self.confirm(1).status_code, 409)
+
+    def test_package_rejects_stale_revision(self):
+        self.save()
+        self.save({**self.config, "name": "Changed name"}, revision=1)
+        self.assertEqual(self.client.get("/admin/white-label/north-star/package?revision=1").status_code, 409)
+        self.assertEqual(self.client.get("/admin/white-label/north-star/package?revision=2").status_code, 200)
+
+    def test_package_requires_real_api_address_and_complete_prices(self):
+        self.save()
+        for value in ("", "http://localhost:8000", "https://user:password@api.example", "https://api.example/extra"):
+            with self.subTest(value=value), patch.dict(os.environ, {"DECISIONATE_API_URL": value}):
+                response = self.client.get("/admin/white-label/north-star/package")
+                self.assertEqual(response.status_code, 422)
+                self.assertIn("DECISIONATE_API_URL", response.text)
+                self.assertNotIn("password", response.text)
+        self.config["prices"]["PROFESSIONAL"]["price_id"] = "price_REPLACE"
+        self.assertFalse(white_label.readiness(white_label.SetupConfiguration(**self.config))["package_ready"])
+
+    def test_completion_requires_deployment_saved_checks_and_current_revision(self):
+        self.save()
+        self.assertEqual(self.confirm(1).status_code, 409)
+        self.deploy()
+        self.assertEqual(self.client.get("/admin/white-label").json()["setups"][0]["stage"], "launch_review")
+        self.assertEqual(self.confirm(1).status_code, 409)
+        checked = {**self.config, "confirmed_checks": list(range(len(white_label.MANUAL_CHECKS)))}
+        self.assertEqual(self.save(checked, revision=1).status_code, 200)
+        self.assertEqual(self.confirm(1).status_code, 409)
+        response = self.confirm(2)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(response.json()["stage"], "launch_confirmed")
+        self.assertTrue(response.json()["completion"]["current"])
+        self.assertTrue(response.json()["completion"]["confirmed_at"].endswith("Z"))
+        self.assertEqual(response.json()["revision"], 3)
+        again = self.confirm(3)
+        self.assertEqual(again.json()["completion"], response.json()["completion"])
+        self.assertEqual(again.json()["revision"], 3)
+        with self.Session() as db:
+            event = db.query(platform_admin.PlatformAdminAuditEvent).filter_by(action="white_label_launch_confirmed").one()
+            self.assertIn("north-star", event.details)
+            self.assertEqual(db.query(WhiteLabelLaunchConfirmation).count(), 1)
+        self.assertNotIn("test-credential", response.text)
+        self.assertNotIn("configuration_digest", response.text)
+
+    def test_runtime_changes_require_new_launch_checks_and_confirmation(self):
+        self.deploy()
+        checked = {**self.config, "confirmed_checks": list(range(len(white_label.MANUAL_CHECKS)))}
+        self.save(checked)
+        self.assertEqual(self.confirm(1).status_code, 200)
+        os.environ["NORTH_STAR_STRIPE_SECRET_KEY"] = "rotated-private-credential"
+        stale = self.client.get("/admin/white-label").json()["setups"][0]
+        self.assertEqual(stale["stage"], "needs_review")
+        self.assertFalse(stale["completion"]["current"])
+        self.assertEqual(stale["configuration"]["confirmed_checks"], [])
+        self.assertEqual(self.confirm(2).status_code, 409)
+        self.assertEqual(self.save(checked, revision=2).status_code, 200)
+        self.assertEqual(self.confirm(3).json()["stage"], "launch_confirmed")
+        del os.environ["NORTH_STAR_RESEND_API_KEY"]
+        self.assertEqual(self.confirm(4).status_code, 409)
+        current = self.client.get("/admin/white-label").json()["setups"][0]
+        self.assertFalse(current["readiness"]["configuration_complete"])
+        self.assertFalse(current["completion"]["current"])
+        self.assertNotIn("rotated-private-credential", json.dumps(current))
+
+    def test_setup_edits_invalidate_confirmation_without_changing_live_configuration(self):
+        self.deploy()
+        checked = {**self.config, "confirmed_checks": list(range(len(white_label.MANUAL_CHECKS)))}
+        self.save(checked)
+        self.confirm(1)
+        response = self.save({**checked, "primary_color": "#123456"}, revision=2)
+        self.assertEqual(response.json()["stage"], "needs_review")
+        self.assertEqual(response.json()["configuration"]["confirmed_checks"], [])
+        self.assertEqual(os.environ["NORTH_STAR_APPLICATION_PRIMARY_COLOR"], "#008844")
+        self.assertFalse(response.json()["completion"]["current"])
+
+    def test_completion_rejects_unknown_drafts_and_invalid_revisions(self):
+        self.assertEqual(self.confirm(1).status_code, 404)
+        self.save()
+        for revision in (0, -1, "1", True):
+            with self.subTest(revision=revision):
+                self.assertEqual(self.confirm(revision).status_code, 422)
+
+    def test_removing_an_unregistered_draft_clears_its_confirmation_only(self):
+        self.save()
+        with self.Session() as db:
+            for application_id in ("north-star", "other-brand"):
+                db.add(WhiteLabelLaunchConfirmation(application_id=application_id, revision=1,
+                    configuration_digest="test-only-digest", confirmed_by_user_id="operator"))
+            db.commit()
+        self.assertEqual(self.client.delete("/admin/white-label/north-star").status_code, 200)
+        with self.Session() as db:
+            self.assertIsNone(db.get(WhiteLabelLaunchConfirmation, "north-star"))
+            self.assertIsNotNone(db.get(WhiteLabelLaunchConfirmation, "other-brand"))
 
     def test_active_identity_and_domain_cannot_be_changed(self):
         self.register()

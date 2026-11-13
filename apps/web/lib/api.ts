@@ -4111,8 +4111,9 @@ export async function whiteLabelRequest<T>(userId: string, path = "", init: Requ
   return response.json()
 }
 
-export async function downloadWhiteLabelPackage(userId: string, applicationId: string): Promise<Blob> {
-  const response = await apiFetch(`${API_URL}/admin/white-label/${encodeURIComponent(applicationId)}/package`, {
+export async function downloadWhiteLabelPackage(userId: string, applicationId: string, revision?: number): Promise<Blob> {
+  const query = revision === undefined ? "" : `?revision=${encodeURIComponent(revision)}`
+  const response = await apiFetch(`${API_URL}/admin/white-label/${encodeURIComponent(applicationId)}/package${query}`, {
     cache: "no-store", headers: await workspaceHeaders(userId, userId),
   })
   if (!response.ok) await throwApiError(response, "The setup package could not be created")

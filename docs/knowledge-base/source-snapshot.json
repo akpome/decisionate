@@ -1,15 +1,21 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-13",
-  "base_git_revision": "bff7ea1c41ce7f2eec3a4a08ed66de6f98209c35",
+  "base_git_revision": "b66d7f6df77d02240857f9827c11f0f343742402",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/alerts/email_delivery.py"
+    "apps/api/app/db/models.py",
+    "apps/api/app/modules/white_label.py",
+    "apps/web/features/white-label/setup.tsx",
+    "apps/web/features/white-label/state.ts",
+    "apps/web/lib/api.ts",
+    "docs/multi-application-api.md",
+    "docs/white-label-onboarding.md"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
     "apps/api/app/application_context.py": "e4f6d02a04ef1ca6ec666ee41e37bc984efde4a5bf2d4f2017775cc9dbd41ac2",
     "apps/api/app/configuration.py": "ae0dd2b1dfc5f0648b4f2b7361fcfc5f6a55a00d8eadf14725664ea0ad2588fc",
-    "apps/api/app/db/models.py": "8bc843ebe1c69c464dcf9a1aec4a97a6a7e609b902f43d141c9a417b974a3d9d",
+    "apps/api/app/db/models.py": "77698601bcc6b3ad8d6153db453403393e62eb3c8d2e14dea6aeb916b92583b6",
     "apps/api/app/infrastructure/analysis_resources.py": "d0c78fbca0638646db64ed2ff3b7bf948a696ba1d01ff57b7e407d7577ea5c73",
     "apps/api/app/infrastructure/analysis_worker.py": "7776d01449d7aa78bc14cb9b2b504dd6541d7a7e3a25c050d9736e203078695b",
     "apps/api/app/infrastructure/email_branding.py": "66bfa78157271036bf74d82bac2e1d94f7777652e17c55a1cd6ea49c3700a628",
@@ -91,7 +97,7 @@
     "apps/api/app/modules/support/knowledge.py": "702b25665448a155bcfb9a6d996aa0536221a9d1e6bf1e85182caff591a3b687",
     "apps/api/app/modules/support/router.py": "28368b36349c061351019c0cd4b96860e178c1d13489b964f9b3102318957775",
     "apps/api/app/modules/support/schemas.py": "babc40aaa2386da94287e91349ff8ea90e9827fef834eb05e47bf94ca7936b48",
-    "apps/api/app/modules/white_label.py": "53f1093847ce6f7c4b19e7f0eb38bd308e8cd7c7208a5fa5b529853438e04c3a",
+    "apps/api/app/modules/white_label.py": "872fa6442cb0d995e1e0eb52705a1214e4d735f0aa5136faef6c640c40f203e8",
     "apps/api/app/modules/workspace_lifecycle.py": "b551255df318fe25c3b1f4f326030b48fa93d94d29d13bda83284801b394b506",
     "apps/api/app/security/rate_limits.py": "277de5c54e318dadb1786e1dae72b8956f998449027d38e3e475307cde8c3579",
     "apps/api/scripts/knowledge_repository.py": "1a163b9ddb6658b57d6185cc0aa5c442d724e0df4b7f3a2931f3a7cd5345aa72",
@@ -177,8 +183,9 @@
     "apps/web/features/reports/weekly-settings.ts": "0e495321cdd4050f9367dc35bbd5965b955e1ab3f8b19f3ee072e703c4d1fbb5",
     "apps/web/features/settings/client-workspace-ownership.tsx": "77dd3d14e21cc6ac152efb0108f4da927a543aeaff62d4390db454c32aa10a1f",
     "apps/web/features/support/product-guidance.tsx": "c1b61bb353156964c4607623891b7c1e8f0e87a380dacbc78bba497c9588c611",
-    "apps/web/features/white-label/setup.tsx": "24a53f3df746f2b2ba0cf2d89a17c1ea4e4e2910b301dede1f8336bde36cb595",
-    "apps/web/lib/api.ts": "f8e1d3bb0a1082f12c5ca8eca572036bcf80eaef7c13f856b2ac72e94d68f174",
+    "apps/web/features/white-label/setup.tsx": "69a305ad1a5f4e73ea24d265ba9b126e682a71745b6c82b802660ea3e8e5e7d5",
+    "apps/web/features/white-label/state.ts": "1335aa31b14a723f8c0b05d0a73f403ecce090fb0054c2b890a20f89017c2d4b",
+    "apps/web/lib/api.ts": "8248aaee9bb1dfda7670bc853b853b88072b21cf8bdb5879ca159c1df5457033",
     "apps/web/lib/workspace-ownership.ts": "1d899d0d1da74e412470899b5da54a24cdcd81d34ddb844c1a7c5b4aac8b6122",
     "apps/web/proxy.ts": "b70dd41f0e797ba0a0f69d70017cda319c93896c47678669087cc836cc93a995",
     "apps/web/tests/dashboard-analysis-removal.test.mjs": "7574f90dd2853debf1b46ac8a81fb93f6f20145b1fe899d5ff24bb1c2482b1e5",
@@ -186,10 +193,10 @@
     "docs/CROSS_DATASET_REPORTS.md": "ad40f7757cce42100374fc0be7f4f6ad3c1c20537b61aae1a7e14c40fa9c5415",
     "docs/CURATED_METRIC_DEFAULTS.md": "7ef990de2e5decb6793420915c941d9cf5dc8e76b8893c3cb62e54f0eab20ebf",
     "docs/MULTI_METRIC_CORRELATION.md": "b21346ea734e75e3fd310b378634aade73b7887d236ad651a5d02aeaae937e7e",
-    "docs/multi-application-api.md": "d602d08b7e498928a95d8b98a430c223eea5c240f452224a8a56c7a841b6b60e",
+    "docs/multi-application-api.md": "c7fd4ec11a194b5a24b473ab4ccfd243924ca231ad8505e533782e79ba0c0801",
     "docs/openai-data-flow.md": "2bcfa4ae96a3d98f4e9b3722d33854e7536f651c9ddea6c926fb23bc720f14fd",
     "docs/railway-scheduling.md": "73781498a08122f0e4987f21286eb375a120cbc5f179757d44af01d6cb7e6305",
-    "docs/white-label-onboarding.md": "6c9018c1d614a224067ccf61f66f4ce16b179f0edae06aab56fe22581127ddbd"
+    "docs/white-label-onboarding.md": "35ed380518a0479515aaded62350a81f3b6fe90e429476e3f073c829953b63b4"
   },
   "article_sha256": {
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
@@ -222,7 +229,7 @@
     "customer/troubleshooting-support.md": "d48930248bde6598a8b621c50b4a614a9473ecb39cbffb575ab9280e3159086c",
     "customer/privacy-preferences.md": "0b538a90b8d4a05c6a0eb8d0a841d21c36e742f852b2aab838dc3fa019b97a48",
     "customer/joins-entities.md": "4c8494c7867f8e9961e8fabcfd81f6063947788fbb6b35e2e55645969089fd18",
-    "operator/architecture.md": "46dadfdf28ea295ab4ce742f732b14cdc2c789bc4c68dcfa0b4ffffa59c30955",
+    "operator/architecture.md": "5e77a6958dbba7a1a7e944d9b573b2aa61c21900620f455c61b566f2d6dbeacb",
     "operator/worker-verification.md": "0361853c7eeee8b3ee28d38e0a0899fd6be66452df559762be49172a321d3432",
     "operator/ai-configuration.md": "faf7ffbfba84655f7d0f69f1d9bfbe5a1daa128ec14b36cfb2e86b1a1921b112",
     "operator/email-delivery.md": "d0f4580fa5d731ce4ff67ef02dbd791cc3233fdc78ad572b2e76d74a5c73ae6e",

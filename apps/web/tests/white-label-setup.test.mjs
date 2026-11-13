@@ -9,6 +9,7 @@ const ts = require("typescript")
 const setup = readFileSync(new URL("../features/white-label/setup.tsx", import.meta.url), "utf8")
 const api = readFileSync(new URL("../lib/api.ts", import.meta.url), "utf8")
 const page = readFileSync(new URL("../app/platform-admin/page.tsx", import.meta.url), "utf8")
+const state = readFileSync(new URL("../features/white-label/state.ts", import.meta.url), "utf8")
 
 function extract(source, name) {
   const tree = ts.createSourceFile("source.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -35,13 +36,14 @@ test("brand name suggests a stable, bounded application id", () => {
 
 test("setup is offered only to full-access operators", () => {
   assert.match(page, /adminAccess\.full_access && <WhiteLabelSetup userId=\{user\.id\}/)
-  assert.match(setup, /opened && <div id="white-label-setup" hidden=\{!expanded\}><SetupWizard userId=\{userId\}/)
+  assert.match(setup, /opened && <div id="white-label-setup" hidden=\{!expanded\}><SetupWizard key=\{userId\} userId=\{userId\}/)
   assert.doesNotMatch(setup, /type="password"|stripe_secret_key|resend_api_key/i)
 })
 
 test("save carries the revision and downloading requires a saved, unchanged setup", () => {
   assert.match(setup, /revision: saved\?\.revision \?\? 0/)
-  assert.match(setup, /disabled=\{!saved \|\| dirty \|\| !form\.auth_issuer\.startsWith/)
+  assert.match(setup, /disabled=\{!saved \|\| dirty \|\| !saved\.readiness\.package_ready\}/)
+  assert.match(setup, /downloadWhiteLabelPackage\(userId, saved\.configuration\.id, saved\.revision\)/)
   assert.match(setup, /saved && !saved\.readiness\.registered/)
   assert.match(setup, /confirmDelete &&/)
 })
@@ -70,4 +72,67 @@ test("package download escapes the id and preserves server errors", async () => 
   })
   await assert.rejects(downloadWhiteLabelPackage("admin", "unsafe/id"), /Issuer required/)
   assert.equal(called, "https://api.example/admin/white-label/unsafe%2Fid/package")
+  await assert.rejects(downloadWhiteLabelPackage("admin", "north-star", 4), /Issuer required/)
+  assert.equal(called, "https://api.example/admin/white-label/north-star/package?revision=4")
+})
+
+test("empty new setups are clean but unsaved edits and launch tests are protected", () => {
+  const { emptyConfiguration, hasSetupChanges } = load(state)
+  assert.equal(hasSetupChanges({ ...emptyConfiguration }, null), false)
+  assert.equal(hasSetupChanges({ ...emptyConfiguration, name: "North Star" }, null), true)
+  const saved = { configuration: { ...emptyConfiguration, name: "North Star" } }
+  assert.equal(hasSetupChanges({ ...saved.configuration }, saved), false)
+  assert.equal(hasSetupChanges({ ...saved.configuration, confirmed_checks: [0] }, saved), true)
+  assert.match(setup, /if \(dirty\) \{ setPendingNavigation\(target\); return \}/)
+  assert.match(setup, /window\.addEventListener\("beforeunload", warn\)/)
+  assert.match(setup, /aria-label="Reload setup"[^>]*disabled=\{busy\}/)
+})
+
+test("resuming a setup opens its first incomplete stage or launch review", () => {
+  const { resumeStep } = load(state)
+  const saved = { readiness: { setup_checks: [{ step: 0, complete: true }, { step: 1, complete: false }], configuration_complete: false } }
+  assert.equal(resumeStep(saved), 1)
+  saved.readiness.setup_checks[1].complete = true
+  assert.equal(resumeStep(saved), 2)
+  saved.readiness.configuration_complete = true
+  assert.equal(resumeStep(saved), 3)
+})
+
+test("launch confirmation needs matching deployment and all saved manual tests", () => {
+  const { canConfirmLaunch } = load(state)
+  const saved = { configuration: { confirmed_checks: [0, 1] }, completion: null,
+    readiness: { configuration_complete: true, launch_checks: ["HTTPS", "Sign in"] } }
+  assert.equal(canConfirmLaunch(null, false), false)
+  assert.equal(canConfirmLaunch(saved, false), true)
+  assert.equal(canConfirmLaunch(saved, true), false)
+  saved.configuration.confirmed_checks = [0]
+  assert.equal(canConfirmLaunch(saved, false), false)
+  saved.configuration.confirmed_checks = [0, 1]
+  saved.readiness.configuration_complete = false
+  assert.equal(canConfirmLaunch(saved, false), false)
+  saved.readiness.configuration_complete = true
+  saved.completion = { current: true }
+  assert.equal(canConfirmLaunch(saved, false), false)
+  saved.completion.current = false
+  assert.equal(canConfirmLaunch(saved, false), true)
+})
+
+test("async actions cannot overlap and failures leave editing and recovery available", async () => {
+  const tree = ts.createSourceFile("setup.tsx", setup, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const wizard = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "SetupWizard")
+  const runNode = wizard.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "run")
+  const pending = { current: false }, busy = [], errors = []
+  const { run } = load(`export ${runNode.getText(tree)}`, {
+    actionPending: pending, setBusy: value => busy.push(value), setError: value => errors.push(value), setMessage: () => {}, Error,
+  })
+  let finish, calls = 0
+  const first = run(() => new Promise(resolve => { calls++; finish = resolve }))
+  await run(async () => { calls++ })
+  assert.equal(calls, 1)
+  finish(); await first
+  assert.equal(pending.current, false)
+  await run(async () => { throw new Error("This setup changed. Reload it before saving.") })
+  assert.match(errors.at(-1), /Reload it before saving/)
+  assert.equal(busy.at(-1), false)
+  assert.equal(pending.current, false)
 })
