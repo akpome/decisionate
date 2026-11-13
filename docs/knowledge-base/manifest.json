@@ -343,6 +343,7 @@
         "Pause, resume or delete a client account": [
           "How do I pause or resume a client account?",
           "How do I delete a client workspace?",
+          "How can a client workspace owner resume an already paused workspace?",
           "Does pausing a client delete their data?",
           "Does pausing a client change my agency subscription?"
         ],

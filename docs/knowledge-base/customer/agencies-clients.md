@@ -62,6 +62,12 @@ for that workspace. It does not delete datasets, reports, decisions, connections
 members or the workspace itself. Workspace IDs and data IDs stay unchanged.
 An active import, report analysis or AI request must finish before removal.
 
+If an accepted client's workspace remains paused from earlier agency controls,
+the client owner can choose Resume workspace on the paused notice. Other client
+users and the agency cannot do this. Resuming keeps the same records and agency
+data-access setting, and requires an active Agency plan. It does not start a
+trial or restore agency funding after the workspace has left its agency.
+
 The client owner can choose Delete workspace in their own Settings and type its
 name to confirm permanent deletion. Other client users cannot do this. A direct
 paid subscription must be canceled in Billing before deletion. Removing a client

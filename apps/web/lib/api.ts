@@ -6326,6 +6326,9 @@ export const respondToAgencyClientInvitation = (id: string, accept: boolean, use
 export const startIndependentWorkspaceTrial = (userId: string, workspaceId: string) =>
   clientAccountRequest<{ trial_days: number }>("independent-trial", userId, workspaceId, "POST")
 
+export const resumeOwnedWorkspace = (userId: string, workspaceId: string) =>
+  clientAccountRequest<{ resumed: boolean; workspace_id: string }>("resume-workspace", userId, workspaceId, "POST")
+
 export const deleteOwnedWorkspace = (confirmation: string, userId: string, workspaceId: string) =>
   clientAccountRequest("workspace", userId, workspaceId, "DELETE", { confirmation })
 

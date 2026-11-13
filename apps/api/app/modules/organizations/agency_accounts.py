@@ -11,11 +11,11 @@ from app.db.database import SessionLocal
 from app.db.models import AgencyClientInvitation, Organization, WorkspaceSubscription, utc_now
 from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.auth_context import get_auth_context, get_auth_jwks_url
-from app.modules.billing.lifecycle import build_subscription_access_state
+from app.modules.billing.lifecycle import build_subscription_access_state, get_subscription_for_workspace
 from app.modules.billing.service import PROFESSIONAL_PLAN, TRIAL_PERIOD_DAYS, get_client_workspace_limit, is_agency_plan
 from app.modules.identity.clerk import get_verified_clerk_primary_email
 from app.modules.organizations.invitations import build_invitation_sign_in_url
-from app.modules.organizations.ownership import independent_client, is_workspace_owner, managed_client_filter
+from app.modules.organizations.ownership import independent_client, is_workspace_owner, managed_client_filter, managing_agency_workspace_id
 from app.modules.organizations.schemas import AgencyInvitationCreate, WorkspaceDeleteConfirmation
 
 router = APIRouter()
@@ -50,6 +50,21 @@ def detach_workspace(db, organization):
         subscription = WorkspaceSubscription(workspace_id=organization.owner_user_id, plan=PROFESSIONAL_PLAN, status="inactive")
         db.add(subscription)
     organization.is_paused = not build_subscription_access_state(subscription).access_allowed
+
+
+@router.post("/resume-workspace")
+def resume_owned_workspace(request: Request):
+    auth = get_auth_context(request)
+    with SessionLocal() as db:
+        organization = owned_workspace(db, auth)
+        if not managing_agency_workspace_id(organization):
+            raise HTTPException(409, "Choose a trial, a plan or an agency invitation in Settings to continue using this workspace.")
+        subscription = get_subscription_for_workspace(db, auth.workspace_id)
+        if subscription is None or not is_agency_plan(subscription.plan) or not build_subscription_access_state(subscription).access_allowed:
+            raise HTTPException(402, "Your agency needs an active Agency plan. Contact its owner to restore access.")
+        organization.is_paused = False
+        db.commit()
+        return {"resumed": True, "workspace_id": organization.owner_user_id}
 
 
 @router.post("/independent-trial")

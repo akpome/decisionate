@@ -160,6 +160,8 @@ async def get_billing_access(
         )
         await run_in_threadpool(reconcile_subscription_if_needed, db, subscription)
         state = build_subscription_access_state(subscription)
+        organization = db.query(Organization).filter_by(owner_user_id=auth_context.workspace_id).first()
+        paused = bool(organization and organization.is_paused and managing_agency_workspace_id(organization))
         return BillingAccessResponse(
             billing_enabled=billing_enforcement_enabled(),
             workspace_id=auth_context.workspace_id,
@@ -167,14 +169,14 @@ async def get_billing_access(
                 auth_context.workspace_id, db,
             ),
             plan=state.plan,
-            status=state.status,
+            status="paused" if paused else state.status,
             raw_status=state.raw_status,
-            access_allowed=state.access_allowed,
-            requires_billing_action=state.requires_billing_action,
+            access_allowed=state.access_allowed and not paused,
+            requires_billing_action=False if paused else state.requires_billing_action,
             current_period_end=state.current_period_end,
             grace_period_end=state.grace_period_end,
             days_remaining=state.days_remaining,
-            reason=state.reason,
+            reason="This workspace is paused. Its data is preserved." if paused else state.reason,
         )
     except BillingProviderUnavailable as error:
         db.rollback()
