@@ -41,8 +41,8 @@ class KnowledgeRepositoryTests(unittest.TestCase):
 
     def test_repository_and_committed_customer_export_are_consistent(self):
         summary = knowledge.check(self.root)
-        self.assertEqual(summary["articles"], 36)
-        self.assertEqual(summary["customer_articles"], 30)
+        self.assertEqual(summary["articles"], 37)
+        self.assertEqual(summary["customer_articles"], 31)
         self.assertEqual(summary["operator_articles"], 6)
         self.assertEqual(summary["connectors"], 27)
         self.assertEqual(summary["evaluation_cases"], 45)
@@ -122,6 +122,9 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         direct = rows["performance-analysis:how-do-i-use-return-on-spend"]
         self.assertIn("how do use the return on spend under business analysis", direct["direct_questions"])
         self.assertEqual(direct["routes"][0], "/dashboard/reports/returns")
+        portal = rows["hosted-portals:how-do-i-set-up-my-portal"]
+        self.assertIn("How do I set up a white-label portal?", portal["direct_questions"])
+        self.assertEqual(portal["routes"][0], "/dashboard/white-label")
         self.assertEqual(rows["performance-analysis:can-i-compare-channels-with-only-ad-spend-and-total-store-revenue"]["direct_questions"], [])
         article = self.manifest["articles"][0]
         for questions in [[], {"Unknown heading": ["How do I use this?"]},
