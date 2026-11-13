@@ -2083,6 +2083,11 @@ async function apiFetch(
   timeoutMs: number = apiRequestTimeoutMs,
   notifyAvailability = true,
 ) {
+  if (process.env.NEXT_PUBLIC_PORTAL_ID) {
+    const headers = new Headers(init?.headers)
+    headers.set("X-Application-Id", process.env.NEXT_PUBLIC_PORTAL_ID)
+    init = { ...init, headers }
+  }
   if (typeof window === "undefined") {
     const controller = new AbortController()
     const callerSignal = init?.signal
@@ -4108,6 +4113,14 @@ export async function whiteLabelRequest<T>(userId: string, path = "", init: Requ
     ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, userId),
   })
   if (!response.ok) await throwApiError(response, "White-label setup is unavailable")
+  return response.json()
+}
+
+export async function hostedPortalRequest<T>(userId: string, path = "", init: RequestInit = {}): Promise<T> {
+  const response = await apiFetch(`${API_URL}/api/v2/hosted-portals${path}`, {
+    ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, userId),
+  }, 120_000)
+  if (!response.ok) await throwApiError(response, "Portal setup could not be completed")
   return response.json()
 }
 

@@ -20,6 +20,7 @@ import {
   ThemeToggle,
 } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { portalBrand } from "@/lib/portal-brand"
 import { getSafeReturnTo, getSignInUrl, getWorkspaceReturnTo } from "@/features/auth/lib/auth-redirects"
 import { chooseAuthWorkspace } from "@/features/auth/lib/auth-workspaces"
 import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
@@ -285,7 +286,7 @@ export default function OnboardingPage() {
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <header className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
         <Link href="/" className="inline-flex items-center gap-2 text-lg font-semibold text-gray-950">
-          <Image src="/icons/decisionate-logo.png" alt="" width={32} height={32} priority />Decisionate
+          {portalBrand.logo && <Image src={portalBrand.logo} alt="" width={32} height={32} priority unoptimized />}{portalBrand.name}
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -451,7 +452,7 @@ export default function OnboardingPage() {
                 <>
                   <fieldset className="space-y-4">
                     <legend className="text-sm font-semibold text-gray-900">
-                      {t("Personalize Decisionate")}
+                      {portalBrand.id ? "Personalize your workspace" : t("Personalize Decisionate")}
                     </legend>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="text-sm font-medium text-gray-700">
@@ -486,7 +487,7 @@ export default function OnboardingPage() {
                       </label>
                     </div>
                     <label className="block text-sm font-medium text-gray-700">
-                      {t("Primary goal with Decisionate")}
+                      {portalBrand.id ? "Primary business goal" : t("Primary goal with Decisionate")}
                       <select aria-label={t("Primary goal with Decisionate")} value={primaryGoal} onChange={(event) => setPrimaryGoal(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-3 font-normal text-gray-900" required>
                         <option value="">{t("Select your primary goal")}</option>
                         {primaryGoalOptions.map((option) => <option key={option} value={option}>{t(option)}</option>)}

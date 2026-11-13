@@ -30,7 +30,7 @@ function loadComponent(relativePath, translate = text => text) {
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
     })
     vm.runInNewContext(outputText, {
-      module: loadedModule, exports: loadedModule.exports,
+      module: loadedModule, exports: loadedModule.exports, process: { env: {} },
       require: specifier => {
         if (overrides[specifier]) return overrides[specifier]
         if (specifier.startsWith("@/") || specifier.startsWith(".")) {

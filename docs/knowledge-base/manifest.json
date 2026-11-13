@@ -7,6 +7,46 @@
   "default_export_audience": "customer",
   "articles": [
     {
+      "id": "hosted-portals",
+      "title": "Set up a branded customer portal",
+      "path": "customer/hosted-portals.md",
+      "audience": "customer",
+      "topics": [
+        "white label",
+        "branded portal",
+        "agency",
+        "Stripe Connect",
+        "domain",
+        "DNS"
+      ],
+      "questions": [
+        "How do I set up a white-label portal?",
+        "Can my customers pay into my Stripe account?",
+        "Why is my branded portal waiting for DNS?"
+      ],
+      "routes": [
+        "/dashboard/white-label",
+        "/dashboard/settings"
+      ],
+      "sources": [
+        "apps/api/app/modules/hosted_portals.py",
+        "apps/api/app/modules/hosted_portal_providers.py",
+        "apps/web/features/white-label/hosted-setup.tsx",
+        "docs/white-label-onboarding.md"
+      ],
+      "related": [
+        "workspaces-access",
+        "billing-credits",
+        "email-branding"
+      ],
+      "direct_questions": {
+        "How do I set up my portal?": [
+          "How do I set up a white-label portal?",
+          "How do I create a branded customer portal?"
+        ]
+      }
+    },
+    {
       "id": "performance-analysis",
       "title": "Business Analysis: returns, profitability, customers, sales and cash",
       "path": "customer/performance-analysis.md",
@@ -1396,7 +1436,10 @@
         "docs/white-label-onboarding.md",
         "apps/api/app/modules/white_label.py",
         "apps/web/features/white-label/setup.tsx",
-        "apps/web/features/white-label/state.ts"
+        "apps/web/features/white-label/state.ts",
+        "apps/api/app/modules/hosted_portal_registry.py",
+        "apps/api/app/modules/hosted_portals.py",
+        "apps/api/app/modules/hosted_portal_providers.py"
       ],
       "related": [
         "operator-worker-verification",

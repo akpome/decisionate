@@ -18,6 +18,7 @@ function load(relativePath, dependencies = {}, globals = {}) {
   vm.runInNewContext(outputText, {
     module: loaded, exports: loaded.exports, URL, Event, Map,
     require: name => {
+      if (name === "./lib/portal-brand") return { portalBrand: { id: "" } }
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
     }, ...globals,

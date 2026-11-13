@@ -26,7 +26,7 @@ function components(workspace, overrides = {}) {
     vm.runInNewContext(ts.transpileModule(readFileSync(file, "utf8"), {
       fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
     }).outputText, {
-      module: loaded, exports: loaded.exports,
+      module: loaded, exports: loaded.exports, process: { env: {} },
       require: name => {
         if (name === "@/lib/api") return {}
         if (name === "@clerk/nextjs") return { useClerk: () => ({ signOut: async () => {} }) }

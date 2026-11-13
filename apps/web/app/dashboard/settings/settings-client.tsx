@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import {
   AlertTriangle,
   Mail,
@@ -1417,6 +1419,7 @@ export function SettingsClient({
 
       <EmailPreferences userId={userId} />
       {ownershipPanel}
+      {canManageClientWorkspaces && !process.env.NEXT_PUBLIC_PORTAL_ID && <Link href="/dashboard/white-label" className="text-sm font-medium text-blue-700 underline underline-offset-4">Set up your branded portal</Link>}
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>

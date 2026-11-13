@@ -57,6 +57,23 @@ confirmation. The additive `white_label_launch_confirmations` table stores its
 revision, operator, time and a change-detection digest, never raw credentials.
 See `docs/white-label-onboarding.md` for the onboarding sequence and limits.
 
+The separate hosted self-service path lives at `/dashboard/white-label` for
+default-application Agency owners. With operator provider configuration enabled,
+it creates a Vercel project, isolated production Clerk application, Stripe Connect
+prices/webhook and a restricted Resend sending key. The customer supplies brand,
+domain, legal links and prices, authorizes Stripe and adds DNS. Launch verifies
+provider readiness and HTTPS before the `hosted_portals` registration becomes
+active. Per-portal secrets are encrypted with the shared application encryption
+key; API/workers cache live registrations for five seconds. Stripe requests use
+the portal's connected-account header, not .ca's customer account.
+
+This needs Clerk Platform API access, Vercel repository access, Stripe Connect
+and Resend configuration once at the platform level. It does not imply those
+accounts are configured in production. Mocked tests are not a live provider
+certification. Connector OAuth apps, account migration, live configuration
+changes, teardown, custom plan catalogs and regional isolation are not automated
+by this flow. The original operator wizard remains unchanged for static brands.
+
 Knowledge articles are static approved guidance. An authenticated live-data tool
 would be a separate product surface requiring its own authorization, minimized
 response schema, auditing and testing. Do not expose database credentials,

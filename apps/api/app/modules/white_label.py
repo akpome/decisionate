@@ -13,9 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
-from app.application_context import DEFAULT_APPLICATION_ID, _origin, applications
+from app.application_context import DEFAULT_APPLICATION_ID, _origin, application_scope, applications, scoped_setting
 from app.db.database import SessionLocal
-from app.db.models import WhiteLabelLaunchConfirmation, WhiteLabelSetup, utc_now
+from app.db.models import HostedPortal, WhiteLabelLaunchConfirmation, WhiteLabelSetup, utc_now
 from app.modules.platform_admin import require_platform_admin_full_access, record_platform_admin_audit
 
 
@@ -174,6 +174,8 @@ def registration(config):
 
 
 def validate_registration(config, db):
+    if db.get(HostedPortal, config.id) or db.query(HostedPortal).filter_by(domain=urlsplit(config.web_url).hostname).first():
+        raise HTTPException(409, "This application or domain belongs to a hosted portal. Use its owner setup.")
     if config.id == DEFAULT_APPLICATION_ID or not config.web_url:
         raise HTTPException(422, "Use a new application ID and frontend URL. The existing default cannot be replaced.")
     proposed = registration(config)
@@ -191,8 +193,8 @@ def validate_registration(config, db):
             continue
         if proposed_origins.intersection(app.allowed_origins) or proposed["environment_prefix"] == app.environment_prefix:
             raise HTTPException(409, "This domain or environment prefix is already assigned to another application.")
-        issuer = (os.getenv(app.environment_prefix + "AUTH_JWT_ISSUER")
-                  or os.getenv(app.environment_prefix + "CLERK_JWT_ISSUER"))
+        with application_scope(app):
+            issuer = scoped_setting("AUTH_JWT_ISSUER") or scoped_setting("CLERK_JWT_ISSUER")
         if config.auth_issuer and issuer == config.auth_issuer:
             raise HTTPException(409, "Each application needs its own sign-in issuer.")
     for row in db.query(WhiteLabelSetup).filter(WhiteLabelSetup.application_id != config.id):

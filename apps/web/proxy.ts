@@ -11,6 +11,7 @@ import {
   getSafeReturnTo,
   getSignInUrl,
 } from "./features/auth/lib/auth-redirects"
+import { portalBrand } from "./lib/portal-brand"
 
 const isPublicDemoRoute = createRouteMatcher([
   "/",
@@ -62,6 +63,18 @@ export default async function proxy(
   request: NextRequest,
   event: NextFetchEvent,
 ) {
+  if (portalBrand.id) {
+    if (!portalBrand.url || request.nextUrl.hostname !== new URL(portalBrand.url).hostname) {
+      return new NextResponse("Portal unavailable on this address.", { status: 404 })
+    }
+    if (["/privacy", "/terms"].includes(request.nextUrl.pathname)) {
+      return NextResponse.redirect(new URL(request.nextUrl.pathname === "/privacy" ? portalBrand.privacy : portalBrand.terms))
+    }
+    if (isPublicDemoRoute(request)) return NextResponse.redirect(new URL("/sign-in", portalBrand.url))
+    if (request.nextUrl.pathname.startsWith("/platform-admin") || request.nextUrl.pathname.startsWith("/dashboard/white-label")) {
+      return new NextResponse("Not found", { status: 404 })
+    }
+  }
   if (isPublicDemoRoute(request)) {
     return NextResponse.next()
   }

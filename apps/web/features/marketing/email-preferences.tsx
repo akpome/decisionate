@@ -17,6 +17,7 @@ export function SignupMarketingOptIn() {
   const [checked, setChecked] = useState(false)
   const { t, language } = useDecisionateText()
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_PORTAL_ID) return
     let cancelled = false
     void getMarketingConsent(language).then(result => {
       if (!cancelled) { storeMarketingChoice(false, result.version, result.language); setChecked(false); setConfig(result) }
@@ -44,6 +45,7 @@ export function EmailPreferences({ userId }: { userId: string }) {
   const [status, setStatus] = useState("")
   const { t, language } = useDecisionateText()
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_PORTAL_ID) return
     let cancelled = false
     void Promise.all([getMarketingConsent(language), marketingRequest<MarketingContact>(userId, "/preferences")]).then(([consent, current]) => {
       if (cancelled) return
@@ -61,6 +63,7 @@ export function EmailPreferences({ userId }: { userId: string }) {
     } catch (error) { setStatus(error instanceof Error ? error.message : "Email preferences could not be updated") }
     finally { setSaving(false) }
   }
+  if (process.env.NEXT_PUBLIC_PORTAL_ID) return null
   return <section className="border-y border-gray-200 py-6">
     <h2 className="text-xl font-semibold">{t("Email preferences")}</h2>
     <div className="mt-4 space-y-3">

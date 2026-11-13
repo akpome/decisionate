@@ -10,7 +10,7 @@ export function MarketingActivityTracker() {
   const { user } = useUser()
   const userId = user?.id
   useEffect(() => {
-    if (!userId) return
+    if (!userId || process.env.NEXT_PUBLIC_PORTAL_ID) return
     const content = new URLSearchParams(window.location.search).get("utm_content")
     const messageId = content?.match(/^lifecycle-(\d+)$/)?.[1]
     const meaningful = /^\/dashboard(?:$|\/(?:dashboards|insights|decisions)(?:\/|$))/.test(pathname)

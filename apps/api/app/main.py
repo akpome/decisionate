@@ -8,7 +8,6 @@ from app.db.database import Base
 from app.db.database import engine
 from app.db.database import SessionLocal
 from app.db.database import get_table_columns
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from starlette.middleware.gzip import GZipMiddleware
@@ -83,6 +82,7 @@ from app.modules.platform_admin import (
     router as platform_admin_router,
 )
 from app.modules.white_label import router as white_label_router
+from app.modules.hosted_portals import router as hosted_portal_router
 from app.modules.maintenance import (
     router as maintenance_router,
 )
@@ -122,7 +122,7 @@ from app.infrastructure.monitoring import configure_error_monitoring
 from app.modules.marketing.router import router as marketing_router
 from app.modules.marketing.hooks import install_marketing_hooks
 from app.application_context import applications, validate_applications
-from app.modules.applications import ApplicationContextMiddleware, install_api_contract, router as application_router
+from app.modules.applications import ApplicationContextMiddleware, ApplicationCORSMiddleware, install_api_contract, router as application_router
 
 
 logger = logging.getLogger(__name__)
@@ -1637,7 +1637,7 @@ app.include_router(marketing_router)
 def get_allowed_origins():
     runtime = get_runtime_configuration()
     configured_origins = list(runtime.cors_allowed_origins)
-    for application in applications().values():
+    for application in applications(include_hosted=False).values():
         if not application.is_default:
             configured_origins.extend(application.allowed_origins)
     configured_web_origin = runtime.web_url.strip().rstrip("/")
@@ -1875,6 +1875,7 @@ app.include_router(
     tags=["platform-admin"],
 )
 app.include_router(white_label_router)
+app.include_router(hosted_portal_router)
 
 app.include_router(
     maintenance_router,
@@ -1987,7 +1988,7 @@ async def handle_unexpected_exception(
 # This lets the web client receive a useful API error instead of reporting it
 # as a browser-only CORS failure.
 install_api_contract(app)
-app = CORSMiddleware(
+app = ApplicationCORSMiddleware(
     ApplicationContextMiddleware(
         GZipMiddleware(app, minimum_size=1000),
     ),

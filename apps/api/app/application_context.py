@@ -2,7 +2,7 @@
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 import json
 import os
@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 DEFAULT_APPLICATION_ID = "decisionate-ca"
 _application_id = ContextVar("application_id", default=DEFAULT_APPLICATION_ID)
+_application_snapshot = ContextVar("application_snapshot", default=None)
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class Application:
     web_url: str
     allowed_origins: tuple[str, ...]
     environment_prefix: str = ""
+    protected_settings: str = field(default="", repr=False, compare=False)
 
     @property
     def is_default(self):
@@ -70,7 +72,7 @@ def _additional_applications(raw):
     return applications
 
 
-def applications():
+def applications(*, include_hosted=True):
     web_url = os.getenv("DECISIONATE_WEB_APP_URL", "http://localhost:3000").strip().rstrip("/")
     allowed = [item.strip().rstrip("/") for item in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if item.strip()]
     allowed.append(web_url)
@@ -83,30 +85,49 @@ def applications():
     extra = _additional_applications(os.getenv("DECISIONATE_APPLICATIONS", "[]"))
     if any(set(app.allowed_origins).intersection(default.allowed_origins) for app in extra.values()):
         raise ValueError("Additional application origins must not be in the default application's CORS_ALLOWED_ORIGINS")
-    return {default.id: default, **extra}
+    registry = {default.id: default, **extra}
+    if include_hosted:
+        from app.modules.hosted_portal_registry import hosted_applications
+        for app in hosted_applications():
+            if app.id in registry or any(set(app.allowed_origins).intersection(other.allowed_origins) for other in registry.values()):
+                raise ValueError("Hosted application registration conflicts with an existing application")
+            registry[app.id] = app
+    return registry
 
 
 def get_application(identity=None):
     identity = identity or _application_id.get()
+    snapshot = _application_snapshot.get()
+    if snapshot and snapshot.id == identity:
+        return snapshot
     try:
-        return applications()[identity]
+        return applications(include_hosted=identity != DEFAULT_APPLICATION_ID)[identity]
     except KeyError:
         raise ValueError("Unknown application") from None
 
 
 @contextmanager
 def application_scope(identity):
-    app = get_application(identity)
+    app = identity if isinstance(identity, Application) else get_application(identity)
     token = _application_id.set(app.id)
+    snapshot_token = _application_snapshot.set(app)
     try:
         yield app
     finally:
         _application_id.reset(token)
+        _application_snapshot.reset(snapshot_token)
 
 
 def scoped_setting(name, default=""):
     """Never fall back to another application's credential or billing setting."""
-    return str(os.getenv(get_application().environment_prefix + name, default) or "").strip()
+    app = get_application()
+    if app.protected_settings:
+        from app.security.secrets import decrypt_secret
+        values = json.loads(decrypt_secret(app.protected_settings))
+        if name == "STRIPE_SECRET_KEY" and values.get("STRIPE_CONNECTED_ACCOUNT_ID"):
+            return os.getenv("HOSTED_PORTALS_STRIPE_SECRET_KEY", "").strip()
+        return str(values.get(name, default) or "").strip()
+    return str(os.getenv(app.environment_prefix + name, default) or "").strip()
 
 
 def application_branding():
@@ -146,8 +167,8 @@ def identity_provider(provider=None):
 
 def validate_applications():
     issuers = set()
-    for app in applications().values():
-        with application_scope(app.id):
+    for app in applications(include_hosted=False).values():
+        with application_scope(app):
             issuer = scoped_setting("AUTH_JWT_ISSUER") or scoped_setting("CLERK_JWT_ISSUER")
             jwks = scoped_setting("AUTH_JWKS_URL") or scoped_setting("CLERK_JWKS_URL")
             if not app.is_default and (not issuer or not jwks):

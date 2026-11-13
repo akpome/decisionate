@@ -41,6 +41,27 @@ class WhiteLabelSetup(Base):
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
 
+class HostedPortal(Base):
+    """Customer-owned provisioning state, separate from operator deployment drafts."""
+
+    __tablename__ = "hosted_portals"
+    id = Column(String, primary_key=True)
+    owner_workspace_id = Column(String, nullable=False, unique=True)
+    domain = Column(String, nullable=False, unique=True)
+    stripe_account_id = Column(String, nullable=True, unique=True)
+    configuration = Column(Text, nullable=False)
+    provider_state = Column(Text, nullable=False, default="{}")
+    protected_settings = Column(Text, nullable=False, default="")
+    status = Column(String, nullable=False, default="draft")
+    revision = Column(Integer, nullable=False, default=1)
+    operation_token = Column(String, nullable=True)
+    operation_started_at = Column(DateTime, nullable=True)
+    oauth_state_digest = Column(String, nullable=True, unique=True)
+    oauth_expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
 class WhiteLabelLaunchConfirmation(Base):
     """Operator sign-off for one setup revision and its deployed configuration."""
 

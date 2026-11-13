@@ -910,6 +910,8 @@ def stripe_request(
             "Authorization": f"Basic {auth}",
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
+            **({"Stripe-Account": scoped_setting("STRIPE_CONNECTED_ACCOUNT_ID")}
+               if scoped_setting("STRIPE_CONNECTED_ACCOUNT_ID") else {}),
         },
         method=request_method,
     )

@@ -1,6 +1,112 @@
 # White-label onboarding
 
-## Start in Platform Admin
+## Hosted self-service portals
+
+Agency owners open **Settings > Set up your branded portal** on Decisionate.ca.
+This provisions a separate branded frontend from the existing repository; the
+customer does not deploy code, copy API credentials or create Stripe prices.
+The operator-managed workflow below remains available for independently deployed
+frontends. Neither workflow migrates existing workspaces between brands.
+
+### Customer steps
+
+1. Enter your brand, portal domain, optional logo, color, support email, currency
+   and prices. Supply privacy and terms URLs on your business website, outside
+   the portal domain. Annual prices are total annual charges. Save details.
+2. Choose **Connect Stripe** and authorize your own live Standard Stripe account.
+   Complete Stripe's business requirements. The platform's own account and an
+   account already assigned to another portal are rejected. Details are locked
+   once connected to avoid changing provisioned billing or identity settings.
+3. Choose **Prepare portal**. Setup creates a Vercel project, separate production
+   Clerk application, sender setup, billing products/prices and signed webhook,
+   then deploys the frontend. It saves progress after each bounded step.
+4. Add the displayed DNS records with your domain provider, including any MX
+   priority. This requires the domain owner's authorization. Choose **Check
+   setup again** after DNS propagates and the build completes.
+5. Choose **Launch portal** when ready. Launch repeats provider checks, validates
+   HTTPS and the expected portal identity, then activates the registration.
+
+Closing setup does not discard completed steps. Reopen it and continue. Retries
+reconcile provider resources before creating replacements. A second preparation
+cannot run concurrently; a stale ten-minute operation lease can be reclaimed.
+
+One portal is supported per Agency owner. It starts at sign-in, not a generated
+marketing website. Signup creates a new isolated workspace. Payments go to the
+connected Stripe account; no new commission or revenue-sharing model is added.
+The existing catalog, trials, features and AI-credit rules remain shared.
+
+### One-time operator configuration
+
+Keep `HOSTED_PORTALS_ENABLED=false` until the provider accounts are ready.
+Customer setup shows missing configuration and will not claim success. Configure
+these on the API in the deployment secret store:
+
+| Setting | Purpose |
+| --- | --- |
+| `HOSTED_PORTALS_CLERK_PLATFORM_TOKEN` | Clerk Platform API token, not a normal application secret |
+| `HOSTED_PORTALS_VERCEL_TOKEN` | Permission to create projects, domains, environment variables and deployments |
+| `HOSTED_PORTALS_VERCEL_TEAM_ID` | Team hosting the generated portals |
+| `HOSTED_PORTALS_GITHUB_REPOSITORY` | Repository in `owner/repository` form |
+| `HOSTED_PORTALS_GITHUB_REPO_ID` | Numeric GitHub repository ID for deployments |
+| `HOSTED_PORTALS_GITHUB_REF` | Approved deployment branch, normally `main` |
+| `HOSTED_PORTALS_STRIPE_SECRET_KEY` | Live Stripe Connect platform key |
+| `HOSTED_PORTALS_STRIPE_CLIENT_ID` | Live Standard Connect OAuth client ID |
+| `HOSTED_PORTALS_RESEND_API_KEY` | Permission to manage domains and restricted sending keys |
+
+The [Clerk Platform API](https://clerk.com/docs/reference/platform-api) requires
+separate access (private beta at implementation); ordinary Clerk application
+keys cannot create applications. Confirm access before offering automatic setup.
+Install the Vercel GitHub integration with access to the selected repository.
+Use provider plans and quotas suitable for customer hosting.
+
+Register this exact live callback in
+[Stripe Connect settings](https://docs.stripe.com/connect/oauth-reference):
+`https://<public-api-domain>/api/v2/hosted-portals/stripe/callback`.
+Set `DECISIONATE_API_URL` to the public HTTPS origin and `STRIPE_API_URL` to
+`https://api.stripe.com/v1`. Connect callbacks use expiring, one-use state.
+
+API, analytics, ingestion and scheduler processes need the same database,
+`OAUTH_TOKEN_ENCRYPTION_KEY`, `HOSTED_PORTALS_ENABLED=true` and
+`HOSTED_PORTALS_STRIPE_SECRET_KEY`. Keep existing storage and provider settings.
+Provisioning-only Clerk/Vercel/Resend credentials belong on the API. Portal Resend
+keys can only send from their mail domain; the sender is
+`no-reply@mail.<portal-domain>`. Monitor bounces, complaints and reputation in the
+email provider. The displayed DMARC record uses monitoring (`p=none`); verified
+sender status does not prove DMARC enforcement or inbox delivery.
+
+The additive `hosted_portals` table holds configuration, revisions, resumable
+progress and encrypted secrets. API/workers read live registrations through a
+five-second cache. Customer launches do not edit Railway variables or redeploy
+the backend. Back up this table and protect the encryption key for recovery.
+
+### Verification and limits
+
+Launch checks cover domain ownership/routing, Clerk DNS/SSL readiness, Resend
+domain status, production-build readiness, HTTPS portal identity, Stripe charges
+and payouts, price amounts/intervals and the enabled webhook URL. They do not
+simulate a human sign-in, collect a payment or send a test email. Repository
+tests use mocked provider responses. Run a real portal pilot before public
+rollout: sign-in/out, invitations, checkout, signed webhooks, worker email,
+cross-application access denial and existing .ca workflows must all be checked.
+Use provider-approved test procedures; the customer wizard rejects test-mode
+Connect accounts for launch.
+
+This release does not add self-service edits to a launched domain, prices or
+credentials; automated teardown; account transfer; arbitrary plan catalogs;
+regional data residency; or marketing automation. Provider resources can incur
+costs during preparation. Operators must clean up abandoned resources without
+deleting those belonging to live portals. Connector OAuth credentials and
+approvals are not provisioned here and never borrowed from .ca. File uploads
+remain available; connector enablement needs operator integration for the brand.
+Help still documents the shared Decisionate product, not custom approved content
+for each reseller. Review that copy before public rollout.
+
+Do not disable the hosted registry or remove registrations while customer
+workspaces or jobs depend on them. Invalid or unavailable registrations fail
+closed, never falling back to another brand's secrets. These are launch checks,
+not continuous monitoring or automatic account suspension.
+
+## Operator-managed frontends: Start in Platform Admin
 
 Sign in to Decisionate.ca as a **full-access platform administrator**, open
 **Platform Admin > White-label setup**, and expand the section. Workspace and
@@ -54,7 +160,7 @@ using the prefix in the downloaded file:
 - Stripe signing secret for `/billing/webhook/{application_id}`.
 - Resend key with permission to send from the verified brand domain.
 
-This is the shortest supported setup path: Clerk, Stripe and Resend. The backend
+This operator path supports Clerk, Stripe and Resend. The backend
 also supports other configured JWT providers and SMTP through the existing
 deployment configuration; that is an advanced setup outside this wizard.
 
@@ -124,7 +230,7 @@ It is **not generated or automatically rebranded** by this wizard. The current
 review for a different brand; do not present Decisionate-specific help as that
 brand's approved documentation.
 
-This is operator-managed onboarding, not public self-service reseller signup.
+This older wizard is operator-managed onboarding, separate from hosted setup.
 The plan catalog, trial rules and analytics remain shared; price amounts,
 credentials, subscriptions, identities and workspaces are application-scoped.
 It is not Stripe Connect, automated revenue sharing or separate regional data

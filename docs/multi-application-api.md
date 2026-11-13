@@ -5,10 +5,11 @@ at the same time. An application is a deployment-registered brand above a
 workspace. Workspaces retain their existing ownership, agency rules, settings,
 datasets, subscriptions and access checks.
 
-This change does not create the .ai frontend, register domains, provision
-authentication/Stripe accounts, or change a customer's subscription.
+Static registration does not create the .ai frontend or change subscriptions.
+The optional hosted self-service workflow can provision a branded copy of the
+existing frontend; see the hosted-registration section below.
 
-For the easiest setup, use **Platform Admin > White-label setup**. It saves
+For an independently deployed frontend, use **Platform Admin > White-label setup**. It saves
 non-secret drafts, generates application variables and Railway worker
 references, and guides operators through configuration checks, manual launch
 tests and a recorded launch confirmation. This confirmation does not activate
@@ -179,7 +180,7 @@ Origin or explicit application header.
 This is a shared backend with application isolation, not separate databases or
 data residency. Storage, analytics, AI provider, worker queues, infrastructure
 limits and operator maintenance controls remain shared. Workspace settings
-remain isolated by workspace. Secondary application configuration is managed
+remain isolated by workspace. Operator-managed application configuration is managed
 through deployment secrets. The Platform Admin wizard prepares and checks this
 configuration; saving a draft does not activate or change a live application.
 
@@ -187,8 +188,31 @@ The existing global Platform Admin and marketing automation/preferences belong
 to .ca. Secondary requests to `/admin*` and `/marketing*` return 404. The public
 application endpoint advertises those features as unavailable; a new frontend
 must hide them. Transactional and weekly emails are application-aware. Custom
-marketing automation, arbitrary plan catalogs, custom-domain provisioning and
-fully rebranded product copy are separate future work.
+marketing automation, arbitrary plan catalogs and fully rebranded product copy
+remain separate work. Hosted domain provisioning is described below.
+
+### Hosted registrations
+
+`HOSTED_PORTALS_ENABLED=true` adds verified, launched `hosted_portals` records to
+the registry alongside static applications. Each process has a five-second
+cache; workers restore registrations using the existing workspace mapping.
+Invalid encrypted registrations are excluded, never interpreted as default-app
+settings. Static startup validation does not need the database initialized.
+Dynamic CORS accepts exact hosted origins only after launch.
+
+Agency owners on the default app use `/api/v2/hosted-portals` to configure their
+brand, authorize Stripe Connect, prepare resources and launch. Each portal uses
+a distinct Clerk issuer, Vercel project and encrypted billing/email settings.
+Stripe operations carry its `Stripe-Account` header using the Connect platform
+key; .ca operations remain unchanged. Each `/billing/webhook/{portal_id}` has
+its own signing secret. Portal builds send `X-Application-Id` for server and
+browser API calls. Customers never receive stored credentials.
+
+One-time Vercel, Clerk Platform API, Stripe Connect and Resend configuration is
+required. See [hosted onboarding](white-label-onboarding.md) for variables,
+provider access, rollout tests and limits. Do not copy hosted registrations into
+`DECISIONATE_APPLICATIONS`: their source of truth is the shared database and
+encrypted settings, not prefixed variables.
 
 Before enabling .ai customers:
 

@@ -19,7 +19,7 @@ function transportHarness(fetch) {
   Object.assign(window, { setTimeout, clearTimeout })
   window.addEventListener("availability", event => availability.push(event.detail))
   const context = {
-    window, AbortController, DOMException, TypeError, Error, CustomEvent,
+    window, AbortController, DOMException, TypeError, Error, CustomEvent, process: { env: {} }, Headers,
     API_URL: "https://api.example.test", apiRequestTimeoutMs: 1000,
     apiAvailabilityChangedEvent: "availability", apiAvailabilitySnapshot: { available: false, message: "Existing outage" },
     workspaceHeaders: async userId => ({ "X-User-Id": userId, "X-Workspace-Id": "workspace" }),
@@ -84,7 +84,7 @@ function trackerHarness({ pathname = "/dashboard", visible = true, userId = "own
     clearTimeout: id => timers.delete(id),
   }
   vm.runInNewContext(ts.transpileModule(tracker, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, {
-    module: loaded, exports: loaded.exports, window, URLSearchParams, AbortController,
+    module: loaded, exports: loaded.exports, window, URLSearchParams, AbortController, process: { env: {} },
     document: { visibilityState: visible ? "visible" : "hidden" },
     require: name => {
       if (name === "react") return { useEffect: (callback, deps) => { effect = callback; dependencies = deps } }

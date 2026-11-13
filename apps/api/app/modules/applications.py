@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
 
 from app.application_context import (
     DEFAULT_APPLICATION_ID, application_scope, applications, application_branding, get_application, scoped_setting,
@@ -86,7 +87,7 @@ class ApplicationContextMiddleware:
         by_origin = next((app.id for app in registry.values() if origin in app.allowed_origins), None)
         path = scope.get("path", "")
         webhook = path == "/billing/webhook" or path.startswith("/billing/webhook/")
-        oauth_callback = path == "/oauth/callback"
+        oauth_callback = path in {"/oauth/callback", "/api/v2/hosted-portals/stripe/callback"}
         if webhook:
             identity = path.removeprefix("/billing/webhook/") if path != "/billing/webhook" else DEFAULT_APPLICATION_ID
         elif oauth_callback:
@@ -105,6 +106,14 @@ class ApplicationContextMiddleware:
             if not application.is_default and path.startswith(("/admin", "/marketing")):
                 return await JSONResponse({"detail": "This endpoint is not available for this application."}, status_code=404)(scope, receive, send)
             await self.app(scope, receive, send)
+
+
+class ApplicationCORSMiddleware(CORSMiddleware):
+    def is_allowed_origin(self, origin):
+        if super().is_allowed_origin(origin):
+            return True
+        from app.modules.hosted_portal_registry import hosted_applications
+        return any(origin in app.allowed_origins for app in hosted_applications())
 
 
 router = APIRouter(prefix="/api/v2/application", tags=["application"])
