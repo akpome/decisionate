@@ -138,8 +138,7 @@ def get_auth_context(
     recovery = workspace_role == "owner" and path.startswith(("/organizations", "/billing")) and workspace_is_independent(workspace_id)
     owner_deletion = path == "/organizations/workspace" and getattr(request, "method", "") == "DELETE" and workspace_role in {"client", "client_owner", "owner"}
     access_status = path == "/billing/access" and getattr(request, "method", "") == "GET"
-    owner_resume = path == "/organizations/resume-workspace" and getattr(request, "method", "") == "POST" and workspace_role in {"client", "client_owner", "owner"}
-    if path != "/organizations/workspaces" and not recovery and not owner_deletion and not access_status and not owner_resume:
+    if path != "/organizations/workspaces" and not recovery and not owner_deletion and not access_status:
         from app.modules.workspace_lifecycle import require_workspace_active
         require_workspace_active(workspace_id)
 

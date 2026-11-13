@@ -22,7 +22,6 @@ import {
   LifeBuoy,
   Menu,
   Plug,
-  Play,
   RefreshCw,
   Settings,
   Target,
@@ -46,7 +45,6 @@ import {
   apiAvailabilityChangedEvent,
   getBillingAccessStatus,
   getActiveMaintenanceNotice,
-  resumeOwnedWorkspace,
   type ApiAvailabilityEventDetail,
   type BillingAccessStatus,
   type MaintenanceNotice,
@@ -56,7 +54,6 @@ import {
 import {
   getActiveWorkspaceId,
   setActiveWorkspaceId,
-  notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
 import {
   useActiveWorkspace,
@@ -319,8 +316,6 @@ export function DashboardShell({
   const [workspaceSetupUserId, setWorkspaceSetupUserId] =
     useState("")
   const [workspaceAccessError, setWorkspaceAccessError] = useState("")
-  const [resumeState, setResumeState] = useState({ workspaceId: "", pending: false, error: "" })
-  const resumePending = useRef(false)
   const [expandedNavGroups, setExpandedNavGroups] =
     useState<Record<string, boolean>>({})
   // The drawer is closed from navigation click handlers. Keeping the update in
@@ -829,10 +824,6 @@ export function DashboardShell({
             "unknown"
         : activeWorkspaceRecord?.role?.toLowerCase() ??
           "unknown"
-  const canResumeWorkspace = Boolean(
-    isAgencyManagedWorkspace(activeWorkspaceRecord) &&
-    ["client", "client_owner", "owner"].includes(activeWorkspaceRole)
-  )
   const isClientWorkspaceContext =
     isAgencyManagedWorkspace(activeWorkspaceRecord)
   const isBusinessOwnerWorkspace =
@@ -869,25 +860,6 @@ export function DashboardShell({
       subscriptionAccess &&
       !subscriptionAccess.access_allowed
     )
-
-  async function handleResumeWorkspace() {
-    if (!user?.id || !canResumeWorkspace || resumePending.current) return
-    const workspaceId = activeWorkspaceId
-    resumePending.current = true
-    setResumeState({ workspaceId, pending: true, error: "" })
-    try {
-      await resumeOwnedWorkspace(user.id, workspaceId)
-      setSubscriptionAccess(null)
-      setWorkspaces(current => current.map(workspace => workspace.owner_user_id === workspaceId ? { ...workspace, is_paused: false } : workspace))
-      notifyWorkspaceAccessChanged()
-      window.dispatchEvent(new Event("decisionate:billing-updated"))
-    } catch (error) {
-      setResumeState({ workspaceId, pending: true, error: error instanceof Error ? error.message : "The workspace could not be resumed. Please try again." })
-    } finally {
-      resumePending.current = false
-      setResumeState(current => current.workspaceId === workspaceId ? { ...current, pending: false } : current)
-    }
-  }
 
   function handleWorkspaceChange(
     nextWorkspaceId: string
@@ -1246,9 +1218,7 @@ export function DashboardShell({
         ) : activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/dashboard/settings", "/dashboard/billing", "/dashboard/help"].includes(pathname)) ? (
           <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
             <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Choose how to continue" : "Client account paused"}</h1>
-            <p className="mt-2 text-sm text-gray-600">{activeWorkspaceRecord.agency_removed ? "Your data is preserved. Start a trial or accept an agency invitation in Settings." : canResumeWorkspace ? "Your data is preserved. You can resume your workspace." : activeWorkspaceRecord.client_owner_accepted ? "Your data is preserved. Contact the workspace owner to resume access." : "Your data is preserved. Contact your agency to resume access."}</p>
-            {canResumeWorkspace && <button type="button" disabled={resumeState.pending} onClick={() => void handleResumeWorkspace()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] disabled:cursor-wait disabled:opacity-60"><Play size={16} aria-hidden="true" />{resumeState.pending ? "Resuming..." : "Resume workspace"}</button>}
-            {resumeState.workspaceId === activeWorkspaceId && resumeState.error && <p role="alert" className="mt-3 text-sm text-red-600">{resumeState.error}</p>}
+            <p className="mt-2 text-sm text-gray-600">{activeWorkspaceRecord.agency_removed ? "Your data is preserved. Start a trial or accept an agency invitation in Settings." : "Your data is preserved. Contact your agency to resume access."}</p>
             {activeWorkspaceRecord.agency_removed && <Link href="/dashboard/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
           </section>
         ) : subscriptionAccessBlocked && subscriptionAccess ? (

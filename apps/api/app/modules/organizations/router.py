@@ -1945,8 +1945,6 @@ def update_client_workspace_status(organization_id: int, payload: ClientWorkspac
     auth_context = get_auth_context(request)
     with SessionLocal() as db:
         client = get_agency_client_for_management(db, auth_context, organization_id)
-        if has_accepted_owner(db, client):
-            raise HTTPException(403, "The client owns this workspace. You can remove it from your agency list, but cannot pause it.")
         if payload.is_paused and not client.is_paused:
             ensure_client_workspace_idle(db, client.owner_user_id)
         client.is_paused = payload.is_paused
@@ -1957,6 +1955,8 @@ def update_client_workspace_status(organization_id: int, payload: ClientWorkspac
             report_display_name=client.report_display_name,
             agency_owner_access_enabled=bool(client.agency_owner_access_enabled), is_paused=bool(client.is_paused),
             is_managed_client=True,
+            client_owner_accepted=has_accepted_owner(db, client),
+            independent_trial_started=client.independent_trial_started_at is not None,
         )
 
 

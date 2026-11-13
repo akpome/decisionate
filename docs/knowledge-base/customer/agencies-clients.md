@@ -55,18 +55,19 @@ Pausing preserves its data and schedules but blocks access and background work.
 Deletion requires typing the workspace name and permanently removes its data.
 
 After the client accepts, the workspace belongs to that client owner. The agency
-cannot pause it, delete it, remove its owner or take over member management.
-The agency sees Remove from agency instead. Confirming that action removes the
+can still pause and resume the client workspace while it manages that client.
+Only the managing agency owner can resume an agency-paused workspace; the client
+owner and other client users cannot override that pause. The paused notice asks
+the client to contact their agency. Pausing preserves data and billing settings
+but blocks data access and background work. The agency can manage this status
+without being granted access to the client's data.
+
+The agency cannot delete an accepted client's workspace, remove its owner or
+take over member management. It sees Remove from agency instead. That action removes the
 workspace from the agency's list and ends the agency's access and shared billing
 for that workspace. It does not delete datasets, reports, decisions, connections,
 members or the workspace itself. Workspace IDs and data IDs stay unchanged.
 An active import, report analysis or AI request must finish before removal.
-
-If an accepted client's workspace remains paused from earlier agency controls,
-the client owner can choose Resume workspace on the paused notice. Other client
-users and the agency cannot do this. Resuming keeps the same records and agency
-data-access setting, and requires an active Agency plan. It does not start a
-trial or restore agency funding after the workspace has left its agency.
 
 The client owner can choose Delete workspace in their own Settings and type its
 name to confirm permanent deletion. Other client users cannot do this. A direct

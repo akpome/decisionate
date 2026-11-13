@@ -2053,7 +2053,7 @@ export function SettingsClient({
                   <span className={`inline-flex w-14 shrink-0 items-center text-xs font-medium ${selectedClientWorkspace.is_paused ? "text-amber-700" : "text-green-700"}`}>
                     {selectedClientWorkspace.is_paused ? "Paused" : "Active"}
                   </span>
-                  {!selectedClientWorkspace.client_owner_accepted && <button
+                  <button
                     type="button"
                     onClick={() => void handleToggleClientWorkspaceStatus()}
                     disabled={deletingClientWorkspace || updatingClientWorkspaceStatus}
@@ -2063,7 +2063,7 @@ export function SettingsClient({
                   >
                     {selectedClientWorkspace.is_paused ? <Play size={15} /> : <Pause size={15} />}
                     {updatingClientWorkspaceStatus ? "Updating..." : selectedClientWorkspace.is_paused ? "Resume account" : "Pause account"}
-                  </button>}
+                  </button>
                   <button
                     type="button"
                     onClick={handleOpenDeleteClientWorkspace}

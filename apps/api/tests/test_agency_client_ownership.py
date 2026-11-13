@@ -74,9 +74,8 @@ class AgencyClientOwnershipTests(unittest.TestCase):
         self.assertTrue(workspace["independent_trial_started"])
         with self.Session() as db: self.assertEqual(get_subscription_for_workspace(db, self.workspace).current_period_end, end)
 
-    def test_accepted_clients_cannot_be_paused_or_have_their_owner_removed_by_an_agency(self):
-        for method, path, payload in (("patch", "/organizations/client-workspaces/2", {"is_paused": True}),
-                                      ("delete", "/organizations/members/1", None),
+    def test_accepted_client_owners_cannot_be_removed_or_demoted_by_an_agency(self):
+        for method, path, payload in (("delete", "/organizations/members/1", None),
                                       ("patch", "/organizations/members/1", {"role": "member"})):
             response = getattr(self.client, method)(path, headers=self.headers(self.workspace if "/members/" in path else None), **({"json": payload} if payload else {}))
             self.assertEqual(response.status_code, 403, response.text)

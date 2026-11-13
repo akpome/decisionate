@@ -16,7 +16,7 @@ function find(root, predicate) {
 }
 const declaration = name => find(ast, node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(ast)
 const compile = (code, context) => vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
-const workspace = { id: 2, name: "Client", owner_user_id: "agency:client:one", role: "managed_client", is_paused: false }
+const workspace = { id: 2, name: "Client", owner_user_id: "agency:client:one", role: "managed_client", is_paused: false, client_owner_accepted: true }
 function harness(overrides = {}) {
   const requests = []
   const context = {
@@ -38,6 +38,7 @@ test("pause and resume target only the chosen client and update after server con
     await h.toggle()
     assert.deepEqual(h.requests, [[2, !paused, "agency"]])
     assert.equal(h.context.organizationWorkspaces[0].is_paused, !paused)
+    assert.equal(h.context.organizationWorkspaces[0].client_owner_accepted, true)
     assert.equal(h.context.organizationWorkspaces[1].id, 3)
     assert.equal(h.context.updatingClientWorkspaceStatus, false)
     assert.match(h.context.notice, paused ? /active again/ : /data is preserved and billing is unchanged/)
@@ -80,6 +81,7 @@ test("missing clients, non-owners and busy accounts cannot trigger a status chan
 test("pause controls expose progress and status while deletion keeps typed confirmation", () => {
   assert.match(source, /aria-busy=\{updatingClientWorkspaceStatus\}/)
   assert.match(source, /"Resume account" : "Pause account"/)
+  assert.doesNotMatch(source, /!selectedClientWorkspace\.client_owner_accepted && <button/)
   assert.match(source, /!selectedClientWorkspace\.is_paused && !selectedClientWorkspace\.client_owner_accepted && <>/)
   assert.match(source, /Remove from agency/)
   assert.match(declaration("handleDeleteClientWorkspace"), /clientWorkspaceDeleteConfirmation\.trim\(\)/)
