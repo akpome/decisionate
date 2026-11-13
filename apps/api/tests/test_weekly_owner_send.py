@@ -207,7 +207,8 @@ class WeeklyOwnerSendTests(unittest.TestCase):
         with self.Session() as db:
             db.get(ReportAnalysisJob, identity).user_id = "former-manager"
             db.commit()
-        with patch.object(auth_context, "verify_workspace_membership", return_value="viewer"):
+        with patch.object(auth_context, "SessionLocal", self.Session), \
+             patch.object(auth_context, "verify_workspace_membership", return_value="viewer"):
             send = self.execute(identity)
         send.assert_not_called()
         with self.Session() as db:

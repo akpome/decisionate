@@ -8,6 +8,12 @@ datasets, subscriptions and access checks.
 This change does not create the .ai frontend, register domains, provision
 authentication/Stripe accounts, or change a customer's subscription.
 
+For the easiest setup, use **Platform Admin > White-label setup**. It saves
+non-secret drafts, generates application variables and Railway worker
+references, and provides configuration and launch checks. See
+[White-label onboarding](white-label-onboarding.md). The manual configuration
+below remains supported.
+
 ## Compatibility and isolation
 
 - `decisionate-ca` is the default. Existing callers, identities, workspace IDs,
@@ -172,7 +178,8 @@ This is a shared backend with application isolation, not separate databases or
 data residency. Storage, analytics, AI provider, worker queues, infrastructure
 limits and operator maintenance controls remain shared. Workspace settings
 remain isolated by workspace. Secondary application configuration is managed
-through deployment secrets, not a new administration UI.
+through deployment secrets. The Platform Admin wizard prepares and checks this
+configuration; saving a draft does not activate or change a live application.
 
 The existing global Platform Admin and marketing automation/preferences belong
 to .ca. Secondary requests to `/admin*` and `/marketing*` return 404. The public

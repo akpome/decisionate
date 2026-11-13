@@ -44,6 +44,13 @@ separate data-residency deployment or an already launched .ai frontend.
 See `docs/multi-application-api.md` for registration, independent billing,
 credential isolation, staging checks and rollback boundaries.
 
+Full-access operators can now use Platform Admin > White-label setup to save
+non-secret setup drafts, download deployment variables and Railway worker
+references, and check configuration. Drafts do not activate applications or
+provision provider accounts. Configuration checks are local to the API process;
+saved launch confirmations are operator attestations, not live provider tests.
+See `docs/white-label-onboarding.md` for the onboarding sequence and limits.
+
 Knowledge articles are static approved guidance. An authenticated live-data tool
 would be a separate product surface requiring its own authorization, minimized
 response schema, auditing and testing. Do not expose database credentials,

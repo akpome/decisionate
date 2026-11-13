@@ -5,7 +5,7 @@ from html import escape
 from urllib.parse import urlsplit, urlunsplit
 
 from app.configuration import get_runtime_configuration
-from app.application_context import get_application, scoped_setting
+from app.application_context import application_branding, get_application, scoped_setting
 
 
 DECISIONATE_LOGO_PATH = "/icons/decisionate-logo.png"
@@ -13,6 +13,8 @@ DECISIONATE_LOGO_PATH = "/icons/decisionate-logo.png"
 
 def build_decisionate_logo_url() -> str | None:
     try:
+        if not get_application().is_default:
+            return application_branding()["logo_url"] or None
         configured = scoped_setting("APPLICATION_LOGO_URL")
         if configured:
             return clean_email_logo_url(configured)
@@ -42,11 +44,12 @@ def render_decisionate_logo(width: int = 42) -> str:
 def build_decisionate_email_header() -> str:
     logo = render_decisionate_logo()
     image_cell = f'<td width="42" style="padding:0 12px 0 0;vertical-align:middle;">{logo}</td>' if logo else ""
+    tagline = '<div style="font-size:12px;line-height:18px;color:#64748B;">Decisions from Data.</div>' if get_application().is_default else ""
     return ('<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" '
             f'style="margin:0 auto 24px;"><tr>{image_cell}'
             '<td style="vertical-align:middle;text-align:left;">'
             f'<div style="font-size:20px;line-height:24px;font-weight:700;color:#111827;">{escape(get_application().name)}</div>'
-            '<div style="font-size:12px;line-height:18px;color:#64748B;">Decisions from Data.</div>'
+            f'{tagline}'
             '</td></tr></table>')
 
 
@@ -98,13 +101,14 @@ def build_system_email_html(subject: str, body: str, *, branding: dict | None = 
         '<p style="margin:0 0 18px;font-size:14px;line-height:1.6;overflow-wrap:anywhere;word-break:break-word;">'
         f'{_linked_text(paragraph)}</p>' for paragraph in body.split("\n\n") if paragraph
     )
+    accent = "#00C6E5" if get_application().is_default else application_branding()["primary_color"]
     return ('<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>'
             '<body style="margin:0;background:#F8FAFC;font-family:Arial,Helvetica,sans-serif;color:#334155;">'
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
             '<tr><td align="center" style="padding:24px 16px;">'
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
             'style="max-width:600px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;">'
-            '<tr><td height="4" style="background:#00C6E5;font-size:0;line-height:0;">&nbsp;</td></tr>'
+            f'<tr><td height="4" style="background:{accent};font-size:0;line-height:0;">&nbsp;</td></tr>'
             f'<tr><td style="padding:24px;">{header}'
             f'<h1 style="margin:0 0 24px;font-size:22px;line-height:1.3;color:#111827;word-break:break-word;">{escape(subject)}</h1>'
             f'{paragraphs}</td></tr></table></td></tr></table></body></html>')

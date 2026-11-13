@@ -4256,6 +4256,22 @@ export async function getPlatformAdminEmailSettings(
   return response.json()
 }
 
+export async function whiteLabelRequest<T>(userId: string, path = "", init: RequestInit = {}): Promise<T> {
+  const response = await apiFetch(`${API_URL}/admin/white-label${path}`, {
+    ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, userId),
+  })
+  if (!response.ok) await throwApiError(response, "White-label setup is unavailable")
+  return response.json()
+}
+
+export async function downloadWhiteLabelPackage(userId: string, applicationId: string): Promise<Blob> {
+  const response = await apiFetch(`${API_URL}/admin/white-label/${encodeURIComponent(applicationId)}/package`, {
+    cache: "no-store", headers: await workspaceHeaders(userId, userId),
+  })
+  if (!response.ok) await throwApiError(response, "The setup package could not be created")
+  return response.blob()
+}
+
 export async function updatePlatformAdminEmailSettings(
   userId: string,
   payload: PlatformAdminEmailSettingsUpdate

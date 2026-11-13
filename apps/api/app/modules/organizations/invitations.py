@@ -6,6 +6,7 @@ from urllib.parse import urlencode, urlsplit, urlunsplit
 from fastapi import HTTPException
 
 from app.configuration import get_runtime_configuration
+from app.application_context import get_application
 from app.db.models import OrganizationInvite, utc_now
 from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.organizations.branding import get_client_email_branding
@@ -49,7 +50,7 @@ def send_invitation_email(db, organization, invite, *, resend=False):
 
     name = " ".join(organization.name.split())
     branding = get_client_email_branding(db, organization)
-    agency_name = " ".join(str((branding or {}).get("agency_name") or "Decisionate").split())
+    agency_name = " ".join(str((branding or {}).get("agency_name") or get_application().name).split())
     subject = f"{agency_name} invited you to {name}"
 
     # Commit the attempt before contacting the provider. Never repeat a send
@@ -67,7 +68,7 @@ def send_invitation_email(db, organization, invite, *, resend=False):
                 "This invitation grants access only to this workspace. If you were not expecting it, you can ignore this email.")
         send_platform_system_email(
             invite.email, subject, body,
-            sender_name=f"{agency_name} via Decisionate" if branding else None,
+            sender_name=f"{agency_name} via {get_application().name}" if branding else None,
             branding=branding,
             idempotency_key=f"workspace-invite-{invite.id}-{now.strftime('%Y%m%d%H%M%S%f')}",
         )

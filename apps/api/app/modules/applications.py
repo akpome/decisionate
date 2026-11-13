@@ -11,7 +11,7 @@ from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 
 from app.application_context import (
-    DEFAULT_APPLICATION_ID, application_scope, applications, get_application, scoped_setting,
+    DEFAULT_APPLICATION_ID, application_scope, applications, application_branding, get_application, scoped_setting,
 )
 from app.db.database import SessionLocal
 from app.db.models import WorkspaceApplication
@@ -116,6 +116,7 @@ class ApplicationConfigurationResponse(BaseModel):
     web_url: str
     api_contract_version: str
     billing_currency: str
+    branding: dict[str, str]
     features: dict[str, bool]
 
 
@@ -128,6 +129,7 @@ def application_configuration(response: Response):
         "id": app.id, "name": app.name, "web_url": app.web_url,
         "api_contract_version": "2",
         "billing_currency": scoped_setting("BILLING_CURRENCY", "CAD").upper(),
+        "branding": application_branding(),
         "features": {"marketing_preferences": app.is_default, "platform_admin": app.is_default},
     }
 

@@ -29,6 +29,18 @@ class WorkspaceApplication(Base):
     application_id = Column(String, nullable=False, index=True)
 
 
+class WhiteLabelSetup(Base):
+    """Operator-owned setup drafts; credentials remain in the deployment secret store."""
+
+    __tablename__ = "white_label_setups"
+
+    application_id = Column(String, primary_key=True)
+    configuration = Column(Text, nullable=False)
+    revision = Column(Integer, nullable=False, default=1)
+    updated_by_user_id = Column(String, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
 class AppUser(Base):
     """Provider-independent Decisionate user identity."""
 

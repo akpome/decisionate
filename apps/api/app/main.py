@@ -82,6 +82,7 @@ from app.modules.platform_admin import (
     ensure_platform_admin_roles,
     router as platform_admin_router,
 )
+from app.modules.white_label import router as white_label_router
 from app.modules.maintenance import (
     router as maintenance_router,
 )
@@ -1873,6 +1874,7 @@ app.include_router(
     prefix="/admin",
     tags=["platform-admin"],
 )
+app.include_router(white_label_router)
 
 app.include_router(
     maintenance_router,

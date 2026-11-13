@@ -29,6 +29,7 @@ import {
 } from "@clerk/nextjs"
 import { Fragment, useEffect, useState } from "react"
 import { MarketingAdmin } from "@/features/marketing/marketing-admin"
+import { WhiteLabelSetup } from "@/features/white-label/setup"
 import { AUTH_REDIRECTS } from "@/features/auth/lib/auth-redirects"
 
 import {
@@ -2071,6 +2072,7 @@ export default function PlatformAdminPage() {
 
         {!loading && !adminAccessLoading && !error && adminAccess?.allowed && (
           <>
+            {adminAccess.full_access && <WhiteLabelSetup userId={user.id} />}
             {overview && canView("overview") && (
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <MetricCard

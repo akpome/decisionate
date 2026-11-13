@@ -109,6 +109,33 @@ def scoped_setting(name, default=""):
     return str(os.getenv(get_application().environment_prefix + name, default) or "").strip()
 
 
+def application_branding():
+    """Public presentation only. Never return arbitrary application settings."""
+    app = get_application()
+
+    def url(name, default=""):
+        value = scoped_setting(name, default)
+        try:
+            parsed = urlsplit(value)
+            if (parsed.scheme in {"https", "http"} and parsed.hostname and not parsed.username
+                    and not parsed.password and not any(c.isspace() for c in value) and "\\" not in value
+                    and (parsed.scheme == "https" or parsed.hostname in {"localhost", "127.0.0.1"})):
+                return value
+        except ValueError:
+            pass
+        return ""
+
+    color = scoped_setting("APPLICATION_PRIMARY_COLOR", "#0047FF")
+    support = scoped_setting("SUPPORT_EMAIL", "support@decisionate.ca" if app.is_default else "")
+    return {
+        "logo_url": url("APPLICATION_LOGO_URL", app.web_url + "/icons/decisionate-logo.png" if app.is_default else ""),
+        "primary_color": color if re.fullmatch(r"#[0-9a-fA-F]{6}", color) else "#0047FF",
+        "support_email": support if re.fullmatch(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", support) else "",
+        "privacy_url": url("APPLICATION_PRIVACY_URL", app.web_url + "/privacy"),
+        "terms_url": url("APPLICATION_TERMS_URL", app.web_url + "/terms"),
+    }
+
+
 def identity_provider(provider=None):
     app = get_application()
     provider = provider or scoped_setting("AUTH_PROVIDER", "clerk")

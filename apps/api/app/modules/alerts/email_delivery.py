@@ -287,7 +287,7 @@ def require_email_delivery_configured(
             status_code=503,
             detail=(
                 "Email delivery is not configured. "
-                "A platform administrator must configure the Decisionate email provider."
+                "A platform administrator must configure the email provider."
             ),
         )
 
@@ -321,7 +321,7 @@ def _send_resend_message(
     payload = {
         "from": formataddr((sender_name, sender_email)),
         "to": [message["To"]],
-        "subject": str(message["Subject"] or "Decisionate message"),
+        "subject": str(message["Subject"] or f"{get_application().name} message"),
         "text": body,
     }
     if html_part is not None:
@@ -716,7 +716,7 @@ def build_weekly_report_email_text(
                 f"Prepared for {digest.workspace_name} by {agency_name}."
                 if digest.workspace_name else f"Prepared by {agency_name}."
             ),
-            "Powered by Decisionate",
+            f"Powered by {get_application().name}",
         ])
 
     return "\n".join(lines)
@@ -743,7 +743,7 @@ def build_weekly_report_email_html(
         digest.brand_accent_color,
         "#14B8A6",
     )
-    raw_brand_name = str(digest.brand_name or "Decisionate")
+    raw_brand_name = str(digest.brand_name or get_application().name)
     raw_workspace_name = str(
         digest.workspace_name or digest.brand_name
     )
@@ -929,7 +929,7 @@ def build_weekly_report_email_html(
         '<div style="border-top:1px solid #E2E8F0;margin-top:34px;padding-top:20px;'
         'text-align:center;">'
         f'<p style="color:#475569;font-size:13px;margin:0 0 8px;">{escaped_prepared_for}</p>'
-        '<p style="color:#94A3B8;font-size:12px;margin:0;">Powered by Decisionate</p>'
+        f'<p style="color:#94A3B8;font-size:12px;margin:0;">Powered by {escape_html(get_application().name)}</p>'
         '</div></td></tr></table></td></tr></table>'
         "</body></html>"
     )
@@ -977,7 +977,7 @@ def build_weekly_report_email_message(
     )
     if digest.is_managed_client:
         agency_name = " ".join(str(digest.agency_name or digest.brand_name).split())
-        from_name = f"{agency_name} via Decisionate"
+        from_name = f"{agency_name} via {get_application().name}"
     sender = formataddr((from_name, from_email))
 
     message = EmailMessage()
@@ -1158,7 +1158,7 @@ def send_support_request_email(
     from_email, from_name = get_platform_sender_details(
         platform_settings
     )
-    from_name = from_name or "Decisionate Support"
+    from_name = from_name or f"{get_application().name} Support"
     recipient = clean_env_value(
         "SUPPORT_EMAIL",
         "support@decisionate.ca" if get_application().is_default else "",
@@ -1167,7 +1167,7 @@ def send_support_request_email(
         raise HTTPException(503, "Support email delivery is not configured for this application.")
 
     email = EmailMessage()
-    email["Subject"] = f"[Decisionate {request_type}] {subject}"
+    email["Subject"] = f"[{get_application().name} {request_type}] {subject}"
     email["From"] = f"{from_name} <{from_email}>"
     email["To"] = recipient
     email["Reply-To"] = requester_email

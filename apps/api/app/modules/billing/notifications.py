@@ -26,6 +26,7 @@ from app.modules.billing.data_retention import (
     purge_workspace_data_after_expiry,
 )
 from app.configuration import get_runtime_configuration
+from app.application_context import get_application
 from app.modules.organizations.ownership import managed_client_filter, managing_agency_workspace_id
 
 
@@ -129,7 +130,7 @@ def send_ai_credit_low_balance_notification(
         get_runtime_configuration().web_url.rstrip("/")
         + "/dashboard/billing"
     )
-    subject = "Your Decisionate AI credits are running low"
+    subject = f"Your {get_application().name} AI credits are running low"
     message = (
         f"Your {plan_name} workspace has {max(int(remaining_credits), 0):,} "
         f"AI credits remaining out of {max(int(credit_limit), 0):,}. "
@@ -141,7 +142,7 @@ def send_ai_credit_low_balance_notification(
     body = (
         f"Hello,\n\n{message}\n\n"
         f"Open billing: {billing_url}\n\n"
-        "Decisionate"
+        f"{get_application().name}"
     )
     send_platform_system_email(
         recipient,
@@ -171,16 +172,16 @@ def build_lifecycle_notice(
     if state.status == "expired":
         stage = "expired"
         if state.raw_status == "trialing":
-            subject = "Your Decisionate trial has ended"
+            subject = f"Your {get_application().name} trial has ended"
             message = "Your trial has ended and workspace access is paused. Choose a paid plan to resume using your workspace."
         else:
-            subject = "Your Decisionate subscription needs attention"
+            subject = f"Your {get_application().name} subscription needs attention"
             message = "Workspace access is paused. Review your subscription and payment details to restore access."
     elif state.status == "grace_period":
         stage = "past_due"
-        subject = "Action required: update your Decisionate billing"
+        subject = f"Action required: update your {get_application().name} billing"
         message = (
-            "A payment for your Decisionate subscription needs attention. "
+            f"A payment for your {get_application().name} subscription needs attention. "
             "Your workspace is temporarily available during the billing grace "
             "period. Update your billing details before the grace period ends."
         )
@@ -190,7 +191,7 @@ def build_lifecycle_notice(
         if subscription.billing_interval != "year" or state.days_remaining is None or state.days_remaining > 30:
             return None
         stage = "annual_renewal"
-        subject = "Your annual Decisionate subscription renews soon"
+        subject = f"Your annual {get_application().name} subscription renews soon"
         message = (
             "Your annual subscription is scheduled to renew automatically on "
             f"{subscription.current_period_end.isoformat()} UTC. "
@@ -199,23 +200,23 @@ def build_lifecycle_notice(
         )
     elif state.days_remaining is not None and state.days_remaining <= 1:
         stage = "ending_1"
-        subject = "Your Decisionate subscription ends soon"
+        subject = f"Your {get_application().name} subscription ends soon"
         message = (
-            "Your Decisionate subscription period ends within one day. "
+            f"Your {get_application().name} subscription period ends within one day. "
             "Auto-renewal is off. Resume your subscription in billing before it ends to keep the workspace active."
         )
     elif state.days_remaining is not None and state.days_remaining <= 7:
         stage = "ending_7"
-        subject = "Your Decisionate subscription ends soon"
+        subject = f"Your {get_application().name} subscription ends soon"
         message = (
-            "Your Decisionate subscription period ends within seven days. "
+            f"Your {get_application().name} subscription period ends within seven days. "
             "Auto-renewal is off. Resume your subscription in billing before access is paused."
         )
     else:
         return None
 
     if state.raw_status == "trialing" and state.status != "expired":
-        subject = "Your Decisionate trial ends soon"
+        subject = f"Your {get_application().name} trial ends soon"
         message = (
             "Your trial ends soon. Auto-renewal is off and access will end with the trial. Resume your subscription in billing to keep access."
             if subscription.cancel_at_period_end else
@@ -236,7 +237,7 @@ def build_lifecycle_notice(
         f"{'Renewal date' if stage == 'annual_renewal' else 'Access deadline'}: "
         f"{deadline.isoformat() + ' UTC' if deadline else 'Not provided'}\n"
         f"Open billing: {billing_url}\n\n"
-        "Decisionate"
+        f"{get_application().name}"
     )
     return notice_key, subject, body
 

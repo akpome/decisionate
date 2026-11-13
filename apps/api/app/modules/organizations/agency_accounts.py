@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from app.db.database import SessionLocal
+from app.application_context import get_application
 from app.modules.applications import require_workspace_application, workspace_belongs_to_application
 from app.db.models import AgencyClientInvitation, Organization, WorkspaceSubscription, utc_now
 from app.modules.alerts.email_delivery import send_platform_system_email
@@ -141,10 +142,10 @@ def invite_existing_client(payload: AgencyInvitationCreate, request: Request):
             url = urlsplit(build_invitation_sign_in_url(""))._replace(query=urlencode({"redirect_url": "/dashboard/settings"})).geturl()
             agency_name = " ".join(agency.name.split())
             send_platform_system_email(email, f"{agency_name} invited your workspace to their agency",
-                f"{agency_name} would like to manage your existing Decisionate workspace.\n\nSign in using {email}: {url}\n\n"
+                f"{agency_name} would like to manage your existing {get_application().name} workspace.\n\nSign in using {email}: {url}\n\n"
                 "Open Settings in the workspace you own to accept or decline. Your data stays in the same workspace. "
                 "Accepting does not give the agency access to your data; you control that separately.",
-                sender_name=f"{agency_name} via Decisionate",
+                sender_name=f"{agency_name} via {get_application().name}",
                 branding={"is_managed_client": True, "brand_name": agency_name, "brand_logo_url": agency.logo_url},
                 idempotency_key=f"agency-invitation-{invitation.id}-{now.strftime('%Y%m%d%H%M%S%f')}")
         except Exception as error:

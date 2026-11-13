@@ -19,6 +19,7 @@ from sqlalchemy import or_
 
 from app.db.database import SessionLocal
 from app.configuration import get_runtime_configuration
+from app.application_context import application_branding, get_application
 from app.infrastructure.email_branding import build_decisionate_logo_url
 from app.db.models import Dataset
 from app.db.models import DatasetRelationship
@@ -80,7 +81,6 @@ allowed_delivery_days = {
     "friday",
 }
 
-default_weekly_report_brand_name = "Decisionate"
 default_weekly_report_primary_color = "#2563EB"
 default_weekly_report_accent_color = "#14B8A6"
 
@@ -92,7 +92,7 @@ def clean_weekly_report_brand_name(
 
     return (
         clean_value
-        or default_weekly_report_brand_name
+        or get_application().name
     )
 
 
@@ -480,6 +480,8 @@ def get_weekly_report_branding(
     db,
     workspace_id: str,
 ) -> dict:
+    app_primary_color = (default_weekly_report_primary_color if get_application().is_default
+                         else application_branding()["primary_color"])
     organization = (
         db.query(Organization)
         .filter(
@@ -491,11 +493,11 @@ def get_weekly_report_branding(
 
     if not organization:
         return {
-            "brand_name": default_weekly_report_brand_name,
+            "brand_name": get_application().name,
             "agency_name": "",
             "workspace_name": "",
             "brand_logo_url": build_decisionate_logo_url(),
-            "brand_primary_color": default_weekly_report_primary_color,
+            "brand_primary_color": app_primary_color,
             "brand_accent_color": default_weekly_report_accent_color,
             "is_managed_client": False,
             "review_url": build_weekly_report_review_url(),
@@ -522,9 +524,9 @@ def get_weekly_report_branding(
             default_weekly_report_accent_color,
         )
     else:
-        brand_name = default_weekly_report_brand_name
+        brand_name = get_application().name
         brand_logo_url = None if is_managed_client else build_decisionate_logo_url()
-        primary_color = default_weekly_report_primary_color
+        primary_color = app_primary_color
         accent_color = default_weekly_report_accent_color
 
     return {

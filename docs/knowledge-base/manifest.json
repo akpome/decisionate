@@ -1382,7 +1382,10 @@
         "docs/railway-scheduling.md",
         "apps/api/app/application_context.py",
         "apps/api/app/modules/applications.py",
-        "docs/multi-application-api.md"
+        "docs/multi-application-api.md",
+        "docs/white-label-onboarding.md",
+        "apps/api/app/modules/white_label.py",
+        "apps/web/features/white-label/setup.tsx"
       ],
       "related": [
         "operator-worker-verification",
