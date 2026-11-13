@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import DataIngestionJob, DataSourceConnection, utc_now
+from app.db.models import DataIngestionJob, DataSourceConnection, WorkspaceApplication, utc_now
 from app.infrastructure import ingestion_worker
 from app.modules.datasets import router as routes
 from app.modules.datasets.schemas import DataSourceConnectionSync
@@ -18,7 +18,7 @@ from app.modules.datasets.services.connectors import ConnectorNoData, ConnectorU
 class ConnectorRangeSyncTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-        for model in (DataSourceConnection, DataIngestionJob):
+        for model in (DataSourceConnection, DataIngestionJob, WorkspaceApplication):
             model.__table__.create(self.engine)
         self.sessions = sessionmaker(bind=self.engine)
         self.addCleanup(self.engine.dispose)

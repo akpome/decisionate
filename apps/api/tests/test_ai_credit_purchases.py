@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
 
-from app.db.models import AICreditPurchase, AIUsageEvent, BillingWebhookEvent, Organization, WorkspaceSubscription, utc_now
+from app.db.models import AICreditPurchase, AIUsageEvent, BillingWebhookEvent, Organization, WorkspaceApplication, WorkspaceSubscription, utc_now
 from app.modules.ai import credits
 from app.modules.billing import router as billing
 from app.modules.billing import service
@@ -28,7 +28,7 @@ class AICreditPurchaseTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.engine = create_engine(f"sqlite:///{self.directory.name}/credits.db", connect_args={"timeout": 30})
-        for table in (WorkspaceSubscription.__table__, AICreditPurchase.__table__, AIUsageEvent.__table__, Organization.__table__):
+        for table in (WorkspaceApplication.__table__, WorkspaceSubscription.__table__, AICreditPurchase.__table__, AIUsageEvent.__table__, Organization.__table__):
             table.create(self.engine)
         self.sessions = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.config = {"provider": "stripe", "secret_key": "sk_test", "professional_price_id": "price_professional", "ai_credit_topup_price_id": "price_topup", "web_app_url": "https://app.test"}
@@ -306,7 +306,7 @@ class AICreditPurchaseTests(unittest.IsolatedAsyncioTestCase):
 class AICreditPurchasePostgresTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine(os.environ["DECISIONATE_TEST_POSTGRES_URL"])
-        for table in (WorkspaceSubscription.__table__, AICreditPurchase.__table__, AIUsageEvent.__table__, BillingWebhookEvent.__table__):
+        for table in (WorkspaceApplication.__table__, WorkspaceSubscription.__table__, AICreditPurchase.__table__, AIUsageEvent.__table__, BillingWebhookEvent.__table__):
             table.create(self.engine, checkfirst=True)
         self.sessions = sessionmaker(bind=self.engine)
         self.workspace = f"credit-test-{uuid4().hex}"

@@ -7,6 +7,7 @@ from jwt import PyJWKClient
 
 from app.db.database import SessionLocal
 from app.configuration import get_runtime_configuration
+from app.application_context import get_application, identity_provider
 from app.db.models import (
     Organization,
     OrganizationMember,
@@ -45,9 +46,11 @@ class AuthContext:
     external_user_id: str | None = None
     auth_provider: str = DEFAULT_AUTH_PROVIDER
     email_verified: bool = False
+    application_id: str = "decisionate-ca"
 
 
 _jwks_client: PyJWKClient | None = None
+_application_jwks_clients: dict[str, PyJWKClient] = {}
 clerk_jwks_timeout_seconds = 3
 
 
@@ -105,7 +108,7 @@ def get_auth_context(
     user_id = resolve_external_identity(
         external_user_id,
         email=user_email if email_is_verified else None,
-        provider=DEFAULT_AUTH_PROVIDER,
+        provider=identity_provider(get_runtime_configuration().auth_provider),
         email_verified=email_is_verified,
     )
     clerk_jwks_url = get_auth_jwks_url()
@@ -150,8 +153,9 @@ def get_auth_context(
         workspace_role=workspace_role,
         email=user_email,
         external_user_id=external_user_id,
-        auth_provider=DEFAULT_AUTH_PROVIDER,
+        auth_provider=get_runtime_configuration().auth_provider,
         email_verified=email_is_verified,
+        application_id=get_application().id,
     )
 
 
@@ -233,6 +237,10 @@ def get_verified_workspace_access(
         user_id,
         external_subject=external_user_id,
     )
+
+    from app.modules.applications import require_workspace_application
+    with SessionLocal() as db:
+        require_workspace_application(db, workspace_id)
 
     clean_user_id = clean_auth_value(
         user_id
@@ -482,6 +490,11 @@ def get_jwks_client() -> PyJWKClient:
             status_code=500,
             detail="JWT verification is not configured",
         )
+
+    if not get_application().is_default:
+        if jwks_url not in _application_jwks_clients:
+            _application_jwks_clients[jwks_url] = PyJWKClient(jwks_url, timeout=clerk_jwks_timeout_seconds)
+        return _application_jwks_clients[jwks_url]
 
     if _jwks_client is None:
         _jwks_client = PyJWKClient(

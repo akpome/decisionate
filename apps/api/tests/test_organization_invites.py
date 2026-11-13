@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import Organization, OrganizationInvite, OrganizationMember
+from app.db.models import Organization, OrganizationInvite, OrganizationMember, WorkspaceApplication
 from app.modules.auth_context import AuthContext
 from app.modules.organizations.router import (
     canonical_client_workspace_role,
@@ -46,6 +46,7 @@ class OrganizationInviteClaimTests(unittest.TestCase):
         Organization.__table__.create(engine)
         OrganizationMember.__table__.create(engine)
         OrganizationInvite.__table__.create(engine)
+        WorkspaceApplication.__table__.create(engine)
         session = sessionmaker(bind=engine)()
 
         try:
@@ -100,6 +101,7 @@ class OrganizationInviteClaimTests(unittest.TestCase):
         Organization.__table__.create(engine)
         OrganizationMember.__table__.create(engine)
         OrganizationInvite.__table__.create(engine)
+        WorkspaceApplication.__table__.create(engine)
         session = sessionmaker(bind=engine)()
 
         try:

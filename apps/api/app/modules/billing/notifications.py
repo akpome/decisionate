@@ -13,6 +13,7 @@ from app.db.models import (
     utc_now,
 )
 from app.modules.alerts.email_delivery import send_platform_system_email
+from app.modules.applications import workspace_scoped
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
 )
@@ -100,6 +101,7 @@ def get_workspace_owner_email(db, organization: Organization) -> str | None:
     return None
 
 
+@workspace_scoped("subscription", "workspace_id")
 def send_ai_credit_low_balance_notification(
     db,
     subscription: WorkspaceSubscription,
@@ -242,7 +244,21 @@ def build_lifecycle_notice(
 def send_due_billing_lifecycle_notifications(
     db,
     now: datetime | None = None,
+    *,
+    application_id: str | None = None,
 ) -> dict:
+    from app.application_context import application_scope, applications
+    from app.modules.applications import workspace_belongs_to_application
+    registry = applications()
+    if application_id is None and len(registry) > 1:
+        totals = {key: 0 for key in ("processed", "notified", "skipped", "failed", "data_purged", "data_purge_failed")}
+        totals["results"] = []
+        for identity in registry:
+            with application_scope(identity):
+                result = send_due_billing_lifecycle_notifications(db, now, application_id=identity)
+            for key in totals:
+                totals[key] += result[key]
+        return totals
     from app.modules.billing.lifecycle import billing_enforcement_enabled
     if not billing_enforcement_enabled():
         return {
@@ -250,7 +266,8 @@ def send_due_billing_lifecycle_notifications(
             "data_purged": 0, "data_purge_failed": 0, "results": [],
         }
     current_time = now or utc_now()
-    subscriptions = db.query(WorkspaceSubscription).all()
+    subscriptions = [item for item in db.query(WorkspaceSubscription).all()
+                     if workspace_belongs_to_application(db, item.workspace_id)]
     results = []
     notified = 0
     skipped = 0

@@ -7,6 +7,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 
 from app.configuration import get_runtime_configuration
+from app.application_context import get_application, identity_provider
 from app.db.database import SessionLocal, engine, get_table_columns
 from app.db.models import (
     AppUser,
@@ -14,6 +15,7 @@ from app.db.models import (
     Organization,
     OrganizationMember,
     WorkspaceSubscription,
+    WorkspaceApplication,
     utc_now,
 )
 from app.modules.marketing.service import capture_identity
@@ -282,13 +284,16 @@ def ensure_internal_identity_backfill() -> None:
 def find_internal_user_id(
     db,
     subject: str,
-    provider: str = DEFAULT_AUTH_PROVIDER,
+    provider: str | None = None,
 ) -> str | None:
+    provider = identity_provider(provider)
     clean_subject = str(subject or "").strip()
     if not clean_subject:
         return None
 
     if is_internal_user_id(clean_subject):
+        from app.modules.applications import require_workspace_application
+        require_workspace_application(db, clean_subject)
         user = db.query(AppUser).filter(AppUser.id == clean_subject).first()
         return user.id if user else None
 
@@ -302,6 +307,9 @@ def find_internal_user_id(
     )
     if identity:
         return identity.user_id
+
+    if not get_application().is_default:
+        return None
 
     legacy_identity = (
         db.query(AuthIdentity)
@@ -322,13 +330,17 @@ def _find_unique_user_by_email(
     if not clean_email:
         return None
 
-    matches = (
-        db.query(AppUser)
-        .filter(
-            func.lower(AppUser.email) == clean_email,
-        )
-        .all()
-    )
+    query = db.query(AppUser).filter(func.lower(AppUser.email) == clean_email)
+    application = get_application()
+    if application.is_default:
+        query = query.filter(~AppUser.id.in_(select(WorkspaceApplication.workspace_id).where(
+            WorkspaceApplication.application_id != application.id,
+        )))
+    else:
+        query = query.filter(AppUser.id.in_(select(WorkspaceApplication.workspace_id).where(
+            WorkspaceApplication.application_id == application.id,
+        )))
+    matches = query.all()
 
     if len(matches) == 1:
         return matches[0]
@@ -373,7 +385,7 @@ def _reconcile_legacy_email_identity(
     legacy_identity = (
         db.query(AuthIdentity)
         .filter(
-            AuthIdentity.provider == DEFAULT_AUTH_PROVIDER,
+            AuthIdentity.provider == identity_provider(),
             func.lower(AuthIdentity.subject) == clean_email,
             AuthIdentity.user_id != current_user_id,
         )
@@ -397,9 +409,10 @@ def _reconcile_legacy_email_identity(
 def resolve_external_identity(
     subject: str,
     email: str | None = None,
-    provider: str = DEFAULT_AUTH_PROVIDER,
+    provider: str | None = None,
     email_verified: bool = False,
 ) -> str:
+    provider = identity_provider(provider)
     clean_subject = str(subject or "").strip()
     if not clean_subject:
         raise ValueError("An external identity subject is required")
@@ -440,7 +453,7 @@ def resolve_external_identity(
                     AuthIdentity.subject == clean_subject,
                 )
                 .first()
-            )
+            ) if get_application().is_default else None
             if legacy_identity:
                 identity = AuthIdentity(
                     user_id=legacy_identity.user_id,
@@ -486,7 +499,10 @@ def resolve_external_identity(
                     user.email = clean_email
 
         identity.last_seen_at = utc_now()
-        capture_identity(db, identity.user_id, email, verified=email_verified)
+        from app.modules.applications import bind_workspace_application
+        bind_workspace_application(db, identity.user_id)
+        if get_application().is_default:
+            capture_identity(db, identity.user_id, email, verified=email_verified)
         db.commit()
         return identity.user_id
     except Exception:
@@ -500,10 +516,11 @@ def link_external_identity(
     subject: str,
     target_user_id: str,
     email: str | None = None,
-    provider: str = DEFAULT_AUTH_PROVIDER,
+    provider: str | None = None,
 ) -> str:
     """Attach a provider login to an existing internal Decisionate user."""
 
+    provider = identity_provider(provider)
     clean_subject = str(subject or "").strip()
     clean_target_user_id = str(target_user_id or "").strip()
     if not clean_subject or not clean_target_user_id:
@@ -513,6 +530,8 @@ def link_external_identity(
 
     db = SessionLocal()
     try:
+        from app.modules.applications import require_workspace_application
+        require_workspace_application(db, clean_target_user_id)
         target_user = (
             db.query(AppUser)
             .filter(AppUser.id == clean_target_user_id)
@@ -552,7 +571,7 @@ def link_external_identity(
 
 def resolve_user_reference(
     value: str,
-    provider: str = DEFAULT_AUTH_PROVIDER,
+    provider: str | None = None,
 ) -> str:
     clean_value = str(value or "").strip()
     if not clean_value:
@@ -582,6 +601,9 @@ def resolve_workspace_reference(
     clean_value = str(value or "").strip()
     if not clean_value or clean_value == str(external_subject or "").strip():
         return internal_user_id
+
+    if not get_application().is_default:
+        return clean_value
 
     db = SessionLocal()
     try:

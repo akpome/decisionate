@@ -5,6 +5,7 @@ from html import escape
 from urllib.parse import urlsplit, urlunsplit
 
 from app.configuration import get_runtime_configuration
+from app.application_context import get_application, scoped_setting
 
 
 DECISIONATE_LOGO_PATH = "/icons/decisionate-logo.png"
@@ -12,6 +13,9 @@ DECISIONATE_LOGO_PATH = "/icons/decisionate-logo.png"
 
 def build_decisionate_logo_url() -> str | None:
     try:
+        configured = scoped_setting("APPLICATION_LOGO_URL")
+        if configured:
+            return clean_email_logo_url(configured)
         base = str(get_runtime_configuration().web_url or "").strip()
         if not base:
             return None
@@ -31,7 +35,7 @@ def render_decisionate_logo(width: int = 42) -> str:
     url = build_decisionate_logo_url()
     if not url:
         return ""
-    return (f'<img src="{escape(url, quote=True)}" alt="Decisionate" width="{width}" height="{width}" '
+    return (f'<img src="{escape(url, quote=True)}" alt="{escape(get_application().name, quote=True)}" width="{width}" height="{width}" '
             f'style="display:block;border:0;width:{width}px;height:{width}px;">')
 
 
@@ -41,7 +45,7 @@ def build_decisionate_email_header() -> str:
     return ('<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" '
             f'style="margin:0 auto 24px;"><tr>{image_cell}'
             '<td style="vertical-align:middle;text-align:left;">'
-            '<div style="font-size:20px;line-height:24px;font-weight:700;color:#111827;">Decisionate</div>'
+            f'<div style="font-size:20px;line-height:24px;font-weight:700;color:#111827;">{escape(get_application().name)}</div>'
             '<div style="font-size:12px;line-height:18px;color:#64748B;">Decisions from Data.</div>'
             '</td></tr></table>')
 

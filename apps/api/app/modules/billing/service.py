@@ -4,7 +4,6 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import time
 from contextlib import nullcontext
 from datetime import UTC, datetime
@@ -17,6 +16,7 @@ from urllib.request import Request, urlopen
 from app.db.database import SessionLocal
 from app.db.models import PlatformBillingSettings
 from app.configuration import get_runtime_configuration
+from app.application_context import get_application, scoped_setting
 
 
 DEFAULT_WEBHOOK_TOLERANCE_SECONDS = 300
@@ -137,7 +137,17 @@ class BillingWebhookSignatureError(ValueError):
 
 
 def clean_env(name: str, default: str = "") -> str:
-    return str(os.getenv(name, default) or "").strip()
+    return scoped_setting(name, default)
+
+
+def require_billing_application(db, workspace_id, metadata=None):
+    from app.modules.applications import workspace_belongs_to_application
+    application = get_application()
+    tagged = (metadata or {}).get("application_id")
+    if (not workspace_belongs_to_application(db, workspace_id)
+            or (tagged and tagged != application.id)
+            or (not application.is_default and tagged != application.id)):
+        raise BillingProviderUnavailable("Payment does not belong to this application")
 
 
 def clean_nonnegative_int(
@@ -154,6 +164,11 @@ def clean_nonnegative_int(
 
 
 def _get_platform_billing_settings(db=None):
+    if not get_application().is_default:
+        from types import SimpleNamespace
+        values = {column: clean_env("BILLING_" + column.upper()) or None
+                  for column in set(BILLING_PRICING_COLUMNS.values()) | set(BILLING_PRICE_ID_COLUMNS.values())}
+        return SimpleNamespace(**values)
     owns_db = db is None
     if owns_db:
         db = SessionLocal()
@@ -227,7 +242,7 @@ def get_ai_credit_pack_size(db=None) -> int:
     )
 
     settings = _get_platform_billing_settings(db)
-    if settings and settings.ai_credit_pack_size is not None:
+    if settings and getattr(settings, "ai_credit_pack_size", None) is not None:
         return max(int(settings.ai_credit_pack_size), 0)
 
     return pack_size
@@ -279,6 +294,8 @@ def get_billing_config(db=None) -> dict[str, str]:
             "DECISIONATE_WEB_APP_URL",
             get_runtime_configuration().web_url,
         ).rstrip("/"),
+        "currency": clean_env("BILLING_CURRENCY", "CAD").upper(),
+        "application_id": get_application().id,
     }
     settings = _get_platform_billing_settings(db)
     if settings:
@@ -286,6 +303,8 @@ def get_billing_config(db=None) -> dict[str, str]:
             value = str(getattr(settings, column_name, "") or "").strip()
             if value:
                 config[config_key] = value
+    if not get_application().is_default:
+        config["web_app_url"] = get_application().web_url
     return config
 
 
@@ -465,6 +484,7 @@ def create_checkout_session(
             f"&workspace_id={quote(workspace_id, safe='')}"
         ),
         "client_reference_id": workspace_id,
+        "subscription_data[metadata][application_id]": get_application().id,
         "subscription_data[metadata][workspace_id]": workspace_id,
         "subscription_data[metadata][owner_user_id]": owner_user_id,
         "subscription_data[metadata][plan]": normalized_plan,
@@ -476,6 +496,7 @@ def create_checkout_session(
             ai_credit_pack_count
         ),
         "metadata[workspace_id]": workspace_id,
+        "metadata[application_id]": get_application().id,
         "metadata[owner_user_id]": owner_user_id,
         "metadata[plan]": normalized_plan,
         "metadata[billing_interval]": normalized_interval,
@@ -565,7 +586,7 @@ def create_ai_credit_topup_session(
     )
     if (
         not price.get("active") or price.get("type") != "one_time"
-        or price.get("currency") != "cad" or price.get("unit_amount") != current_price
+        or price.get("currency") != clean_env("BILLING_CURRENCY", "CAD").lower() or price.get("unit_amount") != current_price
     ):
         raise BillingProviderUnavailable("AI credit checkout pricing is unavailable. Please contact support.")
 
@@ -587,6 +608,7 @@ def create_ai_credit_topup_session(
     if credits > 2_147_483_647:
         raise BillingProviderUnavailable("AI credit quantity is too large")
     metadata = {
+        "application_id": get_application().id,
         "purchase_type": "ai_credit_topup",
         "workspace_id": workspace_id,
         "billing_workspace_id": workspace_id,

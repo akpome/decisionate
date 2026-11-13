@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import DataIngestionJob, DataSourceConnection, IngestionWorkerHeartbeat, utc_now
+from app.db.models import DataIngestionJob, DataSourceConnection, IngestionWorkerHeartbeat, WorkspaceApplication, utc_now
 from app.modules.datasets import router as routes
 from app.modules.datasets.router import (
     record_scheduled_connector_failure,
@@ -112,7 +112,7 @@ class ConnectorSchedulerQueueTests(unittest.TestCase):
         self.engine = create_engine(
             "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool,
         )
-        for model in (DataSourceConnection, DataIngestionJob, IngestionWorkerHeartbeat):
+        for model in (DataSourceConnection, DataIngestionJob, IngestionWorkerHeartbeat, WorkspaceApplication):
             model.__table__.create(self.engine)
         self.sessions = sessionmaker(bind=self.engine)
         self.patches = (

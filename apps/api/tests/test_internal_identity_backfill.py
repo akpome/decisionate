@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.schema import CreateSchema, DropSchema
 
-from app.db.models import AppUser, AuthIdentity, Dataset, WeeklyReportPreference, WorkspaceSubscription
+from app.db.models import AppUser, AuthIdentity, Dataset, WeeklyReportPreference, WorkspaceApplication, WorkspaceSubscription
 from app.modules.identity import service
 
 
@@ -30,7 +30,7 @@ class InternalIdentityBackfillTests(unittest.TestCase):
         directory = self.stack.enter_context(tempfile.TemporaryDirectory())
         self.engine = self.database_engine(directory)
         self.addCleanup(self.engine.dispose)
-        for model in (AppUser, AuthIdentity, Dataset, WeeklyReportPreference, WorkspaceSubscription):
+        for model in (AppUser, AuthIdentity, Dataset, WeeklyReportPreference, WorkspaceApplication, WorkspaceSubscription):
             model.__table__.create(self.engine)
         existing = set(inspect(self.engine).get_table_names())
         identifier_columns = {}

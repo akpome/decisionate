@@ -11,6 +11,15 @@ provider is Resend, otherwise the configured SMTP sender. Saved database values
 have precedence over environment fallbacks where set. Marketing sender settings
 are a separate configuration surface.
 
+For a registered secondary application, credentials and sender settings come
+only from that application's prefixed environment variables. The .ca Platform
+Admin email row is not inherited. Report workers restore this context from the
+workspace mapping before delivery; links use the registered frontend URL.
+Support mail requires an explicitly configured recipient for the secondary
+application. A separate verified sender domain must be configured before sending.
+See `docs/multi-application-api.md`; the existing global marketing automation
+is not enabled for secondary applications.
+
 For managed clients, `build_weekly_report_email_message` changes the display name
 to the agency name followed by `via Decisionate`, retaining the platform email
 address. Resend preserves that requested display name only when the requested

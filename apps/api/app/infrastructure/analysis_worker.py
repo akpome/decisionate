@@ -1,6 +1,7 @@
 """Separate, supervised Reports queue; never consumes ingestion jobs."""
 
 from datetime import timedelta
+from contextlib import ExitStack
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ from app.db.models import IngestionWorkerHeartbeat, WeeklyReportPreference, utc_
 from app.modules.reports.job_constants import ACTIVE, WORKER_NAME
 from app.modules.reports.models import ReportAnalysisJob
 from app.infrastructure.analysis_resources import child_environment, memory_budget_bytes, process_memory
+from app.modules.applications import workspace_application_scope
 
 
 logger = logging.getLogger(__name__)
@@ -160,7 +162,7 @@ def run_weekly(db, job, definition):
 def execute_job(identity):
     from app.modules.correlation.service import encode
 
-    with SessionLocal() as db:
+    with SessionLocal() as db, ExitStack() as application_context:
         claimed = db.query(ReportAnalysisJob).filter_by(id=identity, status="queued").update(
             {"status": "running", "phase": "loading", "started_at": utc_now(),
              "attempts": ReportAnalysisJob.attempts + 1}, synchronize_session=False)
@@ -170,6 +172,7 @@ def execute_job(identity):
         job = db.get(ReportAnalysisJob, identity)
         logger.info("Report analysis %s started (%s)", identity, job.kind)
         try:
+            application_context.enter_context(workspace_application_scope(job.workspace_id, db))
             check_inputs(db, job)
             definition = json.loads(job.definition)
             if job.kind == "report":

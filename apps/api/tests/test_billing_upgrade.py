@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
 
-from app.db.models import WorkspaceSubscription, BillingWebhookEvent, Organization, utc_now
+from app.db.models import WorkspaceApplication, WorkspaceSubscription, BillingWebhookEvent, Organization, utc_now
 from app.modules.billing import router as billing
 from app.modules.billing import service
 from app.modules.billing.notifications import build_lifecycle_notice
@@ -20,7 +20,7 @@ from app.modules.billing.schemas import BillingCheckoutRequest, BillingCheckoutC
 class BillingUpgradeTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
-        for table in (WorkspaceSubscription.__table__, BillingWebhookEvent.__table__, Organization.__table__):
+        for table in (WorkspaceApplication.__table__, WorkspaceSubscription.__table__, BillingWebhookEvent.__table__, Organization.__table__):
             table.create(self.engine)
         self.sessions = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.patches = [

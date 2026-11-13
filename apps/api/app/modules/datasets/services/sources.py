@@ -1,5 +1,5 @@
-import os
 from urllib.parse import urlparse
+from app.configuration import get_provider_setting
 
 from app.modules.datasets.services.file_loader import (
     get_dataset_file_source_dependencies,
@@ -658,7 +658,7 @@ def get_missing_provider_settings(source_type):
     return [
         key
         for key in DATASET_SOURCE_RUNTIME_ENV_KEYS.get(source_type, [])
-        if not str(os.getenv(key, "") or "").strip()
+        if not get_provider_setting(key)
     ]
 
 
@@ -735,7 +735,7 @@ def clone_dataset_source(source):
         configured_env_keys = [
             env_key
             for env_key in env_keys
-            if str(os.getenv(env_key, "") or "").strip()
+            if get_provider_setting(env_key)
         ]
         cloned_source["environment_keys"] = [
             *env_keys,

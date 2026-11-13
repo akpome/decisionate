@@ -340,6 +340,7 @@ class PublicDashboardTests(unittest.TestCase):
         )
         db = SimpleNamespace(
             close=lambda: None,
+            get=lambda *_: None,
         )
         dataset = SimpleNamespace(
             id=7,
@@ -406,6 +407,7 @@ class PublicDashboardTests(unittest.TestCase):
         )
         db = SimpleNamespace(
             close=lambda: None,
+            get=lambda *_: None,
         )
         dataset = SimpleNamespace(
             id=7,

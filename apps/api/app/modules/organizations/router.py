@@ -7,6 +7,8 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from app.db.database import SessionLocal
+from app.application_context import identity_provider
+from app.modules.applications import bind_workspace_application, workspace_belongs_to_application
 from app.db.models import (
     AppUser,
     AuthIdentity,
@@ -1122,6 +1124,8 @@ def claim_pending_invites(
         organization = organizations_by_id.get(
             invite.organization_id
         )
+        if organization is None or not workspace_belongs_to_application(db, organization.owner_user_id):
+            continue
         if organization and organization.is_paused:
             continue
         invite_role = canonical_client_workspace_role(
@@ -1428,7 +1432,7 @@ def get_accessible_workspaces(
                 user.email = invite_email
             if auth_context.external_user_id:
                 db.query(AuthIdentity).filter_by(
-                    user_id=user_id, provider=auth_context.auth_provider, subject=auth_context.external_user_id,
+                    user_id=user_id, provider=identity_provider(auth_context.auth_provider), subject=auth_context.external_user_id,
                 ).update({"email": invite_email}, synchronize_session=False)
             db.commit()
 
@@ -1466,6 +1470,8 @@ def get_accessible_workspaces(
         )
 
         for organization in owned_organizations:
+            if not workspace_belongs_to_application(db, organization.owner_user_id):
+                continue
             workspaces_by_owner[current_external_user_id] = (
                 OrganizationWorkspaceResponse(
                     id=organization.id,
@@ -1488,6 +1494,8 @@ def get_accessible_workspaces(
             )
 
         for organization, membership in memberships:
+            if not workspace_belongs_to_application(db, organization.owner_user_id):
+                continue
             if managing_agency_workspace_id(organization) == user_id:
                 continue
 
@@ -1545,6 +1553,8 @@ def get_accessible_workspaces(
             )
 
             for client_workspace in managed_client_workspaces:
+                if not workspace_belongs_to_application(db, client_workspace.owner_user_id):
+                    continue
                 workspaces_by_owner[client_workspace.owner_user_id] = (
                     OrganizationWorkspaceResponse(
                         id=client_workspace.id,
@@ -1873,6 +1883,7 @@ def create_client_workspace(
 
         db.add(client_workspace)
         db.flush()
+        bind_workspace_application(db, workspace_owner_id)
 
         invite = OrganizationInvite(
             organization_id=client_workspace.id,

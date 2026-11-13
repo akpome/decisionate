@@ -817,8 +817,9 @@ def get_web_app_url() -> str:
 
 
 def get_provider_credentials(provider: OAuthProvider) -> tuple[str, str]:
-    client_id = clean_env(provider.client_id_env)
-    client_secret = clean_env(provider.client_secret_env)
+    from app.application_context import scoped_setting
+    client_id = scoped_setting(provider.client_id_env)
+    client_secret = scoped_setting(provider.client_secret_env)
     if not client_id or not client_secret:
         raise OAuthProviderUnavailable(
             f"{provider.source_type} OAuth credentials are not configured"

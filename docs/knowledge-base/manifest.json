@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-12",
+  "reviewed_on": "2026-11-13",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -1379,7 +1379,10 @@
         "apps/api/app/infrastructure/analysis_worker.py",
         "apps/api/app/configuration.py",
         "apps/api/app/modules/auth_context.py",
-        "docs/railway-scheduling.md"
+        "docs/railway-scheduling.md",
+        "apps/api/app/application_context.py",
+        "apps/api/app/modules/applications.py",
+        "docs/multi-application-api.md"
       ],
       "related": [
         "operator-worker-verification",

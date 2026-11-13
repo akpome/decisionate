@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 from app.db.models import WorkspaceSubscription, utc_now
+from app.modules.applications import workspace_scoped
 from app.modules.billing.lifecycle import (
     billing_enforcement_enabled,
     build_subscription_access_state,
@@ -105,6 +106,7 @@ def apply_renewal_period(
     subscription.provider_checked_at = now
 
 
+@workspace_scoped("subscription", "workspace_id")
 def reconcile_subscription_if_needed(
     db,
     subscription: WorkspaceSubscription | None,

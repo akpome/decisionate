@@ -25,7 +25,14 @@ def _first_env(*names: str) -> str:
 
 def get_provider_setting(name: str) -> str:
     """Read a provider-specific setting without embedding a provider default."""
-    return _env(name)
+    from app.application_context import get_application, scoped_setting
+    configured = scoped_setting(name)
+    # Public provider endpoints/versions can be shared; credentials cannot.
+    credential = name.endswith((
+        "SECRET", "TOKEN", "CLIENT_ID", "APP_ID", "API_KEY", "OAUTH_CONFIG_ID",
+        "SERVICE_ACCOUNT_FILE", "SERVICE_ACCOUNT_JSON", "SOURCE_URL",
+    ))
+    return configured or ("" if credential and not get_application().is_default else _env(name))
 
 
 def normalize_database_url(value: str | None) -> str:
@@ -113,7 +120,7 @@ def get_runtime_configuration() -> RuntimeConfiguration:
         if origin.strip()
     )
 
-    return RuntimeConfiguration(
+    runtime = RuntimeConfiguration(
         app_env=app_env,
         database_url=normalize_database_url(raw_database_url),
         api_url=_env("DECISIONATE_API_URL", "http://localhost:8000"),
@@ -214,6 +221,18 @@ def get_runtime_configuration() -> RuntimeConfiguration:
         sentry_dsn=_env("SENTRY_DSN"),
         sentry_traces_sample_rate=_env("SENTRY_TRACES_SAMPLE_RATE", "0") or "0",
     )
+    from dataclasses import replace
+    from app.application_context import get_application, scoped_setting
+    application = get_application()
+    if not application.is_default:
+        runtime = replace(
+            runtime, web_url=application.web_url,
+            auth_provider=scoped_setting("AUTH_PROVIDER", "clerk"),
+            auth_jwks_url=scoped_setting("AUTH_JWKS_URL") or scoped_setting("CLERK_JWKS_URL"),
+            auth_jwt_issuer=scoped_setting("AUTH_JWT_ISSUER") or scoped_setting("CLERK_JWT_ISSUER"),
+            auth_jwt_audience=scoped_setting("AUTH_JWT_AUDIENCE") or scoped_setting("CLERK_JWT_AUDIENCE"),
+        )
+    return runtime
 
 
 def build_runtime_configuration_status(

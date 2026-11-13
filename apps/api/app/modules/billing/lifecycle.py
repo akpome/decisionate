@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import ceil
+from app.application_context import scoped_setting
 
 from app.db.models import Organization, WorkspaceSubscription, utc_now
 from app.modules.organizations.ownership import managing_agency_workspace_id
@@ -17,7 +17,7 @@ DEFAULT_GRACE_PERIOD_DAYS = 7
 
 
 def billing_enforcement_enabled() -> bool:
-    return os.getenv("BILLING_ENFORCEMENT_ENABLED", "true").strip().lower() not in {
+    return scoped_setting("BILLING_ENFORCEMENT_ENABLED", "true").lower() not in {
         "false", "0", "off",
     }
 
@@ -40,7 +40,7 @@ def get_billing_grace_period_days() -> int:
         return max(
             int(
                 str(
-                    os.getenv(
+                    scoped_setting(
                         "BILLING_GRACE_PERIOD_DAYS",
                         str(DEFAULT_GRACE_PERIOD_DAYS),
                     )

@@ -10,6 +10,7 @@ from app.modules.billing.lifecycle import (
 from app.modules.billing.service import (
     BillingProviderUnavailable,
     PUBLIC_BILLING_PLANS,
+    require_billing_application,
 )
 
 
@@ -71,6 +72,7 @@ def fulfill_credit_purchase(db, checkout: dict) -> AICreditPurchase | None:
         if organization and organization.agency_detached_at is not None:
             raise BillingProviderUnavailable("This payment predates an agency change. Contact support to reconcile the credit purchase.")
     workspace_id = frozen_workspace_id or resolve_billing_workspace_id(reference, db)
+    require_billing_application(db, workspace_id, metadata)
     if (
         not session_id.startswith("cs_")
         or not workspace_id

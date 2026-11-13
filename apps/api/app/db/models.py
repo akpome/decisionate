@@ -22,6 +22,13 @@ def utc_now() -> datetime:
     )
 
 
+class WorkspaceApplication(Base):
+    __tablename__ = "workspace_applications"
+
+    workspace_id = Column(String, primary_key=True)
+    application_id = Column(String, nullable=False, index=True)
+
+
 class AppUser(Base):
     """Provider-independent Decisionate user identity."""
 

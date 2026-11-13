@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
@@ -9,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.db.database import SessionLocal
+from app.modules.applications import workspace_application_scope
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthConnectionState
 from app.db.models import OAuthCredential
@@ -694,12 +696,9 @@ def process_oauth_callback(
     code = str(query.get("code") or "").strip()
     if not state_token:
         return oauth_redirect("missing_state")
-    if query.get("error"):
-        return oauth_redirect(str(query.get("error"))[:80])
-    if not code:
-        return oauth_redirect("missing_code")
 
     db = SessionLocal()
+    application_context = ExitStack()
     state_source_type = None
     state_connection_id = None
     try:
@@ -708,6 +707,12 @@ def process_oauth_callback(
             .filter(OAuthConnectionState.state_token == state_token)
             .first()
         )
+        if state:
+            application_context.enter_context(workspace_application_scope(state.workspace_id, db))
+        if query.get("error"):
+            return oauth_redirect(str(query.get("error"))[:80])
+        if not code:
+            return oauth_redirect("missing_code")
         now = datetime.now(UTC).replace(tzinfo=None)
         if not state or state.expires_at < now:
             if state:
@@ -1047,6 +1052,7 @@ def process_oauth_callback(
         return oauth_redirect(str(error)[:120])
     finally:
         db.close()
+        application_context.close()
 
 
 async def process_woocommerce_callback(
@@ -1084,6 +1090,7 @@ async def process_woocommerce_callback(
         )
 
     db = SessionLocal()
+    application_context = ExitStack()
     state_connection_id = None
     try:
         state = (
@@ -1091,6 +1098,8 @@ async def process_woocommerce_callback(
             .filter(OAuthConnectionState.state_token == state_token)
             .first()
         )
+        if state:
+            application_context.enter_context(workspace_application_scope(state.workspace_id, db))
         now = datetime.now(UTC).replace(tzinfo=None)
         if not state or state.expires_at < now:
             if state:
@@ -1169,6 +1178,7 @@ async def process_woocommerce_callback(
         )
     finally:
         db.close()
+        application_context.close()
 
 
 @router.get("/callback")

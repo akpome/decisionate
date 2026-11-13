@@ -7,9 +7,13 @@ import json
 from app.db.models import DataIngestionJob, Dataset, Organization, OrganizationMember, WorkspaceSubscription
 from app.modules.marketing.models import MarketingDatasetState
 from app.modules.marketing.service import enqueue, mark_completed_data
+from app.modules.applications import workspace_belongs_to_application
 
 
 def before_flush(db, flush_context, instances):
+    from app.application_context import get_application
+    if not get_application().is_default:
+        return
     workspace_ids = set()
     for record in list(db.new) + list(db.dirty) + list(db.deleted):
         if (record in db.dirty and record not in db.new and record not in db.deleted
@@ -24,6 +28,8 @@ def before_flush(db, flush_context, instances):
         elif isinstance(record, WorkspaceSubscription):
             workspace_ids.add(record.workspace_id)
         elif isinstance(record, DataIngestionJob):
+            if not workspace_belongs_to_application(db, record.workspace_id or record.user_id):
+                continue
             workspace_ids.add(record.workspace_id or record.user_id)
             if record.status == "succeeded":
                 try:
@@ -39,11 +45,13 @@ def before_flush(db, flush_context, instances):
                         mark_completed_data(db, dataset)
         elif isinstance(record, Dataset):
             workspace_id = record.workspace_id or record.user_id
+            if not workspace_belongs_to_application(db, workspace_id):
+                continue
             workspace_ids.add(workspace_id)
             if record in db.new:
                 db.info.setdefault("marketing_new_datasets", []).append(record)
     for workspace_id in workspace_ids:
-        if workspace_id:
+        if workspace_id and workspace_belongs_to_application(db, workspace_id):
             enqueue(db, "workspace", workspace_id)
 
 

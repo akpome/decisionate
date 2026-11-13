@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from app.db.database import SessionLocal
 from app.db.models import Organization
 from app.modules.organizations.ownership import independent_client
+from app.modules.applications import workspace_application_scope
 
 
 PAUSED_MESSAGE = "This client workspace is paused. Contact your agency to resume access."
@@ -17,7 +18,8 @@ def workspace_is_paused(db, workspace_id: str) -> bool:
     if independent_client(organization):
         from app.modules.billing.lifecycle import build_subscription_access_state, get_subscription_for_workspace
         subscription = get_subscription_for_workspace(db, workspace_id)
-        return subscription is None or not build_subscription_access_state(subscription).access_allowed
+        with workspace_application_scope(workspace_id, db):
+            return subscription is None or not build_subscription_access_state(subscription).access_allowed
     return bool(organization and organization.is_paused)
 
 

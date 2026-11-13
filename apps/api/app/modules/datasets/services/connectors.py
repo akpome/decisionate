@@ -4,7 +4,6 @@ import base64
 import importlib
 import json
 import logging
-import os
 from datetime import UTC, date, datetime, timedelta
 import re
 from time import sleep
@@ -7231,7 +7230,7 @@ def load_database_dataframe(
             "mysql": "MYSQL_SOURCE_URL",
             "sql_server": "SQL_SERVER_SOURCE_URL",
         }[connection.source_type]
-        database_url = str(os.getenv(url_env, "") or "").strip()
+        database_url = get_provider_setting(url_env)
         if not database_url:
             raise ConnectorUnavailable(
                 f"{url_env} is required for the {connection.source_type} connector"

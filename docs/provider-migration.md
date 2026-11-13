@@ -1,5 +1,9 @@
 # Provider Migration Runbook
 
+For two independently branded frontends with separate billing on the same API,
+see [Multiple Frontends and Independent Billing](multi-application-api.md).
+That is separate from moving the existing deployment between hosting providers.
+
 Decisionate is deployed as two stateless applications:
 
 - `apps/api`: FastAPI and background runner entrypoints.

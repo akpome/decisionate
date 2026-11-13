@@ -121,6 +121,7 @@ def cleanup_terminal_file_jobs():
 
 
 def execute_job(job_id):
+    from app.modules.applications import workspace_application_scope
     from app.modules.marketing.hooks import install_marketing_hooks
     install_marketing_hooks()
     from app.modules.datasets import router as routes
@@ -128,12 +129,15 @@ def execute_job(job_id):
     with SessionLocal() as db:
         job = db.get(DataIngestionJob, job_id)
         job_type = job.job_type if job else None
-    if job_type in {"file_upload", "signed_url_import"}:
-        routes.run_file_ingestion_job(job_id)
-    elif job_type == routes.CONNECTOR_ANALYSIS_JOB_TYPE:
-        routes.run_connector_analysis_job(job_id)
-    elif job_type:
-        routes.run_connector_ingestion_job(job_id)
+        workspace_id = (job.workspace_id or job.user_id) if job else None
+    if workspace_id:
+        with workspace_application_scope(workspace_id):
+            if job_type in {"file_upload", "signed_url_import"}:
+                routes.run_file_ingestion_job(job_id)
+            elif job_type == routes.CONNECTOR_ANALYSIS_JOB_TYPE:
+                routes.run_connector_analysis_job(job_id)
+            elif job_type:
+                routes.run_connector_ingestion_job(job_id)
 
 
 def supervise_job(job_id, lock_connection, script):

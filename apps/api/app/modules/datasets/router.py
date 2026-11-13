@@ -11,6 +11,7 @@ import shutil
 import socket
 import threading
 import uuid
+from contextlib import ExitStack
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -40,6 +41,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, load_only
 
 from app.db.database import SessionLocal
+from app.modules.applications import workspace_application_scope, workspace_scoped
 from app.db.models import CanonicalEntity
 from app.db.models import DataIngestionJob
 from app.db.models import DatasetAnalysis
@@ -8947,6 +8949,7 @@ def _build_parent_connector_job_result(
 def run_connector_object_ingestion_job(job_id: int):
     """Run one object from a multi-object connector parent independently."""
     db = SessionLocal()
+    application_context = ExitStack()
     connection = None
     try:
         job = (
@@ -8956,6 +8959,7 @@ def run_connector_object_ingestion_job(job_id: int):
         )
         if not job or job.status != INGESTION_JOB_QUEUED:
             return
+        application_context.enter_context(workspace_application_scope(job.workspace_id or job.user_id, db))
         connection = (
             db.query(DataSourceConnection)
             .filter(DataSourceConnection.id == job.connection_id)
@@ -9046,12 +9050,14 @@ def run_connector_object_ingestion_job(job_id: int):
             error,
         )
     finally:
+        application_context.close()
         db.close()
 
 
 def run_connector_parent_ingestion_job(job_id: int):
     """Run and aggregate child object jobs without rolling back their data."""
     db = SessionLocal()
+    application_context = ExitStack()
     connection = None
     initial_sync_required = False
     initial_backfill_job = False
@@ -9064,6 +9070,7 @@ def run_connector_parent_ingestion_job(job_id: int):
         )
         if not job or job.status != INGESTION_JOB_QUEUED:
             return
+        application_context.enter_context(workspace_application_scope(job.workspace_id or job.user_id, db))
         child_ids = [
             child.id
             for child in (
@@ -9271,12 +9278,14 @@ def run_connector_parent_ingestion_job(job_id: int):
         _fail_pending_connector_children(db, job_id, error)
         _persist_ingestion_job_failure(db, job_id, error)
     finally:
+        application_context.close()
         db.close()
 
 
 def run_connector_ingestion_job(job_id: int):
     """Run one connector sync outside the request and scheduler lifecycles."""
     db = SessionLocal()
+    application_context = ExitStack()
     connection = None
     initial_sync_required = False
     initial_backfill_job = False
@@ -9289,6 +9298,7 @@ def run_connector_ingestion_job(job_id: int):
         )
         if not job or job.status != INGESTION_JOB_QUEUED:
             return
+        application_context.enter_context(workspace_application_scope(job.workspace_id or job.user_id, db))
 
         if job.parent_job_id is not None:
             db.close()
@@ -9548,6 +9558,7 @@ def run_connector_ingestion_job(job_id: int):
             error,
         )
     finally:
+        application_context.close()
         db.close()
 
 
@@ -9644,6 +9655,7 @@ def _build_connector_dataset_analysis(
 def run_connector_analysis_job(job_id: int):
     """Analyze connector datasets after their initial history is available."""
     db = SessionLocal()
+    application_context = ExitStack()
     connection = None
     records = []
     try:
@@ -9654,6 +9666,7 @@ def run_connector_analysis_job(job_id: int):
         )
         if not job or job.status != INGESTION_JOB_QUEUED:
             return
+        application_context.enter_context(workspace_application_scope(job.workspace_id or job.user_id, db))
 
         connection = (
             db.query(DataSourceConnection)
@@ -9801,12 +9814,14 @@ def run_connector_analysis_job(job_id: int):
             error_message=error,
         )
     finally:
+        application_context.close()
         db.close()
 
 
 def run_file_ingestion_job(job_id: int):
     """Parse and persist an uploaded or signed cloud file in the background."""
     db = SessionLocal()
+    application_context = ExitStack()
     file_path = None
     temporary_path = None
     staged_reference = None
@@ -9818,6 +9833,7 @@ def run_file_ingestion_job(job_id: int):
         )
         if not job or job.status != INGESTION_JOB_QUEUED:
             return
+        application_context.enter_context(workspace_application_scope(job.workspace_id or job.user_id, db))
 
         if not claim_ingestion_job(db, job):
             return
@@ -9917,6 +9933,7 @@ def run_file_ingestion_job(job_id: int):
             error,
         )
     finally:
+        application_context.close()
         remove_dataset_file(temporary_path)
         remove_dataset_file(file_path)
         remove_dataset_file(staged_reference)
@@ -10219,6 +10236,7 @@ def require_connectors_scheduler_secret(request: Request):
         )
 
 
+@workspace_scoped("connection", "workspace_id")
 def queue_due_source_connection(
     db,
     connection,

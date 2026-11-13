@@ -26,6 +26,24 @@ authoritative. Platform Admin is separate from workspace ownership; support
 chat cannot elevate either role. Object identifiers or public metadata are not
 authorization credentials.
 
+## Multiple frontends
+
+The backend also supports deployment-registered applications above workspaces.
+`decisionate-ca` remains the implicit default for existing data and clients.
+Additional applications use separate authentication issuers, scoped identities,
+Stripe billing configuration and transactional email settings. The
+`workspace_applications` mapping preserves that ownership for HTTP requests,
+OAuth callbacks and background jobs. An Origin or `X-Application-Id` selects
+configuration; it does not authorize access. Workspace membership is still
+required and cross-application access is rejected.
+
+`GET /api/v2/application` supplies public application configuration. The existing
+Platform Admin and marketing automation remain default-application-only;
+secondary frontends must honor the returned feature flags. This is not a
+separate data-residency deployment or an already launched .ai frontend.
+See `docs/multi-application-api.md` for registration, independent billing,
+credential isolation, staging checks and rollback boundaries.
+
 Knowledge articles are static approved guidance. An authenticated live-data tool
 would be a separate product surface requiring its own authorization, minimized
 response schema, auditing and testing. Do not expose database credentials,

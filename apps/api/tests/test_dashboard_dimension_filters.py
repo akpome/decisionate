@@ -192,7 +192,9 @@ class FilteredPublicDashboardTests(unittest.TestCase):
         self.frame = pd.DataFrame({"date": ["2026-01-01", "2026-02-01"] * 2, "revenue": [10, 20, 9999, 9999], "region": ["East"] * 2 + ["West"] * 2})
         self.preference = SimpleNamespace(metric_targets=None, selected_metric="revenue", dashboard_preferences=None,
             dashboard_views=json.dumps({"1": {"general-business": {"dimensionFilter": {"column": "region", "values": ["East"]}}}}))
-        for name, value in (("SessionLocal", lambda: MagicMock()), ("load_dataset", lambda *_: self.dataset),
+        db = MagicMock()
+        db.get.return_value = None
+        for name, value in (("SessionLocal", lambda: db), ("load_dataset", lambda *_: self.dataset),
                             ("load_dataframe_from_dataset", lambda *_: self.frame.copy()), ("get_dashboard_preference", lambda *_: self.preference),
                             ("get_public_join_cache_result", lambda *_: None), ("get_public_dashboard_brand", lambda *_: {})):
             item = patch.object(public_dashboard, name, value); item.start(); self.addCleanup(item.stop)

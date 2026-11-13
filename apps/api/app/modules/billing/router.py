@@ -289,6 +289,8 @@ async def get_billing_status(
             ai_configured=ai_configured, pack_size=get_ai_credit_pack_size(db),
         )
         return BillingStatusResponse(
+            application_id=config.get("application_id", "decisionate-ca"),
+            currency=config.get("currency", "CAD"),
             configured=billing_enforcement_enabled() and is_billing_configured(),
             billing_enabled=billing_enforcement_enabled(),
             provider=config["provider"],
@@ -772,6 +774,14 @@ async def confirm_billing_checkout(payload: BillingCheckoutConfirmationRequest, 
         db.close()
 
 
+@router.post("/webhook/{application_id}")
+async def application_billing_webhook(application_id: str, request: Request):
+    from app.application_context import get_application
+    if application_id != get_application().id:
+        raise HTTPException(400, "Webhook application does not match the request context.")
+    return await billing_webhook(request)
+
+
 @router.post("/webhook")
 async def billing_webhook(
     request: Request,
@@ -795,6 +805,11 @@ async def billing_webhook(
             status_code=400,
             detail="Stripe webhook event is missing id or type",
         )
+
+    from app.application_context import get_application
+    application = get_application()
+    if not application.is_default:
+        event_id = f"{application.id}:{event_id}"
 
     db = SessionLocal()
     try:
@@ -862,6 +877,10 @@ def apply_stripe_billing_event(
     event_type: str,
     event_object: dict,
 ):
+    from app.modules.billing.service import require_billing_application
+    metadata = event_object.get("metadata") or {}
+    if metadata.get("workspace_id"):
+        require_billing_application(db, metadata["workspace_id"], metadata)
     if event_type in {
         "checkout.session.completed",
         "checkout.session.async_payment_succeeded",
@@ -954,6 +973,8 @@ def apply_stripe_billing_event(
         )
     if not subscription:
         return
+
+    require_billing_application(db, subscription.workspace_id, metadata)
 
     subscription = db.query(WorkspaceSubscription).filter(
         WorkspaceSubscription.id == subscription.id,

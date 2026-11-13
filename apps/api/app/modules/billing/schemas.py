@@ -18,6 +18,8 @@ class BillingPlanOption(BaseModel):
 
 
 class BillingStatusResponse(BaseModel):
+    application_id: str = "decisionate-ca"
+    currency: str = "CAD"
     billing_enabled: bool = True
     configured: bool
     provider: str

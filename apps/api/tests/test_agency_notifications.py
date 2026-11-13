@@ -8,7 +8,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember, PlatformMaintenanceNotice, utc_now
+from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember, PlatformMaintenanceNotice, WorkspaceApplication, utc_now
 from app.modules.alerts import email_delivery
 from app.modules.alerts.router import (
     build_weekly_report_digest,
@@ -25,7 +25,7 @@ from app.modules import platform_admin
 class AgencyNotificationTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite://")
-        for model in (AppUser, AuthIdentity, Organization, OrganizationMember):
+        for model in (AppUser, AuthIdentity, Organization, OrganizationMember, WorkspaceApplication):
             model.__table__.create(self.engine)
         self.db = Session(self.engine)
         self.agency = Organization(

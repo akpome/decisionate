@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from app.db.database import SessionLocal
+from app.modules.applications import workspace_scoped
 from app.db.models import IngestionWorkerHeartbeat, utc_now
 from app.infrastructure.ingestion_jobs import lock_workspace_queue
 from app.modules.correlation.catalog import reporting_timezone
@@ -109,6 +110,7 @@ def weekly_owner_recipient(db, workspace):
     return clean_recipient_emails([email])[0]
 
 
+@workspace_scoped("workspace")
 def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=False, include_ai=True, request_key=None, report_only=False, owner_only=False):
     from app.modules.alerts.router import get_alert_datasets
     from .service import complete_week

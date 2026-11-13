@@ -27,6 +27,7 @@ from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy import and_, case, func, or_
 
 from app.db.database import Base, SessionLocal
+from app.modules.applications import workspace_belongs_to_application, workspace_scoped
 from app.infrastructure.object_storage import (
     get_dataset_storage_reference,
     get_object_storage,
@@ -58,6 +59,7 @@ from app.db.models import (
     WeeklyReportPreference,
     UsageActivityEvent,
     WorkspaceSubscription,
+    WorkspaceApplication,
     WorkspaceRequestBudget,
     utc_now,
 )
@@ -931,8 +933,11 @@ def normalize_maintenance_datetime(value: datetime) -> datetime:
 
 
 def maintenance_owner_email_branding(db) -> dict[str, dict | None]:
+    from app.modules.applications import workspace_belongs_to_application
     recipients = {}
     for organization in db.query(Organization).order_by(Organization.id.asc()).all():
+        if not workspace_belongs_to_application(db, organization.owner_user_id):
+            continue
         owner_email = get_workspace_owner_email(db, organization)
         email = str(owner_email or "").strip().lower()
         if not email:
@@ -3357,6 +3362,7 @@ def remove_dataset_file_for_admin(
         return
 
 
+@workspace_scoped()
 def delete_workspace_records(
     db,
     workspace_id: str,
@@ -3607,14 +3613,19 @@ def delete_workspace_records(
                 AuthIdentity.user_id == member_user_id
             ).delete(synchronize_session=False)
             account = db.get(AppUser, member_user_id)
-            if account and account.email and not db.query(AppUser.id).filter(
-                AppUser.id != member_user_id,
-                func.lower(AppUser.email) == account.email.strip().lower(),
-            ).first():
-                db.query(AgencyClientInvitation).filter(
-                    func.lower(AgencyClientInvitation.email) == account.email.strip().lower(),
-                    AgencyClientInvitation.organization_id.is_(None),
-                ).delete(synchronize_session=False)
+            if account and account.email:
+                other_users = db.query(AppUser).filter(
+                    AppUser.id != member_user_id,
+                    func.lower(AppUser.email) == account.email.strip().lower(),
+                ).all()
+                if not any(workspace_belongs_to_application(db, user.id) for user in other_users):
+                    invitations = db.query(AgencyClientInvitation).filter(
+                        func.lower(AgencyClientInvitation.email) == account.email.strip().lower(),
+                        AgencyClientInvitation.organization_id.is_(None),
+                    ).all()
+                    for invitation in invitations:
+                        if workspace_belongs_to_application(db, invitation.agency_workspace_id):
+                            db.delete(invitation)
             db.query(PlatformAdminAuditEvent).filter(
                 PlatformAdminAuditEvent.target_user_id == member_user_id
             ).delete(synchronize_session=False)
@@ -3627,8 +3638,12 @@ def delete_workspace_records(
             db.query(AppUser).filter(
                 AppUser.id == member_user_id
             ).delete(synchronize_session=False)
+            db.query(WorkspaceApplication).filter_by(workspace_id=member_user_id).delete(synchronize_session=False)
             summary["users_deleted"] += 1
 
+    # A surviving user's home namespace also identifies their application.
+    if not db.get(AppUser, clean_workspace_id):
+        db.query(WorkspaceApplication).filter_by(workspace_id=clean_workspace_id).delete(synchronize_session=False)
     return summary
 
 
@@ -3696,6 +3711,7 @@ def delete_internal_user_records(
     db.query(AppUser).filter(
         AppUser.id == user_id
     ).delete(synchronize_session=False)
+    db.query(WorkspaceApplication).filter_by(workspace_id=user_id).delete(synchronize_session=False)
     summary["users"] = 1
     return summary
 

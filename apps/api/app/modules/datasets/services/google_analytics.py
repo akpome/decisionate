@@ -7,6 +7,7 @@ from datetime import date
 from typing import Any
 
 import pandas as pd
+from app.configuration import get_provider_setting
 
 
 DEFAULT_DIMENSIONS = ["date"]
@@ -37,38 +38,21 @@ def format_google_analytics_error(error: Exception) -> str:
 
 
 def get_google_analytics_service_account_path() -> str:
-    return str(
-        os.getenv(
-            "GOOGLE_ANALYTICS_SERVICE_ACCOUNT_FILE",
-            "",
-        )
-        or ""
-    ).strip()
+    return get_provider_setting("GOOGLE_ANALYTICS_SERVICE_ACCOUNT_FILE")
 
 
 def get_google_analytics_service_account_json() -> str:
-    return str(
-        os.getenv(
-            "GOOGLE_ANALYTICS_SERVICE_ACCOUNT_JSON",
-            "",
-        )
-        or ""
-    ).strip()
+    return get_provider_setting("GOOGLE_ANALYTICS_SERVICE_ACCOUNT_JSON")
 
 
 def get_google_analytics_scope() -> str:
-    return str(
-        os.getenv("GOOGLE_ANALYTICS_SCOPE", "") or ""
-    ).strip()
+    return get_provider_setting("GOOGLE_ANALYTICS_SCOPE")
 
 
 def get_google_analytics_oauth_scopes() -> list[str]:
     return [
         scope.strip()
-        for scope in str(
-            os.getenv("GOOGLE_ANALYTICS_OAUTH_SCOPES", "")
-            or ""
-        ).split()
+        for scope in get_provider_setting("GOOGLE_ANALYTICS_OAUTH_SCOPES").split()
         if scope.strip()
     ]
 

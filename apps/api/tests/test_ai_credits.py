@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import AIUsageEvent
-from app.db.models import WorkspaceSubscription
+from app.db.models import WorkspaceApplication, WorkspaceSubscription
 from app.db.models import utc_now
 from app.modules.ai import credits
 
@@ -14,6 +14,7 @@ from app.modules.ai import credits
 class AICreditTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
+        WorkspaceApplication.__table__.create(self.engine)
         WorkspaceSubscription.__table__.create(self.engine)
         AIUsageEvent.__table__.create(self.engine)
         self.session_factory = sessionmaker(bind=self.engine)

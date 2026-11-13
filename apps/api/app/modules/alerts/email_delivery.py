@@ -1,4 +1,3 @@
-import os
 import logging
 import json
 import re
@@ -14,6 +13,7 @@ from urllib.request import Request, urlopen
 from fastapi import HTTPException
 
 from app.db.database import SessionLocal
+from app.application_context import get_application, scoped_setting
 from app.db.models import PlatformEmailSettings
 from app.infrastructure.email_branding import (
     build_decisionate_email_header,
@@ -53,13 +53,7 @@ def clean_env_value(
     name: str,
     default: str = "",
 ) -> str:
-    return str(
-        os.getenv(
-            name,
-            default,
-        )
-        or ""
-    ).strip()
+    return scoped_setting(name, default)
 
 
 def clean_env_bool(
@@ -107,7 +101,7 @@ def get_platform_email_settings() -> dict:
             db.query(PlatformEmailSettings)
             .filter(PlatformEmailSettings.id == 1)
             .first()
-        )
+        ) if get_application().is_default else None
     except Exception as error:
         logger.warning(
             "Platform email settings could not be loaded: %s",
@@ -163,7 +157,7 @@ def get_platform_email_settings() -> dict:
     resend_from_name = saved_or_env(
         "resend_from_name",
         "RESEND_FROM_NAME",
-    ) or "Decisionate"
+    ) or get_application().name
     configured_provider = str(
         getattr(saved_settings, "provider", None) or ""
     ).strip().lower()
@@ -176,7 +170,7 @@ def get_platform_email_settings() -> dict:
     resend_from_name = (
         resend_from_name
         or clean_env_value("RESEND_FROM_NAME")
-        or "Decisionate"
+        or get_application().name
     )
     resend_api_url = clean_env_value(
         "RESEND_API_URL",
@@ -262,12 +256,12 @@ def get_platform_sender_details(
     if settings["provider"] == "resend":
         return (
             settings["resend_from_email"],
-            settings["resend_from_name"] or "Decisionate",
+            settings["resend_from_name"] or get_application().name,
         )
 
     return (
         settings["smtp_from_email"],
-        settings["smtp_from_name"] or "Decisionate",
+        settings["smtp_from_name"] or get_application().name,
     )
 
 
@@ -313,7 +307,7 @@ def _send_resend_message(
         if plain_part is not None
         else message.get_content()
     )
-    sender_name = settings["resend_from_name"] or "Decisionate"
+    sender_name = settings["resend_from_name"] or get_application().name
     sender_email = settings["resend_from_email"]
     requested_sender_name, requested_sender_email = parseaddr(
         str(message.get("From") or "")
@@ -1167,8 +1161,10 @@ def send_support_request_email(
     from_name = from_name or "Decisionate Support"
     recipient = clean_env_value(
         "SUPPORT_EMAIL",
-        "support@decisionate.ca",
+        "support@decisionate.ca" if get_application().is_default else "",
     )
+    if not recipient:
+        raise HTTPException(503, "Support email delivery is not configured for this application.")
 
     email = EmailMessage()
     email["Subject"] = f"[Decisionate {request_type}] {subject}"

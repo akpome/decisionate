@@ -51,6 +51,10 @@ def withdraw(db, contact, source, *, actor=None, evidence=None):
 
 
 def capture_identity(db, user_id, email, *, verified=False):
+    from app.application_context import DEFAULT_APPLICATION_ID, get_application
+    from app.modules.applications import workspace_application_id
+    if not get_application().is_default or workspace_application_id(db, user_id) != DEFAULT_APPLICATION_ID:
+        return None
     address = normalize_email(email)
     if not address:
         return None

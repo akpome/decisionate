@@ -2,12 +2,12 @@
 
 import json
 import logging
-import os
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from fastapi import HTTPException
+from app.application_context import scoped_setting
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ _clerk_opener = build_opener(_NoRedirects())
 
 
 def get_verified_clerk_primary_email(subject: str) -> str | None:
-    key = str(os.getenv("CLERK_SECRET_KEY") or "").strip()
+    key = scoped_setting("CLERK_SECRET_KEY")
     if not key:
         raise HTTPException(503, "Account email verification is not configured. Please contact support.")
     try:

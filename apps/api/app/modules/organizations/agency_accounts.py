@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from app.db.database import SessionLocal
+from app.modules.applications import require_workspace_application, workspace_belongs_to_application
 from app.db.models import AgencyClientInvitation, Organization, WorkspaceSubscription, utc_now
 from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.auth_context import get_auth_context, get_auth_jwks_url
@@ -164,7 +165,8 @@ def list_agency_invitations(request: Request):
         invitations = db.query(AgencyClientInvitation, Organization).join(
             Organization, Organization.owner_user_id == AgencyClientInvitation.agency_workspace_id,
         ).filter(AgencyClientInvitation.email == verified_email(auth), AgencyClientInvitation.status == "pending").all()
-        return [{"id": invite.id, "agency_name": agency.name} for invite, agency in invitations]
+        return [{"id": invite.id, "agency_name": agency.name} for invite, agency in invitations
+                if workspace_belongs_to_application(db, agency.owner_user_id)]
 
 
 @router.post("/agency-invitations/{invitation_id}/accept")
@@ -176,6 +178,7 @@ def accept_agency_invitation(invitation_id: str, request: Request):
         invitation = db.query(AgencyClientInvitation).filter_by(id=invitation_id, email=verified_email(auth)).with_for_update().first()
         if invitation is None:
             raise HTTPException(404, "Agency invitation not found.")
+        require_workspace_application(db, invitation.agency_workspace_id)
         if invitation.status != "pending" or not independent_client(organization):
             raise HTTPException(409, "The workspace already belongs to an agency, or the invitation is no longer pending.")
         subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=auth.workspace_id).first()
@@ -208,6 +211,7 @@ def decline_agency_invitation(invitation_id: str, request: Request):
         invitation = db.query(AgencyClientInvitation).filter_by(id=invitation_id, email=verified_email(auth), status="pending").with_for_update().first()
         if invitation is None:
             raise HTTPException(404, "Agency invitation not found.")
+        require_workspace_application(db, invitation.agency_workspace_id)
         invitation.status = "declined"
         db.commit()
         return {"declined": True}

@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
 
-from app.db.models import BillingWebhookEvent, Organization, WorkspaceSubscription, utc_now
+from app.db.models import BillingWebhookEvent, Organization, WorkspaceApplication, WorkspaceSubscription, utc_now
 from app.modules.billing import notifications, router as billing, service
 from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.renewals import apply_renewal_period, reconcile_subscription_if_needed
@@ -28,7 +28,7 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.engine = create_engine(f"sqlite:///{self.directory.name}/renewals.db", connect_args={"timeout": 30})
-        for table in (WorkspaceSubscription.__table__, BillingWebhookEvent.__table__, Organization.__table__):
+        for table in (WorkspaceApplication.__table__, WorkspaceSubscription.__table__, BillingWebhookEvent.__table__, Organization.__table__):
             table.create(self.engine)
         self.sessions = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.now = utc_now().replace(microsecond=0)
@@ -404,7 +404,7 @@ class PostgresRenewalConcurrencyTests(unittest.TestCase):
         from app.modules.ai import credits
 
         engine = create_engine(os.environ["DECISIONATE_TEST_POSTGRES_URL"])
-        for table in (WorkspaceSubscription.__table__, AIUsageEvent.__table__):
+        for table in (WorkspaceApplication.__table__, WorkspaceSubscription.__table__, AIUsageEvent.__table__):
             table.create(engine, checkfirst=True)
         tree = ast.parse((Path(__file__).parents[1] / "app/main.py").read_text())
         function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "ensure_billing_subscription_columns")
