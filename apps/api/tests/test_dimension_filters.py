@@ -154,10 +154,25 @@ class FilteredReportTests(unittest.TestCase):
         ):
             digest = build_weekly_report_digest(preference, [pair[0] for pair in self.sources.values()],
                 report_definition=definition(dimension_filters=selections), include_ai_analysis=False)
-        self.assertIn("Filter: Source 1.csv / region: East, <script>unsafe</script>", build_weekly_report_email_text(digest))
-        html = build_weekly_report_email_html(digest)
-        self.assertIn("region: East, &lt;script&gt;unsafe&lt;/script&gt;", html)
-        self.assertNotIn("<script>", html)
+        self.assertIn("intelligence", digest.cross_dataset_report)
+        for intelligence in (True, False):
+            with self.subTest(intelligence=intelligence):
+                report = dict(digest.cross_dataset_report)
+                if not intelligence:
+                    report.pop("intelligence")
+                email = digest.model_copy(update={"cross_dataset_report": report})
+                text = build_weekly_report_email_text(email)
+                self.assertIn("Filter: Source 1.csv / region: East, <script>unsafe</script>", text)
+                self.assertIn("Filter: Source 2.csv / region: East", text)
+                html = build_weekly_report_email_html(email)
+                self.assertIn("region: East, &lt;script&gt;unsafe&lt;/script&gt;", html)
+                self.assertIn("Filter: Source 2.csv / region: East", html)
+                self.assertNotIn("<script>", html)
+        unfiltered = {**digest.cross_dataset_report, "definition": {**digest.cross_dataset_report["definition"], "dimension_filters": []}}
+        email = digest.model_copy(update={"cross_dataset_report": unfiltered})
+        for builder in (build_weekly_report_email_text, build_weekly_report_email_html):
+            self.assertNotIn("Selected data", builder(email))
+            self.assertNotIn("Filter:", builder(email))
 
 
 class FilteredReportWorkflowTests(unittest.TestCase):

@@ -496,7 +496,9 @@ def weekly_intelligence_email_sections(digest):
     findings = intelligence["findings"][:3]
     ids = {item["id"] for item in findings}
     actions = [item for item in intelligence["recommendations"] if item["finding_id"] in ids][:3]
+    filters = report_dimension_lines(digest.cross_dataset_report)
     return [("This week", [intelligence["summary"]]),
+            *([("Selected data", filters)] if filters else []),
             ("Priority findings", [item["observation"] for item in findings] or ["No supported priority changes to highlight."]),
             ("Recommended investigations", [(f"Follow up Decision #{item['related_decision_id']}: " if item.get("related_decision_id") else "") + item["action"] for item in actions] or ["No new action recommended."]),
             ("Decisions and outcomes", [f"{item['title']}: {item['assessment']}." for item in intelligence["decisions"][:3]] or ["No relevant decision progress recorded."]),

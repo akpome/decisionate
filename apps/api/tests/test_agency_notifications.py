@@ -95,13 +95,14 @@ class AgencyNotificationTests(unittest.TestCase):
         }
 
     def test_actual_agency_name_is_kept_alongside_custom_report_brand(self):
-        digest = self.digest("[Client KPI]")
+        with patch("app.modules.alerts.router.complete_week", return_value={"start": "2026-11-02", "end": "2026-11-08"}):
+            digest = self.digest("[Client KPI]")
         self.assertEqual(digest.brand_name, "Client Insights")
         self.assertEqual(digest.agency_name, "North Star Agency")
         self.assertEqual(digest.brand_logo_url, self.agency.logo_url)
         self.assertEqual(
             digest.subject,
-            "[Client KPI] North Star Agency: Weekly Performance Alert \u2014 Smith Dental",
+            "[Client KPI] North Star Agency Weekly Intelligence - Smith Dental - 2026-11-02 to 2026-11-08",
         )
         self.assertNotIn("Old Agency Name", digest.subject)
 

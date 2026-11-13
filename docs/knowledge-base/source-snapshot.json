@@ -1,16 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-13",
-  "base_git_revision": "8d1fe94ae762ad69d78d4e1c67ba90906f841b56",
+  "base_git_revision": "bff7ea1c41ce7f2eec3a4a08ed66de6f98209c35",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/dashboard/decisions/new/page.tsx",
-    "apps/web/app/dashboard/entity-matching/page.tsx",
-    "apps/web/app/dashboard/forecasts/page.tsx",
-    "apps/web/app/dashboard/relationships/page.tsx",
-    "apps/web/components/searchable-select.tsx",
-    "apps/web/features/budget-planner/budget-planner.tsx",
-    "apps/web/features/budget-planner/types.ts",
-    "apps/web/features/dashboard/components/dataset-selector.tsx"
+    "apps/api/app/modules/alerts/email_delivery.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -26,7 +19,7 @@
     "apps/api/app/modules/ai/credits.py": "068d91125d498d9315db9b33c34c9b745c14b654e097fb08d009d81e20deb9ea",
     "apps/api/app/modules/ai/router.py": "59cb0eafc4da4d174943bc531f594cec855098b1c6ecee00d3c6db530bd915cb",
     "apps/api/app/modules/ai/service.py": "745d1211cdec3fbfe39a0c7b0c3f50fe2c6aaca118e44107aa25c53e8ddfebf7",
-    "apps/api/app/modules/alerts/email_delivery.py": "fbb6bfe82d2c248dd37fc33a22748bbee05a7b9fbc7a655e8d8807e368dedd51",
+    "apps/api/app/modules/alerts/email_delivery.py": "69e796d6d6276f178c6274b7e23ec7d15abf5f04d5ff806764d52f47d03d58ce",
     "apps/api/app/modules/alerts/router.py": "0cacb4ba7aba21903de1414e27af7dc20350d726f9889b0908bf4caa87155c31",
     "apps/api/app/modules/applications.py": "c9481c2f6a49a815f2c6bf74013ac67f9eeb91e379425135430fa218602235e5",
     "apps/api/app/modules/auth_context.py": "fd35f99f3398c8ff4412545febdcd53c1062dcfa2ed65d29035094e73aba375c",
@@ -221,7 +214,7 @@
     "customer/anomalies-seasonality.md": "ec5be2ca338d40f2c43de74bf64a2ee26e5f0e8ea8bea98d82d5fb18816d4b02",
     "customer/forecasts.md": "613acd538143b685d5678f3a1a38564f477c4b0d33e649b2e8b57b130420b84d",
     "customer/weekly-reports.md": "63809bea003a7fced1c3019cfeb5ca686d87f451314a889c6c9821027af45792",
-    "customer/email-branding.md": "88d7da08f05daeecc0a4afadb7a7fc6d8b99aa16b18105eceab82259027cc92a",
+    "customer/email-branding.md": "2a907db8e9ccb4adc05b14f308e3bba1ca00fc62bd6ef9eb5c1516d8a5b9d5d3",
     "customer/decisions-outcomes.md": "345147a288777a288a1bdd6eee0e0e0ae92eec276c778a8e13bcf610376ac831",
     "customer/ai-interpretation.md": "7e20d8d6a5c63f9cc1c921d05393fc85a131f2ade2a32a19e140702902205cdb",
     "customer/billing-credits.md": "20c9e118ea61fd7e69f3e1f40ba64651e9d905f41e713a4338fe1cc665cf18a8",

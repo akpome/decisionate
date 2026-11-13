@@ -6,11 +6,11 @@ import test from "node:test"
 
 const require = createRequire(import.meta.url), ts = require("typescript")
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8")
-const module = { exports: {} }
+const compiledModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(read("../features/alerts/weekly-email-state.ts"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText, { module, exports: module.exports })
-const { recipientEmails, deliveryValidation, deliveryChanges, deliveryStatus } = module.exports
+}).outputText, { module: compiledModule, exports: compiledModule.exports })
+const { recipientEmails, deliveryValidation, deliveryChanges, deliveryStatus } = compiledModule.exports
 const preference = () => ({ enabled: false, cadence: "weekly", delivery_day: "monday", recipient_emails: ["owner@example.com"],
   metric_focus: ["1:revenue"], metric_targets: { "1:revenue": 100 }, relationship_focus: [2], weekly_settings_configured: true,
   include_recommendations: true, subject_prefix: "Team" })

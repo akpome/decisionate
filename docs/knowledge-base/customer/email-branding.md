@@ -6,20 +6,23 @@ chart.
 
 ## What appears in the HTML email
 
-The header identifies the workspace and branding. The cross-dataset review
-includes the business question, current and previous windows, dimension filters,
-observations, selected relationship interpretations, warnings and any linked
-decisions. A separate unusual-changes section gives per-metric anomaly results
-and history limitations.
+The current Weekly Intelligence email includes a weekly summary, up to three
+priority findings and their recommended investigations, relevant decisions and
+outcomes, and key data limitations. When dimension filters are selected, a
+Selected data section lists each dataset, column and selected values in both
+HTML and plain text. Those results describe the filtered records, not the whole
+business.
 
-The KPI summary shows selected metrics and datasets, current/previous values,
-units, percentage change when valid, and configured targets. The recommendations
-area can include an AI or fallback summary. A Review report button opens the
-application, followed by prepared-for/by information and Powered by Decisionate.
+The subject identifies the workspace and completed report week. Read the full
+report opens the application for the detailed metrics, anomaly results and
+relationship evidence. The footer includes prepared-for/by information and
+platform branding. The email is a concise summary, not every field or chart
+from the full report.
 
-The plain-text alternative also includes analysis-source/confidence information
-and supported risks/relationship context. Do not claim that the current HTML
-template displays every field of the plain-text alternative or full app preview.
+Older report formats can contain the expanded KPI summary, current and previous
+windows, targets, relationship interpretations, anomaly results and AI or
+rules-based analysis. Do not assume every older email section appears in the
+current Weekly Intelligence summary.
 
 ## Which sender address clients see
 

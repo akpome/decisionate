@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import date
 from itertools import combinations
 import random
 from types import SimpleNamespace
@@ -12,7 +13,7 @@ from app.db.models import Dataset
 from app.modules.correlation import engine
 from app.modules.reports import router
 from app.modules.reports.relationships import compute_report_pair, direction_lookup, report_test_count
-from app.modules.reports.schemas import ReportDefinition
+from app.modules.reports.schemas import ReportDefinition, WeeklyReportSettings
 from app.modules.reports.service import build_report
 from app.modules.alerts.router import build_weekly_cross_dataset_report
 from app.modules.alerts.schemas import WeeklyReportPreferenceResponse
@@ -264,15 +265,23 @@ class ReportPairDirectionTests(unittest.TestCase):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
         template = definition(grain="weekly")
         sources = frames()
-        for _, frame in sources.values():
-            frame["date"] = pd.date_range(end="2026-03-23", periods=len(frame), freq="W-MON")
-        with patch("app.modules.alerts.router.complete_week", return_value=template["date_range"]):
-            report = build_weekly_cross_dataset_report(sources, preference, template)
-            partial = build_weekly_cross_dataset_report({key: value for key, value in sources.items() if key != 4}, preference, template)
+        # Complete daily coverage keeps the weekly investigation eligible while
+        # retaining the fixture's one- and two-period lags as whole weeks.
+        for identity, (dataset, frame) in sources.items():
+            frame = frame.loc[frame.index.repeat(7)].reset_index(drop=True)
+            frame["date"] = pd.date_range(end="2026-03-29", periods=len(frame))
+            sources[identity] = dataset, frame
+        report = build_weekly_cross_dataset_report(sources, preference, template, analysis_date=date(2026, 4, 1))
+        partial = build_weekly_cross_dataset_report({key: value for key, value in sources.items() if key != 4}, preference, template,
+                                                  analysis_date=date(2026, 4, 1))
         self.assertEqual(report["definition"]["pair_directions"], template["pair_directions"])
-        self.assertTrue(any(item["lead_metric"] == "4:clicks" and item["lag"] == 1 for item in report["findings"]))
+        self.assertEqual(len(report["findings"]), 3)
+        result = next(item for item in report["findings"] if item["lead_metric"] == "4:clicks")
+        self.assertEqual(result["lag"], 1)
+        self.assertEqual(result["lag_unit"], "calendar weekly periods")
+        self.assertAlmostEqual(result["coefficient"], 1, places=10)
         self.assertEqual(partial["definition"]["pair_directions"], [policy(A, B, "a_leads_b")])
-        ReportDefinition(**partial["definition"])
+        WeeklyReportSettings(**partial["definition"])
 
     def test_weekly_template_preserves_exclusions_even_when_all_remaining_pairs_are_removed(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
@@ -285,7 +294,7 @@ class ReportPairDirectionTests(unittest.TestCase):
         self.assertEqual(len(report["findings"]), 1)
         self.assertEqual(partial["definition"]["excluded_pairs"], [excluded(A, B)])
         self.assertEqual(partial["findings"], [])
-        ReportDefinition(**partial["definition"])
+        WeeklyReportSettings(**partial["definition"])
         self.assertEqual(template, original)
 
     def test_weekly_report_defaults_old_bidirectional_pairs_to_same_period(self):
