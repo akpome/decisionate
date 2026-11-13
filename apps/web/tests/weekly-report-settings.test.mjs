@@ -149,7 +149,8 @@ test("weekly preview calculates draft edits without persisting settings or snaps
   visit(ast)
   const calls = [], definition = weeklyDefinition({ name: "Draft report", metrics })
   const calculate = vm.runInNewContext(ts.transpileModule(`${declaration}\ncalculate`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
-    weekly: true, canManage: true, weeklyDirty: true, busy: false, definition, weeklySettings: null, weeklyDefinition,
+    weekly: true, canManage: true, weeklyDirty: true, busy: false, previewDisabled: false, definition, weeklySettings: null, weeklyDefinition,
+    defaultReportQuestion: () => "What changed last week, and what needs attention next?",
     selectedReportDimensionFilters: types.selectedReportDimensionFilters, analysisSubmission: { current: false }, routeController: { current: null },
     execute: async action => action(), crypto: { randomUUID: () => "unique" },
     request: async (path, init) => { calls.push(path); const payload = JSON.parse(init.body); assert.equal(payload.name, "Draft report"); assert.equal(payload.grain, "weekly"); assert.equal(payload.metrics.length, 2); return { job_id: "weekly-job" } },
@@ -230,7 +231,7 @@ test("weekly saving appears only after preview, with no competing save controls"
   assert.match(source, /weekly \? "Weekly history" : impactPage \? "Saved assessments" : "Saved reports"/)
   assert.match(source, /weekly \? "Current weekly report" : impactPage \? "Unsaved assessment" : "Unsaved analysis"/)
   assert.match(source, /setReport\(weeklyContext.current_report \|\| null\)/)
-  assert.match(source, /!weekly && <button[^\n]+Save snapshot/)
+  assert.match(source, /!weekly && <button[^\n]+Save report/)
   assert.match(source, /setWeeklyDirty\(!job.weekly_settings_saved\)/)
   assert.match(source, /editable \? "\/weekly-preview-jobs" : "\/weekly-jobs\?include_ai_analysis=true"/)
   assert.match(source, /setReport\(null\);[\s\S]*?setAnalysisJob\(null\)/)

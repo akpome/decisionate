@@ -1,5 +1,20 @@
 # Read and manage report evidence
 
+## Start with the business takeaways
+
+Relationships, Combined metrics and Single dataset report previews show coverage,
+then What matters and Next steps before the detailed charts. Next steps combines
+the available interpretation and calculated recommendations without repeating
+identical advice. More next steps preserves additional actions. Interpretation
+source and cautions keeps provider/fallback details and risks available.
+These are evidence-based suggestions, not measured profit or proof of causation.
+
+Decisions and outcomes appears beside this review flow. Create decision opens
+the central form with the report evidence; it does not implement the action or
+save a completed decision automatically. Existing decisions and unfinished
+drafts remain accessible. Preview only / Not saved distinguishes an unsaved
+calculation from a saved report. Saving, deciding and emailing remain separate actions.
+
 ## Read a business-change result
 
 A report built with Business impact analysis starts with a direct answer, its
@@ -84,7 +99,7 @@ shared positive baseline. Missing observations remain gaps in either view.
 Success confirmations disappear after five seconds. The saved-report status,
 delivery status, errors and delivery warnings remain visible independently.
 
-On Business Analysis, Save snapshot stores the server-generated completed analysis. Reopening it does
+On Business Analysis, Save report (previously Save snapshot) stores the server-generated completed analysis. Reopening it does
 not silently recalculate the data or update its narrative. Editing the settings
 starts an unsaved analysis; preview again and save a new snapshot. Generated
 names should be edited to describe the analysis, not treated as an overwrite key.

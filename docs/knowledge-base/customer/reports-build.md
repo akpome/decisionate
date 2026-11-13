@@ -30,6 +30,13 @@ and require a preview before saving. Anomaly detection has Detect unusual change
 checked by default in all three tabs; clear it to skip the detection calculations.
 The seasonal-business choice is under a separate Business context section and
 remains selectable while detection is off.
+Choose the data and dates first. Report details, below the selection area, contains
+the editable report name and an optional Business question. Leaving the question
+blank uses a question suited to the chosen report: metric movements, relationships,
+or the last completed week's priorities. A custom question is kept, not replaced.
+Missing metrics, dates, dimension values or invalid relationship settings are
+explained beside Preview; those inputs must be resolved before running analysis.
+The report name still has a unique default for one-off analysis and can be edited.
 A saved report reopens in its original tab and keeps its detection choice;
 older multi-dataset reports remain Relationships reports. A Combined metrics report
 does not join source rows or infer which metric caused another to change.

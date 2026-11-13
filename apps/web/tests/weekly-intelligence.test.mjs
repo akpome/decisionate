@@ -8,10 +8,10 @@ const require = createRequire(import.meta.url), ts = require("typescript"), Reac
 const { renderToStaticMarkup } = require("react-dom/server")
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8")
 function load(path, imports = {}) {
-  const module = { exports: {} }
+  const loaded = { exports: {} }
   vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText,
-    { module, exports: module.exports, require: key => imports[key] || require(key), Intl, Date })
-  return module.exports
+    { module: loaded, exports: loaded.exports, require: key => imports[key] || require(key), Intl, Date })
+  return loaded.exports
 }
 const { WeeklyIntelligenceReport } = load("../features/reports/weekly-intelligence.tsx", {
   "next/link": ({ children, ...props }) => React.createElement("a", props, children),
@@ -33,13 +33,15 @@ function report() {
 }
 const render = (value, onReview) => renderToStaticMarkup(React.createElement(WeeklyIntelligenceReport, { report: value, snapshot: React.createElement("div", null, "KPI totals"), busy: false, onReview }))
 
-test("weekly report presents the seven sections in business-first order with frozen evidence", () => {
+test("weekly report places findings and their actions before the charts without changing frozen evidence", () => {
   const value = report(), before = JSON.stringify(value), html = render(value, () => {})
   let position = -1
-  for (const label of ["This week at a glance", "Business performance", "What deserves attention", "Connections worth investigating", "Recommended next steps", "Decisions and outcomes", "Data quality and coverage"]) {
+  for (const label of ["This week at a glance", "What deserves attention", "Next step", "Business performance", "Connections worth investigating", "Decisions and outcomes", "Data quality and coverage"]) {
     const next = html.indexOf(label); assert.ok(next > position); position = next
   }
-  assert.match(html, /Supporting evidence/); assert.match(html, /Review in Decisions/)
+  assert.match(html, /Supporting evidence/); assert.match(html, /Create decision/)
+  assert.equal(html.split("Review the store records.").length - 1, 1)
+  assert.match(html, /Result to track: Sales/)
   assert.match(html, /Daily and whole-week anomaly checks/)
   assert.match(html, /Whole-week anomaly detection/); assert.match(html, /Daily anomaly detection/)
   assert.match(html, /2026-11-09 09:00:00 UTC/)
@@ -47,11 +49,23 @@ test("weekly report presents the seven sections in business-first order with fro
 })
 
 test("read-only, limited coverage and active-decision reports do not invite duplicate adoption", () => {
-  assert.doesNotMatch(render(report()), /Review in Decisions/)
-  assert.doesNotMatch(render({ ...report(), status: "limited_coverage" }, () => {}), /Review in Decisions/)
+  assert.doesNotMatch(render(report()), /Create decision/)
+  const limited = render({ ...report(), status: "limited_coverage" }, () => {})
+  assert.doesNotMatch(limited, /Create decision/)
+  assert.ok(limited.indexOf("usable results from at least two datasets") < limited.indexOf("What deserves attention"))
   const value = report(); value.intelligence.recommendations[0].related_decision_id = 42
   const html = render(value, () => {})
-  assert.doesNotMatch(html, /Review in Decisions/); assert.match(html, /href="\/dashboard\/decisions\/42"/)
+  assert.doesNotMatch(html, /Create decision/); assert.match(html, /href="\/dashboard\/decisions\/42"/)
+  value.intelligence.findings[0].related_decision_id = 42
+  assert.equal((render(value, () => {}).match(/href="\/dashboard\/decisions\/42"/g) || []).length, 1)
+})
+
+test("older recommendations without a matching finding remain readable but cannot create a broken draft", () => {
+  const value = report(); value.intelligence.findings = []
+  const html = render(value, () => {})
+  assert.match(html, /Other recorded next steps/)
+  assert.match(html, /Review the store records/)
+  assert.doesNotMatch(html, /Create decision|href="#finding-1"/)
 })
 
 test("central draft prefill carries the finding scope but leaves success criteria and approval to the user", () => {

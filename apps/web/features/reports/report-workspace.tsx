@@ -11,7 +11,6 @@ import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import type { CatalogDataset } from "@/features/relationships/types"
 import { CorrelationInsights } from "@/features/relationships/correlation-widgets"
-import { getAIAnalysisProvenance } from "@/features/ai/lib/analysis-copy"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { isJoinedReportDataset, loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as mergeCatalog } from "./report-catalog-loading"
 import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
@@ -37,6 +36,8 @@ import { reportHistoryQuery, reportPagePath, reportSourceTabs } from "./report-n
 import { AnalysisTools } from "./analysis-tools"
 import { WeeklyIntelligenceReport } from "./weekly-intelligence"
 import { WeeklyTimezone } from "./weekly-timezone"
+import { defaultReportQuestion, reportSetupIssue } from "./report-workflow"
+import { ReportTakeaways } from "./report-takeaways"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -133,14 +134,18 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const historyLabel = weekly ? "Weekly history" : impactPage ? "Saved assessments" : "Saved reports"
   const taskCount = relationships ? reportTestCount(definition.metrics, definition.pair_directions, definition.lag, definition.excluded_pairs) : 0
   const showPairDirections = definition.pair_directions.length > 0
-  const previewDisabled = joinedSelection || Boolean(periodIssue) || datasetCount < (single ? 1 : 2) || single && (!singleDataset || singleDataset.catalog_status === "pending" || Boolean(singleDataset.error_code)) || !impactReady(definition.impact, definition.metrics) || Boolean(impactSetupIssue(definition, datasets)) || Boolean(definition.impact && !canEditDecisions) || taskCount > 1000 || definition.metrics.length > 25 || selectedReportDimensionFilters(definition).some(item => !item.values.length) || busy || weekly && !weeklySettings
+  const previewIssue = periodIssue || (weekly && !weeklySettings ? "Weekly settings are not available yet." : "")
+    || (singleDatasetId && single && (!singleDataset || singleDataset.catalog_status === "pending") ? "Loading the selected dataset's metrics and dates..." : "")
+    || (singleDataset?.error_code ? "The selected dataset could not be loaded. Retry it or choose another dataset." : "")
+    || impactSetupIssue(definition, datasets) || reportSetupIssue(definition, weekly, taskCount)
+  const previewDisabled = joinedSelection || Boolean(previewIssue) || definition.metrics.length > 25 || !impactReady(definition.impact, definition.metrics) || Boolean(definition.impact && !canEditDecisions) || busy
   const weeklySendIssue = weekly && !weeklyDirty ? weeklyDeliveryIssue(report, weeklySettings?.window) : ""
   const uncertainDelivery = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && !analysisJob.retry_safe
   const deliveryNotStarted = analysisJob?.kind === "weekly_owner_send" && analysisJob.status === "failed" && analysisJob.retry_safe === true
   const weeklyPreviewReady = Boolean(weekly && report?.analysis_job_id && report.analysis_job_id === analysisJob?.job_id && analysisJob.kind === "weekly_preview" && analysisJob.status === "succeeded" && analysisJob.definition)
   const weeklySendReady = Boolean(report?.weekly_current && report.analysis_job_id && !weeklyDirty && weeklySettings?.definition
     && report.window.start === weeklySettings.window.start && report.window.end === weeklySettings.window.end)
-  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly ? "Preview report" : definition.impact ? busy ? "Analyzing business impact..." : "Analyze business impact" : "Preview analysis")}</button>
+  const previewButton = <button type="submit" className={`${primaryButton} w-full`} disabled={previewDisabled} aria-describedby={!definition.impact && previewIssue ? "report-preview-issue" : undefined}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{t(weekly ? "Preview report" : definition.impact ? busy ? "Analyzing business impact..." : "Analyze business impact" : "Preview analysis")}</button>
 
   useEffect(() => {
     if (!message) return
@@ -445,11 +450,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   }
 
   async function calculate() {
-    if (analysisSubmission.current || busy) return
+    if (analysisSubmission.current || previewDisabled) return
     analysisSubmission.current = true
     try { await execute(async () => {
       const signal = routeController.current?.signal
-      const payload = { ...(weekly ? weeklyDefinition(definition, weeklySettings?.history_window) : definition), dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }
+      const payload = { ...(weekly ? weeklyDefinition(definition, weeklySettings?.history_window) : definition), business_question: definition.business_question.trim() || defaultReportQuestion(definition, weekly), dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }
       if (!weekly && payload.impact?.decision_id) {
         const context = await request<DecisionReviewContext>(`/review-decisions/${payload.impact.decision_id}`, { signal })
         Object.assign(payload, automaticImpactDefinition(payload, context, datasets), decisionReviewDetails(context.decision))
@@ -586,7 +591,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
 
   const reportDetails = <div className="grid min-w-0 gap-4 md:grid-cols-2">
     <div className="min-w-0"><label htmlFor="report-name" className="block text-xs font-medium text-gray-700">Report name</label><input id="report-name" aria-describedby="report-name-hint" className={input} required maxLength={120} value={definition.name} onChange={event => edit({ name: event.target.value })} /><p id="report-name-hint" className="mt-1 text-xs text-gray-500">{t("Edit this report name to suit your analysis.")}</p></div>
-    <label className="block text-xs font-medium text-gray-700">Business question<input className={input} required minLength={8} maxLength={1000} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
+    <label className="block text-xs font-medium text-gray-700">Business question (optional)<input className={input} maxLength={1000} placeholder={defaultReportQuestion(definition, weekly)} value={definition.business_question} onChange={event => edit({ business_question: event.target.value })} /></label>
   </div>
   const catalogFooter = nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>
   if (loading) return <div className="min-w-0 w-full space-y-5"><h1 className="text-2xl font-semibold">{t(pageTitle)}</h1><p role="status" className="py-8 text-sm text-gray-600">{t(weekly ? "Loading weekly reports..." : "Loading analysis...")}</p></div>
@@ -646,7 +651,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <div className="ml-auto flex flex-wrap gap-2">
         {!weekly && view === "explore" && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>}
         {report && view === "report" && <>
-          {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>}
+          <p role="status" className="self-center text-xs text-gray-600">{report.weekly_current ? "Current weekly report" : report.report_id ? "Saved report" : "Preview only / Not saved"}</p>
+          {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save report"}</button>}
           {weekly && weeklyPreviewReady && canManage && !report.weekly_current && !analysisJob?.weekly_settings_saved && <button type="button" className={primaryButton} disabled={busy || !canSave || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />Save changes</button>}
           {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
           {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
@@ -683,7 +689,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} readiness={currentImpactContext?.readiness} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
             actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
-          {reportDetails}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <ReportMetricPicker key={single ? `single-${singleDatasetId ?? "none"}` : "multi"} userId={userId} workspaceId={workspaceId} selectedDatasetId={singleDatasetId} onDatasetChange={chooseSingleDataset} onDatasetSearch={searchSingleDatasets} selectionDisabled={busy} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
@@ -715,10 +720,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                 </div></section>}
               </div>
               <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{relationships && <> / {taskCount} relationship checks</>}</p>
-              {taskCount > 1000 && <p className="shrink-0 text-sm text-amber-800">Report analysis exceeds the 1,000-test limit.</p>}
+              {previewIssue && <p id="report-preview-issue" role="status" className="shrink-0 text-sm text-amber-800">{t(previewIssue)}</p>}
               {previewButton}
             </section>
-          </div></>}
+          </div>
+          <details className="space-y-4 border-b border-gray-200 pb-5"><summary className="cursor-pointer text-sm font-medium">Report details</summary>{reportDetails}</details>
+          </>}
         </fieldset>
         {weekly && !canManage && <button type="submit" className={primaryButton} disabled={previewDisabled}><Play size={16} />Preview weekly report</button>}
       </form>
@@ -733,18 +740,18 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           onReview={canEditDecisions && canSave ? findingId => void openDecisionDraft(undefined, findingId) : undefined} /> : <>
         <SupportingEvidence collapsed={!weekly && Boolean(report.impact_analysis)}>
         <ReportOverview report={report} />
+        <ReportTakeaways report={report} />
+        {!report.impact_analysis && <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}
         {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
-        {report.ai_analysis && <section aria-label="Report interpretation" className="space-y-3 border-b border-gray-200 pb-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">{t("Report interpretation")}</h3><span className="text-xs text-gray-500">{report.ai_analysis.confidence} confidence</span></div><p className="text-xs text-gray-500">{getAIAnalysisProvenance(report.ai_analysis)}</p><p className="break-words text-sm leading-6 text-gray-700">{report.ai_analysis.summary}</p><Statements statements={report.ai_analysis.recommendations} /><Statements statements={report.ai_analysis.risks} /></section>}
         <MetricTrends report={report} />
         {report.weekly_anomaly_analysis && <ReportAnomalies analysis={report.weekly_anomaly_analysis} title="Whole-week assessment" enabled={report.definition.include_anomalies !== false} />}
         <ReportAnomalies analysis={report.anomaly_analysis} enabled={report.definition.include_anomalies !== false} title={report.weekly_anomaly_analysis ? "Daily changes" : "Anomaly detection"} />
         {weekly && <WeeklyDecisionUpdate report={report} />}
         <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : relationships ? "Relationships between the selected metrics are checked separately." : report.definition.include_anomalies !== false ? "Anomaly detection results are shown separately." : "Review the available totals above."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         {relationships && <ReportRelationshipFindings report={report} />}
-        {!report.impact_analysis && <section className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">Follow-up actions</h3><Statements statements={report.recommendations} /></section>}
         <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
-        <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />
+        {report.impact_analysis && <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}
         </>}
       </>}
     </section>

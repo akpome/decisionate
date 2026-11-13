@@ -10,7 +10,9 @@ setup and Report preview; Business Analysis uses Build analysis and Analysis pre
 ## Configure weekly analysis and sending separately
 
 Open Analysis -> Weekly Reports. Select metrics, date columns, dimension filters,
-business question, seasonal setting and relationship pairs. Choose Preview report.
+seasonal setting and relationship pairs. Report details contains the editable
+name and optional business question. If the question is blank, the report asks
+what changed last week and what needs attention next. Choose Preview report.
 Previewing calculates the draft without changing the saved weekly setup or sending email.
 After a successful preview, choose Save changes. Each workspace has one current
 weekly report. Saving replaces that report and its setup for future weeks,
@@ -31,6 +33,16 @@ for new deliveries; old delivery logs cannot reconstruct missing report contents
 Removed pairs remain excluded
 from weekly relationship analysis, while their selected metrics still receive
 KPI and anomaly analysis. Saving settings does not enable sending or change recipients.
+
+In the preview, This week at a glance is followed by What deserves attention,
+before the detailed charts. Each priority finding includes its supported next
+step and result to track. Create decision opens the central form with that
+finding's evidence; it does not execute an action or assume improvement.
+View existing decision opens an already-linked decision instead of duplicating it.
+Supporting evidence and Expected result and limitations remain available with
+the finding. An incomplete report states its coverage problem at the top and
+does not offer new decision creation or email delivery. Detailed metric charts,
+relationship evidence, decision progress and source quality remain available.
 
 A saved business analysis offers Copy selection to Weekly Reports. This is an
 editable copy, not a live link. Non-weekly timing choices reset to same-period

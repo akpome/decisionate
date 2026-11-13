@@ -251,7 +251,7 @@ test("the builder shows timing above pairs without checkboxes and invalidates re
   assert.doesNotMatch(relationshipSettings, /Minimum matching/)
   assert.match(relationshipSettings, /<section aria-label=\{t\("Delay to check"\)\}/)
   assert.doesNotMatch(source, /Include AI interpretation|checked=\{definition\.lag\.enabled\}|definition\.lag\.enabled &&/)
-  assert.doesNotMatch(settings, /<details|<summary|cursor-pointer/)
+  assert.doesNotMatch(settings.slice(0, settings.indexOf("{previewButton}")), /<details|<summary|cursor-pointer/)
   assert.equal((settings.match(/report-builder-scroll/g) || []).length, 1)
   assert.doesNotMatch(settings, /overflow-y-|max-h-/)
   assert.equal((source.match(/<ReportPairDirections /g) || []).length, 1)

@@ -575,16 +575,17 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Build a report",
         steps: [
           "Open Business Analysis in the sidebar and configure the selected datasets and metrics in Build analysis.",
-          "Rename the report to suit your analysis, enter a business question, and preview the findings. Save snapshot stores the generated report; reopening a snapshot preserves its analysis.",
+          "Choose your metrics and dates first. Report details contains the editable name and optional business question; leaving the question blank uses a question suited to this report. Preview explains any missing inputs. Review What matters and Next steps, then Save report to keep the completed analysis.",
           "Business Analysis report names are unique starting labels, not descriptions of the business question. Weekly reports default to Weekly Business Report. Custom names are kept; edit a report name to describe its purpose.",
           "Changing metric, date, dimension, seasonal, or timing settings requires a fresh preview before saving the changed analysis.",
-          "Use the report as a review package. Reports are not a replacement for recording the business decision and expected outcome.",
+          "Create decision opens a decision form with the report's evidence; it does not implement an action or promise an outcome. Record the action, expected result and review date. Existing linked decisions remain available instead of creating duplicates.",
         ],
       },
       {
         title: "Set up or remove weekly report settings",
         steps: [
-          "Open Weekly Reports in the sidebar. In Report setup, select source metrics, date columns, dimension filters, business question, relationship pairs and the seasonal-business setting. Choose Preview report. Previewing does not save or change the existing weekly setup.",
+          "Open Weekly Reports in the sidebar. In Report setup, select source metrics, date columns, dimension filters, relationship pairs and the seasonal-business setting. Report details holds the name and optional business question. Choose Preview report. Previewing does not save or change the existing weekly setup.",
+          "In the weekly preview, What deserves attention pairs each finding with its supported next step and result to track, before the charts. Create decision opens the central form for that finding; View existing decision opens its already-linked action. Limited coverage blocks new decision creation and sending, not access to the evidence.",
           "Each workspace has one current weekly report. After a successful preview, choose Save changes to replace it and its setup for future weeks. A different name does not create another active report. Changing the setup requires another preview before saving. These settings remain independent of Business Analysis.",
           "Weekly history contains sent reports and previously saved legacy reports. Opening history does not change the current setup. Replacing the current report keeps previously sent reports and decision evidence unchanged.",
           "Decision assessment is configured in Business Analysis under Business impact, not on a weekly tab. Existing weekly assessments are preserved as read-only setups and short Decision updates. Open Business impact opens the decision's assessment workflow within Business Analysis; it does not change weekly settings. Set up metric monitoring switches to an unsaved monitoring setup only after confirmation; preview and Save changes are still required to replace the weekly configuration. Saved assessments and history remain available.",

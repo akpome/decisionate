@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { formatReportValue, type BusinessReport } from "./types"
-import type { IntelligenceFinding } from "./weekly-intelligence-types"
+import type { IntelligenceFinding, WeeklyIntelligence } from "./weekly-intelligence-types"
 import { ReportAnomalies } from "./report-anomalies"
 
 const section = "min-w-0 space-y-4 border-b border-gray-200 pb-6"
@@ -16,13 +16,21 @@ function Notes({ values }: { values: string[] }) {
   return values.length ? <ul className="list-disc space-y-2 pl-5 text-sm text-gray-600">{values.map((value, index) => <li key={index} className="break-words">{value.replaceAll("_", " ")}</li>)}</ul> : null
 }
 
-function Finding({ item, report }: { item: IntelligenceFinding; report: BusinessReport }) {
+function Finding({ item, report, actions, onReview, busy }: { item: IntelligenceFinding; report: BusinessReport;
+  actions: WeeklyIntelligence["recommendations"]; onReview?: (findingId: string) => void; busy: boolean }) {
   const metric = report.metrics.find(value => value.id === item.metric_ids[0])
   const value = (number: number | null) => formatReportValue(number, metric?.currency)
+  const decisionId = item.related_decision_id || actions.find(action => action.related_decision_id)?.related_decision_id
   return <article id={item.id} className="min-w-0 space-y-2 border-l-2 border-blue-500 pl-4">
     <h4 className="break-words font-medium">{item.title}</h4>
     <p className="break-words text-sm leading-6">{item.observation}</p>
     <p className="text-xs text-gray-600">{item.continuity}</p>
+    {actions.map(action => <div key={action.id} className="space-y-2 pt-2" aria-label="Recommended next step">
+      <h5 className="text-sm font-semibold">Next step</h5>
+      <p className="break-words text-sm leading-6">{action.action}</p>
+      <p className="break-words text-xs text-gray-600">{action.priority} / Result to track: {report.metrics.find(metric => metric.id === action.success_metric_id)?.label || action.success_metric_id}</p>
+      <details className="space-y-2"><summary className="cursor-pointer text-sm">Expected result and limitations</summary><p className="text-sm">{action.expected_direction}</p><Notes values={action.limitations} /></details>
+    </div>)}
     <details className="space-y-3 text-sm"><summary className="cursor-pointer font-medium">Supporting evidence</summary>
       <p className="break-words">{metric?.dataset_label} / {metric?.label} / {metric?.aggregation}</p>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -34,7 +42,8 @@ function Finding({ item, report }: { item: IntelligenceFinding; report: Business
       <p>{item.relevance}</p><p className="text-xs text-gray-500">Priority basis: {item.rank_basis}</p>
       <Notes values={item.limitations} />
     </details>
-    {item.related_decision_id && <Link href={`/dashboard/decisions/${item.related_decision_id}`} className={link}>View existing decision<ArrowRight size={16} /></Link>}
+    {decisionId ? <Link href={`/dashboard/decisions/${decisionId}`} className={link}>View existing decision<ArrowRight size={16} /></Link>
+      : actions.length > 0 && onReview && report.status === "ready" && <button type="button" className={`${link} disabled:opacity-50`} disabled={busy} onClick={() => onReview(item.id)}>Create decision<ArrowRight size={16} /></button>}
   </article>
 }
 
@@ -44,24 +53,29 @@ export function WeeklyIntelligenceReport({ report, snapshot, onReview, busy }: {
   const intelligence = report.intelligence!
   const label = (id: string) => { const metric = report.metrics.find(item => item.id === id); return metric ? `${metric.dataset_label} / ${metric.label}` : id }
   const count = intelligence.default_finding_count
+  const findingIds = new Set(intelligence.findings.map(item => item.id))
+  const otherActions = intelligence.recommendations.filter(item => !findingIds.has(item.finding_id))
+  const finding = (item: IntelligenceFinding) => <Finding key={item.id} item={item} report={report} actions={intelligence.recommendations.filter(action => action.finding_id === item.id)} onReview={onReview} busy={busy} />
   return <div className="min-w-0 space-y-6">
     <section className={section} aria-label="Weekly intelligence summary"><h3 className={heading}>This week at a glance</h3>
+      {report.status !== "ready" && <p role="status" className="border-l-2 border-amber-500 pl-3 text-sm text-amber-900">Some selected datasets have no usable results for this week. Creating a decision or emailing this report requires usable results from at least two datasets.</p>}
       <p className="break-words text-sm leading-7">{intelligence.summary}</p>
       <p className="text-xs text-gray-500">{intelligence.narrative_source === "rules" ? "Evidence-based summary" : "AI-selected summary from verified evidence"} / {intelligence.reporting_timezone}</p>
     </section>
-    <section className={section} aria-label="Business performance snapshot"><h3 className={heading}>Business performance</h3>
-      {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
-      {snapshot}</section>
     <section className={section} aria-label="Priority intelligence findings"><h3 className={heading}>What deserves attention</h3>
       {intelligence.findings.length === 0 && <p className="text-sm text-gray-600">No supported priority change was identified. Review the coverage below.</p>}
-      {intelligence.findings.slice(0, count).map(item => <Finding key={item.id} item={item} report={report} />)}
-      {intelligence.findings.length > count && <details className="space-y-4"><summary className="cursor-pointer text-sm font-medium">More findings ({intelligence.findings.length - count})</summary>{intelligence.findings.slice(count).map(item => <Finding key={item.id} item={item} report={report} />)}</details>}
+      {intelligence.findings.slice(0, count).map(finding)}
+      {intelligence.findings.length > count && <details className="space-y-4"><summary className="cursor-pointer text-sm font-medium">More findings ({intelligence.findings.length - count})</summary>{intelligence.findings.slice(count).map(finding)}</details>}
+      {!intelligence.recommendations.length && <p className="text-sm text-gray-600">No supported action is included in this report.</p>}
       <details><summary className="cursor-pointer text-xs text-gray-600">How findings are prioritized</summary><p className="mt-2 text-xs leading-5 text-gray-600">{intelligence.prioritization}</p></details>
       {report.definition.include_anomalies !== false && <details className="min-w-0 space-y-4"><summary className="cursor-pointer text-sm font-medium">Daily and whole-week anomaly checks</summary>
         <ReportAnomalies analysis={report.weekly_anomaly_analysis} title="Whole-week anomaly detection" />
         <ReportAnomalies analysis={report.anomaly_analysis} title="Daily anomaly detection" />
       </details>}
     </section>
+    <section className={section} aria-label="Business performance snapshot"><h3 className={heading}>Business performance</h3>
+      {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
+      {snapshot}</section>
     <section className={section} aria-label="Cross-dataset investigations"><h3 className={heading}>Connections worth investigating</h3>
       {!intelligence.investigations.length && <p className="text-sm text-gray-600">No eligible relationship was investigated for these changes. No cause has been identified.</p>}
       {intelligence.investigations.map(item => <article key={item.relationship_id} className="min-w-0 space-y-2">
@@ -74,17 +88,14 @@ export function WeeklyIntelligenceReport({ report, snapshot, onReview, busy }: {
         </details>
       </article>)}
     </section>
-    <section className={section} aria-label="Recommended actions"><h3 className={heading}>Recommended next steps</h3>
-      {!intelligence.recommendations.length && <p className="text-sm text-gray-600">No supported action is included in this report.</p>}
-      {intelligence.recommendations.map(item => <article key={item.id} className="min-w-0 space-y-2">
-        <a href={`#${item.finding_id}`} className="text-sm font-medium text-blue-700 underline">{intelligence.findings.find(finding => finding.id === item.finding_id)?.title}</a>
+    {otherActions.length > 0 && <section className={section} aria-label="Additional recommendations"><h3 className={heading}>Other recorded next steps</h3>
+      {otherActions.map(item => <article key={item.id} className="min-w-0 space-y-2">
         <p className="break-words text-sm leading-6">{item.action}</p>
         <p className="break-words text-xs text-gray-600">{item.priority} / Success metric: {label(item.success_metric_id)}</p>
         <details className="space-y-2"><summary className="cursor-pointer text-sm">Expected result and limitations</summary><p className="text-sm">{item.expected_direction}</p><Notes values={item.limitations} /></details>
-        {item.related_decision_id ? <Link className={link} href={`/dashboard/decisions/${item.related_decision_id}`}>View existing decision<ArrowRight size={16} /></Link>
-          : onReview && report.status === "ready" && <button type="button" className={`${link} disabled:opacity-50`} disabled={busy} onClick={() => onReview(item.finding_id)}>Review in Decisions<ArrowRight size={16} /></button>}
+        {item.related_decision_id && <Link className={link} href={`/dashboard/decisions/${item.related_decision_id}`}>View existing decision<ArrowRight size={16} /></Link>}
       </article>)}
-    </section>
+    </section>}
     <section className={section} aria-label="Decisions and outcomes"><h3 className={heading}>Decisions and outcomes</h3>
       <p className="text-xs text-gray-500">Recorded when this report was generated: {intelligence.as_of.slice(0, 19).replace("T", " ")} UTC</p>
       {!intelligence.decisions.length && <p className="text-sm text-gray-600">No relevant decision progress was recorded.</p>}
