@@ -105,6 +105,7 @@ test("repeated removal clicks produce one mutation", async () => {
 
 test("weekly settings commands are separate from the snapshot toolbar", () => {
   assert.match(source, /canManage && report\?\.report_id && !report.weekly_current && <button[^>]*aria-label=\{t\(impactPage \? "Delete saved assessment" : "Delete saved report"\)\}/)
-  assert.match(source, /canManage && weeklySettings\?\.definition && <button[^>]*aria-label="Remove weekly settings"/)
+  assert.match(source, /canManage && weeklySettings\?\.definition && view === "explore" && <details/)
+  assert.match(source, /Remove weekly report setup/)
   assert.doesNotMatch(source, /\/weekly-template|saveWeeklyTemplate/)
 })

@@ -37,12 +37,19 @@ editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
 to three weeks. Preview and save the independent weekly setup before use.
 
-Use Delivery settings or Alerts to check recipients, schedule, delivery preferences
-and email readiness. Enable delivery only after confirming the intended audience.
+Use Scheduled email (also available from Alerts) to check recipients, delivery day,
+timezone, email readiness and delivery history. Save email settings updates only
+delivery preferences, not report selections. The status reflects the saved
+schedule; unsaved changes are labeled separately. Enable delivery only after
+confirming the intended audience. Opening this page does not run another analysis.
+A test email is a delivery check without report results, sent to saved recipients.
+Save recipient changes before testing. Successful saves clear their notice after
+five seconds; failures remain visible. Earlier metric-email selections and targets
+are preserved; new report content is configured and previewed in Weekly Reports.
 A successful scheduler invocation means a job was queued, not that an email was
 delivered. Check terminal analysis status and delivery history separately.
 
-Send report now emails the current weekly report only to the workspace owner,
+Email workspace owner (previously Send report now) emails the current weekly report only to the workspace owner,
 including the client owner in a managed client workspace. First preview and save
 the current weekly report. Sending does not save unsaved changes. This one-time
 send can run while scheduled delivery is paused;
@@ -140,7 +147,7 @@ than repeating an old number. The original saved snapshot remains unchanged.
 
 ## Stop or remove a template
 
-Remove weekly settings pauses delivery while retaining saved snapshots and linked
+In Report setup, Report options -> Remove weekly report setup pauses delivery while retaining saved snapshots and linked
 decisions. Deleting a saved snapshot does not delete the independent weekly
 settings or change delivery. Neither action deletes source datasets or creates a
 business decision. Removing a selected source dataset clears its weekly settings
@@ -161,17 +168,17 @@ two datasets in the latest completed week.
 Preview report, review the results, then Save changes to update the workspace's
 single current weekly report. Saving does not enable delivery or send an email.
 For an on-demand report about one dataset or older dates, use Business Analysis.
-For routine delivery, check Delivery settings separately. A seasonal setting
+For routine delivery, check Scheduled email separately. A seasonal setting
 affects supported unusual-change baselines, not proof that two metrics are related.
 
 ## Why did saving my weekly report not send an email?
 
 Saving updates the current report and future weekly setup, but leaves delivery
-settings unchanged. Weekly report configured / Delivery paused means the report
-is saved and automatic sending is off. Use Delivery settings to review the
+settings unchanged. Weekly report saved / Automatic email off means the report
+is saved and automatic sending is off. Use Scheduled email to review the
 schedule and recipients before enabling it.
 
-An authorized manager can choose Send report now after a successful preview and
+An authorized manager can choose Email workspace owner after a successful preview and
 save with usable data for the required week. That one-time send goes to the
 workspace owner, can work while scheduled delivery is paused, and does not
 change the schedule or recipients. Unsaved selections are not silently saved.

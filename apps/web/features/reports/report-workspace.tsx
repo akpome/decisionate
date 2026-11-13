@@ -612,7 +612,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       {!busy && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />{t("Reconnect")}</button>}
       <button type="button" className={button} disabled={["weekly_send", "weekly_owner_send"].includes(analysisJob.kind) && analysisJob.phase === "sending"} onClick={() => void request<AnalysisJob>(`/jobs/${encodeURIComponent(analysisJob.job_id)}/cancel`, { method: "POST" }).then(setAnalysisJob).catch(value => setError(errorMessage(value)))}><Square size={14} />{t("Cancel analysis")}</button>
     </div>}
-    <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
+    {(!weekly || saved.length > 0 || view === "report" && report) && <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
       {(!weekly || saved.length > 0) && <div className="flex w-full max-w-md items-end gap-2"><label className="block min-w-0 flex-1 text-xs text-gray-600">{t(historyLabel)}<select aria-label={t(historyLabel)} className={input} disabled={busy} value={report?.weekly_current ? "" : report?.report_id || ""} onChange={event => {
         const id = event.target.value
         if (!id) {
@@ -644,26 +644,29 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         {canManage && report?.report_id && !report.weekly_current && <button type="button" className={`${button} text-red-700`} disabled={busy} title={t(impactPage ? "Delete saved assessment" : "Delete saved report")} aria-label={t(impactPage ? "Delete saved assessment" : "Delete saved report")} onClick={() => void deleteSavedReport()}><Trash2 size={16} /></button>}
       </div>}
       <div className="ml-auto flex flex-wrap gap-2">
-        <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>
-        {report && <>
+        {!weekly && view === "explore" && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>}
+        {report && view === "report" && <>
           {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report snapshot saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save snapshot"}</button>}
-          {weekly && view === "report" && (weeklyPreviewReady || report.weekly_current) && canManage && <button type="button" className={primaryButton} disabled={busy || !canSave || report.weekly_current || analysisJob?.weekly_settings_saved || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />{report.weekly_current || analysisJob?.weekly_settings_saved ? "Changes saved" : "Save changes"}</button>}
+          {weekly && weeklyPreviewReady && canManage && !report.weekly_current && !analysisJob?.weekly_settings_saved && <button type="button" className={primaryButton} disabled={busy || !canSave || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />Save changes</button>}
           {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
           {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
           {view === "report" && <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>}
         </>}
-        {weekly && canManage && view === "report" && report && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Send report now</button>}
-        {weekly && <Link href="/dashboard/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Delivery settings</Link>}
+        {weekly && canManage && view === "report" && report && (!report.report_id || report.weekly_current) && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Email workspace owner</button>}
       </div>
-    </div>
+    </div>}
     {historyError && <div className="flex flex-wrap items-center gap-3 text-sm text-amber-900"><p role="alert">{t(impactPage ? "Saved assessments could not be loaded." : "Saved reports could not be loaded.")}</p><button type="button" className={button} onClick={() => { setHistoryError(false); setHistoryReload(value => value + 1) }}><RefreshCw size={16} />{t("Retry")}</button></div>}
     {weekly && view === "report" && report?.report_id && !report.weekly_current && <p role="status" className="border-l-2 border-gray-300 pl-3 text-sm text-gray-600">Historical report / {report.window.start} to {report.window.end}</p>}
     {weekly && <section aria-label="Weekly settings status" className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
-      <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved changes" : weeklySettings?.definition ? "Weekly report configured" : "No weekly report configured"} / {weeklySettings?.enabled ? "Delivery enabled" : "Delivery paused"}</p>
-      {canManage && weeklySettings?.definition && <button type="button" className={`${button} text-red-700`} disabled={busy} title="Remove weekly settings" aria-label="Remove weekly settings" onClick={() => void removeWeeklySettings()}><Trash2 size={16} /></button>}
+      <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved report changes" : weeklySettings?.definition ? "Weekly report saved" : "No weekly report saved"} / {weeklySettings?.enabled ? "Automatic email on" : "Automatic email off"}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        {view === "explore" && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>}
+        {canManage && <Link href="/dashboard/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Scheduled email</Link>}
+        {canManage && weeklySettings?.definition && view === "explore" && <details className="relative"><summary className="cursor-pointer text-sm text-gray-600">Report options</summary><div className="absolute right-0 z-10 mt-2 w-64 max-w-[80vw] rounded-md border border-gray-200 bg-white p-2 shadow-sm"><button type="button" className={`${button} w-full text-red-700`} disabled={busy} onClick={() => void removeWeeklySettings()}><Trash2 size={16} />Remove weekly report setup</button></div></details>}
+      </div>
     </section>}
     {weeklySendIssue && <p role="status" className="border-l-2 border-amber-500 pl-3 text-sm leading-6 text-amber-900">{weeklySendIssue}</p>}
-    {uncertainDelivery && <p role="status" className="text-sm leading-6 text-amber-900">Delivery could not be confirmed. Check <Link href="/dashboard/alerts#weekly-delivery" className="text-blue-700 underline">delivery history</Link> before attempting another send.</p>}
+    {uncertainDelivery && <p role="status" className="text-sm leading-6 text-amber-900">Delivery could not be confirmed. Check <Link href="/dashboard/alerts#delivery-history" className="text-blue-700 underline">delivery history</Link> before attempting another send.</p>}
     {deliveryNotStarted && <p role="status" className="text-sm leading-6 text-amber-900">Report preparation stopped before email delivery started. No email was sent. Generate a new preview, then try sending again.</p>}
 
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">

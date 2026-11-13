@@ -3,7 +3,6 @@ import {
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
 import type { BusinessReport } from "@/features/reports/types"
-import { waitForAnalysis, type AnalysisJob } from "@/features/reports/analysis-jobs"
 import { ApiReadCache } from "@/lib/api-read-cache"
 import {
   dashboardUsesDatasetMetricMapping,
@@ -1103,6 +1102,8 @@ export type WeeklyReportPreference = {
     | "wednesday"
     | "thursday"
     | "friday"
+    | "saturday"
+    | "sunday"
   recipient_emails: string[]
   metric_focus: string[]
   business_report_id?: string | null
@@ -4146,17 +4147,12 @@ export async function getWeeklyReportPreference(
   return response.json()
 }
 
-export async function getWeeklyReportDigest(
-  userId: string,
-  workspaceId?: string,
-  options?: {
-    notifyAvailability?: boolean
-    includeAIAnalysis?: boolean
-  }
-): Promise<WeeklyReportDigest> {
-  const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
-  const job = await request<AnalysisJob>(`/weekly-jobs?report_only=false&include_ai_analysis=${options?.includeAIAnalysis !== false}`, { method: "POST" })
-  return waitForAnalysis<WeeklyReportDigest>(request, job.job_id)
+export async function getWeeklyReportDeliveryHistory(userId: string, workspaceId?: string): Promise<WeeklyReportDeliveryLog[]> {
+  const response = await apiFetch(`${API_URL}/alerts/weekly-report/delivery-history?limit=20`, {
+    headers: await workspaceHeaders(userId, workspaceId), cache: "no-store",
+  }, apiRequestTimeoutMs, false)
+  if (!response.ok) await throwApiError(response, "Delivery history could not be loaded")
+  return response.json()
 }
 
 export async function getWeeklyReportDeliveryConfig(

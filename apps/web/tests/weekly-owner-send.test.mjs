@@ -109,7 +109,7 @@ test("uncertain status reads preserve the same idempotency key on a deliberate r
 })
 
 test("send controls and grouping labels are specific to the weekly page", () => {
-  assert.match(source, /weekly && canManage && view === "report" && report && <button[^>]*[\s\S]*?Send report now/)
+  assert.match(source, /weekly && canManage && view === "report" && report && \(!report.report_id \|\| report.weekly_current\) && <button[^>]*[\s\S]*?Email workspace owner/)
   assert.match(source, /Report week: daily detail/)
   assert.match(source, /Earlier history: grouped weekly/)
   assert.match(source, /\["weekly_send", "weekly_owner_send"\].includes\(analysisJob.kind\) && analysisJob.phase === "sending"/)

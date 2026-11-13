@@ -145,17 +145,18 @@ test("seasonality is opt-in, survives editing a saved definition, and is not inf
   assert.equal(types.editableDefinition({ seasonal_business: false }).seasonal_business, false)
 })
 
-test("both report tabs and weekly delivery use the shared anomaly display", () => {
+test("report previews use the shared anomaly display without recomputing on the email settings page", () => {
   const workspace = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   const single = readFileSync(new URL("../features/reports/single-dataset-report.tsx", import.meta.url), "utf8")
-  const weekly = readFileSync(new URL("../app/dashboard/alerts/page.tsx", import.meta.url), "utf8")
+  const weekly = readFileSync(new URL("../features/reports/weekly-intelligence.tsx", import.meta.url), "utf8")
   assert.match(workspace, /checked=\{definition.seasonal_business\}/)
   assert.match(workspace, /edit\(\{ seasonal_business: event.target.checked \}\)/)
   assert.match(workspace, /<ReportAnomalies analysis=\{report.anomaly_analysis\}/)
   assert.match(workspace, /<ReportAnomalies analysis=\{report.weekly_anomaly_analysis\} title="Whole-week assessment"/)
   assert.match(single, /<ReportPage scope="single"/)
-  assert.match(weekly, /<ReportAnomalies analysis=\{digest.cross_dataset_report.anomaly_analysis\}/)
-  assert.match(weekly, /<ReportAnomalies analysis=\{digest.cross_dataset_report.weekly_anomaly_analysis\} title="Whole-week assessment"/)
+  assert.match(weekly, /<ReportAnomalies analysis=\{report.anomaly_analysis\}/)
+  assert.match(weekly, /<ReportAnomalies analysis=\{report.weekly_anomaly_analysis\} title="Whole-week anomaly detection"/)
+  assert.doesNotMatch(readFileSync(new URL("../features/alerts/weekly-email-settings.tsx", import.meta.url), "utf8"), /getWeeklyReportDigest|weekly-jobs|ReportAnomalies/)
 })
 
 test("anomaly table labels remain readable inside their mobile horizontal scroll region", () => {
