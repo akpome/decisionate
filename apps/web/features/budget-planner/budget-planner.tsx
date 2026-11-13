@@ -2,17 +2,17 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeft, ArrowRight, Check, LoaderCircle, Plus, Play, Save, Target, Trash2, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, Plus, Play, RefreshCw, Save, Target, Trash2, X } from "lucide-react"
 import { correlationRequest } from "@/lib/api"
 import { SearchableSelect } from "@/components/searchable-select"
 import { AnalysisUnavailableError, analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "@/features/reports/analysis-jobs"
 import { SourcePicker } from "./source-picker"
-import { amount, blankSelection, missingSelection, nextMonday, type BudgetDefinition, type BudgetResult } from "./types"
+import { amount, blankSelection, budgetSetupIssue, newBudgetDefinition, type BudgetDefinition, type BudgetResult } from "./types"
 import styles from "./planner.module.css"
 
 type SavedPlans = { plans: { plan_id: string; name: string; created_at: string }[]; next_offset: number | null }
 export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { userId: string; workspaceId?: string; canSave: boolean; canDecide: boolean }) {
-  const [definition, setDefinition] = useState<BudgetDefinition>(() => ({ name: "Budget plan", outcome: blankSelection(), options: [1, 2].map(index => ({ ...blankSelection(), name: `Option ${index}` })), controls: [], budget: 0, currency: "CAD", start_date: nextMonday(), weeks: 4, comparable_spend_confirmed: false, business_context_confirmed: false }))
+  const [definition, setDefinition] = useState<BudgetDefinition>(newBudgetDefinition)
   const [result, setResult] = useState<BudgetResult | null>(null)
   const [step, setStep] = useState(0)
   const [error, setError] = useState("")
@@ -21,25 +21,31 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
   const [jobId, setJobId] = useState<string | null>(null)
   const [saved, setSaved] = useState<SavedPlans>({ plans: [], next_offset: null })
   const [decision, setDecision] = useState<{ title: string; action: string; expected_outcome: string; review_date: string } | null>(null)
+  const [plansError, setPlansError] = useState("")
   const active = useRef<AbortController | null>(null)
   const pending = useRef(false)
   const requestKey = useRef<string | null>(null)
   const mounted = useRef(true)
   const request = useCallback(<T,>(path: string, init?: RequestInit) => correlationRequest<T>(userId, `/budget-plans${path}`, init, workspaceId), [userId, workspaceId])
   const loadPlans = useCallback(async (offset = 0) => {
-    const data = await request<SavedPlans>(`?offset=${offset}`)
-    if (mounted.current) setSaved(previous => ({ ...data, plans: offset ? [...previous.plans, ...data.plans] : data.plans }))
+    try {
+      const data = await request<SavedPlans>(`?offset=${offset}`)
+      if (mounted.current) { setSaved(previous => ({ ...data, plans: offset ? [...previous.plans, ...data.plans] : data.plans })); setPlansError("") }
+    } catch { if (mounted.current) setPlansError("Saved plans could not be loaded. Your current setup is unchanged.") }
   }, [request])
   useEffect(() => {
     mounted.current = true
-    void loadPlans().catch(failure => { if (mounted.current) setError(failure.message) })
-    return () => { mounted.current = false; active.current?.abort() }
+    let current = true
+    queueMicrotask(() => { if (current) void loadPlans() })
+    return () => { current = false; mounted.current = false; active.current?.abort() }
   }, [loadPlans])
   function change(next: BudgetDefinition) {
     active.current?.abort(); pending.current = false; requestKey.current = null; setBusy(false); setDefinition(next); setResult(null); setJobId(null); setDecision(null); setError("")
   }
   async function preview() {
     if (pending.current) return
+    const issue = budgetSetupIssue(definition)
+    if (issue) { setError(issue); return }
     pending.current = true
     const controller = new AbortController(); active.current?.abort(); active.current = controller
     setBusy(true); setError(""); setPhase("queued")
@@ -67,18 +73,19 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
     finally { pending.current = false; if (mounted.current) setBusy(false) }
   }
   const picker = { userId, workspaceId }
-  const disabled = missingSelection(definition) || definition.budget <= 0 || !definition.start_date || !definition.name.trim() || !/^[A-Z]{3}$/.test(definition.currency)
+  const setupIssue = budgetSetupIssue(definition)
   return <div className={styles.planner} aria-busy={busy}>
     <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-5"><h1>Budget Planner</h1><Link href="/dashboard/help">Help &amp; Support</Link></header>
     <div className="flex flex-wrap items-end gap-3 py-5">
       <div className="min-w-0 flex-1 sm:max-w-lg"><SearchableSelect label="Saved plans" options={saved.plans.map(item => ({ value: item.plan_id, label: `${item.name} (${item.created_at.slice(0, 10)})` }))} value={result?.plan_id || null} placeholder="Unsaved plan" disabled={busy}
-        onChange={id => void action(async () => { const data = await request<BudgetResult>(`/${id}`); if (mounted.current) { setResult(data); setDefinition(data.definition); setJobId(null); setDecision(null); setStep(2) } })}
+        onChange={id => void action(async () => { const data = await request<BudgetResult>(`/${id}`); if (mounted.current) { requestKey.current = null; setResult(data); setDefinition(data.definition); setJobId(null); setDecision(null); setStep(data.status === "ready" ? 2 : 1) } })}
         footer={saved.next_offset !== null && <button disabled={busy} onClick={() => void action(() => loadPlans(saved.next_offset!))}>Load more plans</button>} /></div>
-      <button disabled={busy} onClick={() => { change({ ...definition, name: "Budget plan" }); setStep(0) }}><Plus size={16} />New plan</button>
+      <button disabled={busy} onClick={() => { change(newBudgetDefinition()); setStep(0) }}><Plus size={16} />New plan</button>
       {result?.plan_id && canSave && <button disabled={busy} title="Delete saved plan" aria-label="Delete saved plan" onClick={() => {
         if (window.confirm("Delete this saved plan? Its linked decision will remain.")) void action(async () => { await request(`/${result.plan_id}`, { method: "DELETE" }); if (mounted.current) { setResult(null); setStep(0) }; await loadPlans() })
       }}><Trash2 size={16} /></button>}
     </div>
+    {plansError && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-amber-800"><span>{plansError}</span><button disabled={busy} onClick={() => void action(() => loadPlans())}><RefreshCw size={16} />Retry saved plans</button></div>}
     {error && <p role="alert" className="border-l-2 border-red-600 bg-red-50 p-3 text-red-800">{error}</p>}
     <nav aria-label="Budget planning steps" className="flex flex-wrap gap-2 border-b py-3">{["Set up budget", "Check evidence", "Compare allocations"].map((label, index) =>
       <button key={label} disabled={busy || index > 0 && !result || index === 2 && result?.status !== "ready"} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>{index + 1}. {label}</button>)}</nav>
@@ -110,7 +117,8 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
           <label className={styles.check}><input type="checkbox" checked={definition.business_context_confirmed} onChange={event => change({ ...definition, business_context_confirmed: event.target.checked })} />I have considered other influences, such as promotions and availability. Any added context is not itself a result of this spending.</label>
         </div>
       </fieldset>
-      <div className="flex flex-wrap items-center gap-3 border-t py-5"><button className={styles.primary} disabled={busy || disabled} type="submit">{busy ? <LoaderCircle className="animate-spin" size={16} /> : <Play size={16} />}{result ? "Refresh preview" : jobId ? "Resume preview" : "Preview budget"}</button>
+      {setupIssue && <p id="budget-setup-issue" role="status" className="py-3 text-sm text-gray-600">{setupIssue}</p>}
+      <div className="flex flex-wrap items-center gap-3 border-t py-5"><button className={styles.primary} disabled={busy || Boolean(setupIssue)} aria-describedby={setupIssue ? "budget-setup-issue" : undefined} type="submit">{busy ? <LoaderCircle className="animate-spin" size={16} /> : <Play size={16} />}{result ? "Refresh preview" : jobId ? "Resume preview" : "Preview budget"}</button>
         {busy && <><span role="status">{analysisPhaseLabel(phase)}</span><button type="button" onClick={() => { active.current?.abort(); pending.current = false; requestKey.current = null; setBusy(false); if (jobId) void request(`/jobs/${jobId}`, { method: "DELETE" }).catch(failure => { if (mounted.current) setError(failure.message) }); setJobId(null) }}><X size={16} />Cancel</button></>}
       </div>
     </form>}

@@ -34,6 +34,12 @@ AI-inferred identity service. Choose the record date column for each source,
 preview the matches, then save linked history. Each original row is retained,
 including unmatched rows. Original source datasets are not modified.
 
+Preview matches shows any missing identity or metric selections before a run.
+If dataset columns cannot be loaded, Retry dataset columns keeps the chosen
+sources and valid column selections. After saving, Linked history saved prevents
+another identical save. Changing match approvals or the optional summary allows
+an updated save; changing source or column selections requires another preview.
+
 Linked history is a separate dataset with a shared record date, customer or
 product identity, source dataset and source row. Original columns are kept with
 source-specific names. Approved analytical measures keep their source's units,

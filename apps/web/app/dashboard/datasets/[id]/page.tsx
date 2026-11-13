@@ -805,6 +805,7 @@ export default function DatasetDetailsPage() {
           <div className="flex min-w-0 flex-wrap gap-3">
             <div className="w-full min-w-0 sm:w-72">
               <DatasetSelector
+                allowClear={false}
                 value={datasetId ?? undefined}
                 onChange={(nextDatasetId) => {
                   if (

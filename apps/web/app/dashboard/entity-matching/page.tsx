@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
 import {
@@ -59,6 +59,11 @@ function EntityMatchingWorkspace() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const [metadataFailed, setMetadataFailed] = useState(false)
+  const [loadingMetadata, setLoadingMetadata] = useState(false)
+  const pending = useRef(false)
+  const initialized = useRef(false)
 
   useEffect(() => {
     if (!user?.id) return
@@ -75,7 +80,9 @@ function EntityMatchingWorkspace() {
           dataset => dataset.source_type !== "entity_matching"
         )
         setDatasets(sourceDatasets)
-        setSelectedIds(sourceDatasets.slice(0, 2).map(dataset => dataset.id))
+        if (initialized.current) setSelectedIds(selected => selected.filter(id => sourceDatasets.some(dataset => dataset.id === id)))
+        else setSelectedIds(sourceDatasets.slice(0, 2).map(dataset => dataset.id))
+        initialized.current = true
       })
       .catch(loadError => {
         if (current) setError(getErrorMessage(loadError, "Unable to load datasets."))
@@ -86,14 +93,16 @@ function EntityMatchingWorkspace() {
     return () => {
       current = false
     }
-  }, [activeWorkspaceId, user?.id, user?.primaryEmailAddress?.emailAddress, workspaceVersion])
+  }, [activeWorkspaceId, user?.id, user?.primaryEmailAddress?.emailAddress, workspaceVersion, refreshVersion])
 
   useEffect(() => {
+    let current = true
     if (!user?.id || selectedIds.length === 0) {
-      return
+      queueMicrotask(() => { if (current) { setLoadingMetadata(false); setMetadataFailed(false) } })
+      return () => { current = false }
     }
 
-    let current = true
+    queueMicrotask(() => { if (current) { setLoadingMetadata(true); setMetadataFailed(false) } })
     void getEntityMatchingMetadata(
       selectedIds,
       entityType,
@@ -115,7 +124,7 @@ function EntityMatchingWorkspace() {
             const existingColumns = existing[datasetKey]?.filter(
               column => dataset.columns.includes(column)
             )
-            next[datasetKey] = existingColumns?.length
+            next[datasetKey] = existingColumns !== undefined
               ? existingColumns
               : dataset.default_key_columns
           })
@@ -128,7 +137,7 @@ function EntityMatchingWorkspace() {
             const existingColumns = existing[datasetKey]?.filter(
               column => dataset.metric_columns.includes(column)
             )
-            next[datasetKey] = existingColumns?.length
+            next[datasetKey] = existingColumns !== undefined
               ? existingColumns
               : dataset.default_metric_columns
           })
@@ -138,9 +147,11 @@ function EntityMatchingWorkspace() {
       .catch(metadataError => {
         if (current) {
           setColumnMetadata([])
+          setMetadataFailed(true)
           setError(getErrorMessage(metadataError, "Unable to load dataset columns."))
         }
       })
+      .finally(() => { if (current) setLoadingMetadata(false) })
 
     return () => {
       current = false
@@ -151,7 +162,8 @@ function EntityMatchingWorkspace() {
     () => datasets.filter(dataset => selectedIds.includes(dataset.id)),
     [datasets, selectedIds]
   )
-  const columnMetadataLoading = selectedIds.some(id => !columnMetadata.some(dataset => dataset.dataset_id === id))
+  const columnsMissing = selectedIds.some(id => !columnMetadata.some(dataset => dataset.dataset_id === id))
+  const columnMetadataLoading = !metadataFailed && (loadingMetadata || columnsMissing)
 
   function toggleDataset(datasetId: number) {
     setPreview(null)
@@ -258,19 +270,24 @@ function EntityMatchingWorkspace() {
     })
   }
 
+  const setupIssue = loading ? "Loading datasets..."
+    : metadataFailed ? "Dataset columns could not be loaded. Retry to continue."
+    : selectedIds.length < 2 ? "Choose at least two datasets to match."
+    : columnMetadataLoading ? "Loading dataset columns..."
+    : hasMissingKeyColumns() ? "Choose at least one identity column for each dataset."
+    : hasMissingMetricColumns() ? "Choose at least one metric to include from each dataset."
+    : ""
+
+  function refresh() {
+    if (pending.current) return
+    setPreview(null); setResult(null); setError(""); setStatusMessage("")
+    setLoading(true)
+    setRefreshVersion(current => current + 1)
+  }
+
   async function handlePreview() {
-    if (!user?.id || selectedIds.length < 2) {
-      setError("Select at least two datasets to compare.")
-      return
-    }
-    if (hasMissingKeyColumns()) {
-      setError("Choose at least one identity column for each selected dataset.")
-      return
-    }
-    if (hasMissingMetricColumns()) {
-      setError("Choose at least one metric or column for each selected dataset.")
-      return
-    }
+    if (!user?.id || pending.current || !canManageWorkspaceData || setupIssue) return
+    pending.current = true
     setBusy(true)
     setError("")
     setStatusMessage("")
@@ -292,24 +309,14 @@ function EntityMatchingWorkspace() {
     } catch (previewError) {
       setError(getErrorMessage(previewError, "Unable to preview entity matches."))
     } finally {
+      pending.current = false
       setBusy(false)
     }
   }
 
   async function handleSave() {
-    if (!preview) return
-    if (!user?.id || selectedIds.length < 2) {
-      setError("Select at least two datasets to match.")
-      return
-    }
-    if (hasMissingKeyColumns()) {
-      setError("Choose at least one identity column for each selected dataset.")
-      return
-    }
-    if (hasMissingMetricColumns()) {
-      setError("Choose at least one metric or column for each selected dataset.")
-      return
-    }
+    if (!user?.id || !preview || result || pending.current || !canManageWorkspaceData || setupIssue) return
+    pending.current = true
     setBusy(true)
     setError("")
     setStatusMessage("")
@@ -331,6 +338,7 @@ function EntityMatchingWorkspace() {
     } catch (saveError) {
       setError(getErrorMessage(saveError, "Unable to save entity matches."))
     } finally {
+      pending.current = false
       setBusy(false)
     }
   }
@@ -342,7 +350,8 @@ function EntityMatchingWorkspace() {
         actions={
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={refresh}
+            disabled={busy || loading || loadingMetadata}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             title="Refresh datasets"
           >
@@ -358,7 +367,9 @@ function EntityMatchingWorkspace() {
         message="Only workspace owners can run entity matching. You can still review existing analysis in this workspace."
       />
 
-      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}
+        {metadataFailed && <button type="button" onClick={refresh} disabled={busy || loading || loadingMetadata} className="ml-3 inline-flex items-center gap-1 font-medium"><RefreshCw size={14} />{t("Retry dataset columns")}</button>}
+      </div>}
       {statusMessage && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{statusMessage}</div>}
 
       <fieldset disabled={busy || !canManageWorkspaceData} className="min-w-0 border-y border-gray-200 py-5">
@@ -388,6 +399,7 @@ function EntityMatchingWorkspace() {
             </select>
           </label>
           <div className="grid gap-2 sm:grid-cols-2">
+            {!loading && datasets.length === 0 && !error && <Link href="/dashboard/datasets" className="text-sm text-blue-700 underline">{t("Add datasets")}</Link>}
             {loading ? <p role="status" className="text-sm text-gray-500">{t("Loading datasets...")}</p> : datasets.map(dataset => (
               <label key={dataset.id} className={`flex min-w-0 items-center gap-3 rounded-lg border px-3 py-3 ${selectedIds.includes(dataset.id) ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white"}`}>
                 <input
@@ -531,9 +543,10 @@ function EntityMatchingWorkspace() {
         )}
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void handlePreview()} disabled={busy || columnMetadataLoading || !canManageWorkspaceData || selectedIds.length < 2} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><ScanSearch size={16} />{t(busy ? "Working..." : "Preview matches")}</button>
+          <button type="button" onClick={() => void handlePreview()} disabled={busy || !canManageWorkspaceData || Boolean(setupIssue)} aria-describedby={setupIssue ? "matching-setup-issue" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><ScanSearch size={16} />{t(busy ? "Working..." : "Preview matches")}</button>
           <span className="text-xs text-gray-500">{selectedDatasets.length} {t("selected")}</span>
         </div>
+        {setupIssue && <p id="matching-setup-issue" role="status" className="mt-3 text-sm text-gray-600">{t(setupIssue)}</p>}
       </fieldset>
 
       {preview && (
@@ -559,8 +572,8 @@ function EntityMatchingWorkspace() {
                   <label key={group.canonical_key} className="flex items-start gap-3 py-3 text-sm">
                     <input type="checkbox" className="mt-1 shrink-0 accent-blue-600" disabled={busy || !canManageWorkspaceData || group.match_count > group.sources.length}
                       checked={approvedMatches.includes(group.review_key)}
-                      onChange={event => setApprovedMatches(existing => event.target.checked
-                        ? [...existing, group.review_key] : existing.filter(key => key !== group.review_key))} />
+                      onChange={event => { setResult(null); setStatusMessage(""); setApprovedMatches(existing => event.target.checked
+                        ? [...existing, group.review_key] : existing.filter(key => key !== group.review_key)) }} />
                     <span className="min-w-0 break-words">
                       <span className="block font-medium">{t("Confirm same")} {t(entityType)}: {group.display_name}</span>
                       {group.match_count > group.sources.length && <span className="block text-amber-800">{t("Too many records for individual review. This group will remain separate; use stronger identity columns.")}</span>}
@@ -576,10 +589,10 @@ function EntityMatchingWorkspace() {
           )}
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeSummary} disabled={busy}
-              onChange={event => setIncludeSummary(event.target.checked)} />{t("Include entity summary by source")}</label>
-            <button type="button" onClick={() => void handleSave()} disabled={busy || !canManageWorkspaceData}
+              onChange={event => { setResult(null); setStatusMessage(""); setIncludeSummary(event.target.checked) }} />{t("Include entity summary by source")}</label>
+            <button type="button" onClick={() => void handleSave()} disabled={busy || !canManageWorkspaceData || Boolean(result) || Boolean(setupIssue)}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-              <Save size={16} />{t(busy ? "Saving..." : "Save linked history")}
+              <Save size={16} />{t(busy ? "Saving..." : result ? "Linked history saved" : "Save linked history")}
             </button>
           </div>
         </section>

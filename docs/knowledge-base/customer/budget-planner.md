@@ -81,6 +81,12 @@ Changing selections invalidates the unsaved preview. Saved plans are historical
 snapshots, not live recommendations; preview again after data or dates change.
 Delete a saved plan from its delete button. Its linked decision is preserved.
 
+New plan starts with empty selections, an empty budget and unconfirmed business
+assumptions. It does not copy the previously opened plan. Missing or conflicting
+setup choices are shown beside Preview budget, including overlapping spending
+options, duplicate names and invalid spending limits. A failed saved-plan list
+can be retried without clearing the current setup or a successful preview.
+
 Create Decision becomes available after saving. Record the specific action,
 expected result and a review date after the planning period. Repeated creation
 for the same plan opens the existing decision. The plan's selections, filters,

@@ -11,6 +11,10 @@ mappings. Industry dashboard names describe a view, not proof that a connector's
 schema contains every expected column. Confirm the mapping and units before
 interpreting a tile as revenue, cost or conversion performance.
 
+The dataset field combines search and selection. Typing narrows its list; choose
+an option to change the dashboard's dataset. Leaving the field without choosing
+keeps the existing selection. Clear dataset selection removes it explicitly.
+
 Open Filters for Date column and Dimension column. Unique values and Search
 values narrow a segment. Date and dimension choices apply to the selected view;
 closing the tab does not clear them. Change grouping and aggregation only when

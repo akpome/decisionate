@@ -313,11 +313,11 @@ export default function ActionNeededPage() {
           {visibleDecisions.length === 0 ? (
             <div className="rounded-2xl border bg-white p-5 text-center shadow-sm sm:p-8">
               <h2 className="text-lg font-semibold">
-                {t("No decisions in this slice")}
+                {t("No decisions match this filter")}
               </h2>
 
               <p className="mt-2 text-sm text-gray-500">
-                {t("Pick another queue filter to continue reviewing follow-up work.")}
+                {t("There are no decisions needing this type of follow-up.")}
               </p>
 
               <button

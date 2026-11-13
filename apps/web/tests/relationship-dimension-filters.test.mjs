@@ -25,18 +25,18 @@ function declarations(source, names) {
 function functions(names, globals = {}, input = source) {
   return vm.runInNewContext(ts.transpileModule(`${declarations(input, names)}\n({ ${names.join(", ")} })`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText, { exports: {}, require, ...globals })
+  }).outputText, { exports: {}, require, pending: { current: false }, ...globals })
 }
 const plain = value => JSON.parse(JSON.stringify(value))
 const selection = { column: "region", values: ["East", null, "", "null"] }
 function payloadHarness(extra = {}) {
   const errors = []
-  const globals = { incompleteFilter: false, leftDatasetId: "1", rightDatasetId: "2", resolvedLeftDateColumn: "date",
+  const globals = { loading: false, loadingMetadata: false, metadataFailed: false, incompleteFilter: false, leftDatasetId: "1", rightDatasetId: "2", resolvedLeftDateColumn: "date",
     resolvedRightDateColumn: "paid_date", resolvedLeftMetric: "spend", resolvedRightMetric: "revenue", name: "Filtered monitor",
     period: "monthly", aggregation: "sum", method: "pearson", lagMode: "manual", lagPeriods: "0",
     minimumObservations: "24", maximumLag: "12", lagDirection: "a_leads_b", RELATIONSHIP_DEFAULTS, MAXIMUM_RELATIONSHIP_OBSERVATIONS, MINIMUM_RELATIONSHIP_OBSERVATIONS,
     leftFilter: undefined, rightFilter: undefined, setError: error => errors.push(error), ...extra }
-  return { ...functions(["buildPayload"], globals), errors }
+  return { ...functions(["buildPayload", "setupIssue"], globals), errors }
 }
 
 test("each relationship side submits its exact independent column and value filter", () => {
@@ -121,6 +121,35 @@ test("late previews cannot replace evidence after the workspace or filter change
     complete({ id: 3 }); await pending
     assert.equal(result?.id, changed ? undefined : 3)
   }
+})
+
+test("saving requires a current unsaved preview and blocks double submissions", async () => {
+  for (const result of [null, { id: 4 }, { id: null }]) {
+    let calls = 0, complete
+    const pending = { current: false }
+    const view = functions(["handleSave"], { user: { id: "owner" }, activeWorkspaceId: "workspace", pending, result,
+      setupScope: "current", currentSetup: { current: "current" }, buildPayload: () => payloadHarness().buildPayload(),
+      setBusy() {}, setError() {}, setStatusMessage() {}, setResult() {}, setRelationships() {},
+      createDatasetRelationship: () => { calls++; return new Promise(resolve => { complete = resolve }) } })
+    const first = view.handleSave(), second = view.handleSave()
+    complete?.({ id: 7 })
+    await Promise.all([first, second])
+    assert.equal(calls, result && !result.id ? 1 : 0)
+    assert.equal(pending.current, false)
+  }
+})
+
+test("loading failures and incomplete fields explain why preview cannot run", () => {
+  for (const patch of [{ loadingMetadata: true }, { metadataFailed: true }, { leftDatasetId: "2" }, { resolvedLeftMetric: "" }]) {
+    const h = payloadHarness(patch)
+    assert.ok(h.setupIssue())
+    assert.equal(h.buildPayload(), null)
+    assert.equal(h.errors[0], h.setupIssue())
+  }
+  for (const side of ["Left", "Right"]) for (const field of ["DatasetId", "DateColumn", "Metric"]) {
+    assert.ok(source.includes(`changeAnalysisSetting(() => set${side}${field}(value))`))
+  }
+  assert.doesNotMatch(source, /window\.location\.reload/)
 })
 
 test("filter changes clear old evidence and source keys include user, workspace and dataset", () => {

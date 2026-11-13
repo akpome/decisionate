@@ -14,6 +14,13 @@ required action and evidence, expected outcome and review information shown by
 the form. Attach a saved report when it provides the justification, or use the
 supported manual dataset-linked workflow.
 
+The form shows the next missing requirement beside Create decision. A
+report-linked decision needs a ready report, an outcome metric, a meaningful
+name, action, expected result, reasoning and a review date. Changing these fields
+does not automatically submit the decision. If a request fails, the entered
+details remain available for retry; an existing recommendation-linked decision
+should be opened rather than created again.
+
 A report-linked decision should retain the selected evidence metrics, report
 identity and relevant limitations, not expand to every metric in its datasets.
 An outcome metric is a measurement choice within the supported evidence scope,

@@ -1074,7 +1074,7 @@ export default function ForecastsPage() {
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <label className="min-w-0 space-y-2">
+            <div className="min-w-0 space-y-2">
               <span className="text-sm font-medium text-gray-700">
                 Dataset
               </span>
@@ -1100,7 +1100,7 @@ export default function ForecastsPage() {
                   void handleDatasetChange(id)
                 }}
               />
-            </label>
+            </div>
 
             <label className="min-w-0 space-y-2">
               <span className="text-sm font-medium text-gray-700">
@@ -1329,19 +1329,14 @@ export default function ForecastsPage() {
         >
           <span>{pageError}</span>
 
-          {!selectedDatasetId && (
-            <button
-              type="button"
-              onClick={() =>
-                setDatasetLoadRetryKey(
-                  currentKey => currentKey + 1
-                )
-              }
-              className="w-fit rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50"
-            >
-              Retry dataset load
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={datasetsLoading || loading || metricsLoading}
+            onClick={() => selectedDatasetId ? refreshForecast() : setDatasetLoadRetryKey(currentKey => currentKey + 1)}
+            className="inline-flex w-fit items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+          >
+            <RefreshCw size={14} />{selectedDatasetId ? "Retry forecast" : "Retry dataset load"}
+          </button>
         </div>
       )}
 

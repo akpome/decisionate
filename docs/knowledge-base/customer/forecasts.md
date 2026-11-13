@@ -6,7 +6,7 @@ A projection is not a commitment that the business will achieve that outcome.
 
 ## Generate a forecast
 
-1. Open Forecasts and select the intended dataset and metric.
+1. Open Forecasts and choose or search for the intended dataset, then select its metric.
 2. Review Date column beside Dimension column. Select Unique values if the
    forecast should cover a segment rather than all eligible rows.
 3. Choose the history range, grouping and aggregation appropriate to the source.
@@ -43,6 +43,10 @@ should not silently satisfy it with a different calculation. Preserve the
 selection, retry after a confirmed service recovery and escalate persistent
 unavailability. Forecasts were not moved into the Reports analysis-worker queue;
 healthy report-worker status alone does not verify forecasting.
+
+Retry forecast repeats the request with the current selections after a temporary
+failure. Retry dataset load reloads the dataset list when no dataset is selected.
+Neither retry changes the selected period or removes a dimension filter.
 
 ## How can I estimate future sales for one store or product?
 

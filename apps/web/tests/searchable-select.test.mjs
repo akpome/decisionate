@@ -60,6 +60,13 @@ test("the shared selector has one labelled editable input and no hidden native s
   assert.doesNotMatch(html, /<select|role="listbox"/)
 })
 
+test("compact selectors keep an accessible label without adding a second visible field heading", () => {
+  const html = renderToStaticMarkup(React.createElement(load(), { label: "Forecast dataset", hideLabel: true, placeholder: "Choose or search datasets", value: null, options: [], onChange() {} }))
+  assert.match(html, /class="sr-only">Forecast dataset<\/label>/)
+  assert.match(html, /role="combobox"/)
+  assert.doesNotMatch(html, /relative mt-1/)
+})
+
 test("input filters options immediately and forwards the exact query without changing selection", () => {
   const h = harness()
   h.focus(); h.type("sHoPiFy")

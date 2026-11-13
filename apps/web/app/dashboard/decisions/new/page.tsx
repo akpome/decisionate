@@ -279,23 +279,23 @@ function NewDecisionContent() {
             template =>
                 template.slug === selectedTemplateSlug
         )
-    const canCreateDecision =
-        Boolean(createDecisionTitle.trim()) &&
-        Boolean(createDecisionAction.trim()) &&
-        Boolean(createDecisionExpectedOutcome.trim()) &&
-        (reportEvidence.reportId
-            ? reportEvidence.report?.status === "ready" &&
-                Boolean(reportOutcomeMetric) &&
-                createDecisionTitle.trim().length >= 3 &&
-                createDecisionAction.trim().length >= 3 &&
-                createDecisionExpectedOutcome.trim().length >= 3 &&
-                createDecisionDescription.trim().length >= 3 &&
-                Boolean(createDecisionReviewDate) &&
-                !reportEvidence.loadingReport
-            : Boolean(createDatasetId)) &&
-        !creatingDecision &&
-        (!selectedFindingId || Boolean(findingDraft) && !findingDraft?.existingDecisionId) &&
-        canCreateDecisions
+    function decisionSetupIssue() {
+        if (selectedFindingId && findingDraft?.existingDecisionId) return "This recommendation already has a decision."
+        if (selectedFindingId && !findingDraft) return "Choose a recommendation available in this report."
+        if (reportEvidence.reportId && reportEvidence.loadingReport) return "Loading report evidence..."
+        if (reportEvidence.reportId && reportEvidence.report?.status !== "ready") return "Choose an available report before creating a decision."
+        if (!reportEvidence.reportId && !createDatasetId) return "Choose the dataset this decision is based on."
+        if (reportEvidence.reportId && !reportOutcomeMetric) return "Choose the result you will measure."
+        const minimumLength = reportEvidence.reportId ? 3 : 1
+        if (createDecisionTitle.trim().length < minimumLength) return "Give the decision a clear name."
+        if (createDecisionAction.trim().length < minimumLength) return "Describe the action you will take."
+        if (createDecisionExpectedOutcome.trim().length < minimumLength) return "Describe the result you expect."
+        if (reportEvidence.reportId && createDecisionDescription.trim().length < 3) return "Record why you are taking this action."
+        if (reportEvidence.reportId && !createDecisionReviewDate) return "Choose when to review the result."
+        return ""
+    }
+    const setupIssue = decisionSetupIssue()
+    const canCreateDecision = !setupIssue && !creatingDecision && canCreateDecisions
 
     const applyDefaultDecisionTitle = useCallback((prefix = "Decision", replace = false) => {
         if (!draftIdentity.current) draftIdentity.current = decisionDraftId()
@@ -693,6 +693,7 @@ function NewDecisionContent() {
 
         if (!user?.id || !canCreateDecisions || creatingDecision) return
         if (submissionInFlight.current) return
+        if (setupIssue) { setCreateDecisionError(setupIssue); return }
 
         const cleanTitle =
             createDecisionTitle.trim()
@@ -703,23 +704,8 @@ function NewDecisionContent() {
                 createDatasetId
             )
 
-        if (
-            !cleanTitle ||
-            !createDecisionAction.trim() ||
-            (!reportEvidence.reportId && datasetId === null) ||
-            !cleanExpectedOutcome
-        ) {
-            setCreateDecisionError(
-                "Choose a dataset, add a decision title and action, and define the expected outcome."
-            )
-            return
-        }
-
-        if (reportEvidence.reportId && (
-            reportEvidence.loadingReport || reportEvidence.report?.status !== "ready" ||
-            !reportOutcomeMetric || !createDecisionReviewDate || createDecisionDescription.trim().length < 3
-        )) {
-            setCreateDecisionError("Choose an available report and outcome metric, record your reasoning, and set a review date.")
+        if (!reportEvidence.reportId && datasetId === null) {
+            setCreateDecisionError("Choose the dataset this decision is based on.")
             return
         }
 
@@ -1246,10 +1232,13 @@ function NewDecisionContent() {
                             </p>
                         )}
 
+                        {setupIssue && !creatingDecision && <p id="decision-setup-issue" role="status" className="text-sm text-gray-600 lg:col-span-3">{setupIssue}</p>}
+
                         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:col-span-3">
                             <CreateDecisionButton
                                 type="submit"
                                 disabled={!canCreateDecision}
+                                aria-describedby={setupIssue ? "decision-setup-issue" : undefined}
                                 creating={creatingDecision}
                                 className="w-full sm:w-auto"
                             />

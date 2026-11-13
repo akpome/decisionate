@@ -6,6 +6,8 @@ import {
   useUser,
 } from "@clerk/nextjs"
 import Link from "next/link"
+import { RefreshCw } from "lucide-react"
+import { SearchableSelect } from "@/components/searchable-select"
 
 import {
   type DatasetSummary,
@@ -24,6 +26,7 @@ interface DatasetSelectorProps {
   datasets?: DatasetSummary[]
   loading?: boolean
   loadError?: boolean
+  allowClear?: boolean
   ariaLabel?: string
   emptyMessage?: ReactNode
 }
@@ -49,6 +52,7 @@ export function DatasetSelector({
   datasets: providedDatasets,
   loading = false,
   loadError = false,
+  allowClear = true,
   ariaLabel = "Select dataset",
   emptyMessage,
 }: DatasetSelectorProps) {
@@ -72,6 +76,7 @@ export function DatasetSelector({
     useState<DatasetSummary[]>([])
   const [errorMessage, setErrorMessage] =
     useState("")
+  const [retry, setRetry] = useState(0)
   const [
     loadingDatasets,
     setLoadingDatasets,
@@ -180,29 +185,18 @@ export function DatasetSelector({
     isSignedIn,
     resolvedUserId,
     workspaceVersion,
+    retry,
   ])
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-2">
-      <select
-        aria-label={t(ariaLabel)}
-        value={value ?? ""}
-        title={selectedDatasetLabel}
-        disabled={
-          isLoading && !hasDatasets
-        }
-        onChange={(e) => {
-          const datasetId =
-            getSelectedDatasetId(
-              e.target.value
-            )
-
-          onChange(datasetId)
-        }}
-        className="block h-10 w-full min-w-0 max-w-full truncate rounded-lg border border-gray-200 bg-white px-3 py-2 pr-9 text-sm text-gray-800 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
-      >
-        <option value="">
-          {!authLoaded
+      <SearchableSelect
+        label={t(ariaLabel)} hideLabel
+        value={value === undefined ? null : String(value)} selectedLabel={selectedDatasetLabel}
+        disabled={isLoading && !hasDatasets}
+        loading={isLoading} loadingLabel={t("Loading datasets...")}
+        onChange={selected => onChange(getSelectedDatasetId(selected))}
+        placeholder={!authLoaded
             ? t("Checking session...")
             : !hasAuthenticatedUser
               ? t("Sign in to load datasets")
@@ -211,21 +205,14 @@ export function DatasetSelector({
             : errorMessage || loadError
               ? t("Datasets unavailable")
             : hasDatasets
-              ? t("Select Dataset")
+              ? t("Choose or search datasets")
               : t("No datasets available")}
-        </option>
-
-        {datasets.map((dataset) => (
-          <option
-            key={dataset.id}
-            value={dataset.id}
-          >
-            {formatDatasetOptionLabel(
-              dataset
-            )}
-          </option>
-        ))}
-      </select>
+        emptyLabel={t("No matching datasets.")}
+        options={[
+          ...(allowClear && value !== undefined ? [{ value: "", label: t("Clear dataset selection") }] : []),
+          ...datasets.map(dataset => ({ value: String(dataset.id), label: formatDatasetOptionLabel(dataset) })),
+        ]}
+      />
 
       {errorMessage && (
         <p
@@ -233,6 +220,11 @@ export function DatasetSelector({
           className="text-sm text-red-700"
         >
           {errorMessage}
+          {hasAuthenticatedUser && !providedDatasets && <button type="button" disabled={isLoading}
+            onClick={() => setRetry(current => current + 1)}
+            className="ml-3 inline-flex items-center gap-1 font-medium disabled:opacity-50">
+            <RefreshCw size={14} />{t("Retry datasets")}
+          </button>}
         </p>
       )}
 

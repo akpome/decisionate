@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useUser } from "@clerk/nextjs"
+import Link from "next/link"
 import { GitCompare, RefreshCw, Save, Trash2 } from "lucide-react"
 
 import {
@@ -102,6 +103,12 @@ function relationshipPairLabel(relationship: DatasetRelationship) {
 }
 
 export default function RelationshipsPage() {
+  const { user } = useUser()
+  const { activeWorkspaceId, workspaceVersion } = useActiveWorkspace(user?.id)
+  return <RelationshipsWorkspace key={`${user?.id}:${activeWorkspaceId}:${workspaceVersion}`} />
+}
+
+function RelationshipsWorkspace() {
   const { t } = useDecisionateText()
   const { user } = useUser()
   const { activeWorkspaceId, workspaceVersion } = useActiveWorkspace(user?.id)
@@ -131,6 +138,9 @@ export default function RelationshipsPage() {
   const [deletingRelationshipId, setDeletingRelationshipId] = useState<number | null>(null)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const [metadataFailed, setMetadataFailed] = useState(false)
+  const pending = useRef(false)
   const filterKey = (identity: string) => JSON.stringify([user?.id, activeWorkspaceId, workspaceVersion, identity])
   const leftFilter = dimensionFilters[filterKey(leftDatasetId)]
   const rightFilter = dimensionFilters[filterKey(rightDatasetId)]
@@ -193,8 +203,8 @@ export default function RelationshipsPage() {
         setDatasets(datasetResult)
         setRelationships(relationshipResult)
         setResult(null)
-        setLeftDatasetId(String(datasetResult[0]?.id ?? ""))
-        setRightDatasetId(String(datasetResult[1]?.id ?? ""))
+        setLeftDatasetId(current => datasetResult.some(item => String(item.id) === current) ? current : String(datasetResult[0]?.id ?? ""))
+        setRightDatasetId(current => datasetResult.some(item => String(item.id) === current) ? current : String(datasetResult[1]?.id ?? ""))
       } catch (loadError) {
         if (current) {
           setError(getErrorMessage(loadError, "Unable to load relationship setup."))
@@ -213,6 +223,7 @@ export default function RelationshipsPage() {
     user?.id,
     user?.primaryEmailAddress?.emailAddress,
     workspaceVersion,
+    refreshVersion,
   ])
 
   useEffect(() => {
@@ -226,6 +237,7 @@ export default function RelationshipsPage() {
 
     async function loadMetadata() {
       setLoadingMetadata(true)
+      setMetadataFailed(false)
       try {
         const response = await getDatasetJoinMetadata(
           ids,
@@ -235,6 +247,8 @@ export default function RelationshipsPage() {
         if (current) setMetadata(response.datasets)
       } catch (metadataError) {
         if (current) {
+          setMetadata([])
+          setMetadataFailed(true)
           setError(getErrorMessage(metadataError, "Unable to load dataset columns."))
         }
       } finally {
@@ -247,21 +261,20 @@ export default function RelationshipsPage() {
     return () => {
       current = false
     }
-  }, [activeWorkspaceId, leftDatasetId, rightDatasetId, user?.id])
+  }, [activeWorkspaceId, leftDatasetId, rightDatasetId, user?.id, refreshVersion])
 
-  function buildPayload(): DatasetRelationshipPayload | null {
+  function setupIssue() {
+    if (loading || loadingMetadata) return "Loading dataset columns..."
+    if (metadataFailed) return "Dataset columns could not be loaded. Retry to continue."
     const minimum = Number(minimumObservations), maximum = Number(maximumLag), fixedLag = lagMode === "automatic" ? 0 : Number(lagPeriods)
     if (!Number.isInteger(minimum) || minimum < MINIMUM_RELATIONSHIP_OBSERVATIONS || minimum > MAXIMUM_RELATIONSHIP_OBSERVATIONS) {
-      setError("Choose between 24 and 3653 minimum historical observations.")
-      return null
+      return "Choose between 24 and 3653 minimum historical observations."
     }
     if (!Number.isInteger(maximum) || maximum < 0 || maximum > RELATIONSHIP_DEFAULTS.maximumLag || !Number.isInteger(fixedLag) || fixedLag < 0 || fixedLag > RELATIONSHIP_DEFAULTS.maximumLag || lagMode === "manual" && fixedLag > maximum) {
-      setError("Choose a maximum lag from 0 to 12. If saved timing is outside this limit, choose a relationship direction again.")
-      return null
+      return "Choose a maximum lag from 0 to 12. If saved timing is outside this limit, choose a relationship direction again."
     }
     if (incompleteFilter) {
-      setError("Choose at least one unique value for each selected dimension column.")
-      return null
+      return "Choose at least one unique value for each selected dimension column."
     }
     if (
       !leftDatasetId ||
@@ -271,14 +284,18 @@ export default function RelationshipsPage() {
       !resolvedLeftMetric ||
       !resolvedRightMetric
     ) {
-      setError("Choose two datasets, a date column, and a numeric metric for each side.")
-      return null
+      return "Choose two datasets, a date column, and a numeric metric for each side."
     }
     if (leftDatasetId === rightDatasetId) {
-      setError("Choose two different datasets.")
-      return null
+      return "Choose two different datasets."
     }
+    return ""
+  }
 
+  function buildPayload(): DatasetRelationshipPayload | null {
+    const issue = setupIssue()
+    if (issue) { setError(issue); return null }
+    const minimum = Number(minimumObservations), maximum = Number(maximumLag), fixedLag = lagMode === "automatic" ? 0 : Number(lagPeriods)
     return {
       name: name.trim() || "Cross-source relationship",
       left: {
@@ -305,10 +322,12 @@ export default function RelationshipsPage() {
   }
 
   async function handlePreview() {
-    if (!user?.id) return
+    if (!user?.id || pending.current) return
     const payload = buildPayload()
     if (!payload) return
+    pending.current = true
     setBusy(true)
+    setResult(null)
     setError("")
     setStatusMessage("")
     const scope = setupScope
@@ -318,14 +337,16 @@ export default function RelationshipsPage() {
     } catch (previewError) {
       if (currentSetup.current === scope) setError(getErrorMessage(previewError, "Unable to calculate relationship."))
     } finally {
+      pending.current = false
       setBusy(false)
     }
   }
 
   async function handleSave() {
-    if (!user?.id) return
+    if (!user?.id || pending.current || !result || result.id) return
     const payload = buildPayload()
     if (!payload) return
+    pending.current = true
     setBusy(true)
     setError("")
     setStatusMessage("")
@@ -346,6 +367,7 @@ export default function RelationshipsPage() {
     } catch (saveError) {
       if (currentSetup.current === scope) setError(getErrorMessage(saveError, "Unable to save relationship."))
     } finally {
+      pending.current = false
       setBusy(false)
     }
   }
@@ -399,6 +421,7 @@ export default function RelationshipsPage() {
   }
 
   function openSavedRelationship(relationship: DatasetRelationship) {
+    if (pending.current) return
     setLeftDatasetId(String(relationship.left.dataset_id)); setRightDatasetId(String(relationship.right.dataset_id))
     setLeftDateColumn(relationship.left.date_column); setRightDateColumn(relationship.right.date_column)
     setLeftMetric(relationship.left.metric_column); setRightMetric(relationship.right.metric_column)
@@ -414,6 +437,13 @@ export default function RelationshipsPage() {
     setResult(relationship); setStatusMessage(""); setError("")
   }
 
+  function refresh() {
+    if (pending.current) return
+    setResult(null); setStatusMessage(""); setError("")
+    setRefreshVersion(current => current + 1)
+  }
+  const issue = setupIssue()
+
   return (
     <div className="space-y-7">
       <DashboardPageHeader
@@ -421,7 +451,8 @@ export default function RelationshipsPage() {
         actions={
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={refresh}
+            disabled={busy || loading || loadingMetadata}
             className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             title="Refresh relationships"
           >
@@ -434,6 +465,7 @@ export default function RelationshipsPage() {
       {error && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+          {metadataFailed && <button type="button" disabled={busy || loadingMetadata} onClick={refresh} className="ml-3 inline-flex items-center gap-1 font-medium"><RefreshCw size={14} />{t("Retry dataset columns")}</button>}
         </div>
       )}
       {statusMessage && (
@@ -460,6 +492,7 @@ export default function RelationshipsPage() {
         ) : datasets.length < 2 ? (
           <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {t("Add at least two datasets before defining a cross-source relationship.")}
+            <Link href="/dashboard/datasets" className="ml-2 underline">{t("Open datasets")}</Link>
           </p>
         ) : (
           <div className="mt-6 space-y-5">
@@ -467,7 +500,8 @@ export default function RelationshipsPage() {
               <span className="text-sm font-medium text-gray-700">{t("Relationship name")}</span>
               <input
                 value={name}
-                onChange={event => setName(event.target.value)}
+                onChange={event => changeAnalysisSetting(() => setName(event.target.value))}
+                disabled={busy}
                 className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 placeholder={t("Marketing spend and revenue")}
               />
@@ -481,9 +515,9 @@ export default function RelationshipsPage() {
                 dateColumn={resolvedLeftDateColumn}
                 metric={resolvedLeftMetric}
                 metadata={leftMetadata}
-                onDatasetChange={setLeftDatasetId}
-                onDateChange={setLeftDateColumn}
-                onMetricChange={setLeftMetric}
+                onDatasetChange={value => changeAnalysisSetting(() => setLeftDatasetId(value))}
+                onDateChange={value => changeAnalysisSetting(() => setLeftDateColumn(value))}
+                onMetricChange={value => changeAnalysisSetting(() => setLeftMetric(value))}
                 userId={user?.id} workspaceId={activeWorkspaceId} filterContext={filterKey(leftDatasetId)}
                 dimensionFilter={leftFilter} onDimensionFilterChange={value => changeDimensionFilter(leftDatasetId, value)} disabled={busy || loadingMetadata}
               />
@@ -494,15 +528,15 @@ export default function RelationshipsPage() {
                 dateColumn={resolvedRightDateColumn}
                 metric={resolvedRightMetric}
                 metadata={rightMetadata}
-                onDatasetChange={setRightDatasetId}
-                onDateChange={setRightDateColumn}
-                onMetricChange={setRightMetric}
+                onDatasetChange={value => changeAnalysisSetting(() => setRightDatasetId(value))}
+                onDateChange={value => changeAnalysisSetting(() => setRightDateColumn(value))}
+                onMetricChange={value => changeAnalysisSetting(() => setRightMetric(value))}
                 userId={user?.id} workspaceId={activeWorkspaceId} filterContext={filterKey(rightDatasetId)}
                 dimensionFilter={rightFilter} onDimensionFilterChange={value => changeDimensionFilter(rightDatasetId, value)} disabled={busy || loadingMetadata}
               />
             </div>
 
-            <section aria-label={t("Relationship analysis")} className="space-y-4 border-y border-gray-100 py-4">
+            <fieldset disabled={busy} aria-label={t("Relationship analysis")} className="min-w-0 space-y-4 border-y border-gray-100 py-4">
               <h3 className="text-sm font-semibold">{t("Relationship analysis")}</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectField label={t("Group by")} value={period} onChange={value => changeAnalysisSetting(() => setPeriod(value as DashboardAggregation))} options={periodOptions} />
@@ -530,28 +564,20 @@ export default function RelationshipsPage() {
                 </label>
                 {lagMode === "automatic" && <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Maximum lag")}</span><input type="number" min={0} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={maximumLag} onChange={event => changeAnalysisSetting(() => setMaximumLag(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>}
               </div>
-            </section>
+            </fieldset>
 
-            {loadingMetadata && <p className="text-xs text-gray-500">{t("Loading dataset columns...")}</p>}
+            {issue && <p id="relationship-setup-issue" role="status" className="text-sm text-gray-600">{t(issue)}</p>}
 
             <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-5">
               <button
                 type="button"
                 onClick={() => void handlePreview()}
-                disabled={busy || loadingMetadata || incompleteFilter}
+                disabled={busy || Boolean(issue)}
+                aria-describedby={issue ? "relationship-setup-issue" : undefined}
                 className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <GitCompare size={16} />
                 {busy ? t("Calculating...") : t("Preview relationship")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={busy || loadingMetadata || incompleteFilter}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Save size={16} />
-                {t("Save relationship")}
               </button>
             </div>
           </div>
@@ -559,7 +585,13 @@ export default function RelationshipsPage() {
       </section>
 
       {result && (
-        <RelationshipResult relationship={result} />
+        <>
+          <RelationshipResult relationship={result} />
+          {!result.id && <button type="button" onClick={() => void handleSave()} disabled={busy || Boolean(issue)}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
+            <Save size={16} />{t(busy ? "Saving..." : "Save relationship")}
+          </button>}
+        </>
       )}
 
       <section id="saved-relationships" className="scroll-mt-24 rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
@@ -576,6 +608,7 @@ export default function RelationshipsPage() {
                 <button
                   type="button"
                   onClick={() => openSavedRelationship(relationship)}
+                  disabled={busy || loading || loadingMetadata}
                   className="min-w-0 text-left"
                 >
                   <p className="truncate font-medium text-gray-900">{relationship.name}</p>

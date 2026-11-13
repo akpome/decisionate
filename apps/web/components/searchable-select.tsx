@@ -6,10 +6,10 @@ import { Check, ChevronDown } from "lucide-react"
 export type SearchableOption = { value: string; label: string; searchText?: string; disabled?: boolean }
 
 export function SearchableSelect({ id: suppliedId, label, options, value, selectedLabel, placeholder, onChange, onSearchChange,
-  disabled = false, loading = false, loadingLabel = "Loading...", emptyLabel = "No matching options.", footer }: {
+  disabled = false, loading = false, loadingLabel = "Loading...", emptyLabel = "No matching options.", hideLabel = false, footer }: {
   id?: string; label: string; options: SearchableOption[]; value: string | null; selectedLabel?: string; placeholder: string
   onChange: (value: string) => void; onSearchChange?: (search: string) => void
-  disabled?: boolean; loading?: boolean; loadingLabel?: string; emptyLabel?: string; footer?: ReactNode
+  disabled?: boolean; loading?: boolean; loadingLabel?: string; emptyLabel?: string; hideLabel?: boolean; footer?: ReactNode
 }) {
   const generatedId = useId(), id = suppliedId || generatedId
   const input = useRef<HTMLInputElement>(null)
@@ -55,8 +55,8 @@ export function SearchableSelect({ id: suppliedId, label, options, value, select
   }
 
   return <div className="relative min-w-0" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) close() }}>
-    <label htmlFor={id} className="block text-xs font-medium text-gray-600">{label}</label>
-    <div className="relative mt-1">
+    <label htmlFor={id} className={hideLabel ? "sr-only" : "block text-xs font-medium text-gray-600"}>{label}</label>
+    <div className={hideLabel ? "relative" : "relative mt-1"}>
       <input ref={input} id={id} type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={expanded}
         aria-controls={expanded ? `${id}-choices` : undefined} aria-activedescendant={active ? `${id}-option-${activeIndex}` : undefined}
         autoComplete="off" maxLength={200} value={search ?? display} placeholder={placeholder} disabled={disabled}

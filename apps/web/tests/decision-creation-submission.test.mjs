@@ -22,6 +22,7 @@ function functionSource(path, name) {
 }
 
 const handler = functionSource("../app/dashboard/decisions/new/page.tsx", "handleCreateDecision")
+const readiness = functionSource("../app/dashboard/decisions/new/page.tsx", "decisionSetupIssue")
 const keySource = readFileSync(new URL("../features/decisions/lib/creation-request.ts", import.meta.url), "utf8")
 const storage = new Map()
 function keyFactory(sessionStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }) {
@@ -39,16 +40,16 @@ function submission(createDecision) {
     createDatasetId: "1", createDecisionTitle: "Shift campaign budget", createDecisionAction: "Move 10% of budget to campaign B",
     createDecisionExpectedOutcome: "Increase orders without additional spend", createDecisionDescription: "Test the cross-source finding",
     createDecisionReviewDate: "2026-11-01", createDecisionPriority: "medium", createDecisionCategory: "marketing", createDecisionConfidence: "",
-    selectedMetric: "orders", reportEvidence: { reportId: "" }, reportOutcomeMetric: undefined,
+    selectedMetric: "orders", reportEvidence: { reportId: "" }, reportOutcomeMetric: undefined, selectedFindingId: "", findingDraft: null,
     getCreateDecisionDatasetId: Number, setCreatingDecision: () => {}, setCreateDecisionError: message => errors.push(message),
     getDecisionPageErrorMessage: error => error.message, returnPath: "/dashboard/decisions",
     router: { replace: value => destinations.push(value) }, console: { error: () => {} }, crypto: { randomUUID },
     decisionCreationKey: keyFactory(),
     createDecision: async (...args) => { calls.push(args); return createDecision?.(...args) },
   }
-  const code = ts.transpileModule(`${handler}\nhandleCreateDecision`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
-  const submit = vm.runInNewContext(code, bindings)
-  return { bindings, calls, errors, destinations, submit: () => submit({ preventDefault() {} }) }
+  const code = ts.transpileModule(`${handler}\n${readiness}\n({handleCreateDecision, decisionSetupIssue})`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  const methods = vm.runInNewContext(code, bindings)
+  return { bindings, calls, errors, destinations, submit: () => { bindings.setupIssue = methods.decisionSetupIssue(); return methods.handleCreateDecision({ preventDefault() {} }) } }
 }
 
 test("two submit events in the same render make one request and successful navigation stays locked", async () => {

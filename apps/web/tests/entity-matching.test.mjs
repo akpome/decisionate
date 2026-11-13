@@ -24,11 +24,12 @@ const preview = { output_format: "linked_history", datasets: [], candidate_row_c
 function harness(updates = {}, canManage = true) {
   const states = { datasets, selectedIds: [1, 2], columnMetadata: metadata, selectedKeyColumns: { 1: ["email"], 2: ["email"] },
     selectedMetricColumns: { 1: ["revenue"], 2: ["revenue"] }, dateColumns: { 1: "date", 2: "date" }, loading: false, ...updates }
-  let cursor = 0
+  let cursor = 0, refCursor = 0
+  const refs = []
   const writes = [], loaded = { exports: {} }
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText, {
     module: loaded, exports: loaded.exports, require: name => {
-      if (name === "react") return { ...React, useEffect() {}, useMemo: fn => fn(), useState: initial => {
+      if (name === "react") return { ...React, useEffect() {}, useRef: initial => refs[refCursor++] ||= { current: initial }, useMemo: fn => fn(), useState: initial => {
         const key = stateNames[cursor++]; if (!(key in states)) states[key] = initial
         return [states[key], value => { states[key] = typeof value === "function" ? value(states[key]) : value }]
       } }
@@ -38,7 +39,7 @@ function harness(updates = {}, canManage = true) {
       if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: value => value }) }
       if (name === "@/lib/api") return {
         previewEntityMatching: async payload => { writes.push(payload); return updates.apiPreview ?? preview },
-        runEntityMatching: async payload => { writes.push(payload); return { canonical_entity_count: 1, source_row_count: 6, unified_dataset_row_count: 6, unified_dataset_name: "linked.parquet" } },
+        runEntityMatching: async payload => { writes.push(payload); return { canonical_entity_count: 1, source_row_count: 6, unified_dataset_row_count: 6, unified_dataset_name: "linked.parquet", matched_row_count: 6, unmatched_row_count: 0, entities: [] } },
       }
       if (name === "next/link") return { __esModule: true, default: "a" }
       if (name.includes("dashboard-page-header")) return { DashboardPageHeader: () => null }
@@ -46,7 +47,7 @@ function harness(updates = {}, canManage = true) {
       return require(name)
     },
   })
-  function tree() { cursor = 0; return loaded.exports.default().type() }
+  function tree() { cursor = 0; refCursor = 0; return loaded.exports.default().type() }
   function nodes(predicate) {
     const found = []
     function visit(element) {
@@ -107,4 +108,26 @@ test("an older API cannot silently save a collapsed summary", async () => {
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(h.button("Save linked history"), undefined)
   assert.match(h.states.error, /API version/)
+})
+
+test("missing identity and metric choices have visible readiness messages and cannot submit", async () => {
+  for (const patch of [{ selectedKeyColumns: {} }, { selectedMetricColumns: {} }, { metadataFailed: true }]) {
+    const h = harness(patch)
+    assert.equal(h.button("Preview matches").props.disabled, true)
+    assert.ok(h.nodes(node => node.props.id === "matching-setup-issue").length)
+    await h.button("Preview matches").props.onClick()
+    assert.equal(h.writes.length, 0)
+  }
+})
+
+test("saving is guarded against rapid repeats and a saved result stays saved until an approval changes", async () => {
+  const h = harness({ preview })
+  const save = h.button("Save linked history")
+  save.props.onClick(); save.props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.writes.length, 1)
+  assert.equal(h.button("Linked history saved").props.disabled, true)
+  const approve = h.nodes(node => node.type === "input" && node.props.type === "checkbox" && node.props.className?.includes("mt-1"))[0]
+  approve.props.onChange({ target: { checked: true } })
+  assert.equal(h.button("Save linked history").props.disabled, false)
 })

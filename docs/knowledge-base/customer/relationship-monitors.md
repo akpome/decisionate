@@ -11,6 +11,14 @@ and apply each side's Dimension column and Unique values independently when
 needed. Set the period and aggregation to fit the business question, then check
 the actual overlapping source dates.
 
+Preview relationship first, review the evidence, then choose Save relationship
+below the result. Changing a dataset, metric, date column, dimension filter or
+analysis setting clears the old preview; preview again before saving. An opened
+saved relationship does not need to be saved again unless its setup changes.
+Missing selections appear beside the preview action. Refresh reloads available
+datasets and saved relationships without resetting valid selections. If columns
+fail to load, use Retry dataset columns.
+
 New analyses on both pages default to Spearman, daily grouping, Sum aggregation
 where applicable, 30 minimum historical observations, a maximum lag of 12 grouped
 periods, and same-period comparison. Correlation method, Minimum historical

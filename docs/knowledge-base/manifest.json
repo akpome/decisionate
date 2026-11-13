@@ -182,6 +182,7 @@
         "apps/api/app/modules/budget_planner/service.py",
         "apps/api/app/modules/budget_planner/router.py",
         "apps/web/features/budget-planner/budget-planner.tsx",
+        "apps/web/features/budget-planner/types.ts",
         "apps/web/features/budget-planner/source-picker.tsx"
       ],
       "related": [
@@ -650,6 +651,8 @@
       ],
       "sources": [
         "apps/web/features/dashboards/dashboard-definitions.ts",
+        "apps/web/features/dashboard/components/dataset-selector.tsx",
+        "apps/web/components/searchable-select.tsx",
         "apps/web/app/dashboard/page.tsx",
         "apps/web/app/dashboard/help/page.tsx",
         "apps/web/tests/dashboard-periods.test.mjs",
@@ -1027,6 +1030,7 @@
       "sources": [
         "apps/api/app/modules/forecasting/services.py",
         "apps/api/app/modules/forecasting/router.py",
+        "apps/web/app/dashboard/forecasts/page.tsx",
         "apps/api/app/modules/datasets/services/seasonal_baseline.py",
         "docs/railway-scheduling.md",
         "apps/web/app/dashboard/help/page.tsx"
@@ -1146,6 +1150,7 @@
         "apps/api/app/modules/reports/decision_drafts.py",
         "apps/web/features/decisions/components/decision-report-evidence.tsx",
         "apps/web/features/decisions/components/decision-impact-reviews.tsx",
+        "apps/web/app/dashboard/decisions/new/page.tsx",
         "apps/web/app/dashboard/decisions/[id]/page.tsx",
         "docs/CROSS_DATASET_REPORTS.md"
       ],

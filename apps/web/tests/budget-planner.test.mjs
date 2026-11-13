@@ -18,12 +18,44 @@ test("default planning dates always use the next eligible Monday without timezon
   assert.equal(helpers.nextMonday(new Date(2026, 9, 31, 23)), "2026-11-02")
   assert.equal(helpers.nextMonday(new Date(2026, 10, 2, 0)), "2026-11-02")
 })
-test("incomplete metrics and dimension values block preview", () => {
-  const selection = { dataset_id: 1, metric_key: "revenue", date_column: "date" }
-  const definition = { outcome: selection, options: [selection], controls: [] }
-  assert.equal(helpers.missingSelection(definition), false)
-  assert.equal(helpers.missingSelection({ ...definition, outcome: helpers.blankSelection() }), true)
-  assert.equal(helpers.missingSelection({ ...definition, outcome: { ...selection, dimension_filter: { column: "channel", values: [] } } }), true)
+const selection = { dataset_id: 1, metric_key: "revenue", date_column: "date", data_grain: "daily" }
+function completeDefinition() {
+  return { ...helpers.newBudgetDefinition(), budget: 1000, start_date: "2026-11-16", outcome: { ...selection }, options: [2, 3].map(id => ({ ...selection, dataset_id: id, metric_key: "spend", name: `Channel ${id}` })) }
+}
+test("incomplete metrics and dimension values explain what is needed before preview", () => {
+  const definition = completeDefinition()
+  assert.equal(helpers.budgetSetupIssue(definition), "")
+  assert.match(helpers.budgetSetupIssue({ ...definition, outcome: helpers.blankSelection() }), /dataset for the result/)
+  assert.match(helpers.budgetSetupIssue({ ...definition, outcome: { ...selection, dimension_filter: { column: "channel", values: [] } } }), /dimension value/)
+  assert.match(helpers.budgetSetupIssue({ ...definition, controls: [helpers.blankSelection()] }), /business influence 1/)
+})
+test("budget readiness rejects invalid numbers, dates, bounds and duplicate sources", () => {
+  const definition = completeDefinition()
+  for (const patch of [{ budget: 0 }, { budget: NaN }, { budget: Infinity }, { budget: 1e13 }, { budget: 1.005 }, { weeks: 0 }, { weeks: 1.5 }, { weeks: 14 }, { start_date: "2026-11-17" }, { start_date: "2026-02-30" }, { start_date: "" }, { currency: "invalid" }]) {
+    assert.ok(helpers.budgetSetupIssue({ ...definition, ...patch }), JSON.stringify(patch))
+  }
+  const invalidOptions = [
+    [definition.options[0], { ...definition.options[1], name: " channel 2 " }],
+    [{ ...definition.options[0], minimum: 50, maximum: 10 }, definition.options[1]],
+    [{ ...definition.options[0], minimum: NaN }, definition.options[1]],
+    [definition.options[0], { ...definition.options[0], name: "Duplicate source" }],
+    [{ ...definition.outcome, name: "Outcome as spend" }, definition.options[1]],
+  ]
+  for (const options of invalidOptions) assert.ok(helpers.budgetSetupIssue({ ...definition, options }))
+  assert.match(helpers.budgetSetupIssue({ ...definition, controls: [definition.outcome] }), /different/)
+  definition.options = ["Meta", "Google"].map(value => ({ ...selection, dataset_id: 2, metric_key: "spend", name: value, dimension_filter: { column: "channel", values: [value] } }))
+  assert.equal(helpers.budgetSetupIssue(definition), "")
+  definition.options[1].dimension_filter.values.push("Meta")
+  assert.match(helpers.budgetSetupIssue(definition), /without overlap/)
+})
+test("new plans have independent empty setup and unconfirmed business assumptions", () => {
+  const first = helpers.newBudgetDefinition(), second = helpers.newBudgetDefinition()
+  first.options[0].name = "Old channel"; first.outcome.dataset_id = 3
+  assert.equal(second.options[0].name, "Option 1")
+  assert.equal(second.outcome.dataset_id, 0)
+  assert.equal(second.budget, 0)
+  assert.equal(second.comparable_spend_confirmed, false)
+  assert.equal(second.business_context_confirmed, false)
 })
 
 function render(result, step = 0, canSave = true, canDecide = true) {
