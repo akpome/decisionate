@@ -144,6 +144,7 @@ test("report evidence is a draft payload, not a second decision creation", async
   form.bindings.reportEvidence = { reportId: "report-1", report: { status: "ready" }, loadingReport: false }
   form.bindings.reportOutcomeMetric = { id: "1:orders" }
   form.bindings.reportOutcome = "1:orders"
+  form.bindings.selectedFindingId = ""
   form.bindings.correlationRequest = async (_user, path, options) => {
     assert.equal(path, "/business-reports/report-1/decision-evidence")
     const fields = JSON.parse(options.body)

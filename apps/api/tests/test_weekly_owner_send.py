@@ -59,6 +59,9 @@ class WeeklyOwnerSendTests(unittest.TestCase):
         archived = self.client.get(f"/api/v2/business-reports/{history[0]['report_id']}").json()
         self.assertEqual(archived["window"], digest.cross_dataset_report["window"])
         self.assertEqual(archived["metrics"], digest.cross_dataset_report["metrics"])
+        self.assertEqual(archived["intelligence"], digest.cross_dataset_report["intelligence"])
+        self.assertIn(f"report={history[0]['report_id']}", digest.review_url)
+        self.assertIn("workspace_id=owner", digest.review_url)
         self.assertEqual(archived["delivery_status"], "sent")
         with self.Session() as db:
             self.assertEqual(db.get(ReportAnalysisJob, identity).status, "succeeded")

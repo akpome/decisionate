@@ -35,6 +35,8 @@ import { ImpactDecisionPicker } from "./impact-decision-picker"
 import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-update"
 import { reportHistoryQuery, reportPagePath, reportSourceTabs } from "./report-navigation"
 import { AnalysisTools } from "./analysis-tools"
+import { WeeklyIntelligenceReport } from "./weekly-intelligence"
+import { WeeklyTimezone } from "./weekly-timezone"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
@@ -478,7 +480,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     return result
   }
 
-  async function openDecisionDraft(decisionId?: number) {
+  async function openDecisionDraft(decisionId?: number, findingId?: string) {
     if (!canEditDecisions || !canSave || busy || openingDraft.current) return
     openingDraft.current = true
     try {
@@ -487,6 +489,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         const snapshot = linkedReportId ? { report_id: linkedReportId } : await saveSnapshot()
         if (decisionId === undefined) {
           const query = new URLSearchParams({ report: snapshot.report_id!, returnTo: `${pagePath}?report=${snapshot.report_id}` })
+          if (findingId) query.set("finding", findingId)
           router.push(`/dashboard/decisions/new?${query}`)
           return
         }
@@ -687,9 +690,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             }} footer={catalogFooter} />
             <section className="report-builder-section gap-4" aria-label="Analysis settings">
               <h2 className="shrink-0 text-base font-semibold">{weekly ? "Weekly settings" : "Analysis settings"}</h2>
-              {weekly ? <div className="shrink-0 space-y-2 text-sm"><p className="font-medium">Last completed week</p><p>{weeklySettings?.window.start} to {weeklySettings?.window.end}</p><p className="text-xs text-gray-500">Monday-Sunday / {weeklySettings?.reporting_timezone}</p></div> : <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>}
+              {weekly ? <WeeklyTimezone zone={definition.reporting_timezone || weeklySettings?.reporting_timezone || "UTC"} onChange={reporting_timezone => edit({ reporting_timezone })} /> : <div className="grid shrink-0 grid-cols-2 gap-3"><label className="block text-xs text-gray-600">Start<input className={input} type="date" required max={definition.date_range.end || undefined} value={definition.date_range.start} onChange={event => edit({ date_range: { ...definition.date_range, start: event.target.value } })} /></label><label className="block text-xs text-gray-600">End<input className={input} type="date" required min={definition.date_range.start || undefined} value={definition.date_range.end} onChange={event => edit({ date_range: { ...definition.date_range, end: event.target.value } })} /></label></div>}
               <div role="group" aria-label="Analysis settings" tabIndex={0} className="report-builder-scroll space-y-4 pr-2 focus-visible:outline-2 focus-visible:outline-blue-600">
-                {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Report week: daily detail</p><p>Earlier history: grouped weekly.</p><p>Historical window: {weeklySettings?.history_window.start} to {weeklySettings?.history_window.end} (up to 3 years).</p></div> : <label className="block text-xs text-gray-600">Group results by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>}
+                {weekly ? <div className="space-y-2 border-b border-gray-100 pb-3 text-xs text-gray-600"><p className="text-sm font-medium text-gray-950">Report week: daily detail</p><p>Earlier history: grouped weekly.</p><p>Historical window: up to 3 years before the report week.</p></div> : <label className="block text-xs text-gray-600">Group results by<select className={input} value={definition.grain} onChange={event => edit({ grain: event.target.value })}>{["daily", "weekly", "monthly", "quarterly"].map(value => <option key={value}>{value}</option>)}</select></label>}
                 <section aria-label="Business context" className="space-y-3 border-b border-gray-100 pb-4">
                   <h3 className="text-sm font-medium">{t("Business context")}</h3>
                   <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.seasonal_business} onChange={event => edit({ seasonal_business: event.target.checked })} />{t("Business has seasonal activity")}</label>
@@ -723,6 +726,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p><ReportGrouping report={report} /></header>
         {!weekly && <ImpactResult analysis={report.impact_analysis} />}
         {!weekly && report.impact_analysis && <ImpactChart analysis={report.impact_analysis} />}
+        {report.intelligence ? <WeeklyIntelligenceReport report={report} snapshot={<MetricTrends report={report} />} busy={busy}
+          onReview={canEditDecisions && canSave ? findingId => void openDecisionDraft(undefined, findingId) : undefined} /> : <>
         <SupportingEvidence collapsed={!weekly && Boolean(report.impact_analysis)}>
         <ReportOverview report={report} />
         {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
@@ -737,6 +742,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
         <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />
+        </>}
       </>}
     </section>
     {relationships && !weekly && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}

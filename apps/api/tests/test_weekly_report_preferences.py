@@ -187,10 +187,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(
-            digest.subject,
-            "ABC Marketing: Weekly Performance Alert — Smith Dental",
-        )
+        self.assertTrue(digest.subject.startswith("ABC Marketing Weekly Intelligence - Smith Dental - "))
         self.assertEqual(digest.agency_name, "ABC Marketing")
         self.assertTrue(digest.is_managed_client)
 
@@ -418,7 +415,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
         )
         self.assertTrue(
             digest.subject.startswith(
-                "Acme Retail KPI digest",
+                "Acme Retail Weekly Intelligence - Acme Retail - ",
             )
         )
 
@@ -627,7 +624,7 @@ class WeeklyReportPreferenceTests(unittest.TestCase):
 
         self.assertTrue(
             digest.subject.startswith(
-                "[Client KPI] Acme Retail KPI digest",
+                "[Client KPI] Acme Retail Weekly Intelligence - Acme Retail - ",
             )
         )
         self.assertEqual(

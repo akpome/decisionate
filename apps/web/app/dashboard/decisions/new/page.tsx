@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { intelligenceDraft } from "@/features/decisions/lib/intelligence-draft"
 import {
     useRouter,
     useSearchParams,
@@ -240,6 +241,19 @@ function NewDecisionContent() {
         user?.id, activeWorkspaceId, !loadingWorkspaceAccess && canCreateDecisions,
         searchParams.get("report") || ""
     )
+    const selectedFindingId = reportEvidence.reportId === searchParams.get("report") ? searchParams.get("finding") || "" : ""
+    const findingDraft = intelligenceDraft(reportEvidence.report, selectedFindingId)
+    const findingPrefill = useRef("")
+    useEffect(() => {
+        const draft = intelligenceDraft(reportEvidence.report, selectedFindingId)
+        const key = JSON.stringify([activeWorkspaceId, reportEvidence.reportId, selectedFindingId])
+        if (!draft || findingPrefill.current === key) return
+        findingPrefill.current = key
+        setCreateDecisionTitle(draft.title)
+        setCreateDecisionAction(draft.action)
+        setCreateDecisionDescription(draft.reasoning)
+        setReportOutcome(draft.outcome)
+    }, [activeWorkspaceId, reportEvidence.reportId, reportEvidence.report, selectedFindingId])
     const reportOutcomeMetric = reportEvidence.report?.metrics.find(metric => metric.id === reportOutcome && metric.value !== null)
 
     const selectedDecisionDataset =
@@ -280,6 +294,7 @@ function NewDecisionContent() {
                 !reportEvidence.loadingReport
             : Boolean(createDatasetId)) &&
         !creatingDecision &&
+        (!selectedFindingId || Boolean(findingDraft) && !findingDraft?.existingDecisionId) &&
         canCreateDecisions
 
     const applyDefaultDecisionTitle = useCallback((prefix = "Decision", replace = false) => {
@@ -721,7 +736,8 @@ function NewDecisionContent() {
                         method: "POST",
                         body: JSON.stringify({ title: cleanTitle, action: createDecisionAction.trim(),
                             reasoning: createDecisionDescription.trim(), expected_outcome: cleanExpectedOutcome,
-                            outcome_metric: reportOutcome, review_date: createDecisionReviewDate }),
+                            outcome_metric: reportOutcome, review_date: createDecisionReviewDate,
+                            ...(selectedFindingId ? { finding_id: selectedFindingId } : {}) }),
                     }, activeWorkspaceId
                 )
                 payload = evidence.decision_payload
@@ -806,7 +822,9 @@ function NewDecisionContent() {
                         onSubmit={handleCreateDecision}
                     >
                         <fieldset disabled={creatingDecision} className="grid min-w-0 gap-4 lg:grid-cols-3">
-                        <DecisionReportEvidence evidence={reportEvidence} outcome={reportOutcome} disabled={creatingDecision}
+                        {selectedFindingId && !reportEvidence.loadingReport && !findingDraft && <p role="alert" className="text-sm text-amber-800 lg:col-span-3">This recommendation is not available in the selected report.</p>}
+                        {findingDraft?.existingDecisionId && <p role="status" className="text-sm lg:col-span-3">This finding already has an active decision. <Link className="text-blue-700 underline" href={`/dashboard/decisions/${findingDraft.existingDecisionId}`}>View existing decision</Link></p>}
+                        <DecisionReportEvidence evidence={reportEvidence} outcome={reportOutcome} disabled={creatingDecision} outcomeLocked={Boolean(selectedFindingId)}
                             onReportChange={id => { reportEvidence.select(id); setReportOutcome(""); setCreateDecisionError("") }}
                             onOutcomeChange={id => { setReportOutcome(id); setCreateDecisionError("") }} />
                         {decisionTemplates.length > 0 && (

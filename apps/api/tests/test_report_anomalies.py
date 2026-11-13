@@ -234,7 +234,7 @@ class ReportAnomalyTests(unittest.TestCase):
              patch("app.modules.alerts.router.generate_structured_analysis", return_value=None) as ai:
             digest = build_weekly_report_digest(preference, [item[0] for item in frames.values()], report_definition=template)
         facts = ai.call_args.kwargs["facts"]
-        self.assertEqual(facts["cross_dataset_report"]["anomaly_detection"], "not_requested")
+        self.assertEqual(facts["anomaly_detection"], "not_requested")
         self.assertNotIn("anomaly_analysis", facts)
         for content in (build_weekly_report_email_text(digest), build_weekly_report_email_html(digest)):
             self.assertIn("Anomaly detection is off for this report.", content)
@@ -376,12 +376,13 @@ class ReportAnomalyTests(unittest.TestCase):
         self.assertTrue(all(item["history_start"] >= "2023-08-12" and item["history_end"] < WINDOW["start"] for metric in analysis["metrics"] for item in metric["baselines"]))
         text, markup = build_weekly_report_email_text(digest), build_weekly_report_email_html(digest)
         for value in (text, markup):
-            self.assertIn("Unusual changes (anomaly detection)", value)
-            self.assertIn("Whole-week assessment", value)
-            self.assertIn("Daily changes", value)
-            self.assertIn("2026-08-04", value)
-            self.assertIn("expected range:", value)
-            self.assertIn("residual mad", value)
+            self.assertIn("Priority findings", value)
+            self.assertIn("outside its expected range for the completed week", value)
+            self.assertNotIn("residual mad", value)
+        # Daily evidence and baseline methods remain in the saved report, not the concise email.
+        self.assertIn("2026-08-04", [point["period"] for metric in analysis["metrics"] for point in metric["anomalies"]])
+        self.assertTrue(all(metric["baselines"] for metric in analysis["metrics"]))
+        self.assertTrue(report["intelligence"]["findings"][0]["evidence"]["unusual_periods"])
         self.assertIn("&lt;script&gt;unsafe", markup)
         self.assertNotIn("<script>", markup)
 

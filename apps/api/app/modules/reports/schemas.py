@@ -181,6 +181,20 @@ class WeeklyReportSettings(ReportDefinition):
     scope: Literal["multi"] = "multi"
     grain: Literal["weekly"] = "weekly"
     date_range: DateRange = Field(default_factory=weekly_history_range)
+    reporting_timezone: str | None = Field(default=None, max_length=100)
+
+    @field_validator("reporting_timezone")
+    @classmethod
+    def valid_timezone(cls, value):
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        if value is not None:
+            if not isinstance(value, str):
+                raise ValueError("Choose a valid reporting timezone")
+            try:
+                ZoneInfo(value)
+            except (ValueError, ZoneInfoNotFoundError) as error:
+                raise ValueError("Choose a valid reporting timezone") from error
+        return value
 
     @model_validator(mode="before")
     @classmethod
@@ -189,7 +203,8 @@ class WeeklyReportSettings(ReportDefinition):
         from .names import weekly_report_name
 
         if isinstance(value, dict):
-            value = {**value, "date_range": weekly_context()["history_window"], "included_findings": None,
+            cls.valid_timezone(value.get("reporting_timezone"))
+            value = {**value, "date_range": weekly_context(zone=value.get("reporting_timezone"))["history_window"], "included_findings": None,
                      "source_run_id": None, "pair_directions": value.get("pair_directions") or []}
             if value.get("name") is None or isinstance(value["name"], str):
                 value["name"] = weekly_report_name(value.get("name"))
@@ -197,6 +212,7 @@ class WeeklyReportSettings(ReportDefinition):
 
 
 class ReportDecision(StrictModel):
+    finding_id: str | None = Field(default=None, max_length=100)
     title: str = Field(min_length=3, max_length=200)
     action: str = Field(min_length=3, max_length=5000)
     reasoning: str = Field(min_length=3, max_length=5000)

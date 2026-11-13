@@ -133,6 +133,26 @@ class EmailBrandingTests(unittest.TestCase):
                 self.assertNotIn("<img", html)
                 self.assertNotIn('src="javascript:', html)
 
+    def test_weekly_intelligence_preserves_agency_branding_and_frozen_report_link(self):
+        url = "https://www.decisionate.ca/dashboard/reports/weekly?report=frozen-report&workspace_id=client"
+        intelligence = {"summary": "Sales changed <safely>.", "findings": [], "recommendations": [], "decisions": [], "quality": ["Check coverage."]}
+        for logo in (None, "javascript:alert(1)", "https://agency.example.test/logo.png"):
+            with self.subTest(logo=logo):
+                digest = WeeklyReportDigestResponse(enabled=True, cadence="weekly", delivery_day="monday",
+                    recipient_emails=["owner@example.test"], metric_focus=[], subject="Weekly intelligence", preview_text="Report",
+                    dataset_count=2, metrics=[], recommendations=[], unavailable_datasets=[], brand_name="Agency <Name>",
+                    is_managed_client=True, agency_name="Agency <Name>", workspace_name="Client", brand_logo_url=logo,
+                    review_url=url, cross_dataset_report={"intelligence": intelligence})
+                text = email_delivery.build_weekly_report_email_text(digest)
+                html = email_delivery.build_weekly_report_email_html(digest)
+                self.assertIn(url, text)
+                self.assertIn(url.replace("&", "&amp;"), html)
+                self.assertIn("Agency &lt;Name&gt;", html)
+                self.assertIn("Sales changed &lt;safely&gt;.", html)
+                self.assertNotIn("/icons/decisionate-logo.png", html)
+                self.assertNotIn('src="javascript:', html)
+                self.assertEqual("<img" in html, bool(logo and logo.startswith("https://")))
+
     def test_client_system_email_uses_only_agency_logo_on_both_transports(self):
         branding = {"is_managed_client": True, "brand_name": "North <Star> Agency",
                     "brand_logo_url": "https://agency.example.test/logo.png"}

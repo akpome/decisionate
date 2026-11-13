@@ -46,7 +46,10 @@ def check_inputs(db, job):
     if job.status != "running":
         raise HTTPException(409, "Analysis was cancelled.")
     verify_job_actor(job)
-    if json.loads(job.definition).get("reporting_timezone", reporting_timezone()) != reporting_timezone():
+    frozen = json.loads(job.definition)
+    configured_zone = ((frozen.get("configuration", {}).get("template") or {}).get("reporting_timezone")
+                       if job.kind.startswith("weekly_") else None) or reporting_timezone()
+    if frozen.get("reporting_timezone", reporting_timezone()) != configured_zone:
         raise HTTPException(409, "The reporting timezone changed. Generate a new preview with the current reporting settings.")
     expected = json.loads(job.sources)
     datasets = authorize_datasets(db, job.user_id, job.workspace_id, [int(key) for key in expected])
@@ -74,7 +77,7 @@ def check_inputs(db, job):
             from zoneinfo import ZoneInfo
             from app.modules.reports.service import complete_week
             anchor = date.fromisoformat(json.loads(job.definition)["anchor"])
-            if complete_week(anchor) != complete_week(datetime.now(ZoneInfo(reporting_timezone())).date()):
+            if complete_week(anchor) != complete_week(datetime.now(ZoneInfo(configured_zone)).date()):
                 raise HTTPException(409, "The reporting week changed while this delivery waited. Generate the latest weekly report.")
 
 
@@ -132,8 +135,9 @@ def run_weekly(db, job, definition):
     if owner_delivery:
         digest = digest.model_copy(update={"enabled": True, "recipient_emails": [definition["delivery"]["recipient"]]})
     alerts.validate_weekly_report_digest_for_delivery(digest)
-    from app.modules.reports.weekly import archive_weekly_delivery
+    from app.modules.reports.weekly import archive_weekly_delivery, link_weekly_delivery
     archive_weekly_delivery(db, job, digest.cross_dataset_report)
+    link_weekly_delivery(digest, job.saved_report_id, job.workspace_id)
     # Commit before external side effects. A restart in this phase needs operator
     # reconciliation, never an automatic resend (SMTP cannot guarantee exactly once).
     set_phase(db, job, "sending", intermediate_result={"digest": digest.model_dump(mode="json")})

@@ -67,9 +67,9 @@ export function useDecisionReportEvidence(userId: string | undefined, workspaceI
   }
 }
 
-export function DecisionReportEvidence({ evidence, outcome, onReportChange, onOutcomeChange, disabled }: {
+export function DecisionReportEvidence({ evidence, outcome, onReportChange, onOutcomeChange, disabled, outcomeLocked = false }: {
   evidence: ReturnType<typeof useDecisionReportEvidence>; outcome: string
-  onReportChange: (id: string) => void; onOutcomeChange: (id: string) => void; disabled: boolean
+  onReportChange: (id: string) => void; onOutcomeChange: (id: string) => void; disabled: boolean; outcomeLocked?: boolean
 }) {
   const report = evidence.report
   return <section aria-label="Report evidence" className="min-w-0 space-y-3 border-y border-gray-200 py-4 lg:col-span-3">
@@ -87,14 +87,14 @@ export function DecisionReportEvidence({ evidence, outcome, onReportChange, onOu
     {evidence.loadingReport && <p role="status" className="text-sm text-gray-500">Loading report evidence...</p>}
     {report && <>
       <p className="break-words text-sm font-medium">{report.business_question}</p>
-      <p className="text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / <Link href={`/dashboard/reports?report=${encodeURIComponent(evidence.reportId)}`} className="text-blue-700 underline">View saved report</Link></p>
+      <p className="text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / <Link href={`/dashboard/reports${report.weekly_report ? "/weekly" : ""}?report=${encodeURIComponent(evidence.reportId)}`} className="text-blue-700 underline">View saved report</Link></p>
       <ul className="space-y-1 text-xs text-gray-600">{report.metrics.map(metric => <li key={metric.id} className="break-words">{metric.dataset_label} / {metric.label}</li>)}</ul>
       <ImpactResult analysis={report.impact_analysis} compact />
       {report.status !== "ready" && <p role="alert" className="text-sm text-amber-800">Resolve report coverage before using this report as decision evidence.</p>}
       {report.warnings.map((warning, index) => <p key={index} className="break-words text-xs text-amber-800">{warning}</p>)}
       <div>
         <label htmlFor="decision-report-outcome" className="block text-xs font-medium text-gray-600">Outcome metric</label>
-        <select id="decision-report-outcome" className={input} required value={outcome} disabled={disabled || report.status !== "ready"} onChange={event => onOutcomeChange(event.target.value)}>
+        <select id="decision-report-outcome" className={input} required value={outcome} disabled={disabled || outcomeLocked || report.status !== "ready"} onChange={event => onOutcomeChange(event.target.value)}>
           <option value="" disabled>Choose outcome metric</option>
           {report.metrics.filter(metric => metric.value !== null).map(metric => <option key={metric.id} value={metric.id}>{metric.dataset_label} / {metric.label}</option>)}
         </select>

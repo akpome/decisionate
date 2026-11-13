@@ -144,7 +144,7 @@ def report_anomalies(frames, references, definition, metadata, *, anchor=None, w
 
 
 def build_report(frames, definition, *, unavailable=None, history_anchor=None, impact_definition=None,
-                 summary_grain=None, relationship_history_end=None, include_whole_week=False):
+                 summary_grain=None, relationship_history_end=None, include_whole_week=False, weekly_intelligence=False):
     """Frames must already be authorized; source data and selections are never changed."""
     definition = {**definition, "pair_directions": normalize_pair_directions(definition.get("pair_directions"))}
     selected_datasets = {reference["dataset_id"] for reference in definition["metrics"]}
@@ -158,6 +158,8 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     window, analysis_grain, references = definition["date_range"], definition["grain"], definition["metrics"]
     grain = summary_grain or analysis_grain
     zone = definition.get("reporting_timezone") or reporting_timezone()
+    if weekly_intelligence:
+        definition = {**definition, "reporting_timezone": zone}
     previous = previous_window(window)
     metadata, series, metrics, warnings = {}, {}, [], list(unavailable or [])
     catalogs = {identity: metric_catalog(dataset, frame) for identity, (dataset, frame) in frames.items()}
@@ -232,12 +234,20 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                                   for period, value in points.set_index("period").value.reindex(expected).items()]})
     scoped.clear()
 
+    anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor) if detect_anomalies else None
+    weekly_anomalies = report_anomalies(frames, references, {**actual_definition, "grain": "weekly"}, metadata,
+                                       anchor=history_anchor, whole_week=True) if detect_anomalies and include_whole_week else None
+
     # Relationship history is separate from the reporting window: interactive
     # reports use at least 90 days; scheduled reviews use a rolling three years.
     history = {"start": historical_start(history_anchor) if history_anchor else str(min(date.fromisoformat(window["start"]), date.fromisoformat(window["end"]) - timedelta(days=89))), "end": relationship_history_end or window["end"]}
     relationship_definition = {**actual_definition, "grain": analysis_grain, "date_range": history,
                                "filters": {**definition["filters"], "minimum_observations": max(MINIMUM_REPORT_OBSERVATIONS, definition["filters"]["minimum_observations"])}}
     pairs = report_pairs(definition, usable)
+    if weekly_intelligence:
+        from .intelligence import select_investigation_pairs
+        pairs, investigation_warnings = select_investigation_pairs(metrics, pairs, weekly_anomalies)
+        warnings.extend(investigation_warnings)
     relationship_metrics = {metric_id(item) for pair in pairs for item in pair}
     historical = prepare_report_series(frames, [item for item in usable if metric_id(item) in relationship_metrics], relationship_definition) if pairs and not single else {}
     history_periods = period_index(history, analysis_grain) if historical else pd.DatetimeIndex([])
@@ -327,9 +337,6 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
     if not actions:
         actions.append("Compare the selected metrics with their previous-period baselines and business targets before acting." if not relationships else
                        "Collect comparable history across the selected datasets before drawing a relationship conclusion.")
-    anomalies = report_anomalies(frames, references, actual_definition, metadata, anchor=history_anchor) if detect_anomalies else None
-    weekly_anomalies = report_anomalies(frames, references, {**actual_definition, "grain": "weekly"}, metadata,
-                                       anchor=history_anchor, whole_week=True) if detect_anomalies and include_whole_week else None
     if (anomalies and anomalies["anomaly_count"]) or (weekly_anomalies and weekly_anomalies["anomaly_count"]):
         actions.append("Check unusual changes against your normal busy and quiet times, recent business events, and whether the data import finished.")
     impact = None
@@ -346,7 +353,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         impact = evaluate_impact(prepare_report_series(frames, study_references, study_definition), study_definition, study_metadata)
         actions = impact["next_steps"]
     selected_ids = [finding["id"] for finding in selected]
-    return {"name": definition["name"], "business_question": definition["business_question"],
+    result = {"name": definition["name"], "business_question": definition["business_question"],
             "definition": {**definition, "included_findings": selected_ids},
             "report_version": "single_dataset_report.v1" if single else "cross_dataset_report.v1",
             "window": window, "previous_window": previous, "history_window": history, "grain": grain, "analysis_grain": analysis_grain,
@@ -367,6 +374,19 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                             "Different datasets can contain duplicated or mathematically related measures; a cross-dataset correlation is not automatically independent evidence.",
                             "Significance is adjusted across tested pairs and lags, but is not a causal or out-of-sample validation."],
             "decisions": []}
+    if weekly_intelligence:
+        result["source_quality"] = []
+        for identity, catalog in catalogs.items():
+            columns = {item["date_column"] for item in usable if item["dataset_id"] == identity}
+            for column in sorted(columns):
+                dates = report_dates(frames[identity][1], column, zone).dropna()
+                latest = str(dates.max().date()) if not dates.empty else None
+                result["source_quality"].append({"dataset_id": identity, "dataset_label": catalog["dataset_label"],
+                    "date_column": column, "latest_observation": latest,
+                    "policy_issues": catalog["metric_issues"],
+                    "warnings": [f"{catalog['dataset_label']}: latest available observation is {latest or 'unavailable'}; the report week ends {window['end']}."]
+                    if not latest or latest < window["end"] else []})
+    return result
 
 
 def report_analysis_facts(report):

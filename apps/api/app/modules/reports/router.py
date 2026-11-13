@@ -323,7 +323,7 @@ def save_weekly_preview(job_id: str, request: Request, db=Depends(database)):
         if not settings["current_report"] or settings["current_report"]["analysis_job_id"] != job.id:
             raise HTTPException(409, "This preview was replaced. Open the current weekly report and preview your changes again.")
         return {"report": settings["current_report"], "settings": settings}
-    context = weekly_context()
+    context = weekly_context(zone=frozen.get("reporting_timezone"))
     report = result.get("cross_dataset_report", result)
     if report["window"] != context["window"] or frozen.get("reporting_timezone") != context["reporting_timezone"]:
         raise HTTPException(409, "The reporting week or timezone changed. Preview the current week before saving.")
@@ -331,7 +331,6 @@ def save_weekly_preview(job_id: str, request: Request, db=Depends(database)):
     definition, datasets = validate_definition(db, payload, user, workspace)
     if snapshot(datasets) != json.loads(job.sources):
         raise HTTPException(409, "A selected dataset changed. Preview the latest data before saving.")
-    definition.pop("reporting_timezone", None)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
     if (weekly_configuration(db, preference, workspace, user) != frozen["base_configuration"]
             or (current.job_id if current else None) != frozen.get("base_current_job_id")):
@@ -365,7 +364,7 @@ def weekly_owner_job(request: Request, include_ai_analysis: bool = True, preview
         report = weekly_settings(request, db)["current_report"]
         if not report or report["analysis_job_id"] != preview_job_id:
             raise HTTPException(409, "Preview and save the weekly report before sending.")
-        if report["window"] != weekly_context()["window"]:
+        if report["window"] != weekly_context(zone=report["definition"].get("reporting_timezone"))["window"]:
             raise HTTPException(409, "The reporting week or weekly settings changed. Preview and save again before sending.")
     return job_response(enqueue_weekly(db, user, workspace, preference, send=True, owner_only=True,
         include_ai=include_ai_analysis, request_key=request.headers.get("Idempotency-Key")))
@@ -439,7 +438,7 @@ def weekly_settings(request: Request, db=Depends(database)):
     user, workspace = identity(request)
     preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).first()
     definition = weekly_business_template(db, preference, workspace)
-    context = weekly_context()
+    context = weekly_context(zone=(definition or {}).get("reporting_timezone"))
     current = current_weekly_report(db, user, workspace, definition) if definition else None
     if definition:
         authorize_datasets(db, user, workspace, [item["dataset_id"] for item in definition["metrics"]])
@@ -483,7 +482,6 @@ def update_weekly_settings(request: Request, payload: WeeklyReportSettings, db=D
     user, workspace = identity(request)
     require_workspace_data_manager(request)
     definition, _ = validate_definition(db, payload, user, workspace)
-    definition.pop("reporting_timezone", None)
     apply_weekly_settings(db, definition, workspace)
     db.commit()
     return weekly_settings(request, db)
@@ -626,6 +624,15 @@ def decision_evidence(report_id: str, request: Request, payload: ReportDecision,
     user, workspace = identity(request)
     report = allowed_report(db, report_id, user, workspace)
     snapshot, metrics, evidence, descriptors = report_decision_evidence(report)
+    if payload.finding_id:
+        from .intelligence_decisions import active_finding_decision, finding_evidence
+        finding, recommendation = finding_evidence(snapshot, payload.finding_id)
+        existing = active_finding_decision(db, workspace, finding["id"])
+        if existing:
+            raise HTTPException(409, f"This issue already has an active decision. Open Decision #{existing.id}.")
+        if payload.outcome_metric != recommendation["success_metric_id"]:
+            raise HTTPException(400, "Use this finding's success metric.")
+        evidence.update(intelligence_finding=finding, intelligence_recommendation=recommendation)
     outcome = next((item for item in metrics if item["id"] == payload.outcome_metric), None)
     if outcome is None:
         raise HTTPException(400, "Select an outcome metric from the report")

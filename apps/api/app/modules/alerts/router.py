@@ -62,7 +62,7 @@ from app.modules.datasets.services.relationships import (
 )
 from app.modules.decisions.models import Decision
 from app.modules.reports.models import BusinessReport
-from app.modules.reports.service import attach_report_decisions, build_report, complete_week, previous_window, report_analysis_facts, report_anomalies, scoped_frame
+from app.modules.reports.service import attach_report_decisions, build_report, complete_week, previous_window, report_anomalies, scoped_frame
 from app.modules.reports.catalog import prepare_report_source
 from app.modules.reports.relationships import metric_key
 from app.modules.reports.schemas import MINIMUM_REPORT_OBSERVATIONS
@@ -564,6 +564,7 @@ def build_weekly_report_digest(
     branding: dict | None = None,
     report_definition: dict | None = None,
     analysis_date: date | None = None,
+    db=None,
 ) -> WeeklyReportDigestResponse:
     if report_definition:
         selected = {item["dataset_id"] for item in report_definition["metrics"]}
@@ -655,6 +656,17 @@ def build_weekly_report_digest(
             available_digest_metrics.append(metric_record)
 
     cross_report = build_weekly_cross_dataset_report(report_frames, preference, report_definition, unavailable_datasets, relationship_results, analysis_date=analysis_date)
+    from app.modules.reports.intelligence import build_intelligence, deterministic_summary, narrative_statements
+    from app.modules.reports.intelligence_decisions import attach_continuity, attach_ingestion_quality
+    if not cross_report.get("impact_analysis"):
+        if db is not None:
+            attach_ingestion_quality(cross_report, db, workspace_id)
+        cross_report["intelligence"] = build_intelligence(cross_report)
+        if db is not None:
+            attach_continuity(cross_report, db, workspace_id)
+        if not preference.include_recommendations:
+            cross_report["intelligence"]["recommendations"] = []
+        cross_report["intelligence"]["summary"] = deterministic_summary(cross_report)
     digest_metrics = [
         {"dataset_id": metric["dataset_id"], "dataset_name": metric["dataset_label"], "column": metric["metric_key"],
          "total": metric["value"], "previous_value": metric["previous_value"], "change_percent": metric["change_percent"],
@@ -663,92 +675,39 @@ def build_weekly_report_digest(
         for metric in cross_report["metrics"]
     ]
 
-    generated_at = datetime.now(
-        timezone.utc
-    )
-    generated_date = (
-        f"{generated_at:%b} {generated_at.day}, {generated_at:%Y}"
-    )
-    metric_count = len(
-        digest_metrics
-    )
-    subject_base = (
-        f"{agency_name}: Weekly Performance Alert — {workspace_name}"
-        if is_managed_client and workspace_name
-        else f"{agency_name or clean_brand_name} KPI digest — {generated_date}"
-    )
     subject_prefix = clean_optional_text(
         preference.subject_prefix,
         "Subject prefix",
     )
-    subject = (
-        f"{subject_prefix} {subject_base}"
-        if subject_prefix
-        else subject_base
-    )
-    relationship_count = len(relationship_results)
-    preview_parts = [
-        f"{metric_count} dataset KPI metric"
-        f"{'' if metric_count == 1 else 's'}"
-    ]
-    if relationship_count:
-        preview_parts.append(
-            f"{relationship_count} cross-source relationship"
-            f"{'' if relationship_count == 1 else 's'}"
-        )
-    preview_text = (
-        ", ".join(preview_parts)
-        + " ready for review."
-    )
+    subject = f"{subject_prefix + ' ' if subject_prefix else ''}{agency_name or clean_brand_name} Weekly Intelligence - {workspace_name or clean_brand_name} - {cross_report['window']['start']} to {cross_report['window']['end']}"
     preview_text = (f"Cross-dataset weekly review: {cross_report['window']['start']} to {cross_report['window']['end']}; "
                     f"{cross_report['dataset_count']} datasets, {len(digest_metrics)} metrics. "
                     + ("Coverage limitations require attention." if cross_report["status"] != "ready" else "Compared with the preceding complete week."))
-    fallback_recommendations = cross_report["recommendations"]
+    fallback_recommendations = [item["action"] for item in cross_report["intelligence"]["recommendations"]] if cross_report.get("intelligence") else cross_report["recommendations"]
     ai_analysis = None
     recommendations = fallback_recommendations
 
     if include_ai_analysis and cross_report["status"] == "ready" and not cross_report.get("impact_analysis"):
-        ai_facts = {
-            "metrics": digest_metrics[:10],
-            "relationships": relationship_results[:10],
-            "unavailable_datasets": unavailable_datasets,
-            "metric_focus": preference.metric_focus,
-            "metric_targets": preference.metric_targets,
-            "relationship_focus": preference.relationship_focus,
-        }
-
-        if learning_context:
-            ai_facts["historical_decision_learning"] = learning_context
-
-        report_facts = report_analysis_facts(cross_report)
-        ai_facts["cross_dataset_report"] = {key: value for key, value in report_facts.items() if key not in {"anomaly_analysis", "weekly_anomaly_analysis"}}
-        ai_facts["limitations"] = cross_report["limitations"]
-        if "anomaly_analysis" in report_facts:
-            ai_facts["anomaly_analysis"] = report_facts["anomaly_analysis"]
-        if "weekly_anomaly_analysis" in report_facts:
-            ai_facts["weekly_anomaly_analysis"] = report_facts["weekly_anomaly_analysis"]
-        ai_facts["reporting_window"] = cross_report["window"]
-
         ai_analysis = generate_structured_analysis(
-            context="cross-dataset complete-week business review",
-            facts=ai_facts,
-            fallback_summary=preview_text,
+            context="weekly intelligence evidence selection v1",
+            facts={"window": cross_report["window"], "status": cross_report["status"],
+                   "anomaly_detection": "included" if cross_report["definition"].get("include_anomalies", True) else "not_requested"},
+            approved_statements=narrative_statements(cross_report),
+            fallback_summary=cross_report["intelligence"]["summary"],
             fallback_recommendations=fallback_recommendations,
-            fallback_risks=(
-                [
-                    f"Dataset unavailable: {dataset_name}."
-                    for dataset_name in unavailable_datasets[:5]
-                ]
-            ),
+            fallback_risks=cross_report["intelligence"]["quality"][:5],
             workspace_id=workspace_id,
         )
         if ai_analysis is not None:
-            recommendations = ai_analysis["recommendations"]
+            cross_report["intelligence"]["summary"] = ai_analysis["summary"]
+            cross_report["intelligence"]["narrative_source"] = ai_analysis["source"]
+            cross_report["ai_analysis"] = ai_analysis
 
     if not preference.include_recommendations:
         recommendations = []
         if ai_analysis is not None:
             ai_analysis["recommendations"] = []
+    cross_report["recommendations"] = recommendations
 
     decision_template_url = branding.get("review_url") or build_weekly_report_review_url()
 
@@ -856,7 +815,10 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
             definition[setting] = [pair for pair in definition[setting]
                                    if metric_key(pair["metric_a"]) in selected_keys and metric_key(pair["metric_b"]) in selected_keys]
     selected_frames = {key: value for key, value in frames.items() if any(item["dataset_id"] == key for item in references)}
-    anchor = analysis_date or datetime.now(ZoneInfo(reporting_timezone())).date()
+    zone = (template or {}).get("reporting_timezone") or reporting_timezone()
+    anchor = analysis_date or datetime.now(ZoneInfo(zone)).date()
+    definition["date_range"] = complete_week(anchor)
+    definition["reporting_timezone"] = zone
     impact_definition = None
     if template and template.get("impact"):
         # Weekly business-change estimates use weekly history, not a seven-day model.
@@ -866,13 +828,14 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                                             "end": definition["date_range"]["end"]}}
     result = build_report(selected_frames, definition, unavailable=warnings, history_anchor=anchor,
                           impact_definition=impact_definition, summary_grain="daily",
-                          relationship_history_end=previous_window(definition["date_range"])["end"], include_whole_week=True)
+                          relationship_history_end=previous_window(definition["date_range"])["end"], include_whole_week=True,
+                          weekly_intelligence=not bool(impact_definition))
     result["weekly_report"] = True
     evaluated = {item["metric_id"] for item in result.get("anomaly_analysis", {}).get("metrics", [])}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated] if definition.get("include_anomalies", True) else []
     if omitted:
         for key, grain in (("anomaly_analysis", "daily"), ("weekly_anomaly_analysis", "weekly")):
-            unavailable_metrics = report_anomalies({}, omitted, {**definition, "grain": grain, "reporting_timezone": reporting_timezone()}, {},
+            unavailable_metrics = report_anomalies({}, omitted, {**definition, "grain": grain, "reporting_timezone": zone}, {},
                                                    anchor=anchor, whole_week=key == "weekly_anomaly_analysis")["metrics"]
             for metric in unavailable_metrics:
                 metric["warnings"] = ["The selected metric or its dataset is unavailable under the current policy; it could not be assessed."]
@@ -1117,7 +1080,7 @@ def build_weekly_report_digest_for_workspace(
         workspace_id,
         {item["dataset_id"] for item in template["metrics"]} if template else None,
     )
-    relationship_results = build_weekly_report_relationships(
+    relationship_results = [] if template else build_weekly_report_relationships(
         db,
         preference_response,
         datasets,
@@ -1141,13 +1104,14 @@ def build_weekly_report_digest_for_workspace(
                 datasets,
             ),
             learning_scope="dataset",
-        ) if include_ai_analysis else None,
+        ) if include_ai_analysis and not template else None,
         workspace_id,
         relationship_results,
         branding=branding,
         report_definition=template,
         include_ai_analysis=include_ai_analysis,
         analysis_date=analysis_date,
+        db=db,
     )
     report_id = preference.business_report_id if preference and template_override is None else None
     digest.cross_dataset_report["decision_report_id"] = report_id
@@ -1789,14 +1753,25 @@ def send_due_weekly_reports(request: Request):
     delivery_day = get_delivery_day_for_time(current_time)
     results = []
     with SessionLocal() as db:
-        preferences = db.query(WeeklyReportPreference).filter_by(enabled=1, delivery_day=delivery_day).all()
+        preferences = db.query(WeeklyReportPreference).filter_by(enabled=1).all()
         for preference in preferences:
             workspace = preference.workspace_id
+            from app.modules.reports.weekly import preference_timezone
+            try:
+                local_time = current_time.astimezone(ZoneInfo(preference_timezone(preference)))
+            except (ValueError, KeyError, TypeError):
+                logger.warning("Invalid weekly reporting timezone for workspace %s", workspace)
+                results.append({"workspace_id": workspace, "status": "failed", "detail": "Review the weekly reporting timezone in Weekly Reports."})
+                continue
+            if preference.delivery_day != get_delivery_day_for_time(local_time):
+                continue
             from app.modules.workspace_lifecycle import workspace_is_paused
             if workspace_is_paused(db, workspace):
                 results.append({"workspace_id": workspace, "status": "skipped", "detail": "Client workspace is paused"})
                 continue
-            if was_weekly_report_sent_today(preference, current_time):
+            last_sent = preference.last_sent_at
+            sent_today = bool(last_sent and last_sent.replace(tzinfo=timezone.utc).astimezone(local_time.tzinfo).date() == local_time.date())
+            if sent_today:
                 results.append({"workspace_id": workspace, "status": "skipped", "detail": "Already sent today"})
                 continue
             try:

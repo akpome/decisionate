@@ -11,11 +11,19 @@ from .names import weekly_report_name
 from .service import complete_week, previous_window
 
 
-def weekly_context(anchor=None):
-    anchor = anchor or datetime.now(ZoneInfo(reporting_timezone())).date()
+def weekly_context(anchor=None, zone=None):
+    zone = zone or reporting_timezone()
+    anchor = anchor or datetime.now(ZoneInfo(zone)).date()
     window = complete_week(anchor)
     return {"window": window, "history_window": {"start": historical_start(anchor), "end": previous_window(window)["end"]},
-            "reporting_timezone": reporting_timezone()}
+            "reporting_timezone": zone}
+
+
+def preference_timezone(preference):
+    definition = json.loads(preference.weekly_report_definition or "{}") if preference else {}
+    if not isinstance(definition, dict):
+        raise ValueError("Invalid weekly reporting settings")
+    return definition.get("reporting_timezone") or reporting_timezone()
 
 
 def weekly_settings_copy(definition):
@@ -83,6 +91,14 @@ def archive_weekly_delivery(db, job, report):
     db.flush()
     job.saved_report_id = archived.id
     db.flush()
+
+
+def link_weekly_delivery(digest, report_id, workspace):
+    from urllib.parse import urlencode
+    from app.configuration import get_runtime_configuration
+    url = get_runtime_configuration().web_url.rstrip("/") + "/dashboard/reports/weekly?" + urlencode({"report": report_id, "workspace_id": workspace})
+    digest.review_url = digest.decision_template_url = url
+    digest.cross_dataset_report["report_id"] = report_id
 
 
 def confirm_weekly_delivery(db, job, sent_at):

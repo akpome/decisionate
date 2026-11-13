@@ -1303,7 +1303,8 @@ async def create_decision(
             if existing is not None:
                 return existing
 
-        existing = repeated_active_decision(db, decision)
+        from app.modules.reports.intelligence_decisions import validate_adoption
+        existing = validate_adoption(db, decision, clean_user_id) or repeated_active_decision(db, decision)
         if existing is not None:
             if decision.creation_request_key:
                 db.add(DecisionCreationRequest(

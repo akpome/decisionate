@@ -11,8 +11,8 @@ export function weeklyDefinition(value: Partial<ReportDefinition>, history?: Wee
   const copied = value.grain && value.grain !== "weekly"
     ? { ...value, lag: undefined, pair_directions: (value.pair_directions || []).map(pair => ({ ...pair, direction: "same_period" as const })) }
     : value
-  return editableDefinition({ ...copied, name: weeklyReportName(value.name), grain: "weekly", scope: "multi", date_range: history || value.date_range,
-    source_run_id: null, included_findings: null })
+  return { ...editableDefinition({ ...copied, name: weeklyReportName(value.name), grain: "weekly", scope: "multi", date_range: history || value.date_range,
+    source_run_id: null, included_findings: null }), ...(value.reporting_timezone ? { reporting_timezone: value.reporting_timezone } : {}) }
 }
 
 export function weeklyDeliveryIssue(report: BusinessReport | null, window?: WeeklySettings["window"]) {

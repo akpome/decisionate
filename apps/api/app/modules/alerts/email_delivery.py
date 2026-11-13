@@ -491,9 +491,46 @@ def format_anomaly_number(value):
     return f"{value:.4e}" if value is not None and 0 < abs(value) < .01 else format_digest_number(value)
 
 
+def weekly_intelligence_email_sections(digest):
+    intelligence = digest.cross_dataset_report["intelligence"]
+    findings = intelligence["findings"][:3]
+    ids = {item["id"] for item in findings}
+    actions = [item for item in intelligence["recommendations"] if item["finding_id"] in ids][:3]
+    return [("This week", [intelligence["summary"]]),
+            ("Priority findings", [item["observation"] for item in findings] or ["No supported priority changes to highlight."]),
+            ("Recommended investigations", [(f"Follow up Decision #{item['related_decision_id']}: " if item.get("related_decision_id") else "") + item["action"] for item in actions] or ["No new action recommended."]),
+            ("Decisions and outcomes", [f"{item['title']}: {item['assessment']}." for item in intelligence["decisions"][:3]] or ["No relevant decision progress recorded."]),
+            ("Data limitations", intelligence["quality"][:3])]
+
+
+def weekly_intelligence_email_html(digest):
+    primary = clean_email_brand_color(digest.brand_primary_color, "#2563EB")
+    logo_url = clean_email_logo_url(digest.brand_logo_url)
+    header = (f'<img src="{escape_html(logo_url, quote=True)}" alt="{escape_html(digest.brand_name)}" width="160" style="max-width:160px;height:auto;">'
+              if digest.is_managed_client and logo_url else
+              f'<p style="font-weight:bold;">{escape_html(digest.agency_name or digest.brand_name)}</p>' if digest.is_managed_client else build_decisionate_email_header())
+    sections = "".join(f'<h2 style="font-size:18px;margin:24px 0 12px;">{escape_html(title)}</h2>'
+                       + "".join(f'<p style="font-size:14px;line-height:1.6;overflow-wrap:anywhere;">{escape_html(line)}</p>' for line in lines)
+                       for title, lines in weekly_intelligence_email_sections(digest))
+    url = clean_email_logo_url(digest.review_url)
+    link = f'<p><a href="{escape_html(url, quote=True)}" style="color:{primary};font-weight:bold;">Read the full report</a></p>' if url else ""
+    return ('<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Weekly Intelligence</title></head><body style="margin:0;background:#F8FAFC;color:#1F2937;font-family:Arial,sans-serif;">'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 16px;">'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:white;">'
+            f'<tr><td style="padding:24px;">{header}<h1 style="font-size:22px;">Weekly Intelligence</h1>{sections}{link}'
+            f'<p style="font-size:12px;color:#4B5563;">Prepared for {escape_html(digest.workspace_name or digest.brand_name)} by {escape_html(digest.agency_name or digest.brand_name)}. '
+            f'Powered by {escape_html(get_application().name)}.</p></td></tr></table></td></tr></table></body></html>')
+
+
 def build_weekly_report_email_text(
     digest: WeeklyReportDigestResponse,
 ) -> str:
+    if (digest.cross_dataset_report or {}).get("intelligence"):
+        sections = weekly_intelligence_email_sections(digest)
+        return "\n\n".join([digest.subject, *(title + "\n" + "\n".join(lines) for title, lines in sections),
+                              "Read the full report: " + (digest.review_url or ""),
+                              f"Prepared for {digest.workspace_name or digest.brand_name} by {digest.agency_name or digest.brand_name}."])
     lines = [
         digest.subject,
         "",
@@ -735,6 +772,8 @@ def clean_email_brand_color(
 def build_weekly_report_email_html(
     digest: WeeklyReportDigestResponse,
 ) -> str:
+    if (digest.cross_dataset_report or {}).get("intelligence"):
+        return weekly_intelligence_email_html(digest)
     primary_color = clean_email_brand_color(
         digest.brand_primary_color,
         "#2563EB",

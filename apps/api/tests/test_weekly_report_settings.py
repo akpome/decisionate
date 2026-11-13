@@ -444,7 +444,7 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         dates = pd.date_range("2023-04-01", "2026-03-29")
         for identity, (dataset, _) in list(frames.items()):
             metric = "spend" if identity == 1 else "net_sales"
-            frames[identity] = dataset, pd.DataFrame({"date": dates, metric: range(1, len(dates) + 1)})
+            frames[identity] = dataset, pd.DataFrame({"date": dates, metric: range(1, len(dates) + 1), "currency": "CAD"})
         preference = alerts.build_weekly_report_preference_response(None)
         report = alerts.build_weekly_cross_dataset_report(frames, preference, self.settings(), analysis_date=date(2026, 4, 1))
         expected = len(pd.date_range("2023-04-03", "2026-03-16", freq="W-MON"))

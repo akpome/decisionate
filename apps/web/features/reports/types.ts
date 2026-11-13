@@ -5,7 +5,7 @@ import { MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/feat
 import type { ImpactAnalysis, ImpactStudy } from "./impact-types"
 
 export type ReportScope = "single" | "multi"
-export type ReportDefinition = CorrelationDefinition & { scope: ReportScope; include_relationships?: boolean; include_anomalies?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
+export type ReportDefinition = CorrelationDefinition & { reporting_timezone?: string; scope: ReportScope; include_relationships?: boolean; include_anomalies?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
 export type ReportAnomalyPoint = { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[]; unusual?: boolean }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
@@ -42,6 +42,7 @@ export type ReportDecision = {
   baseline: number | null; measured_value: number | null; change_percent: number | null
 }
 export type BusinessReport = {
+  intelligence?: import("./weekly-intelligence-types").WeeklyIntelligence
   weekly_report?: boolean
   weekly_current?: boolean
   analysis_job_id?: string

@@ -295,12 +295,12 @@ class BusinessReportEngineTests(unittest.TestCase):
         self.assertEqual(digest.cross_dataset_report["dataset_count"], 2)
         self.assertEqual(digest.cross_dataset_report["name"], "Weekly Business Report")
         validate_weekly_report_digest_for_delivery(digest)
-        digest.cross_dataset_report["business_question"] = "<script>unsafe</script>"
+        digest.cross_dataset_report["intelligence"]["summary"] = "<script>unsafe</script>"
         markup = build_weekly_report_email_html(digest)
         self.assertIn("&lt;script&gt;unsafe", markup)
         self.assertNotIn("<script>", markup)
-        self.assertIn("Previous window:", build_weekly_report_email_text(digest))
-        self.assertIn("Value:", build_weekly_report_email_text(digest))
+        self.assertIn("Priority findings", build_weekly_report_email_text(digest))
+        self.assertIn("Recommended investigations", build_weekly_report_email_text(digest))
         self.assertNotIn("Average:", build_weekly_report_email_text(digest))
         digest.cross_dataset_report["status"] = "limited_coverage"
         with self.assertRaises(HTTPException):
@@ -395,15 +395,15 @@ class BusinessReportEngineTests(unittest.TestCase):
              patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()), \
              patch("app.modules.alerts.router.generate_structured_analysis", return_value=None) as ai:
             build_weekly_report_digest(preference, [pair[0] for pair in self.frames.values()])
-        facts = ai.call_args.kwargs["facts"]["cross_dataset_report"]
-        self.assertEqual(facts["summary_grouping"], "daily")
-        self.assertEqual(facts["analysis_grouping"], "weekly")
-        whole = ai.call_args.kwargs["facts"]["weekly_anomaly_analysis"]
-        self.assertTrue(all(metric["grain"] == "weekly" for metric in whole["metrics"]))
-        self.assertTrue(all("baselines" not in metric for metric in whole["metrics"]))
-        self.assertEqual(len(facts["metrics"]), 2)
-        self.assertTrue(all("trend" not in metric for metric in facts["metrics"]))
-        self.assertTrue(all("evidence" not in finding for finding in facts["findings"]))
+        ai.assert_called_once()
+        facts = ai.call_args.kwargs["facts"]
+        statements = ai.call_args.kwargs["approved_statements"]
+        self.assertEqual(facts["window"], definition()["date_range"])
+        self.assertIn("Source 1.csv", json.dumps(statements))
+        self.assertIn("Source 2.csv", json.dumps(statements))
+        self.assertLessEqual(len(statements["recommendations"]), 5)
+        self.assertLess(len(json.dumps(statements)), 12000)
+        self.assertFalse({"trends", "baselines", "evidence"}.intersection(facts))
 
 
 class BusinessReportWorkflowTests(unittest.TestCase):

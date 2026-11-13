@@ -38,7 +38,7 @@ def validate_definition(db, payload, user, workspace):
     if payload.source_run_id:
         allowed_run(db, payload.source_run_id, user, workspace)
     definition = payload.model_dump(mode="json")
-    definition["reporting_timezone"] = reporting_timezone()
+    definition["reporting_timezone"] = getattr(payload, "reporting_timezone", None) or reporting_timezone()
     datasets = authorize_datasets(db, user, workspace, [item.dataset_id for item in payload.metrics])
     require_report_sources(datasets.values())
     bind_decision_review(db, definition, user, workspace, required=True, editable=True)
@@ -87,14 +87,13 @@ def enqueue_report(db, payload, user, workspace, request_key=None):
 
 def enqueue_weekly_preview(db, payload, user, workspace, preference, request_key=None):
     template, datasets = validate_definition(db, payload, user, workspace)
-    template.pop("reporting_timezone", None)
     configuration = weekly_configuration(db, preference, workspace, user)
     current = db.get(CurrentWeeklyReport, workspace)
     definition = {"configuration": {**configuration, "template": template}, "base_configuration": configuration,
                   "base_current_job_id": current.job_id if current else None,
-                  "draft_preview": True, "anchor": str(datetime.now(ZoneInfo(reporting_timezone())).date()),
+                  "draft_preview": True, "anchor": str(datetime.now(ZoneInfo(template["reporting_timezone"])).date()),
                   "include_ai_analysis": payload.include_ai_analysis, "scheduled": False,
-                  "reporting_timezone": reporting_timezone(), "report_only": True}
+                  "reporting_timezone": template["reporting_timezone"], "report_only": True}
     return enqueue(db, user, workspace, "weekly_preview", definition, datasets, request_key)
 
 
@@ -115,9 +114,11 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
     from app.modules.alerts.router import get_alert_datasets
     from .service import complete_week
 
-    anchor = datetime.now(ZoneInfo(reporting_timezone())).date()
+    from .weekly import preference_timezone
+    zone = preference_timezone(preference)
+    anchor = datetime.now(ZoneInfo(zone)).date()
     definition = {"configuration": weekly_configuration(db, preference, workspace, user), "anchor": str(anchor),
-                  "include_ai_analysis": include_ai, "scheduled": scheduled, "reporting_timezone": reporting_timezone(), "report_only": report_only}
+                  "include_ai_analysis": include_ai, "scheduled": scheduled, "reporting_timezone": zone, "report_only": report_only}
     if owner_only:
         if not send or scheduled:
             raise HTTPException(400, "Owner delivery is available only for a manual weekly report send.")
