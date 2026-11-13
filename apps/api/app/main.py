@@ -318,6 +318,21 @@ def ensure_organization_invite_email_columns():
 ensure_organization_invite_email_columns()
 
 
+def ensure_agency_relationship_columns():
+    with engine.begin() as connection:
+        columns = get_table_columns(connection, "organizations")
+        for name, kind in (("managing_agency_workspace_id", "VARCHAR"),
+                           ("agency_detached_at", "TIMESTAMP"), ("independent_trial_started_at", "TIMESTAMP"),
+                           ("client_owner_accepted_at", "TIMESTAMP")):
+            if name not in columns:
+                connection.execute(text(f"ALTER TABLE organizations ADD COLUMN {name} {kind}"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_organizations_managing_agency_workspace_id ON organizations (managing_agency_workspace_id)"))
+        connection.execute(text("UPDATE organizations SET client_owner_accepted_at = CURRENT_TIMESTAMP WHERE client_owner_accepted_at IS NULL AND (EXISTS (SELECT 1 FROM organization_members m WHERE m.organization_id = organizations.id AND m.role IN ('client', 'client_owner')) OR EXISTS (SELECT 1 FROM organization_invites i WHERE i.organization_id = organizations.id AND i.status = 'accepted' AND i.role IN ('client', 'client_owner')))"))
+
+
+ensure_agency_relationship_columns()
+
+
 def ensure_onboarding_profile_columns():
     with engine.begin() as connection:
         for table_name, columns in {
@@ -492,6 +507,8 @@ def ensure_ai_usage_event_columns():
             connection,
             "ai_usage_events",
         )
+        if "billing_workspace_id" not in column_names:
+            connection.execute(text("ALTER TABLE ai_usage_events ADD COLUMN billing_workspace_id VARCHAR"))
 
         if "actor_user_id" not in column_names:
             connection.execute(

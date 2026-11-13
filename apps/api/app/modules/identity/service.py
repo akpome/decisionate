@@ -44,12 +44,15 @@ LEGACY_IDENTITY_COLUMNS = (
 )
 
 WORKSPACE_COLUMNS = (
+    ("organizations", "managing_agency_workspace_id"),
+    ("agency_client_invitations", "agency_workspace_id"),
     ("datasets", "workspace_id"),
     ("data_source_connections", "workspace_id"),
     ("oauth_connection_states", "workspace_id"),
     ("oauth_credentials", "workspace_id"),
     ("workspace_subscriptions", "workspace_id"),
     ("ai_usage_events", "workspace_id"),
+    ("ai_usage_events", "billing_workspace_id"),
     ("usage_activity_events", "workspace_id"),
     ("weekly_report_preferences", "workspace_id"),
     ("weekly_report_delivery_logs", "workspace_id"),

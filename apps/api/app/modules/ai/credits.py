@@ -331,7 +331,7 @@ def reserve_ai_credits(
     try:
         _begin_credit_transaction(db)
         billing_workspace_id = resolve_billing_workspace_id(
-            clean_workspace_id,
+            clean_workspace_id, db,
         )
         subscription = _ensure_usable_subscription(
             db,
@@ -363,7 +363,7 @@ def reserve_ai_credits(
             limit_message = (
                 "The agency's shared AI credit pool has been exhausted. "
                 "Top up AI credits to continue."
-                if ":client:" in clean_workspace_id
+                if billing_workspace_id != clean_workspace_id
                 else "This workspace has reached its AI credit limit. "
                 "Add AI credits or upgrade the plan to continue."
             )
@@ -385,6 +385,7 @@ def reserve_ai_credits(
         )
         usage_event = AIUsageEvent(
             workspace_id=clean_workspace_id,
+            billing_workspace_id=billing_workspace_id,
             actor_user_id=(
                 str(actor_user_id or "").strip() or None
             ),
@@ -465,7 +466,7 @@ def settle_ai_credits(
             db.query(WorkspaceSubscription)
             .filter(
                 WorkspaceSubscription.workspace_id
-                == resolve_billing_workspace_id(usage_event.workspace_id),
+                == (usage_event.billing_workspace_id or resolve_billing_workspace_id(usage_event.workspace_id)),
             )
             .with_for_update()
             .first()
@@ -554,7 +555,7 @@ def release_ai_credits(
             db.query(WorkspaceSubscription)
             .filter(
                 WorkspaceSubscription.workspace_id
-                == resolve_billing_workspace_id(usage_event.workspace_id),
+                == (usage_event.billing_workspace_id or resolve_billing_workspace_id(usage_event.workspace_id)),
             )
             .with_for_update()
             .first()

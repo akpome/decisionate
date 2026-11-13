@@ -10,7 +10,8 @@ from app.db.models import (
     AppUser, DataIngestionJob, Dataset, Organization, OrganizationMember,
     WorkspaceSubscription, utc_now,
 )
-from app.modules.billing.lifecycle import build_subscription_access_state
+from app.modules.billing.lifecycle import build_subscription_access_state, resolve_billing_workspace_id
+from app.modules.organizations.ownership import is_workspace_owner, managed_client_filter, managing_agency_workspace_id
 from app.modules.marketing.config import settings, CONSENT_TEXT, CONSENT_TEXT_FR
 from app.modules.marketing.models import (
     MarketingContact, MarketingConsentEvent, MarketingEmail, MarketingJob,
@@ -163,7 +164,7 @@ def workspace_facts(db, workspace_id, now=None):
     usable = [dataset for dataset in datasets if dataset_is_usable(dataset) and dataset_completed(db, dataset)]
     if usable and not state.first_data_ready_at:
         state.first_data_ready_at = min(dataset.created_at for dataset in usable)
-    billing_workspace_id = workspace_id.split(":client:", 1)[0]
+    billing_workspace_id = resolve_billing_workspace_id(workspace_id, db)
     sub = db.query(WorkspaceSubscription).filter_by(workspace_id=billing_workspace_id).populate_existing().first()
     access = build_subscription_access_state(sub, now)
     raw = str(sub.status or "") if sub else ""
@@ -198,13 +199,13 @@ def refresh_memberships(db, contact):
     for workspace_id, (org, role) in desired.items():
         record = records.pop(workspace_id, None) or MarketingMembership(contact_id=contact.id, workspace_id=workspace_id)
         # Agency-funded client spaces do not own a trial or receive upgrade offers.
-        owner = org.owner_user_id == contact.user_id and ":client:" not in workspace_id
+        owner = is_workspace_owner(db, org, contact.user_id) and not managing_agency_workspace_id(org)
         record.role, record.eligible = role, owner
         record.onboarding_recipient = record.billing_recipient = owner
         db.add(record)
     for record in records.values():
         db.delete(record)
-    allowed = [org.owner_user_id for org, role in desired.values() if org.owner_user_id == contact.user_id and ":client:" not in org.owner_user_id]
+    allowed = [org.owner_user_id for org, role in desired.values() if is_workspace_owner(db, org, contact.user_id) and not managing_agency_workspace_id(org)]
     if contact.primary_workspace_id not in allowed:
         contact.primary_workspace_id = sorted(allowed)[0] if allowed else None
     db.flush()
@@ -279,7 +280,7 @@ def message_blocker(db, contact, message, now=None):
         return "welcome_stale"
     if message.message_type == "incomplete_setup":
         if facts["account_type"] == "agency":
-            if db.query(Organization.id).filter(Organization.owner_user_id.startswith(message.workspace_id + ":client:")).first():
+            if db.query(Organization.id).filter(managed_client_filter(message.workspace_id)).first():
                 return "agency_client_workspace_created"
             return None
         if facts["setup_status"] == "data_ready":

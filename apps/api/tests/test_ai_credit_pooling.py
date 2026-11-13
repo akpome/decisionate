@@ -6,7 +6,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import AIUsageEvent, AICreditPurchase
+from app.db.models import AIUsageEvent, AICreditPurchase, Organization
 from app.db.models import WorkspaceSubscription
 from app.db.models import utc_now
 from app.modules.ai import credits
@@ -23,6 +23,7 @@ class AICreditPoolingTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
         WorkspaceSubscription.__table__.create(self.engine)
+        Organization.__table__.create(self.engine)
         AIUsageEvent.__table__.create(self.engine)
         AICreditPurchase.__table__.create(self.engine)
         self.session_factory = sessionmaker(bind=self.engine)
@@ -283,6 +284,26 @@ class AICreditPoolingTests(unittest.TestCase):
         params = stripe_request.call_args.args[1]
         self.assertEqual(params["line_items[0][quantity]"], "1000")
         self.assertEqual(params["metadata[credits]"], "5000000")
+        self.assertEqual(params["metadata[billing_workspace_id]"], "agency-1")
+
+    def test_pending_ai_requests_keep_the_original_pool_after_an_agency_change(self):
+        now = utc_now()
+        with self.session_factory() as db:
+            db.add_all([
+                Organization(name="Client", owner_user_id="agency-1:client:first"),
+                WorkspaceSubscription(workspace_id="agency-1", plan="agency", status="active", current_period_start=now, current_period_end=now + timedelta(days=30)),
+                WorkspaceSubscription(workspace_id="agency-1:client:first", plan="professional", status="active", current_period_start=now, current_period_end=now + timedelta(days=30)),
+            ]); db.commit()
+        first = credits.reserve_ai_credits(workspace_id="agency-1:client:first", operation="analysis", estimated_tokens=2000)
+        second = credits.reserve_ai_credits(workspace_id="agency-1:client:first", operation="analysis", estimated_tokens=2000)
+        with self.session_factory() as db:
+            db.query(Organization).one().agency_detached_at = utc_now(); db.commit()
+        credits.settle_ai_credits(first["id"], {"total_tokens": 500})
+        credits.release_ai_credits(second["id"])
+        with self.session_factory() as db:
+            agency = db.query(WorkspaceSubscription).filter_by(workspace_id="agency-1").one()
+            client = db.query(WorkspaceSubscription).filter_by(workspace_id="agency-1:client:first").one()
+            self.assertEqual(agency.ai_credits_used, 1); self.assertEqual(client.ai_credits_used, 0)
 
 
 if __name__ == "__main__":

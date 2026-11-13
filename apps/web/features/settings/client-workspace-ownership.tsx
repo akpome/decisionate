@@ -1,0 +1,128 @@
+"use client"
+
+import Link from "next/link"
+import { useEffect, useRef, useState } from "react"
+import { Check, Mail, Play, RefreshCw, Trash2, X } from "lucide-react"
+
+import {
+  deleteOwnedWorkspace, getAgencyClientInvitations, inviteExistingAgencyClient,
+  respondToAgencyClientInvitation, startIndependentWorkspaceTrial,
+  type AgencyClientInvitation, type OrganizationWorkspaceRecord,
+} from "@/lib/api"
+import { notifyWorkspaceAccessChanged, setActiveWorkspaceId } from "@/lib/workspace-context"
+
+const button = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+const message = (error: unknown) => error instanceof Error ? error.message : "The workspace could not be updated. Please try again."
+
+function refreshAccess() {
+  notifyWorkspaceAccessChanged()
+  window.dispatchEvent(new Event("decisionate:billing-updated"))
+}
+
+export function ExistingClientInvitation({ userId }: { userId: string }) {
+  const [email, setEmail] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState("")
+  const [error, setError] = useState("")
+  const pending = useRef(false)
+
+  async function invite() {
+    if (pending.current || !email.trim()) return
+    pending.current = true; setBusy(true); setError(""); setNotice("")
+    try {
+      const result = await inviteExistingAgencyClient(email.trim(), userId)
+      if (result.email_status === "sent") { setNotice("Invitation sent. The workspace owner must approve it before joining your agency."); setEmail("") }
+      else setError(result.email_error || "The invitation was saved, but its email was not confirmed.")
+    } catch (failure) { setError(message(failure)) }
+    finally { pending.current = false; setBusy(false) }
+  }
+
+  return <form onSubmit={event => { event.preventDefault(); void invite() }} className="mt-5 border-t border-gray-100 pt-5">
+    <h3 className="text-sm font-semibold">Add an existing client workspace</h3>
+    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+      <label className="min-w-0 flex-1 text-xs text-gray-600">Client owner email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} disabled={busy} className="mt-1 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
+      <button type="submit" disabled={busy || !email.trim()} className={button}><Mail size={16} />{busy ? "Sending..." : "Invite workspace owner"}</button>
+    </div>
+    {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
+    {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+  </form>
+}
+
+export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string; workspace: OrganizationWorkspaceRecord }) {
+  const [invitations, setInvitations] = useState<AgencyClientInvitation[]>([])
+  const [loadedInvitationKey, setLoadedInvitationKey] = useState("")
+  const [retry, setRetry] = useState(0)
+  const invitationKey = `${userId}:${workspace.owner_user_id}:${retry}`
+  const loading = Boolean(workspace.agency_removed && loadedInvitationKey !== invitationKey)
+  const [busy, setBusy] = useState("")
+  const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+  const [deleting, setDeleting] = useState(false)
+  const [confirmation, setConfirmation] = useState("")
+  const pending = useRef(false)
+
+  useEffect(() => {
+    if (!workspace.agency_removed) return
+    let cancelled = false
+    void getAgencyClientInvitations(userId, workspace.owner_user_id).then(items => {
+      if (!cancelled) setInvitations(items)
+    }).catch(failure => { if (!cancelled) setError(message(failure)) }).finally(() => { if (!cancelled) setLoadedInvitationKey(invitationKey) })
+    return () => { cancelled = true }
+  }, [userId, workspace.owner_user_id, workspace.agency_removed, invitationKey])
+
+  async function act(action: string, invitation?: AgencyClientInvitation) {
+    if (pending.current) return
+    if (action === "delete" && confirmation.trim() !== workspace.name) return
+    pending.current = true; setBusy(action); setError(""); setNotice("")
+    try {
+      if (action === "trial") {
+        const result = await startIndependentWorkspaceTrial(userId, workspace.owner_user_id)
+        setNotice(`Your ${result.trial_days}-day trial has started. Your existing workspace is ready.`)
+        refreshAccess()
+      } else if (action === "delete") {
+        await deleteOwnedWorkspace(confirmation.trim(), userId, workspace.owner_user_id)
+        setActiveWorkspaceId(userId, userId)
+        refreshAccess()
+        window.location.assign("/auth/redirect")
+      } else if (invitation) {
+        await respondToAgencyClientInvitation(invitation.id, action === "accept", userId, workspace.owner_user_id)
+        setInvitations(items => items.filter(item => item.id !== invitation.id))
+        setNotice(action === "accept" ? `Your workspace has joined ${invitation.agency_name}. Agency data access remains off until you enable it.` : "Agency invitation declined.")
+        refreshAccess()
+      }
+    } catch (failure) { setError(message(failure)) }
+    finally { pending.current = false; setBusy("") }
+  }
+
+  return <section className="border-t border-gray-200 py-5">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold">{workspace.agency_removed ? "Keep using your workspace" : "Workspace ownership"}</h2>
+        <p className="mt-2 text-sm text-gray-600">{workspace.agency_removed ? "Your workspace is no longer managed by an agency. Your existing data is preserved." : "This workspace belongs to you. Removing it from an agency does not delete your data."}</p>
+      </div>
+      <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>
+    </div>
+    {workspace.agency_removed && <div className="mt-4 flex flex-wrap items-center gap-3">
+      {!workspace.independent_trial_started && <button type="button" disabled={Boolean(busy)} onClick={() => void act("trial")} className={`${button} text-blue-700`}><Play size={16} />{busy === "trial" ? "Starting..." : "Start free trial"}</button>}
+      <Link href="/dashboard/billing" className={button}>View plans</Link>
+    </div>}
+    {workspace.agency_removed && <div className="mt-5">
+      <h3 className="text-sm font-semibold">Agency invitations</h3>
+      {loading ? <p role="status" className="mt-2 text-sm text-gray-500">Loading invitations...</p> : invitations.length === 0 ? <p className="mt-2 text-sm text-gray-500">No pending agency invitations.</p> : invitations.map(invitation => <div key={invitation.id} className="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 py-3">
+        <span className="min-w-0 break-words text-sm font-medium">{invitation.agency_name}</span>
+        <div className="flex gap-2"><button type="button" disabled={Boolean(busy)} onClick={() => void act("accept", invitation)} className={button}><Check size={16} />Join agency</button><button type="button" disabled={Boolean(busy)} onClick={() => void act("decline", invitation)} className={button}><X size={16} />Decline</button></div>
+      </div>)}
+    </div>}
+    {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
+    {error && <div role="alert" className="mt-3 flex items-start gap-3 text-sm text-red-600"><span className="min-w-0 flex-1">{error}</span><button type="button" disabled={Boolean(busy)} title="Retry invitations" aria-label="Retry invitations" onClick={() => { setError(""); setRetry(value => value + 1) }} className="shrink-0 rounded-md p-1"><RefreshCw size={16} /></button></div>}
+    {deleting && <div role="dialog" aria-modal="true" aria-labelledby="owned-workspace-delete" className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4">
+      <form className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5" onSubmit={event => { event.preventDefault(); void act("delete") }}>
+        <h2 id="owned-workspace-delete" className="text-lg font-semibold">Delete your workspace?</h2>
+        <p className="mt-3 text-sm text-gray-600">This permanently deletes {workspace.name}, its datasets, reports, connections and decisions.</p>
+        <label className="mt-4 block text-sm">Type {workspace.name} to confirm<input autoFocus value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={Boolean(busy)} className="mt-2 h-10 w-full rounded-md border border-gray-200 px-3" /></label>
+        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+        <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setDeleting(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy) || confirmation.trim() !== workspace.name} className={`${button} text-red-600`}><Trash2 size={16} />{busy === "delete" ? "Deleting..." : "Permanently delete"}</button></div>
+      </form>
+    </div>}
+  </section>
+}

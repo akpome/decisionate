@@ -18,10 +18,12 @@ from app.modules.organizations.router import (
 class OrganizationInviteClaimTests(unittest.TestCase):
     def test_managed_client_invites_accept_external_agency_owner_identity(self):
         organization = SimpleNamespace(
+            id=42,
             owner_user_id="external-owner:client:workspace-1",
         )
         query = Mock()
         query.filter.return_value.first.return_value = organization
+        query.filter.return_value.order_by.return_value.first.return_value = None
         db = Mock()
         db.query.return_value = query
         auth_context = AuthContext(

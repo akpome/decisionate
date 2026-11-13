@@ -415,7 +415,7 @@ class ConcurrentCreditTests(unittest.TestCase):
 
             with patch.object(credits, "SessionLocal", sessions), patch.object(
                 credits, "_get_recurring_credit_limit", return_value=1
-            ), patch.object(credits, "resolve_billing_workspace_id", side_effect=lambda value: value), patch.object(
+            ), patch.object(credits, "resolve_billing_workspace_id", side_effect=lambda value, db=None: value), patch.object(
                 credits, "_maybe_notify_low_balance"
             ):
                 threads = [threading.Thread(target=reserve) for _ in range(2)]

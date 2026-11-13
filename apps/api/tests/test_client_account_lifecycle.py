@@ -39,7 +39,7 @@ class ClientAccountLifecycleTests(unittest.TestCase):
                 Organization(id=2, name="Client", owner_user_id=self.workspace),
                 Organization(id=3, name="Other client", owner_user_id="other:client:one"),
                 WorkspaceSubscription(workspace_id="agency", plan="agency", status="active"),
-                OrganizationMember(organization_id=2, clerk_user_id="client", role="client_owner"),
+                OrganizationMember(organization_id=2, clerk_user_id="client", role="client_user"),
                 OrganizationInvite(organization_id=2, email="new@example.test", role="client_user", status="pending"),
                 Dataset(id=1, file_name="client.csv", file_path="manual_upload", row_count=1, column_count=1, user_id="client", workspace_id=self.workspace),
             ])

@@ -781,6 +781,8 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Manage -> Settings as a workspace owner.",
           "Review workspace name, organization details, branding, logo, and report display name.",
           "Manage agency members, client workspace access, one client owner and one client user per client workspace, invitations, ownership assignments, and invitation revocation where those controls are available to your plan and role.",
+          "Once a client accepts ownership, only that client owner can delete the workspace. An agency can remove it from its list without deleting the client's data.",
+          "A removed client owner can start a 30-day trial in the existing workspace, choose an independent plan, or approve an invitation from the same or another agency in Settings. Joining an agency does not automatically grant that agency data access.",
           "Configure workspace alert recipients and schedule in Analysis -> Alerts. The email provider is managed centrally by the platform.",
           "Save one section at a time and verify the resulting workspace name, branding, and access behavior in a fresh page load.",
         ],

@@ -49,20 +49,48 @@ before an invitation can be sent or accepted.
 
 ## Pause, resume or delete a client account
 
-The agency workspace owner can manage their own clients in Settings under
-Client Workspaces, without needing the client's permission to view their data.
-Choose the client, then Pause account or Resume account. Pausing preserves the
-client's data, members, invitations and saved schedules. It blocks workspace
-access, shared dashboard links, automatic connector syncs and weekly reports.
-Resuming restores access and allows saved schedules to run again. An import or
-analysis that is queued or running must finish before pausing or deleting.
+Before the client owner accepts their invitation, the agency owner can pause,
+resume or delete the unused client workspace in Settings > Client Workspaces.
+Pausing preserves its data and schedules but blocks access and background work.
+Deletion requires typing the workspace name and permanently removes its data.
 
-Delete Workspace requires typing the client's workspace name to confirm. It
-permanently removes that workspace's data and access. It does not delete the
-agency workspace or a person's access to other workspaces. Pausing or deleting a
-client does not automatically change the agency subscription or purchased
-workspace capacity. These actions are not available to agency team members or
-client users.
+After the client accepts, the workspace belongs to that client owner. The agency
+cannot pause it, delete it, remove its owner or take over member management.
+The agency sees Remove from agency instead. Confirming that action removes the
+workspace from the agency's list and ends the agency's access and shared billing
+for that workspace. It does not delete datasets, reports, decisions, connections,
+members or the workspace itself. Workspace IDs and data IDs stay unchanged.
+An active import, report analysis or AI request must finish before removal.
+
+The client owner can choose Delete workspace in their own Settings and type its
+name to confirm permanent deletion. Other client users cannot do this. A direct
+paid subscription must be canceled in Billing before deletion. Removing a client
+frees its used agency slot; it does not automatically reduce purchased capacity,
+refund the agency or cancel the agency's subscription.
+
+## Continue after leaving an agency
+
+The client owner can still open Settings and Billing after removal. Their data
+is preserved while they choose how to continue. Data analysis, shared links and
+background work wait until an independent plan or an agency relationship is active.
+
+Start free trial opens the existing workspace with full Professional-trial access
+for 30 days. It does not create a replacement workspace or move any data. Each
+workspace can start this independent trial only once; joining and leaving agencies
+does not reset it. After the trial, choose a plan in Billing to continue.
+
+An agency owner can choose Add an existing client workspace in Settings and send
+an invitation to the client's sign-in email. The same agency or a different agency
+can do this. Sending the invitation alone grants no access. The verified client
+owner opens Settings in their existing workspace and chooses Join agency or
+Decline under Agency invitations. The agency needs an active Agency plan and an
+available client slot when the owner accepts. A live independent paid subscription
+must first be canceled in Billing to avoid overlapping subscriptions.
+
+Joining preserves the same workspace and its records, uses the new agency's
+billing and branding, and leaves agency data access off until the client owner
+explicitly enables it. The former agency does not regain access merely because
+its name remains in an older workspace ID or invitation link.
 
 ## Branding
 

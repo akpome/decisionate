@@ -25,6 +25,7 @@ from app.modules.billing.data_retention import (
     purge_workspace_data_after_expiry,
 )
 from app.configuration import get_runtime_configuration
+from app.modules.organizations.ownership import managed_client_filter, managing_agency_workspace_id
 
 
 def get_billing_scheduler_secret() -> str:
@@ -249,13 +250,7 @@ def send_due_billing_lifecycle_notifications(
             "data_purged": 0, "data_purge_failed": 0, "results": [],
         }
     current_time = now or utc_now()
-    subscriptions = (
-        db.query(WorkspaceSubscription)
-        .filter(
-            ~WorkspaceSubscription.workspace_id.like("%:client:%"),
-        )
-        .all()
-    )
+    subscriptions = db.query(WorkspaceSubscription).all()
     results = []
     notified = 0
     skipped = 0
@@ -264,6 +259,10 @@ def send_due_billing_lifecycle_notifications(
     data_purge_failed = 0
 
     for subscription in subscriptions:
+        subscribed_workspace = db.query(Organization).filter_by(owner_user_id=subscription.workspace_id).first()
+        if managing_agency_workspace_id(subscribed_workspace):
+            skipped += 1
+            continue
         local_state = build_subscription_access_state(subscription, current_time)
         local_notice = build_lifecycle_notice(subscription, local_state)
         needs_verification = (
@@ -296,9 +295,7 @@ def send_due_billing_lifecycle_notifications(
             child_workspace_ids = (
                 db.query(Organization.owner_user_id)
                 .filter(
-                    Organization.owner_user_id.like(
-                        f"{subscription.workspace_id}:client:%"
-                    ),
+                    managed_client_filter(subscription.workspace_id),
                 )
                 .all()
             )

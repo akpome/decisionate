@@ -155,6 +155,12 @@ test("all client roles open their client workspace instead of a default personal
   }
 })
 
+test("an independent former client still opens the same workspace after an agency removes it", () => {
+  const independent = { ...shared, role: "owner", is_managed_client: false, agency_removed: true }
+  assert.equal(workspaces.chooseAuthWorkspace([own, independent], "reviewer", "reviewer"), independent)
+  assert.equal(workspaces.chooseAuthWorkspace([own, independent], "reviewer", independent.owner_user_id), independent)
+})
+
 test("invitation links choose only their authorized workspace and never fall back to another account", () => {
   assert.equal(workspaces.chooseAuthWorkspace([own, shared], "reviewer", "reviewer", shared.owner_user_id), shared)
   assert.equal(workspaces.chooseAuthWorkspace([own, shared], "reviewer", shared.owner_user_id, "unrelated:client:other"), undefined)

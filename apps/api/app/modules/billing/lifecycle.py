@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import ceil
 
-from app.db.models import WorkspaceSubscription, utc_now
+from app.db.models import Organization, WorkspaceSubscription, utc_now
+from app.modules.organizations.ownership import managing_agency_workspace_id
 from app.modules.billing.service import (
     FREE_PLAN,
     normalize_billing_plan,
@@ -52,15 +53,21 @@ def get_billing_grace_period_days() -> int:
         return DEFAULT_GRACE_PERIOD_DAYS
 
 
-def resolve_billing_workspace_id(workspace_id: str) -> str:
+def resolve_billing_workspace_id(workspace_id: str, db=None) -> str:
     clean_workspace_id = str(workspace_id or "").strip()
+    if ":client:" not in clean_workspace_id:
+        return clean_workspace_id
+    if db is not None:
+        organization = db.query(Organization).filter_by(owner_user_id=clean_workspace_id).first()
+        if organization:
+            return managing_agency_workspace_id(organization) or clean_workspace_id
     if ":client:" in clean_workspace_id:
         return clean_workspace_id.split(":client:", 1)[0]
     return clean_workspace_id
 
 
 def get_subscription_for_workspace(db, workspace_id: str):
-    billing_workspace_id = resolve_billing_workspace_id(workspace_id)
+    billing_workspace_id = resolve_billing_workspace_id(workspace_id, db)
     if not billing_workspace_id:
         return None
 

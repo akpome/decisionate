@@ -58,6 +58,9 @@ class OrganizationResponse(BaseModel):
     role: str | None = None
     primary_goal: str | None = None
     agency_owner_access_enabled: bool = False
+    is_managed_client: bool = False
+    agency_removed: bool = False
+    independent_trial_started: bool = False
 
 
 class OrganizationWorkspaceResponse(BaseModel):
@@ -80,11 +83,24 @@ class OrganizationWorkspaceResponse(BaseModel):
     billing_notice: str | None = None
     invitation_email_status: str | None = None
     invitation_email_error: str | None = None
+    is_managed_client: bool = False
+    agency_removed: bool = False
+    client_owner_accepted: bool = False
+    independent_trial_started: bool = False
 
 
 class ClientWorkspaceDeleteResponse(BaseModel):
     deleted: bool
     summary: dict[str, int]
+    removed: bool = False
+
+
+class WorkspaceDeleteConfirmation(BaseModel):
+    confirmation: str
+
+
+class AgencyInvitationCreate(BaseModel):
+    email: str
 
 
 class OrganizationMemberResponse(BaseModel):

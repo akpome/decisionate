@@ -965,6 +965,10 @@ class Organization(Base):
     )
 
     is_paused = Column(Boolean, nullable=False, default=False)
+    managing_agency_workspace_id = Column(String, nullable=True, index=True)
+    agency_detached_at = Column(DateTime, nullable=True)
+    independent_trial_started_at = Column(DateTime, nullable=True)
+    client_owner_accepted_at = Column(DateTime, nullable=True)
 
     owner_user_id = Column(
         String,
@@ -1058,6 +1062,21 @@ class OrganizationInvite(Base):
     email_attempted_at = Column(DateTime, nullable=True)
     email_sent_at = Column(DateTime, nullable=True)
     email_error = Column(Text, nullable=True)
+
+
+class AgencyClientInvitation(Base):
+    __tablename__ = "agency_client_invitations"
+    __table_args__ = (UniqueConstraint("agency_workspace_id", "email", name="uq_agency_client_invitation"),)
+
+    id = Column(String, primary_key=True)
+    agency_workspace_id = Column(String, nullable=False, index=True)
+    email = Column(String, nullable=False, index=True)
+    organization_id = Column(Integer, nullable=True)
+    status = Column(String, nullable=False, default="pending")
+    email_status = Column(String, nullable=True)
+    email_attempted_at = Column(DateTime, nullable=True)
+    email_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class WorkspaceSubscription(Base):
@@ -1214,6 +1233,7 @@ class WorkspaceSubscription(Base):
 
 class AIUsageEvent(Base):
     __tablename__ = "ai_usage_events"
+    billing_workspace_id = Column(String, nullable=True)
 
     id = Column(
         Integer,

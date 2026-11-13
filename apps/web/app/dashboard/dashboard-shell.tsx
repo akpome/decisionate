@@ -66,6 +66,7 @@ import {
 } from "@/lib/workspace-brand"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { isClientWorkspaceRole } from "@/features/auth/lib/auth-workspaces"
+import { isAgencyManagedWorkspace } from "@/lib/workspace-ownership"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   decisionateLanguageChangedEvent,
@@ -511,7 +512,7 @@ export function DashboardShell({
           const clientWorkspaces =
             sharedWorkspaces.filter(
               (workspace) =>
-                isClientWorkspaceRole(workspace.role)
+                isClientWorkspaceRole(workspace.role) || workspace.agency_removed
             )
           let defaultWorkspaceId = userId
 
@@ -810,10 +811,7 @@ export function DashboardShell({
         : activeWorkspaceRecord?.role?.toLowerCase() ??
           "unknown"
   const isClientWorkspaceContext =
-    Boolean(
-      activeWorkspaceRecord?.owner_user_id.includes(":client:") ||
-      activeWorkspaceId.includes(":client:")
-    )
+    isAgencyManagedWorkspace(activeWorkspaceRecord)
   const isBusinessOwnerWorkspace =
     activeWorkspaceRole === "owner" &&
     !isClientWorkspaceContext &&
@@ -841,6 +839,7 @@ export function DashboardShell({
   const subscriptionAccessBlocked =
     Boolean(
       pathname !== "/dashboard/billing" &&
+      pathname !== "/dashboard/settings" &&
       pathname !== "/dashboard/help" &&
       subscriptionAccessKey ===
         `${user?.id || ""}:${activeWorkspaceId || ""}` &&
@@ -1197,10 +1196,11 @@ export function DashboardShell({
           <MaintenanceBanner notice={maintenanceNotice} />
         )}
 
-        {activeWorkspaceRecord?.is_paused ? (
+        {activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/dashboard/settings", "/dashboard/billing", "/dashboard/help"].includes(pathname)) ? (
           <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
-            <h1 className="text-lg font-semibold">Client account paused</h1>
-            <p className="mt-2 text-sm text-gray-600">Your data is preserved. Contact your agency to resume access.</p>
+            <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Choose how to continue" : "Client account paused"}</h1>
+            <p className="mt-2 text-sm text-gray-600">{activeWorkspaceRecord.agency_removed ? "Your data is preserved. Start a trial or accept an agency invitation in Settings." : "Your data is preserved. Contact your agency to resume access."}</p>
+            {activeWorkspaceRecord.agency_removed && <Link href="/dashboard/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
           </section>
         ) : subscriptionAccessBlocked && subscriptionAccess ? (
           <SubscriptionRequiredPanel

@@ -1,7 +1,7 @@
 from sqlalchemy import case, func, text, update
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import AICreditPurchase, WorkspaceSubscription
+from app.db.models import AICreditPurchase, Organization, WorkspaceSubscription
 from app.modules.billing.lifecycle import (
     billing_enforcement_enabled,
     build_subscription_access_state,
@@ -63,7 +63,14 @@ def fulfill_credit_purchase(db, checkout: dict) -> AICreditPurchase | None:
         db.execute(text("BEGIN IMMEDIATE"))
     metadata = checkout.get("metadata") or {}
     session_id = str(checkout.get("id") or "")
-    workspace_id = resolve_billing_workspace_id(metadata.get("workspace_id"))
+    reference = str(metadata.get("workspace_id") or "").strip()
+    # New checkouts freeze the paying account. Ambiguous old payments need reconciliation.
+    frozen_workspace_id = str(metadata.get("billing_workspace_id") or "").strip()
+    if not frozen_workspace_id and ":client:" in reference:
+        organization = db.query(Organization).filter_by(owner_user_id=reference).first()
+        if organization and organization.agency_detached_at is not None:
+            raise BillingProviderUnavailable("This payment predates an agency change. Contact support to reconcile the credit purchase.")
+    workspace_id = frozen_workspace_id or resolve_billing_workspace_id(reference, db)
     if (
         not session_id.startswith("cs_")
         or not workspace_id
@@ -73,7 +80,7 @@ def fulfill_credit_purchase(db, checkout: dict) -> AICreditPurchase | None:
         raise BillingProviderUnavailable("Invalid AI credit checkout")
     if (
         checkout.get("client_reference_id")
-        and resolve_billing_workspace_id(checkout["client_reference_id"]) != workspace_id
+        and str(checkout["client_reference_id"]).strip() not in {reference, workspace_id}
     ):
         raise BillingProviderUnavailable("AI credit checkout workspace does not match")
 

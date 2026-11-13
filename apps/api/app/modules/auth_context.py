@@ -16,6 +16,7 @@ from app.modules.identity.service import (
     resolve_external_identity,
     resolve_workspace_reference,
 )
+from app.modules.organizations.ownership import independent_client, managing_agency_workspace_id
 
 
 CLIENT_WORKSPACE_ROLES = frozenset(
@@ -133,7 +134,10 @@ def get_auth_context(
     )
 
     # Keep workspace discovery available so a paused client can switch accounts.
-    if getattr(request, "scope", {}).get("path") != "/organizations/workspaces":
+    path = getattr(request, "scope", {}).get("path", "")
+    recovery = workspace_role == "owner" and path.startswith(("/organizations", "/billing")) and workspace_is_independent(workspace_id)
+    owner_deletion = path == "/organizations/workspace" and getattr(request, "method", "") == "DELETE" and workspace_role in {"client", "client_owner", "owner"}
+    if path != "/organizations/workspaces" and not recovery and not owner_deletion:
         from app.modules.workspace_lifecycle import require_workspace_active
         require_workspace_active(workspace_id)
 
@@ -256,10 +260,7 @@ def get_verified_workspace_access(
             clean_user_id,
             workspace_id,
         )
-        if (
-            ":client:" in workspace_id and
-            workspace_role == "owner"
-        ):
+        if ":client:" in workspace_id and workspace_role == "owner" and not workspace_is_independent(workspace_id):
             # Client workspaces inherit agency settings and billing. Even
             # legacy owner memberships must remain client-scoped here.
             workspace_role = "client_owner"
@@ -279,12 +280,26 @@ def is_agency_managed_client_workspace(
         clean_auth_value(user_id),
         clean_auth_value(external_subject),
     }
+    if clean_workspace_id in owner_references:
+        return False
+    with SessionLocal() as db:
+        organization = db.query(Organization).filter_by(owner_user_id=clean_workspace_id).first()
+        if organization:
+            return managing_agency_workspace_id(organization) in owner_references - {""}
     return any(
         owner_reference and clean_workspace_id.startswith(
             f"{owner_reference}:client:"
         )
         for owner_reference in owner_references
     )
+
+
+def workspace_is_independent(workspace_id):
+    if ":client:" not in str(workspace_id or ""):
+        return False
+    with SessionLocal() as db:
+        organization = db.query(Organization).filter_by(owner_user_id=workspace_id).first()
+        return independent_client(organization)
 
 
 def is_agency_owner_access_enabled(
@@ -347,6 +362,9 @@ def verify_workspace_membership(
                 status_code=403,
                 detail="Workspace access denied",
             )
+
+        if independent_client(organization):
+            return "owner" if membership.role in {"client", "client_owner", "owner"} else "member"
 
         if (
             membership.role == "client"

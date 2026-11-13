@@ -14,6 +14,7 @@ from app.db.models import Organization
 from app.db.models import WorkspaceSubscription
 from app.db.models import utc_now
 from app.modules.auth_context import get_auth_context
+from app.modules.organizations.ownership import managed_client_filter, managing_agency_workspace_id
 from app.modules.billing.schemas import BillingCheckoutResponse
 from app.modules.billing.schemas import BillingCheckoutRequest
 from app.modules.billing.schemas import BillingCheckoutConfirmationRequest
@@ -81,7 +82,10 @@ def require_billing_owner(request: Request):
             status_code=403,
             detail="Only workspace owners can manage billing",
         )
-    if ":client:" in auth_context.workspace_id:
+    with SessionLocal() as db:
+        organization = db.query(Organization).filter_by(owner_user_id=auth_context.workspace_id).first()
+        is_managed = bool(managing_agency_workspace_id(organization)) if organization else ":client:" in auth_context.workspace_id
+    if is_managed:
         raise HTTPException(
             status_code=403,
             detail="Agency billing must be managed from the agency workspace",
@@ -105,9 +109,7 @@ def count_client_workspaces(db, workspace_id: str) -> int:
     return (
         db.query(Organization)
         .filter(
-            Organization.owner_user_id.like(
-                f"{workspace_id}:client:%"
-            )
+            managed_client_filter(workspace_id)
         )
         .count()
     )
@@ -162,7 +164,7 @@ async def get_billing_access(
             billing_enabled=billing_enforcement_enabled(),
             workspace_id=auth_context.workspace_id,
             billing_workspace_id=resolve_billing_workspace_id(
-                auth_context.workspace_id,
+                auth_context.workspace_id, db,
             ),
             plan=state.plan,
             status=state.status,
@@ -354,7 +356,7 @@ async def get_billing_status(
             ai_credits_used=ai_credits_used,
             ai_credits_remaining=ai_credits_remaining,
             ai_credit_pool_workspace_id=resolve_billing_workspace_id(
-                auth_context.workspace_id,
+                auth_context.workspace_id, db,
             ),
             ai_credit_topup_credits=max(ai_credit_topup_credits, 0),
             ai_credit_low_balance=(
@@ -425,7 +427,7 @@ async def create_ai_credit_topup(
             db.query(Organization)
             .filter(
                 Organization.owner_user_id
-                == resolve_billing_workspace_id(auth_context.workspace_id),
+                == resolve_billing_workspace_id(auth_context.workspace_id, db),
             )
             .first()
         )
@@ -433,7 +435,7 @@ async def create_ai_credit_topup(
             result = await run_in_threadpool(
                 create_ai_credit_topup_session,
                 workspace_id=resolve_billing_workspace_id(
-                    auth_context.workspace_id,
+                    auth_context.workspace_id, db,
                 ),
                 owner_user_id=auth_context.user_id,
                 owner_email=auth_context.email,
@@ -473,7 +475,7 @@ async def confirm_ai_credit_topup(
         metadata = checkout.get("metadata") or {}
         if (
             checkout.get("id") != session_id
-            or resolve_billing_workspace_id(metadata.get("workspace_id")) != auth_context.workspace_id
+            or str(metadata.get("billing_workspace_id") or metadata.get("workspace_id") or "").strip() != auth_context.workspace_id
             or checkout.get("mode") != "payment"
             or metadata.get("purchase_type") != "ai_credit_topup"
         ):

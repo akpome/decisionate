@@ -7,6 +7,7 @@ import {
   useState,
 } from "react"
 import { useUser } from "@clerk/nextjs"
+import { isAgencyManagedWorkspace } from "./workspace-ownership"
 
 import {
   getOrganizationWorkspaces,
@@ -190,7 +191,7 @@ export function useWorkspaceAccess(
     workspaceRole === "client_user"
   const isAgencyWorkspace =
     Boolean(activeWorkspace) &&
-    !activeWorkspace?.owner_user_id.includes(":client:")
+    !isAgencyManagedWorkspace(activeWorkspace)
   const hasOwnerWorkspaceMembership =
     workspaceRoleFromData === "owner" &&
     isAgencyWorkspace
@@ -238,7 +239,7 @@ export function useWorkspaceAccess(
         workspaceRole === "member" ||
         workspaceRole === "managed_client"),
     isClientWorkspace:
-      isClientRole,
+      isClientRole || (workspaceRole === "owner" && isAgencyManagedWorkspace(activeWorkspace)),
     loadingWorkspaceAccess,
     workspaceAccessReady,
     workspaceRole,

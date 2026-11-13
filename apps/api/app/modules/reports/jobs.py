@@ -141,7 +141,7 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
 
 
 def verify_job_actor(job):
-    from app.modules.auth_context import is_agency_managed_client_workspace, is_agency_owner_access_enabled, verify_workspace_membership
+    from app.modules.auth_context import is_agency_managed_client_workspace, is_agency_owner_access_enabled, verify_workspace_membership, workspace_is_independent
     from app.modules.workspace_lifecycle import require_workspace_active
     require_workspace_active(job.workspace_id)
 
@@ -153,7 +153,7 @@ def verify_job_actor(job):
         role = "managed_client"
     else:
         role = verify_workspace_membership(job.user_id, job.workspace_id)
-        if ":client:" in job.workspace_id and role == "owner":
+        if ":client:" in job.workspace_id and role == "owner" and not workspace_is_independent(job.workspace_id):
             role = "client_owner"
     if job.kind in {"weekly_send", "weekly_owner_send"} or job.kind == "weekly_preview" and not json.loads(job.definition).get("report_only"):
         from app.modules.alerts.router import require_weekly_report_manager

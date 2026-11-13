@@ -16,7 +16,7 @@ export function chooseAuthWorkspace(
   )
   if (requestedWorkspaceId) return accessible.find(workspace => workspace.owner_user_id === requestedWorkspaceId)
   if (activeWorkspaceId === userId) {
-    const client = accessible.find(workspace => isClientWorkspaceRole(workspace.role))
+    const client = accessible.find(workspace => isClientWorkspaceRole(workspace.role) || workspace.agency_removed)
     if (client) return client
   }
   return accessible.find(workspace => workspace.owner_user_id === activeWorkspaceId)

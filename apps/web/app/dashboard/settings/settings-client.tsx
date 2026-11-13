@@ -57,6 +57,8 @@ import {
 } from "@/lib/workspace-context"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { EmailPreferences } from "@/features/marketing/email-preferences"
+import { ClientWorkspaceOwnership, ExistingClientInvitation } from "@/features/settings/client-workspace-ownership"
+import { isAgencyManagedWorkspace } from "@/lib/workspace-ownership"
 import {
   useWorkspaceAccess,
 } from "@/lib/use-workspace-access"
@@ -263,11 +265,12 @@ export function SettingsClient({
   const isClientWorkspaceOwner =
     isClientWorkspace &&
     (workspaceRole === "client" ||
-      workspaceRole === "client_owner") &&
-    Boolean(activeWorkspace?.owner_user_id.includes(":client:"))
+      workspaceRole === "client_owner" || workspaceRole === "owner") &&
+    isAgencyManagedWorkspace(activeWorkspace)
   const agencyWorkspaceMembers =
     organizationMembers.filter(
       member =>
+        !["client", "client_owner"].includes(member.role) &&
         !(
           member.role === "owner" &&
           member.clerk_user_id === organization?.owner_user_id
@@ -527,6 +530,7 @@ export function SettingsClient({
       if (
         !canConfigureWorkspace ||
         !selectedClientWorkspaceOwnerId ||
+        selectedClientWorkspace?.client_owner_accepted ||
         selectedClientWorkspace?.is_paused
       ) {
         setClientWorkspaceMembers([])
@@ -587,6 +591,7 @@ export function SettingsClient({
     canConfigureWorkspace,
     clientWorkspaceAccessRetryKey,
     selectedClientWorkspace?.is_paused,
+    selectedClientWorkspace?.client_owner_accepted,
     selectedClientWorkspaceOwnerId,
     userId,
   ])
@@ -1091,7 +1096,7 @@ export function SettingsClient({
     setClientWorkspaceNotice("")
 
     try {
-      await deleteClientWorkspace(
+      const result = await deleteClientWorkspace(
         clientWorkspaceDeleteTarget.id,
         userId
       )
@@ -1113,7 +1118,7 @@ export function SettingsClient({
       setClientWorkspaceInvites([])
       setClientWorkspaceAccessError("")
       setClientWorkspaceNotice(
-        `${workspaceName} and its workspace data were deleted.`
+        result.removed ? `${workspaceName} was removed from your agency. The client's workspace and data are preserved.` : `${workspaceName} and its workspace data were deleted.`
       )
       setClientWorkspaceDeleteTarget(null)
       setClientWorkspaceDeleteConfirmation("")
@@ -1441,6 +1446,9 @@ export function SettingsClient({
     }
   }
 
+  const ownershipPanel = activeWorkspace && (isClientWorkspaceOwner || (activeWorkspace.agency_removed && workspaceRole === "owner"))
+    ? <ClientWorkspaceOwnership key={activeWorkspace.owner_user_id} userId={userId} workspace={activeWorkspace} /> : null
+
   if (loadingWorkspaceAccess) {
     return (
       <div className="space-y-6">
@@ -1466,6 +1474,7 @@ export function SettingsClient({
           description="Workspace configuration is available to the business owner."
         />
         <EmailPreferences userId={userId} />
+        {ownershipPanel}
         {isClientWorkspaceOwner ? (
           <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1541,6 +1550,7 @@ export function SettingsClient({
       />
 
       <EmailPreferences userId={userId} />
+      {ownershipPanel}
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>
@@ -2007,6 +2017,8 @@ export function SettingsClient({
             </p>
           )}
 
+          <ExistingClientInvitation userId={userId} />
+
           {clientWorkspaceNotice && (
             <p role="status" className="mt-3 text-sm font-medium text-green-700">
               {clientWorkspaceNotice}
@@ -2041,7 +2053,7 @@ export function SettingsClient({
                   <span className={`inline-flex w-14 shrink-0 items-center text-xs font-medium ${selectedClientWorkspace.is_paused ? "text-amber-700" : "text-green-700"}`}>
                     {selectedClientWorkspace.is_paused ? "Paused" : "Active"}
                   </span>
-                  <button
+                  {!selectedClientWorkspace.client_owner_accepted && <button
                     type="button"
                     onClick={() => void handleToggleClientWorkspaceStatus()}
                     disabled={deletingClientWorkspace || updatingClientWorkspaceStatus}
@@ -2051,23 +2063,24 @@ export function SettingsClient({
                   >
                     {selectedClientWorkspace.is_paused ? <Play size={15} /> : <Pause size={15} />}
                     {updatingClientWorkspaceStatus ? "Updating..." : selectedClientWorkspace.is_paused ? "Resume account" : "Pause account"}
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={handleOpenDeleteClientWorkspace}
                     disabled={deletingClientWorkspace || updatingClientWorkspaceStatus}
-                    title="Delete client workspace"
+                    title={selectedClientWorkspace.client_owner_accepted ? "Remove client from agency" : "Delete unaccepted client workspace"}
                     className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400"
                   >
                     <Trash2 size={15} />
                     {deletingClientWorkspace
                       ? "Deleting..."
-                      : "Delete Workspace"}
+                      : selectedClientWorkspace.client_owner_accepted ? "Remove from agency" : "Delete Workspace"}
                   </button>
                 </div>
               </div>
 
-              {!selectedClientWorkspace.is_paused && <>
+              {selectedClientWorkspace.client_owner_accepted && <p className="text-sm text-gray-600">The client owns this workspace. Removing it from your agency preserves its data and ends your agency&apos;s access.</p>}
+              {!selectedClientWorkspace.is_paused && !selectedClientWorkspace.client_owner_accepted && <>
               <div className="flex min-h-12 flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                   {loadingClientWorkspaceAccess ? (
                     <p className="text-sm text-gray-500">
@@ -2518,10 +2531,10 @@ export function SettingsClient({
                     id="delete-client-workspace-title"
                     className="text-lg font-semibold text-gray-900"
                   >
-                    Delete client workspace?
+                    {clientWorkspaceDeleteTarget.client_owner_accepted ? "Remove client from agency?" : "Delete client workspace?"}
                   </h2>
                   <p className="mt-1 break-words text-sm text-gray-600">
-                    This permanently removes {clientWorkspaceDeleteTarget.name}, its users&apos; access, invitations, datasets, decisions, connections, reports, and preferences.
+                    {clientWorkspaceDeleteTarget.client_owner_accepted ? `This removes ${clientWorkspaceDeleteTarget.name} from your agency and ends your agency's access. The client keeps their workspace and all its data.` : `This permanently removes ${clientWorkspaceDeleteTarget.name}, its users' access, invitations, datasets, decisions, connections, reports, and preferences.`}
                   </p>
                 </div>
               </div>
@@ -2583,8 +2596,8 @@ export function SettingsClient({
               >
                 <Trash2 size={15} />
                 {deletingClientWorkspace
-                  ? "Deleting..."
-                  : "Permanently Delete"}
+                  ? "Updating..."
+                  : clientWorkspaceDeleteTarget.client_owner_accepted ? "Remove from agency" : "Permanently Delete"}
               </button>
             </div>
           </form>

@@ -80,11 +80,12 @@ test("missing clients, non-owners and busy accounts cannot trigger a status chan
 test("pause controls expose progress and status while deletion keeps typed confirmation", () => {
   assert.match(source, /aria-busy=\{updatingClientWorkspaceStatus\}/)
   assert.match(source, /"Resume account" : "Pause account"/)
-  assert.match(source, /!selectedClientWorkspace\.is_paused && <>/)
+  assert.match(source, /!selectedClientWorkspace\.is_paused && !selectedClientWorkspace\.client_owner_accepted && <>/)
+  assert.match(source, /Remove from agency/)
   assert.match(declaration("handleDeleteClientWorkspace"), /clientWorkspaceDeleteConfirmation\.trim\(\)/)
   assert.match(source, /Type <span[^>]*>\{clientWorkspaceDeleteTarget\.name\}/)
   const shell = readFileSync(new URL("../app/dashboard/dashboard-shell.tsx", import.meta.url), "utf8")
-  assert.match(shell, /activeWorkspaceRecord\?\.is_paused \? \(/)
+  assert.match(shell, /activeWorkspaceRecord\?\.is_paused &&/)
   assert.match(shell, /Client account paused/)
 })
 

@@ -2035,6 +2035,10 @@ export type OrganizationWorkspaceRecord = {
   billing_notice?: string | null
   invitation_email_status?: string | null
   invitation_email_error?: string | null
+  is_managed_client?: boolean
+  agency_removed?: boolean
+  client_owner_accepted?: boolean
+  independent_trial_started?: boolean
 }
 
 export type ClientWorkspaceCreatePayload = {
@@ -6295,6 +6299,33 @@ export async function getActiveMaintenanceNotice(): Promise<MaintenanceNotice | 
 
   return response.json()
 }
+
+export type AgencyClientInvitation = { id: string; agency_name: string }
+
+async function clientAccountRequest<T>(path: string, userId: string, workspaceId: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await fetchOrganizationRequest(`${API_URL}/organizations/${path}`, {
+    method, headers: await workspaceJsonHeaders(userId, workspaceId),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  if (!response.ok) await throwApiError(response, "Workspace account could not be updated")
+  if (method !== "GET") invalidateApiReadCache([`organization-workspaces:${userId.trim()}`])
+  return response.json()
+}
+
+export const getAgencyClientInvitations = (userId: string, workspaceId: string) =>
+  clientAccountRequest<AgencyClientInvitation[]>("agency-invitations", userId, workspaceId)
+
+export const inviteExistingAgencyClient = (email: string, userId: string) =>
+  clientAccountRequest<{ email_status: string; email_error?: string }>("agency-invitations", userId, userId, "POST", { email })
+
+export const respondToAgencyClientInvitation = (id: string, accept: boolean, userId: string, workspaceId: string) =>
+  clientAccountRequest(`agency-invitations/${encodeURIComponent(id)}/${accept ? "accept" : "decline"}`, userId, workspaceId, "POST")
+
+export const startIndependentWorkspaceTrial = (userId: string, workspaceId: string) =>
+  clientAccountRequest<{ trial_days: number }>("independent-trial", userId, workspaceId, "POST")
+
+export const deleteOwnedWorkspace = (confirmation: string, userId: string, workspaceId: string) =>
+  clientAccountRequest("workspace", userId, workspaceId, "DELETE", { confirmation })
 
 export async function updateAgencyOwnerWorkspaceAccess(
   enabled: boolean,

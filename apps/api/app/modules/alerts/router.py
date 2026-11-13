@@ -501,10 +501,9 @@ def get_weekly_report_branding(
             "review_url": build_weekly_report_review_url(),
         }
 
-    is_managed_client = ":client:" in str(
-        organization.owner_user_id or "",
-    )
     brand_organization = get_managing_agency(db, organization)
+    from app.modules.organizations.ownership import managing_agency_workspace_id
+    is_managed_client = bool(managing_agency_workspace_id(organization))
     agency_name = ""
 
     if is_managed_client and brand_organization:

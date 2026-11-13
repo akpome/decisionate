@@ -589,6 +589,7 @@ def create_ai_credit_topup_session(
     metadata = {
         "purchase_type": "ai_credit_topup",
         "workspace_id": workspace_id,
+        "billing_workspace_id": workspace_id,
         "owner_user_id": owner_user_id,
         "credit_packs": str(clean_credit_packs),
         "credits": str(credits),

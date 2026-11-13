@@ -68,9 +68,9 @@ from app.modules.auth_context import get_auth_context
 from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, delete_workspace_ingestion_jobs
 from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.organizations.branding import get_client_email_branding
+from app.modules.organizations.ownership import has_accepted_owner, is_workspace_owner, managed_client_filter, managing_agency_workspace_id
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
-    resolve_billing_workspace_id,
 )
 from app.modules.billing.service import (
     AGENCY_PLAN,
@@ -1456,9 +1456,9 @@ def build_platform_admin_organization_context(
     client_workspace_counts: dict[str, int] = {}
     for organization in organizations:
         owner_user_id = organization.owner_user_id or ""
-        if ":client:" not in owner_user_id:
+        parent_owner_user_id = managing_agency_workspace_id(organization)
+        if not parent_owner_user_id:
             continue
-        parent_owner_user_id = owner_user_id.split(":client:", 1)[0]
         client_workspace_counts[parent_owner_user_id] = (
             client_workspace_counts.get(parent_owner_user_id, 0) + 1
         )
@@ -2028,14 +2028,12 @@ def count_platform_admin_client_workspaces(
     db,
     owner_user_id: str,
 ) -> int:
-    if not owner_user_id or ":client:" in owner_user_id:
+    if not owner_user_id:
         return 0
     return (
         db.query(func.count(Organization.id))
         .filter(
-            Organization.owner_user_id.like(
-                f"{owner_user_id}:client:%",
-            ),
+            managed_client_filter(owner_user_id),
         )
         .scalar()
         or 0
@@ -2112,11 +2110,11 @@ def platform_admin_account_type_for_organization(
     subscriptions: dict[str, WorkspaceSubscription],
 ) -> str:
     owner_user_id = str(organization.owner_user_id or "")
-    if ":client:" in owner_user_id:
+    if managing_agency_workspace_id(organization):
         return "agency_client"
 
     subscription = subscriptions.get(
-        resolve_billing_workspace_id(owner_user_id)
+        owner_user_id
     )
     plan = normalize_billing_plan(
         subscription.plan if subscription else FREE_PLAN,
@@ -2144,7 +2142,7 @@ def platform_admin_account_profile_for_organization(
     owner_user_id = str(organization.owner_user_id or "")
     if account_type == "agency_client":
         agency = organizations_by_owner_user_id.get(
-            resolve_billing_workspace_id(owner_user_id),
+            managing_agency_workspace_id(organization),
         )
         account_name = str(agency.name if agency else "").strip()
         return account_type, account_name or "Unknown agency"
@@ -2250,8 +2248,8 @@ def serialize_platform_admin_organization(
     for existing internal callers.
     """
     workspace_id = organization.owner_user_id or ""
-    is_client_workspace = ":client:" in workspace_id
-    billing_workspace_id = resolve_billing_workspace_id(workspace_id)
+    is_client_workspace = bool(managing_agency_workspace_id(organization))
+    billing_workspace_id = managing_agency_workspace_id(organization) or workspace_id
     subscription = (
         context.subscriptions.get(billing_workspace_id)
         if context is not None
@@ -2729,12 +2727,13 @@ async def delete_platform_admin_organization(
                 detail="Workspace not found",
             )
 
-        client_owner_prefix = f"{organization.owner_user_id}:client:"
+        if ":client:" in organization.owner_user_id and has_accepted_owner(db, organization) and not is_workspace_owner(db, organization, auth_context.user_id):
+            raise HTTPException(403, "Only the client workspace owner can delete an accepted workspace.")
         related_organizations = [
             candidate
             for candidate in db.query(Organization).all()
             if candidate.id == organization.id
-            or candidate.owner_user_id.startswith(client_owner_prefix)
+            or managing_agency_workspace_id(candidate) == organization.owner_user_id
         ]
         # Delete nested client workspaces before their agency workspace. This
         # lets the final owner/member cleanup see that no child workspace is
@@ -2745,6 +2744,10 @@ async def delete_platform_admin_organization(
         )
         summary: dict[str, int] = {}
         for related_organization in related_organizations:
+            if related_organization.id != organization.id and has_accepted_owner(db, related_organization):
+                from app.modules.organizations.agency_accounts import detach_workspace
+                detach_workspace(db, related_organization)
+                continue
             workspace_summary = delete_workspace_records(
                 db,
                 related_organization.owner_user_id,
@@ -2795,7 +2798,7 @@ async def get_platform_admin_users(
             if organization.owner_user_id
         }
         billing_workspace_ids = {
-            resolve_billing_workspace_id(organization.owner_user_id)
+            managing_agency_workspace_id(organization) or organization.owner_user_id
             for organization in organizations
             if organization.owner_user_id
         }
@@ -3544,6 +3547,11 @@ def delete_workspace_records(
         db.query(OrganizationMember).filter(
             OrganizationMember.organization_id == organization_id
         ).delete(synchronize_session=False)
+        from app.db.models import AgencyClientInvitation
+        db.query(AgencyClientInvitation).filter(
+            or_(AgencyClientInvitation.organization_id == organization_id,
+                AgencyClientInvitation.agency_workspace_id == clean_workspace_id),
+        ).delete(synchronize_session=False)
         db.query(OrganizationInvite).filter(
             OrganizationInvite.organization_id == organization_id
         ).delete(synchronize_session=False)
@@ -3600,6 +3608,12 @@ def delete_internal_user_records(
     db,
     user_id: str,
 ) -> dict[str, int]:
+    owned_client = db.query(OrganizationMember.id).join(Organization, Organization.id == OrganizationMember.organization_id).filter(
+        OrganizationMember.clerk_user_id == user_id,
+        OrganizationMember.role.in_({"client", "client_owner"}), Organization.owner_user_id.contains(":client:"),
+    ).first()
+    if owned_client:
+        raise HTTPException(409, "This user owns a client workspace. The workspace owner must delete it before their account can be removed.")
     from app.modules.marketing.service import remove_user_marketing
     remove_user_marketing(db, user_id)
     summary = {
@@ -3617,12 +3631,16 @@ def delete_internal_user_records(
         .filter(
             or_(
                 Organization.owner_user_id == user_id,
-                Organization.owner_user_id.like(f"{user_id}:client:%"),
+                managed_client_filter(user_id),
             )
         )
         .all()
     )
     for organization in owned_organizations:
+        if organization.owner_user_id != user_id and has_accepted_owner(db, organization) and not is_workspace_owner(db, organization, user_id):
+            from app.modules.organizations.agency_accounts import detach_workspace
+            detach_workspace(db, organization)
+            continue
         workspace_summary = delete_workspace_records(
             db,
             organization.owner_user_id,

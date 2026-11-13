@@ -1,12 +1,9 @@
 from app.db.models import Organization
+from app.modules.organizations.ownership import managing_agency_workspace_id
 
 
 def get_managing_agency(db, organization: Organization) -> Organization | None:
-    workspace_id = str(organization.owner_user_id or "").strip()
-    if ":client:" not in workspace_id:
-        return None
-
-    agency_owner_id = workspace_id.split(":client:", 1)[0]
+    agency_owner_id = managing_agency_workspace_id(organization)
     if not agency_owner_id:
         return None
 
@@ -18,7 +15,7 @@ def get_managing_agency(db, organization: Organization) -> Organization | None:
 
 
 def get_client_email_branding(db, organization: Organization) -> dict | None:
-    if ":client:" not in str(organization.owner_user_id or ""):
+    if not managing_agency_workspace_id(organization):
         return None
     agency = get_managing_agency(db, organization)
     agency_name = " ".join(str(agency.name or "").split()) if agency else ""

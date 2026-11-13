@@ -24,6 +24,10 @@ from app.modules.auth_context import (
 )
 from app.modules.identity.clerk import get_verified_clerk_primary_email
 from app.modules.organizations.invitations import send_invitation_email
+from app.modules.organizations.ownership import (
+    has_accepted_owner, independent_client, is_workspace_owner,
+    managed_client_filter, managing_agency_workspace_id,
+)
 from app.modules.billing.service import (
     BillingProviderUnavailable,
     FREE_PLAN,
@@ -67,8 +71,11 @@ from app.modules.organizations.schemas import (
     DatasetPreferenceUpdate,
     DatasetPreferenceResponse,
 )
+from app.modules.organizations.agency_accounts import router as agency_accounts_router
+from app.modules.workspace_lifecycle import workspace_is_paused
 
 router = APIRouter()
+router.include_router(agency_accounts_router)
 MAX_DASHBOARD_TITLE_LENGTH = 120
 MAX_DASHBOARD_SUBTITLE_LENGTH = 220
 MAX_DASHBOARD_CHART_TITLE_LENGTH = 80
@@ -946,9 +953,7 @@ def sync_client_workspace_branding(
     client_workspaces = (
         db.query(Organization)
         .filter(
-            Organization.owner_user_id.like(
-                f"{agency_user_id}:client:%"
-            )
+            managed_client_filter(agency_user_id)
         )
         .all()
     )
@@ -983,6 +988,9 @@ def build_organization_response(
         "agency_owner_access_enabled": bool(
             organization.agency_owner_access_enabled
         ),
+        "is_managed_client": bool(managing_agency_workspace_id(organization)),
+        "agency_removed": independent_client(organization),
+        "independent_trial_started": organization.independent_trial_started_at is not None,
     }
 
 
@@ -1040,11 +1048,14 @@ def serialize_organization_member(
         )
         email = identity.email if identity else None
 
+    role = member.role
+    if role == "client_user" and independent_client(db.get(Organization, member.organization_id)):
+        role = "member"
     return {
         "id": member.id,
         "organization_id": member.organization_id,
         "clerk_user_id": member.clerk_user_id,
-        "role": member.role,
+        "role": role,
         "email": email,
     }
 
@@ -1133,13 +1144,15 @@ def claim_pending_invites(
             )
 
         invite.status = "accepted"
+        if organization and invite_role in {"client", "client_owner"}:
+            organization.client_owner_accepted_at = organization.client_owner_accepted_at or utc_now()
         claimed_count += 1
 
     return claimed_count
 
 
 def is_client_workspace(organization: Organization) -> bool:
-    return ":client:" in str(organization.owner_user_id or "")
+    return bool(managing_agency_workspace_id(organization))
 
 
 def canonical_client_workspace_role(
@@ -1243,7 +1256,7 @@ def get_managed_organization_or_404(
     db,
     auth_context,
 ):
-    if auth_context.workspace_role != "owner":
+    if auth_context.workspace_role not in {"owner", "client_owner", "client"}:
         raise HTTPException(
             status_code=403,
             detail="Only workspace owners can manage workspace members",
@@ -1263,11 +1276,10 @@ def get_managed_organization_or_404(
             detail="Workspace not found",
         )
 
-    if ":client:" in organization.owner_user_id:
-        agency_owner_id = organization.owner_user_id.split(
-            ":client:",
-            1,
-        )[0]
+    if is_workspace_owner(db, organization, auth_context.user_id):
+        return organization
+    if is_client_workspace(organization):
+        agency_owner_id = managing_agency_workspace_id(organization)
         authenticated_owner_ids = {
             clean_auth_value(auth_context.user_id),
             clean_auth_value(auth_context.external_user_id),
@@ -1277,6 +1289,10 @@ def get_managed_organization_or_404(
                 status_code=403,
                 detail="Only the agency workspace owner can manage client members",
             )
+        if has_accepted_owner(db, organization):
+            raise HTTPException(403, "The client has accepted ownership. Only the client owner can manage this workspace.")
+    elif organization.owner_user_id != auth_context.user_id:
+        raise HTTPException(403, "Only the workspace owner can manage workspace members")
 
     return organization
 
@@ -1463,14 +1479,16 @@ def get_accessible_workspaces(
                     agency_owner_access_enabled=bool(
                         organization.agency_owner_access_enabled
                     ),
-                    is_paused=bool(organization.is_paused),
+                    is_paused=workspace_is_paused(db, organization.owner_user_id),
+                    is_managed_client=bool(managing_agency_workspace_id(organization)),
+                    agency_removed=independent_client(organization),
+                    client_owner_accepted=has_accepted_owner(db, organization),
+                    independent_trial_started=organization.independent_trial_started_at is not None,
                 )
             )
 
         for organization, membership in memberships:
-            if organization.owner_user_id.startswith(
-                f"{user_id}:client:"
-            ):
+            if managing_agency_workspace_id(organization) == user_id:
                 continue
 
             owner_reference = (
@@ -1490,6 +1508,8 @@ def get_accessible_workspaces(
                     else membership.role
                 )
             )
+            if independent_client(organization):
+                role = "owner" if is_workspace_owner(db, organization, user_id) else "member"
             workspaces_by_owner[owner_reference] = (
                 OrganizationWorkspaceResponse(
                     id=organization.id,
@@ -1503,7 +1523,11 @@ def get_accessible_workspaces(
                     agency_owner_access_enabled=bool(
                         organization.agency_owner_access_enabled
                     ),
-                    is_paused=bool(organization.is_paused),
+                    is_paused=workspace_is_paused(db, organization.owner_user_id),
+                    is_managed_client=bool(managing_agency_workspace_id(organization)),
+                    agency_removed=independent_client(organization),
+                    client_owner_accepted=has_accepted_owner(db, organization),
+                    independent_trial_started=organization.independent_trial_started_at is not None,
                 )
             )
 
@@ -1511,9 +1535,7 @@ def get_accessible_workspaces(
             managed_client_workspaces = (
                 db.query(Organization)
                 .filter(
-                    Organization.owner_user_id.like(
-                        f"{user_id}:client:%"
-                    )
+                    managed_client_filter(user_id)
                 )
                 .order_by(
                     Organization.name.asc(),
@@ -1537,6 +1559,8 @@ def get_accessible_workspaces(
                             client_workspace.agency_owner_access_enabled
                         ),
                         is_paused=bool(client_workspace.is_paused),
+                        is_managed_client=True,
+                        client_owner_accepted=has_accepted_owner(db, client_workspace),
                     )
                 )
 
@@ -1753,6 +1777,7 @@ def create_client_workspace(
             db,
             user_id,
         )
+        db.refresh(agency_organization, with_for_update=True)
         subscription = (
             db.query(WorkspaceSubscription)
             .filter(
@@ -1783,9 +1808,7 @@ def create_client_workspace(
         client_workspace_count = (
             db.query(Organization)
             .filter(
-                Organization.owner_user_id.like(
-                    f"{user_id}:client:%"
-                )
+                managed_client_filter(user_id)
             )
             .count()
         )
@@ -1845,6 +1868,7 @@ def create_client_workspace(
             primary_color=agency_organization.primary_color,
             accent_color=agency_organization.accent_color,
             report_display_name=agency_organization.report_display_name,
+            managing_agency_workspace_id=user_id,
         )
 
         db.add(client_workspace)
@@ -1877,6 +1901,7 @@ def create_client_workspace(
             billing_notice=billing_notice,
             invitation_email_status=invite.email_status,
             invitation_email_error=invite.email_error,
+            is_managed_client=True,
         )
 
     finally:
@@ -1890,7 +1915,7 @@ def get_agency_client_for_management(db, auth_context, organization_id):
     client = db.query(Organization).filter(Organization.id == organization_id).with_for_update().first()
     if client is None:
         raise HTTPException(404, "Client workspace not found")
-    if not client.owner_user_id.startswith(f"{agency.owner_user_id}:client:"):
+    if managing_agency_workspace_id(client) != agency.owner_user_id:
         raise HTTPException(403, "Only client workspaces managed by this agency can be changed")
     return client
 
@@ -1902,14 +1927,17 @@ def ensure_client_workspace_idle(db, workspace_id):
         ensure_workspace_jobs_idle(db, [workspace_id], include_queued=True)
     except HTTPException as error:
         if error.status_code == 409:
-            raise HTTPException(409, "An import is active. Wait for it to finish before pausing or deleting this client workspace.") from error
+            raise HTTPException(409, "An import is active. Wait for it to finish before changing or deleting this client workspace.") from error
         raise
     lock_workspace_queue(db, "reports-analysis:" + workspace_id)
     if db.query(ReportAnalysisJob).filter(
         ReportAnalysisJob.workspace_id == workspace_id,
         ReportAnalysisJob.status.in_({"queued", "running"}),
     ).first():
-        raise HTTPException(409, "An analysis is active. Wait for it to finish before pausing or deleting this client workspace.")
+        raise HTTPException(409, "An analysis is active. Wait for it to finish before changing or deleting this client workspace.")
+    from app.db.models import AIUsageEvent
+    if db.query(AIUsageEvent.id).filter_by(workspace_id=workspace_id, status="reserved").first():
+        raise HTTPException(409, "An AI request is active. Wait for it to finish before changing this workspace's agency.")
 
 
 @router.patch("/client-workspaces/{organization_id}", response_model=OrganizationWorkspaceResponse)
@@ -1917,6 +1945,8 @@ def update_client_workspace_status(organization_id: int, payload: ClientWorkspac
     auth_context = get_auth_context(request)
     with SessionLocal() as db:
         client = get_agency_client_for_management(db, auth_context, organization_id)
+        if has_accepted_owner(db, client):
+            raise HTTPException(403, "The client owns this workspace. You can remove it from your agency list, but cannot pause it.")
         if payload.is_paused and not client.is_paused:
             ensure_client_workspace_idle(db, client.owner_user_id)
         client.is_paused = payload.is_paused
@@ -1926,6 +1956,7 @@ def update_client_workspace_status(organization_id: int, payload: ClientWorkspac
             logo_url=client.logo_url, primary_color=client.primary_color, accent_color=client.accent_color,
             report_display_name=client.report_display_name,
             agency_owner_access_enabled=bool(client.agency_owner_access_enabled), is_paused=bool(client.is_paused),
+            is_managed_client=True,
         )
 
 
@@ -1943,6 +1974,11 @@ def delete_client_workspace(
     try:
         client_workspace = get_agency_client_for_management(db, auth_context, organization_id)
         ensure_client_workspace_idle(db, client_workspace.owner_user_id)
+        if has_accepted_owner(db, client_workspace):
+            from app.modules.organizations.agency_accounts import detach_workspace
+            detach_workspace(db, client_workspace)
+            db.commit()
+            return ClientWorkspaceDeleteResponse(deleted=False, removed=True, summary={})
 
         summary = delete_workspace_records(
             db,
@@ -2027,7 +2063,7 @@ async def update_agency_owner_access(
             .first()
         )
 
-        if not organization or ":client:" not in organization.owner_user_id:
+        if not organization or not managing_agency_workspace_id(organization):
             raise HTTPException(
                 status_code=403,
                 detail="Agency access can only be configured in a client workspace",
@@ -2145,7 +2181,7 @@ async def add_organization_member(
 
         if (
             member_role == "owner"
-            and ":client:" in organization.owner_user_id
+            and is_client_workspace(organization)
         ):
             raise HTTPException(
                 status_code=400,
@@ -2442,7 +2478,7 @@ async def update_organization_member_role(
                 detail="Organization member not found",
             )
 
-        if member.clerk_user_id == organization.owner_user_id:
+        if member.clerk_user_id == organization.owner_user_id or member.role in {"client", "client_owner"}:
             raise HTTPException(
                 status_code=400,
                 detail="Owner role cannot be changed",
@@ -2562,7 +2598,7 @@ async def remove_organization_member(
                 detail="Organization member not found",
             )
 
-        if member.clerk_user_id == organization.owner_user_id:
+        if member.clerk_user_id == organization.owner_user_id or member.role in {"client", "client_owner"}:
             raise HTTPException(
                 status_code=400,
                 detail="Owner cannot be removed",
