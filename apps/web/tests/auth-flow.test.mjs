@@ -312,6 +312,9 @@ test("workspace selection stays user-scoped and works when browser storage is bl
     assert.equal(context.getActiveWorkspaceId("reviewer"), "agency:client:2")
     assert.equal(context.getActiveWorkspaceId("other-user"), "other-user")
     assert.equal(changes, 1)
+    context.clearActiveWorkspaceId("reviewer")
+    assert.equal(context.getActiveWorkspaceId("reviewer"), "reviewer")
+    assert.equal(changes, 1, "deletion must not remount protected pages before sign-out")
   }
 })
 

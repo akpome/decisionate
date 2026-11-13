@@ -89,10 +89,13 @@ def delete_owned_workspace(payload: WorkspaceDeleteConfirmation, request: Reques
         subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=auth.workspace_id).first()
         if subscription and subscription.provider_subscription_id and subscription.status not in {"canceled", "incomplete_expired"}:
             raise HTTPException(409, "Cancel the workspace subscription in Billing before deleting the workspace.")
-        ensure_client_workspace_idle(db, auth.workspace_id)
+        # Queued jobs are deleted in the same locked transaction, not left waiting
+        # for an agency-paused workspace to be resumed.
+        ensure_client_workspace_idle(db, auth.workspace_id, include_queued=False)
         db.query(AgencyClientInvitation).filter_by(organization_id=organization.id).delete(synchronize_session=False)
         summary = delete_workspace_records(db, auth.workspace_id, organization.id)
         db.commit()
+        request.state.workspace_deleted = True
         return {"deleted": True, "summary": summary}
 
 

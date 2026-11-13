@@ -22,7 +22,9 @@ function harness(overrides = {}) {
     startIndependentWorkspaceTrial: async (...args) => { calls.push(["trial", ...args]); return { trial_days: 30 } },
     respondToAgencyClientInvitation: async (...args) => calls.push(["invitation", ...args]),
     deleteOwnedWorkspace: async (...args) => calls.push(["delete", ...args]),
-    setActiveWorkspaceId: (...args) => calls.push(["active", ...args]), window: { location: { assign: path => calls.push(["redirect", path]) } },
+    clearActiveWorkspaceId: (...args) => calls.push(["clear", ...args]),
+    setDeleted: value => { context.deleted = value },
+    signOut: async options => calls.push(["sign-out", options.redirectUrl]),
     message: error => error.message, ...overrides,
   }
   return { calls, context, act: compile(`${declaration("act")}\nact`, context) }
@@ -45,7 +47,24 @@ test("joining or declining an agency acts only on the selected invitation and wo
 test("owner deletion requires the exact name and does not use agency removal", async () => {
   const invalid = harness({ confirmation: "wrong" }); await invalid.act("delete"); assert.deepEqual(invalid.calls, [])
   const h = harness({ confirmation: "Client Shop" }); await h.act("delete")
-  assert.deepEqual(h.calls, [["delete", "Client Shop", "client", "old:client:shop"], ["active", "client", "client"], ["redirect", "/auth/redirect"]])
+  assert.deepEqual(h.calls, [["delete", "Client Shop", "client", "old:client:shop"], ["clear", "client"], ["sign-out", "/sign-in"]])
+  assert.equal(h.context.deleted, true)
+  assert.equal(h.context.refreshed, undefined)
+})
+
+test("failed deletion keeps selection, while failed sign-out never retries deletion", async () => {
+  const failed = harness({ confirmation: "Client Shop", deleteOwnedWorkspace: async () => { throw new Error("Import is running") } })
+  await failed.act("delete")
+  assert.equal(failed.context.deleted, undefined)
+  assert.equal(failed.context.error, "Import is running")
+  assert.deepEqual(failed.calls, [])
+  const h = harness({ confirmation: "Client Shop", signOut: async () => { throw new Error("Sign out again") } })
+  await h.act("delete")
+  assert.equal(h.context.deleted, true)
+  assert.equal(h.context.error, "Sign out again")
+  h.context.signOut = async options => h.calls.push(["sign-out", options.redirectUrl])
+  await h.act("sign-out")
+  assert.deepEqual(h.calls, [["delete", "Client Shop", "client", "old:client:shop"], ["clear", "client"], ["sign-out", "/sign-in"]])
 })
 
 test("failed or duplicate actions preserve the workspace and remain retryable", async () => {

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useClerk } from "@clerk/nextjs"
 import { useEffect, useRef, useState } from "react"
 import { Check, Mail, Play, RefreshCw, Trash2, X } from "lucide-react"
 
@@ -9,7 +10,7 @@ import {
   respondToAgencyClientInvitation, startIndependentWorkspaceTrial,
   type AgencyClientInvitation, type OrganizationWorkspaceRecord,
 } from "@/lib/api"
-import { notifyWorkspaceAccessChanged, setActiveWorkspaceId } from "@/lib/workspace-context"
+import { clearActiveWorkspaceId, notifyWorkspaceAccessChanged } from "@/lib/workspace-context"
 
 const button = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
 const message = (error: unknown) => error instanceof Error ? error.message : "The workspace could not be updated. Please try again."
@@ -49,6 +50,7 @@ export function ExistingClientInvitation({ userId }: { userId: string }) {
 }
 
 export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string; workspace: OrganizationWorkspaceRecord }) {
+  const { signOut } = useClerk()
   const [invitations, setInvitations] = useState<AgencyClientInvitation[]>([])
   const [loadedInvitationKey, setLoadedInvitationKey] = useState("")
   const [retry, setRetry] = useState(0)
@@ -58,6 +60,7 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [deleting, setDeleting] = useState(false)
+  const [deleted, setDeleted] = useState(false)
   const [confirmation, setConfirmation] = useState("")
   const pending = useRef(false)
 
@@ -81,9 +84,11 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
         refreshAccess()
       } else if (action === "delete") {
         await deleteOwnedWorkspace(confirmation.trim(), userId, workspace.owner_user_id)
-        setActiveWorkspaceId(userId, userId)
-        refreshAccess()
-        window.location.assign("/auth/redirect")
+        setDeleted(true)
+        clearActiveWorkspaceId(userId)
+        await signOut({ redirectUrl: "/sign-in" })
+      } else if (action === "sign-out") {
+        await signOut({ redirectUrl: "/sign-in" })
       } else if (invitation) {
         await respondToAgencyClientInvitation(invitation.id, action === "accept", userId, workspace.owner_user_id)
         setInvitations(items => items.filter(item => item.id !== invitation.id))
@@ -94,11 +99,18 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
     finally { pending.current = false; setBusy("") }
   }
 
+  if (deleted) return <section role="status" className="py-5">
+    <h2 className="text-lg font-semibold">Workspace deleted</h2>
+    <p className="mt-2 text-sm text-gray-600">Sign out to finish. Any other workspaces you belong to are unchanged.</p>
+    <button type="button" disabled={Boolean(busy)} onClick={() => void act("sign-out")} className={`${button} mt-4`}>Sign out</button>
+    {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+  </section>
+
   return <section className="border-t border-gray-200 py-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h2 className="text-lg font-semibold">{workspace.agency_removed ? "Keep using your workspace" : "Workspace ownership"}</h2>
-        <p className="mt-2 text-sm text-gray-600">{workspace.agency_removed ? "Your workspace is no longer managed by an agency. Your existing data is preserved." : "This workspace belongs to you. Removing it from an agency does not delete your data."}</p>
+        <p className="mt-2 text-sm text-gray-600">{workspace.agency_removed ? "Your workspace is no longer managed by an agency. Your existing data is preserved." : "You own this workspace. Only you can permanently delete it, even if your agency has paused access."}</p>
       </div>
       <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>
     </div>
@@ -119,6 +131,7 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
       <form className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5" onSubmit={event => { event.preventDefault(); void act("delete") }}>
         <h2 id="owned-workspace-delete" className="text-lg font-semibold">Delete your workspace?</h2>
         <p className="mt-3 text-sm text-gray-600">This permanently deletes {workspace.name}, its datasets, reports, connections and decisions.</p>
+        <p className="mt-2 text-sm text-gray-600">It also removes this workspace from your agency and signs you out. Your app account is removed if it has no other workspaces. Other members&apos; shared accounts and your sign-in provider account are not deleted.</p>
         <label className="mt-4 block text-sm">Type {workspace.name} to confirm<input autoFocus value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={Boolean(busy)} className="mt-2 h-10 w-full rounded-md border border-gray-200 px-3" /></label>
         {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setDeleting(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy) || confirmation.trim() !== workspace.name} className={`${button} text-red-600`}><Trash2 size={16} />{busy === "delete" ? "Deleting..." : "Permanently delete"}</button></div>

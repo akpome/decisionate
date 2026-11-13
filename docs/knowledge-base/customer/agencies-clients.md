@@ -69,11 +69,21 @@ for that workspace. It does not delete datasets, reports, decisions, connections
 members or the workspace itself. Workspace IDs and data IDs stay unchanged.
 An active import, report analysis or AI request must finish before removal.
 
-The client owner can choose Delete workspace in their own Settings and type its
-name to confirm permanent deletion. Other client users cannot do this. A direct
+The client owner can open Settings in the workspace navigation and choose Delete
+workspace, then type its name to confirm permanent deletion. This remains available
+when the agency has paused access; it does not let the client resume the workspace.
+Other client users and the agency cannot permanently delete an accepted workspace.
+Deletion removes its data, connections, reports, decisions, matching records,
+memberships, invitations and agency listing. The owner is signed out afterwards.
+An app account with no remaining workspace or platform role is removed; shared
+accounts and other workspaces are preserved. This does not delete the account
+at the sign-in provider. Minimal email suppression and consent history is retained
+to honor unsubscribe requests while email-provider cleanup is processed. A direct
 paid subscription must be canceled in Billing before deletion. Removing a client
 frees its used agency slot; it does not automatically reduce purchased capacity,
 refund the agency or cancel the agency's subscription.
+Queued imports and analyses are canceled as part of deletion. Work already running
+must finish first; this protects against a worker recreating deleted data.
 
 ## Continue after leaving an agency
 

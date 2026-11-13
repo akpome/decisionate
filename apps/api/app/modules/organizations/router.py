@@ -1920,20 +1920,21 @@ def get_agency_client_for_management(db, auth_context, organization_id):
     return client
 
 
-def ensure_client_workspace_idle(db, workspace_id):
+def ensure_client_workspace_idle(db, workspace_id, *, include_queued=True):
     from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, lock_workspace_queue
     from app.modules.reports.models import ReportAnalysisJob
     try:
-        ensure_workspace_jobs_idle(db, [workspace_id], include_queued=True)
+        ensure_workspace_jobs_idle(db, [workspace_id], include_queued=include_queued)
     except HTTPException as error:
         if error.status_code == 409:
             raise HTTPException(409, "An import is active. Wait for it to finish before changing or deleting this client workspace.") from error
         raise
     lock_workspace_queue(db, "reports-analysis:" + workspace_id)
-    if db.query(ReportAnalysisJob).filter(
+    report_jobs = db.query(ReportAnalysisJob).filter(
         ReportAnalysisJob.workspace_id == workspace_id,
         ReportAnalysisJob.status.in_({"queued", "running"}),
-    ).first():
+    ).with_for_update().all()
+    if any(job.status == "running" or include_queued for job in report_jobs):
         raise HTTPException(409, "An analysis is active. Wait for it to finish before changing or deleting this client workspace.")
     from app.db.models import AIUsageEvent
     if db.query(AIUsageEvent.id).filter_by(workspace_id=workspace_id, status="reserved").first():

@@ -86,3 +86,14 @@ export function setActiveWorkspaceId(
     )
   )
 }
+
+export function clearActiveWorkspaceId(userId: string) {
+  const cleanUserId = userId.trim()
+  sessionWorkspaceIds.delete(cleanUserId)
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.removeItem(getActiveWorkspaceStorageKey(cleanUserId))
+  } catch {
+    // The session selection is cleared even when browser storage is unavailable.
+  }
+}

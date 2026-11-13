@@ -342,9 +342,32 @@ def mark_completed_data(db, dataset):
     state.first_data_ready_at = state.first_data_ready_at or tracked.ready_at
 
 
+def remove_workspace_marketing(db, workspace_id, dataset_ids):
+    for model in (MarketingLinkVisit, MarketingEmail, MarketingMembership, MarketingWorkspace):
+        db.query(model).filter(model.workspace_id == workspace_id).delete(synchronize_session=False)
+    db.query(MarketingJob).filter(
+        MarketingJob.job_type == "workspace", MarketingJob.entity_id == workspace_id,
+    ).delete(synchronize_session=False)
+    if dataset_ids:
+        db.query(MarketingDatasetState).filter(MarketingDatasetState.dataset_id.in_(dataset_ids)).delete(synchronize_session=False)
+        db.query(MarketingJob).filter(
+            MarketingJob.job_type == "dataset", MarketingJob.entity_id.in_([str(value) for value in dataset_ids]),
+        ).delete(synchronize_session=False)
+    for contact in db.query(MarketingContact).filter_by(primary_workspace_id=workspace_id):
+        contact.primary_workspace_id = None
+        touch_contact(db, contact)
+
+
 def remove_user_marketing(db, user_id):
-    for contact in db.query(MarketingContact).filter_by(user_id=user_id, deleted_at=None):
+    for contact in db.query(MarketingContact).filter_by(user_id=user_id):
         withdraw(db, contact, "account_deleted")
-        db.query(MarketingLinkVisit).filter_by(contact_id=contact.id).delete(synchronize_session=False)
+        for model in (MarketingLinkVisit, MarketingEmail, MarketingMembership):
+            db.query(model).filter_by(contact_id=contact.id).delete(synchronize_session=False)
+        # Retain only the suppression/consent record and the provider-deletion job.
+        # Removing the contact now would strand it at the email provider.
+        contact.user_id = contact.first_name = contact.primary_workspace_id = None
         contact.deleted_at = utc_now()
         touch_contact(db, contact)
+    db.query(MarketingConsentEvent).filter_by(actor_user_id=user_id).update(
+        {"actor_user_id": None, "evidence_reference": "account_deleted"}, synchronize_session=False,
+    )

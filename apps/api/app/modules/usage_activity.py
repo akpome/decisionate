@@ -77,7 +77,7 @@ def record_usage_activity(
     status_code: int,
     duration_ms: int,
 ) -> None:
-    if not is_tracked_route(request.url.path):
+    if getattr(request.state, "workspace_deleted", False) or not is_tracked_route(request.url.path):
         return
 
     auth_context = get_request_auth_context(request)

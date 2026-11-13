@@ -33,14 +33,17 @@ from app.infrastructure.object_storage import (
 )
 from app.db.models import (
     AIUsageEvent,
+    AICreditPurchase,
     AppUser,
     AuthIdentity,
+    CanonicalEntity,
     DashboardShare,
     DataSourceConnection,
     DatasetAnalysis,
     Dataset,
     DatasetJoinCache,
     DatasetRelationship,
+    EntityIdentity,
     Organization,
     OrganizationInvite,
     OrganizationMember,
@@ -94,7 +97,7 @@ from app.modules.datasets.services.analytics_engine import (
 )
 from app.security.secrets import encrypt_secret
 from app.modules.decisions.activity_models import DecisionActivity
-from app.modules.decisions.models import Decision
+from app.modules.decisions.models import Decision, DecisionCreationRequest, DecisionDuplicate
 from app.modules.maintenance import (
     PlatformAdminMaintenanceResponse,
     MaintenanceNoticeResponse,
@@ -3349,9 +3352,8 @@ def remove_dataset_file_for_admin(
 
     try:
         get_object_storage().delete(file_path)
-    except OSError:
-        # A missing or externally managed source file should not prevent
-        # deletion of its database record.
+    except FileNotFoundError:
+        # An already missing file must not prevent deletion of its record.
         return
 
 
@@ -3361,8 +3363,7 @@ def delete_workspace_records(
     organization_id: int | None = None,
 ) -> dict[str, int]:
     clean_workspace_id = str(workspace_id or "").strip()
-    from app.modules.marketing.service import enqueue, remove_user_marketing
-    enqueue(db, "workspace", clean_workspace_id)
+    from app.modules.marketing.service import remove_user_marketing, remove_workspace_marketing
     ensure_workspace_jobs_idle(db, [clean_workspace_id])
     delete_workspace_ingestion_jobs(db, [clean_workspace_id])
     summary = {
@@ -3405,6 +3406,7 @@ def delete_workspace_records(
         .all()
     )
     dataset_ids = [dataset.id for dataset in datasets]
+    remove_workspace_marketing(db, clean_workspace_id, dataset_ids)
     from app.modules.correlation.cleanup import cleanup_workspace
     cleanup_workspace(db, clean_workspace_id)
     from app.modules.reports.cleanup import cleanup_workspace as cleanup_report_workspace
@@ -3455,6 +3457,12 @@ def delete_workspace_records(
     summary["datasets"] = len(datasets)
     summary["decisions"] = len(decisions)
     if decision_ids:
+        db.query(DecisionCreationRequest).filter(
+            DecisionCreationRequest.decision_id.in_(decision_ids)
+        ).delete(synchronize_session=False)
+        db.query(DecisionDuplicate).filter(
+            or_(DecisionDuplicate.duplicate_id.in_(decision_ids), DecisionDuplicate.canonical_id.in_(decision_ids))
+        ).delete(synchronize_session=False)
         db.query(Decision).filter(
             Decision.id.in_(decision_ids)
         ).delete(synchronize_session=False)
@@ -3526,15 +3534,18 @@ def delete_workspace_records(
         WeeklyReportDeliveryLog,
         DatasetAnalysis,
         WorkspaceRequestBudget,
+        EntityIdentity,
+        CanonicalEntity,
+        AICreditPurchase,
     ):
-        if model in (OAuthConnectionState, OAuthCredential):
-            db.query(model).filter(
-                model.workspace_id == clean_workspace_id
-            ).delete(synchronize_session=False)
-        else:
-            db.query(model).filter(
-                model.workspace_id == clean_workspace_id
-            ).delete(synchronize_session=False)
+        db.query(model).filter(
+            model.workspace_id == clean_workspace_id
+        ).delete(synchronize_session=False)
+
+    audit_filter = PlatformAdminAuditEvent.target_user_id == clean_workspace_id
+    if organization_id is not None:
+        audit_filter = or_(audit_filter, PlatformAdminAuditEvent.organization_id == organization_id)
+    db.query(PlatformAdminAuditEvent).filter(audit_filter).delete(synchronize_session=False)
 
     db.query(UserPreference).filter(
         or_(
@@ -3595,6 +3606,23 @@ def delete_workspace_records(
             db.query(AuthIdentity).filter(
                 AuthIdentity.user_id == member_user_id
             ).delete(synchronize_session=False)
+            account = db.get(AppUser, member_user_id)
+            if account and account.email and not db.query(AppUser.id).filter(
+                AppUser.id != member_user_id,
+                func.lower(AppUser.email) == account.email.strip().lower(),
+            ).first():
+                db.query(AgencyClientInvitation).filter(
+                    func.lower(AgencyClientInvitation.email) == account.email.strip().lower(),
+                    AgencyClientInvitation.organization_id.is_(None),
+                ).delete(synchronize_session=False)
+            db.query(PlatformAdminAuditEvent).filter(
+                PlatformAdminAuditEvent.target_user_id == member_user_id
+            ).delete(synchronize_session=False)
+            db.query(UserPreference).filter_by(clerk_user_id=member_user_id).delete(synchronize_session=False)
+            for model in (AIUsageEvent, UsageActivityEvent, DecisionActivity):
+                db.query(model).filter_by(actor_user_id=member_user_id).update(
+                    {"actor_user_id": None}, synchronize_session=False,
+                )
             remove_user_marketing(db, member_user_id)
             db.query(AppUser).filter(
                 AppUser.id == member_user_id

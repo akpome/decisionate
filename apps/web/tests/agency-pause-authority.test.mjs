@@ -29,6 +29,8 @@ test("agency pause and resume controls are available after client ownership is a
 
 test("paused managed clients cannot use independent-trial recovery controls", () => {
   assert.match(shell, /activeWorkspaceRecord\.agency_removed && \["\/dashboard\/settings"/)
-  assert.match(shell, /activeWorkspaceRecord\.agency_removed && <Link href="\/dashboard\/settings"/)
+  assert.match(shell, /activeWorkspaceRecord\.agency_removed \|\| canDeleteClientWorkspace/)
+  assert.match(shell, /pathname === "\/dashboard\/settings" && canDeleteClientWorkspace && user\?\.id && <ClientWorkspaceOwnership/)
+  assert.match(shell, /\["client", "client_owner", "owner"\]\.includes\(activeWorkspaceRole\)/)
   assert.match(shell, /Start a trial or accept an agency invitation in Settings/)
 })
