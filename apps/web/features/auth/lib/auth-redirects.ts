@@ -81,3 +81,14 @@ export function getDashboardReturnTo(value: RedirectValue, origin?: string) {
 export function getWorkspaceReturnTo(value: RedirectValue, origin?: string) {
   return getDashboardReturnTo(value, origin) ?? "/dashboard"
 }
+
+export function getInvitedWorkspaceId(value: RedirectValue) {
+  const returnTo = getDashboardReturnTo(value)
+  return returnTo ? new URL(returnTo, "https://decisionate.invalid").searchParams.get("workspace_id") : null
+}
+
+export function getWorkspaceAccountSwitchUrl(value: RedirectValue) {
+  const returnTo = getDashboardReturnTo(value)
+  const signIn = getSignInUrl(returnTo)
+  return getInvitedWorkspaceId(returnTo) ? `${signIn}&switch_account=1` : signIn
+}

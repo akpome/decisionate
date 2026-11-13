@@ -203,6 +203,35 @@ test("signed-in users on either auth page reach the resolver with their return U
   assert.equal(absolute.searchParams.get("redirect_url"), "/dashboard/datasets/56")
 })
 
+test("invitation login links keep the sign-in page public and retain the client workspace after login", async () => {
+  const proxy = proxyHarness()
+  const destination = "/dashboard?workspace_id=agency%3Aclient%3A2"
+  const invitation = redirects.getSignInUrl(destination)
+  assert.equal(new URL(invitation, "https://decisionate.test").pathname, "/sign-in")
+  assert.equal(await proxy.run(invitation), undefined)
+  const signedIn = new URL(await proxy.run(invitation, "reviewer"))
+  assert.equal(signedIn.pathname, "/auth/redirect")
+  assert.equal(signedIn.searchParams.get("redirect_url"), destination)
+  assert.equal(workspaces.getAuthenticatedDestination(false, shared, destination), destination)
+})
+
+test("invitation account switching stays on login without bypassing any private routes", async () => {
+  const proxy = proxyHarness()
+  const destination = "/dashboard?workspace_id=agency%3Aclient%3A2"
+  const login = redirects.getWorkspaceAccountSwitchUrl(destination)
+  assert.equal(new URL(login, "https://decisionate.test").searchParams.get("switch_account"), "1")
+  assert.equal(await proxy.run(login, "reviewer"), undefined)
+  assert.equal(await proxy.run(login), undefined)
+  const protectedResult = new URL(await proxy.run(`${destination}&switch_account=1`))
+  assert.equal(protectedResult.pathname, "/sign-in")
+  for (const value of ["/dashboard", "/platform-admin?workspace_id=someone", "https://other.test/dashboard?workspace_id=someone"]) {
+    assert.equal(redirects.getInvitedWorkspaceId(value), null)
+    assert.doesNotMatch(redirects.getWorkspaceAccountSwitchUrl(value), /switch_account/)
+    const attempt = `/sign-in?switch_account=1&redirect_url=${encodeURIComponent(value)}`
+    assert.equal(new URL(await proxy.run(attempt, "reviewer")).pathname, "/auth/redirect")
+  }
+})
+
 test("signed-out users can reach auth pages while all private areas require sign in", async () => {
   const proxy = proxyHarness()
   for (const path of ["/sign-in", "/sign-up", "/auth/redirect"]) assert.equal(await proxy.run(path), undefined)

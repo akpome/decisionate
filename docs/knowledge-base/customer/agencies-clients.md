@@ -22,13 +22,18 @@ another client user or a support prompt cannot grant it implicitly.
 Creating a client workspace in Settings sends an invitation to the client
 owner's email address automatically; no separate send action is needed. The
 email names the agency and client workspace and links
-to that workspace's sign-in page. The client signs in or creates an account with
+to the sign-in page, not directly to the dashboard. The link keeps the invited
+workspace as the destination after sign-in. The client signs in or creates an account with
 the invited email address and verifies it. After sign-in, Decisionate accepts
 the pending invitation and opens the client workspace, not a new personal
 workspace. A client owner or client user signing in without the invitation link
 also defaults to their client workspace unless they already selected another
-accessible client workspace. An invitation link does not grant access to a
-different signed-in account; switch to the invited account instead.
+accessible client workspace. If the browser is already signed in to an account
+without access to the invited workspace, the link returns to Sign in with a
+Use invited account action. That action signs out the current account and opens
+login while keeping the invited workspace as the destination. It does not grant
+access to the wrong account or automatically sign anyone out merely for opening
+the link.
 
 For an existing pending invitation, the agency owner can select the client under
 Settings > Client Workspaces and choose Send invitation. Check the recipient's

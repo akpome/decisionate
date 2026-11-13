@@ -102,6 +102,34 @@ class ClientInvitationFlowTests(unittest.TestCase):
             self.assertEqual(invite.status, "pending")
             self.assertIsNotNone(invite.email_sent_at)
 
+    def test_invitation_links_use_the_login_route_even_when_the_configured_url_has_a_dashboard_path(self):
+        with patch.object(invitations, "get_runtime_configuration", return_value=SimpleNamespace(
+            web_url="https://app.example.test/dashboard?tab=settings#clients",
+        )):
+            response = self.create()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["invitation_email_status"], "sent")
+        body = self.send.call_args.args[2]
+        url = next(word for word in body.split() if word.startswith("https://"))
+        self.assertEqual(urlsplit(url).path, "/sign-in")
+        self.assertEqual(urlsplit(url).fragment, "")
+        self.assertNotIn("/dashboard/sign-in", url)
+        self.assertIn("Sign in to your workspace:", body)
+        destination = parse_qs(urlsplit(url).query)["redirect_url"][0]
+        self.assertEqual(parse_qs(urlsplit(destination).query)["workspace_id"], [response.json()["owner_user_id"]])
+
+    def test_invalid_login_url_does_not_send_a_broken_link_or_lose_the_created_workspace(self):
+        with patch.object(invitations, "get_runtime_configuration", return_value=SimpleNamespace(web_url="")):
+            response = self.create()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["invitation_email_status"], "failed")
+        self.send.assert_not_called()
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Organization, response.json()["id"]))
+            invite = db.query(OrganizationInvite).filter_by(organization_id=response.json()["id"]).one()
+            self.assertEqual(invite.status, "pending")
+            self.assertIsNone(invite.email_sent_at)
+
     def test_email_failure_preserves_the_created_workspace_and_returns_honest_status(self):
         self.send.side_effect = HTTPException(502, "Private provider detail")
         response = self.create()
@@ -314,6 +342,33 @@ class ClientInvitationFlowTests(unittest.TestCase):
 
 
 class InvitationTransportTests(unittest.TestCase):
+    def test_login_links_use_only_the_configured_origin_and_preserve_the_workspace_after_login(self):
+        for base, origin in (
+            ("https://app.example.test", "https://app.example.test"),
+            ("https://app.example.test/", "https://app.example.test"),
+            ("https://app.example.test/sign-in/", "https://app.example.test"),
+            ("https://app.example.test/dashboard?tab=settings#clients", "https://app.example.test"),
+            ("app.example.test/dashboard", "https://app.example.test"),
+            ("http://localhost:3003/dashboard", "http://localhost:3003"),
+        ):
+            with self.subTest(base=base), patch.object(invitations, "get_runtime_configuration", return_value=SimpleNamespace(web_url=base)):
+                parsed = urlsplit(invitations.build_invitation_sign_in_url("agency:client:shop & one"))
+                self.assertEqual(f"{parsed.scheme}://{parsed.netloc}", origin)
+                self.assertEqual(parsed.path, "/sign-in")
+                self.assertEqual(parsed.fragment, "")
+                destination = parse_qs(parsed.query)["redirect_url"][0]
+                self.assertEqual(urlsplit(destination).path, "/dashboard")
+                self.assertEqual(parse_qs(urlsplit(destination).query)["workspace_id"], ["agency:client:shop & one"])
+
+    def test_login_links_reject_invalid_web_origins(self):
+        for base in ("", "ftp://app.example.test", "https://", "https://user:password@app.example.test",
+                     "https://app.example.test:invalid", "https://app.example.test:0", "https://app. example.test",
+                     "https://app.example.test\\other.test"):
+            with self.subTest(base=base), patch.object(invitations, "get_runtime_configuration", return_value=SimpleNamespace(web_url=base)):
+                with self.assertRaises(HTTPException) as failure:
+                    invitations.build_invitation_sign_in_url("agency:client:one")
+                self.assertEqual(failure.exception.status_code, 503)
+
     def test_resend_transport_forwards_the_invitation_idempotency_key(self):
         message = EmailMessage()
         message["Subject"], message["From"], message["To"] = "Invitation", "Agency via Decisionate <no-reply@example.test>", "client@example.test"

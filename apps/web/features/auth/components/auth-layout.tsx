@@ -9,11 +9,12 @@ import { ThemeToggle } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { getSignInUrl, getSignUpUrl } from "../lib/auth-redirects"
 
-export function AuthLayout({ mode, title, description, returnTo, children }: {
+export function AuthLayout({ mode, title, description, returnTo, showAccountLink = true, children }: {
   mode: "sign-in" | "sign-up"
   title: string
   description: string
   returnTo?: string | null
+  showAccountLink?: boolean
   children: ReactNode
 }) {
   const { t } = useDecisionateText()
@@ -29,12 +30,12 @@ export function AuthLayout({ mode, title, description, returnTo, children }: {
       <div className="mx-auto mt-10 w-full min-w-0 max-w-[26rem] sm:mt-14">
         <AuthPageCopy title={title} description={description} />
         <div className="mt-6 min-w-0">{children}</div>
-        <p className="mt-6 text-center text-sm text-gray-600">
+        {showAccountLink && <p className="mt-6 text-center text-sm text-gray-600">
           {t(mode === "sign-in" ? "New to Decisionate?" : "Already have an account?")}{" "}
           <Link href={mode === "sign-in" ? getSignUpUrl(returnTo) : getSignInUrl(returnTo)} className="font-semibold text-[var(--decisionate-brand-primary-text)] underline underline-offset-4">
             {t(mode === "sign-in" ? "Create an account" : "Sign in")}
           </Link>
-        </p>
+        </p>}
         <footer className="my-8 flex justify-center gap-5 text-xs text-gray-500">
           <Link href="/terms" className="hover:underline">{t("Terms of Service")}</Link>
           <Link href="/privacy" className="hover:underline">{t("Privacy Policy")}</Link>

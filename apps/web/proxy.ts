@@ -7,6 +7,7 @@ import {
 import {
   getAuthRedirectUrl,
   getAuthRequestOrigin,
+  getInvitedWorkspaceId,
   getSafeReturnTo,
   getSignInUrl,
 } from "./features/auth/lib/auth-redirects"
@@ -37,6 +38,9 @@ const clerkProxy = clerkMiddleware(async (auth, req) => {
     if (userId) {
       const origin = getAuthRequestOrigin(req.headers, req.url)
       const returnTo = getSafeReturnTo(req.nextUrl.searchParams.get("redirect_url"), origin)
+      if (isSignInRoute(req) && req.nextUrl.searchParams.get("switch_account") === "1" && getInvitedWorkspaceId(returnTo)) {
+        return
+      }
       return NextResponse.redirect(
         new URL(getAuthRedirectUrl(returnTo), origin)
       )

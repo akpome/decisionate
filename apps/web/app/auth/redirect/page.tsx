@@ -10,7 +10,7 @@ import {
   getOrganizationWorkspaces,
   getPlatformAdminAccess,
 } from "@/lib/api"
-import { getDashboardReturnTo, getSafeReturnTo, getSignInUrl } from "@/features/auth/lib/auth-redirects"
+import { getDashboardReturnTo, getInvitedWorkspaceId, getSafeReturnTo, getSignInUrl, getWorkspaceAccountSwitchUrl } from "@/features/auth/lib/auth-redirects"
 import { chooseAuthWorkspace, getAuthenticatedDestination } from "@/features/auth/lib/auth-workspaces"
 import { writeSignupConsent } from "@/features/auth/lib/signup-consent"
 import { completeSignupMarketing } from "@/features/auth/lib/marketing-consent"
@@ -40,6 +40,7 @@ export default function AuthRedirectPage() {
         "redirect_url"
       )
     const returnTo = getSafeReturnTo(requestedRedirect, window.location.origin)
+    const requestedWorkspaceId = getInvitedWorkspaceId(returnTo)
 
     if (!isSignedIn || !user?.id) {
       router.replace(getSignInUrl(returnTo))
@@ -75,10 +76,10 @@ export default function AuthRedirectPage() {
       if (adminResult.status === "rejected" && adminResult.reason instanceof ApiError && adminResult.reason.status === 401) {
         throw adminResult.reason
       }
-      const requestedWorkspaceId = returnTo ? new URL(returnTo, window.location.origin).searchParams.get("workspace_id") : null
       const workspace = chooseAuthWorkspace(workspaceResult.value, authenticatedUserId, getActiveWorkspaceId(authenticatedUserId), requestedWorkspaceId)
       if (requestedWorkspaceId && !workspace) {
-        throw new ApiError("Sign in using the email address invited to this workspace.", 403)
+        router.replace(getWorkspaceAccountSwitchUrl(returnTo))
+        return
       }
       if (adminResult.status === "rejected" && (!workspace || returnTo?.startsWith("/platform-admin"))) {
         throw adminResult.reason
@@ -89,6 +90,10 @@ export default function AuthRedirectPage() {
 
     void routeAuthenticatedUser().catch((failure: unknown) => {
       if (!cancelled) {
+        if (requestedWorkspaceId && failure instanceof ApiError && failure.status === 403) {
+          router.replace(getWorkspaceAccountSwitchUrl(returnTo))
+          return
+        }
         setError(failure instanceof ApiError && failure.status === 401 ? "session" : failure instanceof ApiError && failure.status === 403 ? "access" : "workspace")
       }
     })

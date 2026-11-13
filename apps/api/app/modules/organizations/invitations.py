@@ -1,7 +1,7 @@
 """Transactional invitations; database membership still requires verified identity."""
 
 import logging
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from fastapi import HTTPException
 
@@ -13,6 +13,22 @@ from app.modules.organizations.branding import get_client_email_branding
 
 logger = logging.getLogger(__name__)
 INVITATION_RESEND_SECONDS = 60
+
+
+def build_invitation_sign_in_url(workspace_id: str) -> str:
+    base = str(get_runtime_configuration().web_url or "").strip()
+    if base and "://" not in base:
+        base = "https://" + base
+    try:
+        parsed = urlsplit(base)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password or parsed.port == 0
+                or any(char.isspace() or char == "\\" for char in parsed.netloc)):
+            raise ValueError("Invalid web application URL")
+    except ValueError:
+        raise HTTPException(503, "The workspace sign-in URL is not configured. Please contact support.") from None
+    workspace = "/dashboard?" + urlencode({"workspace_id": workspace_id})
+    return urlunsplit((parsed.scheme, parsed.netloc, "/sign-in", urlencode({"redirect_url": workspace}), ""))
 
 
 def send_invitation_email(db, organization, invite, *, resend=False):
@@ -31,17 +47,10 @@ def send_invitation_email(db, organization, invite, *, resend=False):
             return invite
         raise HTTPException(429, "Please wait a minute before sending this invitation again.", headers={"Retry-After": "60"})
 
-    workspace = "/dashboard?" + urlencode({"workspace_id": organization.owner_user_id})
-    url = get_runtime_configuration().web_url.rstrip("/") + "/sign-in?" + urlencode({"redirect_url": workspace})
     name = " ".join(organization.name.split())
     branding = get_client_email_branding(db, organization)
     agency_name = " ".join(str((branding or {}).get("agency_name") or "Decisionate").split())
     subject = f"{agency_name} invited you to {name}"
-    body = (f"You have been invited to {name}.\n\n"
-            f"Open your workspace: {url}\n\n"
-            f"Sign in or create an account using {invite.email}. Verify that email address to access the workspace. "
-            "If you already have an account, use that account.\n\n"
-            "This invitation grants access only to this workspace. If you were not expecting it, you can ignore this email.")
 
     # Commit the attempt before contacting the provider. Never repeat a send
     # automatically after a timeout; the provider may already have accepted it.
@@ -50,6 +59,12 @@ def send_invitation_email(db, organization, invite, *, resend=False):
     invite.email_error = None
     db.commit()
     try:
+        url = build_invitation_sign_in_url(organization.owner_user_id)
+        body = (f"You have been invited to {name}.\n\n"
+                f"Sign in to your workspace: {url}\n\n"
+                f"Sign in or create an account using {invite.email}. Verify that email address to access the workspace. "
+                "If you already have an account, use that account.\n\n"
+                "This invitation grants access only to this workspace. If you were not expecting it, you can ignore this email.")
         send_platform_system_email(
             invite.email, subject, body,
             sender_name=f"{agency_name} via Decisionate" if branding else None,

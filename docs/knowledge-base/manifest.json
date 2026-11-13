@@ -360,6 +360,11 @@
         "apps/api/app/modules/organizations/router.py",
         "apps/api/app/modules/organizations/invitations.py",
         "apps/web/features/auth/lib/auth-workspaces.ts",
+        "apps/web/features/auth/lib/auth-redirects.ts",
+        "apps/web/features/auth/components/workspace-invitation-sign-in.tsx",
+        "apps/web/app/auth/redirect/page.tsx",
+        "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
+        "apps/web/proxy.ts",
         "apps/web/app/dashboard/settings/settings-client.tsx"
       ],
       "related": [

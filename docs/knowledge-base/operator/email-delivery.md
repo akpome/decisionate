@@ -71,6 +71,18 @@ Client workspace creation and adding a member invitation call
 `organizations/invitations.py` after the workspace and invitation are committed.
 The helper uses the platform system email provider, with agency branding for a
 managed client, and a trusted `DECISIONATE_WEB_APP_URL` sign-in link targeting that workspace.
+Invitation links use the configured website's origin and the root `/sign-in`
+route. A dashboard path, query or fragment in that setting is not appended to
+the login path. The client workspace is encoded only as the post-login return
+destination. An invalid origin fails the email attempt without sending a broken
+link or undoing workspace creation.
+An existing browser session without access to the requested workspace returns
+from `/auth/redirect` to `/sign-in` with a validated workspace return URL and an
+account-switch prompt. The sign-in proxy permits that public prompt without
+redirecting it back to the resolver. No protected route is exempted and no GET
+request signs anyone out: the user explicitly chooses Use invited account, then
+signs in with the invited email. Authentication-service failures retain their
+retry state rather than being treated as a wrong-account invitation.
 An email failure leaves the invitation pending and the workspace intact.
 `email_status`, `email_attempted_at`, `email_sent_at` and a safe `email_error`
 record the attempt separately from invitation acceptance. Sent means provider
