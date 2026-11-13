@@ -6557,7 +6557,10 @@ export async function getOrganizationWorkspaces(
     options?.includeManagedClientWorkspaces === true
   const cacheKey =
     `organization-workspaces:${userId.trim()}:${userEmail?.trim() || ""}:${includeManagedClientWorkspaces}`
-  if (options?.forceRefresh) invalidateApiReadCache([cacheKey])
+  if (options?.forceRefresh) {
+    // A fresh read must not broadcast another access change to its own listeners.
+    apiReadCache.invalidate([cacheKey])
+  }
 
   return getCachedRead(
     cacheKey,
