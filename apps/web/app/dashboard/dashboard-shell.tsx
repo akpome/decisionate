@@ -315,6 +315,7 @@ export function DashboardShell({
     useState("")
   const [workspaceSetupUserId, setWorkspaceSetupUserId] =
     useState("")
+  const [workspaceAccessError, setWorkspaceAccessError] = useState("")
   const [expandedNavGroups, setExpandedNavGroups] =
     useState<Record<string, boolean>>({})
   // The drawer is closed from navigation click handlers. Keeping the update in
@@ -346,6 +347,12 @@ export function DashboardShell({
     useState<MaintenanceNotice | null>(null)
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
+  const workspaceSelectionReady = Boolean(
+    user?.id && workspaceAccessUserId === user.id && (
+      workspaces.some(workspace => workspace.owner_user_id === activeWorkspaceId) ||
+      (activeWorkspaceId === user.id && organization)
+    )
+  )
   const clerkButtonMounted = useSyncExternalStore(
     subscribeToClientMount,
     getClientMountSnapshot,
@@ -455,6 +462,7 @@ export function DashboardShell({
           workspaceResult,
         ] = await Promise.allSettled([
           getMyOrganization(
+            userId,
             userId
           ),
           getOrganizationWorkspaces(
@@ -467,9 +475,12 @@ export function DashboardShell({
         ])
 
         if (
-          organizationResult.status === "rejected" &&
-          workspaceResult.status === "rejected"
+          workspaceResult.status === "rejected" &&
+          (organizationResult.status === "rejected" || !organizationResult.value)
         ) {
+          throw workspaceResult.reason
+        }
+        if (organizationResult.status === "rejected" && workspaceResult.status === "fulfilled" && workspaceResult.value.length === 0) {
           throw organizationResult.reason
         }
 
@@ -490,6 +501,7 @@ export function DashboardShell({
           )
 
         if (!ignoreResult) {
+          setWorkspaceAccessError("")
           setOrganization(organizationData)
           setWorkspaces(selectableWorkspaces)
           setWorkspaceAccessUserId(userId)
@@ -556,6 +568,7 @@ export function DashboardShell({
         }
       } catch (error) {
         console.error(error)
+        if (!ignoreResult) setWorkspaceAccessError("Your workspace access could not be checked. Please reload to try again.")
       }
     }
 
@@ -574,7 +587,7 @@ export function DashboardShell({
 
   useEffect(() => {
     if (
-      !user?.id ||
+      !user?.id || !workspaceSelectionReady ||
       pathname === "/dashboard/help"
     ) {
       return
@@ -628,6 +641,7 @@ export function DashboardShell({
     activeWorkspaceId,
     pathname,
     user?.id,
+    workspaceSelectionReady,
   ])
 
   useEffect(() => {
@@ -1196,7 +1210,12 @@ export function DashboardShell({
           <MaintenanceBanner notice={maintenanceNotice} />
         )}
 
-        {activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/dashboard/settings", "/dashboard/billing", "/dashboard/help"].includes(pathname)) ? (
+        {!workspaceSelectionReady ? (
+          <section role={workspaceAccessError ? "alert" : "status"} className="py-6">
+            <p className="text-sm text-gray-600">{workspaceAccessError || "Loading your workspace..."}</p>
+            {workspaceAccessError && <button type="button" onClick={() => window.location.reload()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium"><RefreshCw size={16} aria-hidden="true" />Reload</button>}
+          </section>
+        ) : activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/dashboard/settings", "/dashboard/billing", "/dashboard/help"].includes(pathname)) ? (
           <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
             <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Choose how to continue" : "Client account paused"}</h1>
             <p className="mt-2 text-sm text-gray-600">{activeWorkspaceRecord.agency_removed ? "Your data is preserved. Start a trial or accept an agency invitation in Settings." : "Your data is preserved. Contact your agency to resume access."}</p>

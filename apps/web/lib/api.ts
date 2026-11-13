@@ -6251,10 +6251,12 @@ export async function deleteDataset(
 ========================= */
 
 export async function getMyOrganization(
-  userId: string
+  userId: string,
+  workspaceId?: string
 ): Promise<OrganizationRecord | null> {
+  const resolvedWorkspaceId = workspaceId?.trim() || getActiveWorkspaceId(userId)
   const cacheKey =
-    `organization:${userId.trim()}:${getActiveWorkspaceId(userId)}`
+    `organization:${userId.trim()}:${resolvedWorkspaceId}`
 
   return getCachedRead(
     cacheKey,
@@ -6263,7 +6265,7 @@ export async function getMyOrganization(
         await fetchOrganizationRequest(
           `${API_URL}/organizations/me`,
           {
-            headers: await workspaceHeaders(userId),
+            headers: await workspaceHeaders(userId, resolvedWorkspaceId),
           }
         )
 
