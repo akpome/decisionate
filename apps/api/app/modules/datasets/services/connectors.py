@@ -5734,17 +5734,7 @@ def _load_freshbooks_account_resource(
         }
         if resource_type == "invoices":
             params["include[]"] = "lines"
-        if resource_type in {"invoices", "expenses"}:
-            if start_date:
-                params["updated_min"] = start_date.isoformat()
-            if end_date:
-                params["updated_max"] = end_date.isoformat()
-        elif resource_type == "payments":
-            if start_date:
-                params["updated_min"] = start_date.isoformat()
-            if end_date:
-                params["updated_max"] = end_date.isoformat()
-        elif resource_type == "clients":
+        if resource_type in {"invoices", "expenses", "payments", "clients"}:
             if start_date:
                 params["updated_min"] = start_date.isoformat()
             if end_date:

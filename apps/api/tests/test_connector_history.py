@@ -22,6 +22,34 @@ from app.modules.datasets.schemas import DataSourceConnectionSync
 
 
 class ConnectorHistoryPolicyTests(unittest.TestCase):
+    def test_summary_columns_preserve_dimensions_and_metric_sum_aliases(self):
+        frame = pd.DataFrame({
+            "date": ["2026-01-01", "2026-01-02", "2026-01-01"],
+            "channel": ["Search", "Search", "Social"],
+            "revenue": [10, 20, 5],
+        })
+        summary = routes.build_connector_summary_dataframe(frame, "date", {"dimensions": ["channel"]})
+
+        self.assertEqual(set(summary.columns), {
+            routes.SUMMARY_MONTH_COLUMN, routes.SUMMARY_MARKER_COLUMN, "channel", "date",
+            "revenue", "revenue__sum", "revenue__mean", "revenue__min", "revenue__max", "revenue__count",
+        })
+        self.assertEqual(summary["date"].tolist(), ["2026-01-01", "2026-01-01"])
+        self.assertTrue(summary[routes.SUMMARY_MARKER_COLUMN].all())
+        self.assertEqual(summary[routes.SUMMARY_MONTH_COLUMN].tolist(), ["2026-01", "2026-01"])
+        by_channel = summary.set_index("channel")
+        for channel, total, mean, minimum, maximum, count in [
+            ("Search", 30, 15, 10, 20, 2), ("Social", 5, 5, 5, 5, 1),
+        ]:
+            with self.subTest(channel=channel):
+                row = by_channel.loc[channel]
+                self.assertEqual(row["revenue"], total)
+                self.assertEqual(row["revenue__sum"], total)
+                self.assertEqual(row["revenue__mean"], mean)
+                self.assertEqual(row["revenue__min"], minimum)
+                self.assertEqual(row["revenue__max"], maximum)
+                self.assertEqual(row["revenue__count"], count)
+
     def test_three_total_years_split_into_contiguous_bounded_chunks(self):
         today = date.today()
         start, end = routes.get_initial_connector_backfill_window(today)

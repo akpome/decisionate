@@ -7075,9 +7075,7 @@ def build_connector_summary_dataframe(
             flattened_columns.append(column)
             continue
         metric, statistic = column
-        if not statistic:
-            flattened_columns.append(metric)
-        elif statistic == "sum":
+        if not statistic or statistic == "sum":
             flattened_columns.append(metric)
         else:
             flattened_columns.append(

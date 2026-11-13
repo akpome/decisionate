@@ -247,6 +247,36 @@ class ConnectorSmokeTests(unittest.TestCase):
             ["invoices", "projects"],
         )
 
+    def test_freshbooks_account_resources_preserve_supported_date_filters(self):
+        start, end = date(2026, 1, 1), date(2026, 1, 31)
+        for resource, (path, response_key) in connectors.FRESHBOOKS_RESOURCE_PATHS.items():
+            for start_date, end_date in [(start, end), (start, None), (None, end), (None, None)]:
+                with self.subTest(resource=resource, start=start_date, end=end_date), patch.object(
+                    connectors, "get_provider_setting",
+                    return_value="https://api.freshbooks.com/accounting/account/{account_id}",
+                ), patch.object(
+                    connectors, "connector_json_request",
+                    return_value={"response": {"result": {response_key: []}}},
+                ) as request:
+                    rows, complete = connectors._load_freshbooks_account_resource(
+                        "token", "account-1", resource, start_date, end_date,
+                    )
+
+                url = urlsplit(request.call_args.args[0])
+                self.assertEqual(url.path, f"/accounting/account/account-1/{path}")
+                expected = {"page": ["1"], "per_page": [str(connectors.PAGE_SIZE)]}
+                if resource == "invoices":
+                    expected["include[]"] = ["lines"]
+                if resource != "credit_notes":
+                    if start_date:
+                        expected["updated_min"] = [start_date.isoformat()]
+                    if end_date:
+                        expected["updated_max"] = [end_date.isoformat()]
+                self.assertEqual(parse_qs(url.query), expected)
+                self.assertEqual(request.call_args.kwargs["headers"], {"Authorization": "Bearer token"})
+                self.assertEqual(rows, [])
+                self.assertTrue(complete)
+
     def test_freshbooks_invoices_sync_by_updated_date(self):
         requested_urls = []
 

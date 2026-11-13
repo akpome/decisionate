@@ -1463,7 +1463,6 @@ def build_platform_admin_organization_context(
     # from the organization list without one COUNT query per agency.
     client_workspace_counts: dict[str, int] = {}
     for organization in organizations:
-        owner_user_id = organization.owner_user_id or ""
         parent_owner_user_id = managing_agency_workspace_id(organization)
         if not parent_owner_user_id:
             continue
@@ -2147,7 +2146,6 @@ def platform_admin_account_profile_for_organization(
         organization,
         subscriptions,
     )
-    owner_user_id = str(organization.owner_user_id or "")
     if account_type == "agency_client":
         agency = organizations_by_owner_user_id.get(
             managing_agency_workspace_id(organization),

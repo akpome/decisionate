@@ -2,7 +2,6 @@ import {
   getActiveWorkspaceId,
   notifyWorkspaceAccessChanged,
 } from "@/lib/workspace-context"
-import type { BusinessReport } from "@/features/reports/types"
 import { ApiReadCache } from "@/lib/api-read-cache"
 import {
   dashboardUsesDatasetMetricMapping,
@@ -246,15 +245,6 @@ export type DatasetAnalyticsManifest = {
   table_name: string
   parquet_path: string
   bigquery_table_id?: string | null
-}
-
-export type AnalyticsEngineStatus = {
-  engine: string
-  storage_format: string
-  portable_storage: boolean
-  duckdb_configured: boolean
-  bigquery_configured: boolean
-  bigquery_location?: string | null
 }
 
 export type DatasetSummary = {
@@ -580,50 +570,6 @@ export type DatasetAIAnalysisResponse = {
   dimension_filter?: DimensionFilter | null
   dataset_id: number
   metric?: string | null
-  ai_analysis: AIAnalysis
-}
-
-export type DatasetMultiMetricSelection = {
-  dataset_id: number
-  date_column: string
-  metric_column: string
-  aggregation: DashboardValueAggregation
-}
-
-export type DatasetMultiMetricAnalysisPayload = {
-  metrics: DatasetMultiMetricSelection[]
-  start_date?: string
-  period_filter: ForecastPeriodFilter | "all"
-  grouping: DashboardAggregation
-}
-
-export type DatasetMultiMetricAnalysis = {
-  period_filter: ForecastPeriodFilter | "all"
-  grouping: DashboardAggregation
-  start_date: string
-  end_date: string
-  metric_count: number
-  period_count: number
-  metrics: Array<{
-    dataset_id: number
-    dataset_name: string
-    metric: string
-    label: string
-    aggregation: DashboardValueAggregation
-    period_count: number
-    total?: number | null
-    average?: number | null
-    minimum?: number | null
-    maximum?: number | null
-    first_value?: number | null
-    last_value?: number | null
-    change_percent?: number | null
-  }>
-  rows: Array<{
-    period: string
-    [key: string]: string | number | null
-  }>
-  decision_context: string
   ai_analysis: AIAnalysis
 }
 
@@ -1117,48 +1063,6 @@ export type WeeklyReportPreference = {
   last_send_error?: string | null
 }
 
-export type WeeklyReportDigestMetric = {
-  dataset_id: number
-  dataset_name: string
-  column: string
-  total?: number | null
-  average?: number | null
-  minimum?: number | null
-  maximum?: number | null
-  target?: number | null
-  previous_value?: number | null
-  change_percent?: number | null
-  unit?: string | null
-  currency?: string | null
-  warnings?: string[]
-}
-
-export type WeeklyReportDigestRelationship = {
-  id: number
-  name: string
-  left_dataset_id: number
-  right_dataset_id: number
-  left_dataset_name: string
-  right_dataset_name: string
-  left_metric: string
-  right_metric: string
-  period: string
-  aggregation: string
-  method: string
-  minimum_observations?: number | null
-  maximum_lag?: number | null
-  lag_direction?: string | null
-  lag_mode?: "automatic" | "manual"
-  lag_periods: number
-  matched_period_count: number
-  correlation?: number | null
-  relationship_strength: string
-  direction: string
-  decision_context: string
-  delay_description?: string | null
-  lag_credibility?: string
-}
-
 export type AIAnalysis = {
   source: string
   model?: string | null
@@ -1195,45 +1099,6 @@ export type AIAnalysis = {
     sampled_lesson_count: number
     sampled_evidence_count: number
   } | null
-}
-
-export type WeeklyReportAIAnalysis = AIAnalysis
-
-export type WeeklyReportDigest = {
-  enabled: boolean
-  cadence: "weekly"
-  delivery_day:
-    | "monday"
-    | "tuesday"
-    | "wednesday"
-    | "thursday"
-    | "friday"
-  recipient_emails: string[]
-  metric_focus: string[]
-  relationship_focus: number[]
-  sender_name: string
-  sender_email: string
-  reply_to_email: string
-  subject_prefix: string
-  brand_name: string
-  agency_name?: string
-  workspace_name?: string
-  brand_logo_url?: string | null
-  brand_primary_color?: string
-  brand_accent_color?: string
-  is_managed_client?: boolean
-  review_url?: string | null
-  subject: string
-  preview_text: string
-  ai_analysis?: WeeklyReportAIAnalysis | null
-  cross_dataset_report?: BusinessReport | null
-  dataset_count: number
-  metrics: WeeklyReportDigestMetric[]
-  available_metrics?: WeeklyReportDigestMetric[]
-  relationships: WeeklyReportDigestRelationship[]
-  recommendations: string[]
-  unavailable_datasets: string[]
-  decision_template_url?: string | null
 }
 
 export type WeeklyReportDeliveryResult = {
@@ -1582,15 +1447,6 @@ export type PlatformAdminCreditSettings = {
 export type PlatformAdminCreditSettingsUpdate = Partial<
   Omit<PlatformAdminCreditSettings, "source" | "updated_at">
 >
-
-export type ApiHealthStatus = {
-  status: string
-  service: string
-  capabilities?: {
-    ai?: AIStatus
-    analytics?: AnalyticsEngineStatus
-  }
-}
 
 export type PublicSharedDashboardResponse = {
   branding: {
@@ -2064,11 +1920,6 @@ export type OrganizationInviteRecord = {
   status: string
   email_status?: string | null
   email_error?: string | null
-}
-
-export type OrganizationMemberCreatePayload = {
-  clerk_user_id: string
-  role: string
 }
 
 export type OrganizationInviteCreatePayload = {
@@ -6346,35 +6197,6 @@ export const unlinkOwnedWorkspaceAgency = (userId: string, workspaceId: string) 
 
 export const deleteOwnedWorkspace = (confirmation: string, userId: string, workspaceId: string) =>
   clientAccountRequest("workspace", userId, workspaceId, "DELETE", { confirmation })
-
-export async function updateAgencyOwnerWorkspaceAccess(
-  enabled: boolean,
-  userId: string
-): Promise<OrganizationRecord> {
-  const response =
-    await fetchOrganizationRequest(
-      `${API_URL}/organizations/agency-owner-access`,
-      {
-        method: "PATCH",
-        headers: await workspaceJsonHeaders(userId),
-        body: JSON.stringify({ enabled }),
-      }
-    )
-
-  if (!response.ok) {
-    await throwApiError(
-      response,
-      "Unable to update agency workspace access"
-    )
-  }
-
-  invalidateApiReadCache([
-    `organization:${userId.trim()}`,
-    `organization-workspaces:${userId.trim()}`,
-  ])
-
-  return response.json()
-}
 
 export async function createOrganization(
   payload: string | OrganizationCreatePayload,
