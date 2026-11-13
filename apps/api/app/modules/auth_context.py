@@ -138,7 +138,9 @@ def get_auth_context(
     recovery = workspace_role == "owner" and path.startswith(("/organizations", "/billing")) and workspace_is_independent(workspace_id)
     owner_unlink = path == "/organizations/leave-agency" and getattr(request, "method", "") == "POST" and workspace_role in {"client", "client_owner", "owner"}
     access_status = path == "/billing/access" and getattr(request, "method", "") == "GET"
-    if path != "/organizations/workspaces" and not recovery and not owner_unlink and not access_status:
+    # Personal email preferences remain available even when workspace access is locked.
+    email_preferences = path.rstrip("/") == "/marketing/preferences" and getattr(request, "method", "") in {"GET", "PUT"}
+    if path != "/organizations/workspaces" and not recovery and not owner_unlink and not access_status and not email_preferences:
         from app.modules.workspace_lifecycle import require_workspace_active
         require_workspace_active(workspace_id)
 

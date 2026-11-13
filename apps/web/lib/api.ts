@@ -102,9 +102,10 @@ export async function getMarketingConsent(language: "en" | "fr" = "en"): Promise
 }
 
 export async function marketingRequest<T>(userId: string, path: string, init: RequestInit = {}): Promise<T> {
+  const backgroundActivity = path === "/activity" && init.method?.toUpperCase() === "POST"
   const response = await apiFetch(`${API_URL}/marketing${path}`, {
     ...init, cache: "no-store", headers: { ...await workspaceHeaders(userId), "Content-Type": "application/json", ...init.headers },
-  })
+  }, apiRequestTimeoutMs, !backgroundActivity)
   if (!response.ok) await throwApiError(response, "Email preferences could not be updated")
   return response.json()
 }
