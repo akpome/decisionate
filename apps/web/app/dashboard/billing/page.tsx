@@ -40,6 +40,7 @@ import { useWorkspaceAccess } from "@/lib/use-workspace-access"
 import { setActiveWorkspaceId } from "@/lib/workspace-context"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { isAgencyManagedWorkspace } from "@/lib/workspace-ownership"
+import { ClientWorkspaceOwnership } from "@/features/settings/client-workspace-ownership"
 
 const primaryButton =
   "inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
@@ -494,6 +495,9 @@ function BillingPageContent() {
       )}
       {current && (
         <>
+          {access.activeWorkspace?.agency_removed && user?.id && (
+            <ClientWorkspaceOwnership key={activeWorkspaceId} userId={user.id} workspace={access.activeWorkspace} view="recovery" />
+          )}
           {checkout === "cancelled" && (
             <p
               role="status"

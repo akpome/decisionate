@@ -95,8 +95,11 @@ When the agency removes the client or the client chooses Unlink agency, the lock
 workspace shows Client account unlinked and confirms that its data is preserved.
 The notice directs the client to contact their agency to arrange restored access;
 an unlinked agency must send a new invitation, not simply resume the old account.
-The trial, direct subscription, deletion and agency invitation choices appear in
-Settings, not on the locked dashboard. Open Settings leads to those choices.
+Client Settings contains only ownership actions: Unlink agency while linked,
+and Delete workspace after unlinking. It does not show branding, team management,
+email preferences or agency data-access controls. Trial, direct subscription and
+agency invitation choices appear in Billing, not on the locked dashboard.
+After independent Professional access is active, full workspace Settings is available.
 The client owner can still open Settings and Billing. Their data
 is preserved while they choose how to continue. Data analysis, shared links and
 background work wait until an independent plan or an agency relationship is active.
@@ -109,7 +112,7 @@ does not reset it. After the trial, choose a plan in Billing to continue.
 An agency owner can choose Add an existing client workspace in Settings and send
 an invitation to the client's sign-in email. The same agency or a different agency
 can do this. Sending the invitation alone grants no access. The verified client
-owner opens Settings in their existing workspace and chooses Join agency or
+owner opens Billing in their existing workspace and chooses Join agency or
 Decline under Agency invitations. The agency needs an active Agency plan and an
 available client slot when the owner accepts. A live independent paid subscription
 must first be canceled in Billing to avoid overlapping subscriptions.

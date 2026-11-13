@@ -65,7 +65,7 @@ test("restricted browser storage and failed preference writes do not block signu
   assert.equal(offline.values.size, 1)
 })
 
-test("preferences are available to client users; global contacts remain full-admin-only", () => {
+test("preferences remain on independent Settings; global contacts remain full-admin-only", () => {
   const settings = read("../app/dashboard/settings/settings-client.tsx")
   assert.match(settings, /if \(!canConfigureWorkspace\)[\s\S]*?<EmailPreferences userId=\{userId\} \/>/)
   assert.match(read("../app/platform-admin/page.tsx"), /adminAccess\.full_access && <MarketingAdmin/)

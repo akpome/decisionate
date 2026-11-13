@@ -28,7 +28,6 @@ import {
   removeOrganizationInvite,
   removeOrganizationMember,
   sendOrganizationInvite,
-  updateAgencyOwnerWorkspaceAccess,
   updateClientWorkspaceStatus,
   updateOrganizationMemberRole,
   updateMyOrganization,
@@ -52,9 +51,6 @@ import {
 import {
   WorkspaceBrandMark,
 } from "@/app/dashboard/workspace-brand-mark"
-import {
-  notifyWorkspaceAccessChanged,
-} from "@/lib/workspace-context"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { EmailPreferences } from "@/features/marketing/email-preferences"
 import { ClientWorkspaceOwnership, ExistingClientInvitation } from "@/features/settings/client-workspace-ownership"
@@ -99,11 +95,15 @@ export function SettingsClient({
   const {
     activeWorkspace,
     activeWorkspaceId,
-    canConfigureWorkspace,
+    canConfigureWorkspace: canConfigureWorkspaceFromAccess,
     isClientWorkspace,
     loadingWorkspaceAccess,
     workspaceRole,
   } = useWorkspaceAccess(userId)
+  const clientSettingsOnly = isClientWorkspace || isAgencyManagedWorkspace(activeWorkspace) || Boolean(
+    activeWorkspace?.agency_removed && activeWorkspace.is_paused !== false
+  )
+  const canConfigureWorkspace = canConfigureWorkspaceFromAccess && !clientSettingsOnly
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
   const [billingStatus, setBillingStatus] =
@@ -183,14 +183,6 @@ export function SettingsClient({
     useState<number | null>(null)
   const [clientAccessAction, setClientAccessAction] =
     useState<"member-invite" | "invite" | null>(null)
-  const [agencyOwnerAccessEnabled, setAgencyOwnerAccessEnabled] =
-    useState(false)
-  const [loadingAgencyOwnerAccess, setLoadingAgencyOwnerAccess] =
-    useState(false)
-  const [savingAgencyOwnerAccess, setSavingAgencyOwnerAccess] =
-    useState(false)
-  const [agencyOwnerAccessError, setAgencyOwnerAccessError] =
-    useState("")
   const [handoffStatus, setHandoffStatus] =
     useState("")
   const [saved, setSaved] =
@@ -316,56 +308,6 @@ export function SettingsClient({
   const canManageClientWorkspaces =
     billingStatus?.billing_model === "agency" &&
     canConfigureWorkspace
-
-  useEffect(() => {
-    let ignoreResult = false
-
-    async function loadAgencyOwnerAccess() {
-      if (!isClientWorkspaceOwner) {
-        setAgencyOwnerAccessEnabled(false)
-        setLoadingAgencyOwnerAccess(false)
-        setAgencyOwnerAccessError("")
-        return
-      }
-
-      setLoadingAgencyOwnerAccess(true)
-      setAgencyOwnerAccessError("")
-
-      try {
-        const organizationData =
-          await getMyOrganization(userId)
-
-        if (!ignoreResult) {
-          setAgencyOwnerAccessEnabled(
-            organizationData?.agency_owner_access_enabled === true
-          )
-        }
-      } catch (error) {
-        if (!ignoreResult) {
-          setAgencyOwnerAccessError(
-            getSettingsErrorMessage(
-              error,
-              "Unable to load agency workspace access."
-            )
-          )
-        }
-      } finally {
-        if (!ignoreResult) {
-          setLoadingAgencyOwnerAccess(false)
-        }
-      }
-    }
-
-    void loadAgencyOwnerAccess()
-
-    return () => {
-      ignoreResult = true
-    }
-  }, [
-    isClientWorkspaceOwner,
-    organizationLoadRetryKey,
-    userId,
-  ])
 
   useEffect(() => {
     let ignoreResult = false
@@ -729,41 +671,6 @@ export function SettingsClient({
       )
     } finally {
       setSavingOrganization(false)
-    }
-  }
-
-  async function handleAgencyOwnerAccessChange(
-    enabled: boolean
-  ) {
-    if (
-      !isClientWorkspaceOwner ||
-      savingAgencyOwnerAccess
-    ) {
-      return
-    }
-
-    setSavingAgencyOwnerAccess(true)
-    setAgencyOwnerAccessError("")
-
-    try {
-      const organizationData =
-        await updateAgencyOwnerWorkspaceAccess(
-          enabled,
-          userId
-        )
-      setAgencyOwnerAccessEnabled(
-        organizationData.agency_owner_access_enabled === true
-      )
-      notifyWorkspaceAccessChanged()
-    } catch (error) {
-      setAgencyOwnerAccessError(
-        getSettingsErrorMessage(
-          error,
-          "Unable to update agency workspace access."
-        )
-      )
-    } finally {
-      setSavingAgencyOwnerAccess(false)
     }
   }
 
@@ -1466,6 +1373,15 @@ export function SettingsClient({
     )
   }
 
+  if (clientSettingsOnly) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader title="Settings" />
+        {ownershipPanel ?? <p className="text-sm text-gray-600">Only the client workspace owner can unlink the agency or delete this workspace.</p>}
+      </div>
+    )
+  }
+
   if (!canConfigureWorkspace) {
     return (
       <div className="space-y-6">
@@ -1474,60 +1390,10 @@ export function SettingsClient({
           description="Workspace configuration is available to the business owner."
         />
         <EmailPreferences userId={userId} />
-        {ownershipPanel}
-        {isClientWorkspaceOwner ? (
-          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  Agency workspace access
-                </h2>
-                <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                  Allow the agency owner to open this client workspace for analysis. Agency access is read-only for data setup: the agency owner will not see Data navigation and cannot add datasets or configure connections.
-                </p>
-              </div>
-
-              <label className="inline-flex shrink-0 items-center gap-3 text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={agencyOwnerAccessEnabled}
-                  onChange={(event) =>
-                    void handleAgencyOwnerAccessChange(
-                      event.target.checked
-                    )
-                  }
-                  disabled={
-                    loadingAgencyOwnerAccess ||
-                    savingAgencyOwnerAccess
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-[var(--decisionate-brand-primary)] focus:ring-[var(--decisionate-brand-primary-ring)]"
-                />
-                {savingAgencyOwnerAccess
-                  ? "Saving..."
-                  : agencyOwnerAccessEnabled
-                    ? "Agency access enabled"
-                    : "Allow agency access"}
-              </label>
-            </div>
-
-            {agencyOwnerAccessError && (
-              <p role="alert" className="mt-3 text-sm font-medium text-red-600">
-                {agencyOwnerAccessError}
-              </p>
-            )}
-          </section>
-        ) : isClientWorkspace ? (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            Only the client workspace owner can grant the agency owner access
-            to this workspace. Your client workspace data and analysis access
-            remain available.
-          </div>
-        ) : (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            Only the business owner can manage workspace settings, branding,
-            members, and service configuration.
-          </div>
-        )}
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          Only the business owner can manage workspace settings, branding,
+          members, and service configuration.
+        </div>
       </div>
     )
   }
