@@ -23,7 +23,7 @@ const client = { id: 2, owner_user_id: "agency:client:shop", role: "managed_clie
 function harness(overrides = {}) {
   const calls = [], context = {
     user: { id: "agency" }, activeWorkspaceId: client.owner_user_id, workspaceAccessUserId: "", organization: null,
-    ignoreResult: false, workspaces: [],
+    ignoreResult: false, workspaces: [], workspaceAccessRevision: 0,
     getMyOrganization: async (...args) => { calls.push(["profile", ...args]); assert.equal(args[1], "agency"); return own },
     getOrganizationWorkspaces: async () => [own, client],
     setWorkspaceAccessError: error => { context.error = error },
@@ -82,6 +82,41 @@ test("billing and page mounting both wait for verified workspace selection", () 
   assert.match(billingEffect, /!workspaceSelectionReady/)
   assert.match(shell, /\{!workspaceSelectionReady \? \(/)
   assert.match(shell, /workspaceAccessError \|\| "Loading your workspace/)
+})
+
+test("workspace ownership changes refresh the shell without changing the workspace or reloading", () => {
+  const listener = find(shell, node => ts.isCallExpression(node) && node.expression.getText() === "useEffect" && node.getText().includes("window.addEventListener(workspaceAccessChangedEvent"))
+  assert.match(listener, /setWorkspaceAccessRevision\(value => value \+ 1\)/)
+  assert.match(listener, /removeEventListener\(workspaceAccessChangedEvent/)
+  assert.match(listener, /addEventListener\("focus", refreshWorkspaceAccess\)/)
+  assert.match(listener, /removeEventListener\("focus", refreshWorkspaceAccess\)/)
+  const discovery = find(shell, node => ts.isCallExpression(node) && node.expression.getText() === "useEffect" && node.getText().includes("async function loadOrganization"))
+  assert.match(discovery, /workspaceAccessRevision,/)
+  assert.match(discovery, /forceRefresh: workspaceAccessRevision > 0/)
+  const access = readFileSync(new URL("../lib/use-workspace-access.ts", import.meta.url), "utf8")
+  assert.match(access, /addEventListener\("focus", handleWorkspaceAccessChanged\)/)
+  assert.match(access, /removeEventListener\("focus", handleWorkspaceAccessChanged\)/)
+  assert.match(access, /forceRefresh: accessRefreshKey > 0/)
+})
+
+test("workspace status refresh bypasses cached records for agency-initiated removals", async () => {
+  let record = { ...client, role: "client_owner", agency_removed: false }, pending, loaded, invalidated
+  const cache = new Map(), context = {
+    getCachedRead: (key, loader) => {
+      if (!cache.has(key)) cache.set(key, loader())
+      return cache.get(key)
+    },
+    invalidateApiReadCache: keys => { invalidated = Array.from(keys); for (const key of keys) cache.delete(key) },
+    organizationOwnerHeaders: async () => ({}), API_URL: "https://api.test",
+    fetchOrganizationRequest: async () => { loaded = [record]; return { ok: true, json: async () => loaded } },
+  }
+  const get = compile(declaration(api, "getOrganizationWorkspaces").replace("export ", "") + "\ngetOrganizationWorkspaces", context)
+  pending = await get("client", "client@example.test", { includeManagedClientWorkspaces: true })
+  assert.equal(pending[0].agency_removed, false)
+  record = { ...record, role: "owner", agency_removed: true }
+  const refreshed = await get("client", "client@example.test", { includeManagedClientWorkspaces: true, forceRefresh: true })
+  assert.equal(refreshed[0].agency_removed, true)
+  assert.deepEqual(invalidated, ["organization-workspaces:client:client@example.test:true"])
 })
 
 test("organization reads use one fixed workspace for both the cache key and authorization header", async () => {

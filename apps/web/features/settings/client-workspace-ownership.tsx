@@ -3,11 +3,11 @@
 import Link from "next/link"
 import { useClerk } from "@clerk/nextjs"
 import { useEffect, useRef, useState } from "react"
-import { Check, Mail, Play, RefreshCw, Trash2, X } from "lucide-react"
+import { Check, Mail, Play, RefreshCw, Trash2, Unlink, X } from "lucide-react"
 
 import {
   deleteOwnedWorkspace, getAgencyClientInvitations, inviteExistingAgencyClient,
-  respondToAgencyClientInvitation, startIndependentWorkspaceTrial,
+  respondToAgencyClientInvitation, startIndependentWorkspaceTrial, unlinkOwnedWorkspaceAgency,
   type AgencyClientInvitation, type OrganizationWorkspaceRecord,
 } from "@/lib/api"
 import { clearActiveWorkspaceId, notifyWorkspaceAccessChanged } from "@/lib/workspace-context"
@@ -60,6 +60,7 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [deleting, setDeleting] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const [deleted, setDeleted] = useState(false)
   const [confirmation, setConfirmation] = useState("")
   const pending = useRef(false)
@@ -75,10 +76,15 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
 
   async function act(action: string, invitation?: AgencyClientInvitation) {
     if (pending.current) return
+    if ((action === "trial" || action === "delete") && !workspace.agency_removed) return
     if (action === "delete" && confirmation.trim() !== workspace.name) return
     pending.current = true; setBusy(action); setError(""); setNotice("")
     try {
-      if (action === "trial") {
+      if (action === "leave") {
+        await unlinkOwnedWorkspaceAgency(userId, workspace.owner_user_id)
+        setLeaving(false)
+        refreshAccess()
+      } else if (action === "trial") {
         const result = await startIndependentWorkspaceTrial(userId, workspace.owner_user_id)
         setNotice(`Your ${result.trial_days}-day trial has started. Your existing workspace is ready.`)
         refreshAccess()
@@ -109,14 +115,16 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
   return <section className="border-t border-gray-200 py-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h2 className="text-lg font-semibold">{workspace.agency_removed ? "Keep using your workspace" : "Workspace ownership"}</h2>
-        <p className="mt-2 text-sm text-gray-600">{workspace.agency_removed ? "Your workspace is no longer managed by an agency. Your existing data is preserved." : "You own this workspace. Only you can permanently delete it, even if your agency has paused access."}</p>
+        <h2 className="text-lg font-semibold">{workspace.agency_removed ? "Client account unlinked" : "Agency connection"}</h2>
+        <p className="mt-2 text-sm text-gray-600">{workspace.agency_removed ? "Your agency is no longer linked. Your data is preserved. Choose how to continue with Decisionate, or delete your workspace." : "Unlink your agency to manage this workspace independently. Your workspace and data will be kept."}</p>
       </div>
-      <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>
+      {workspace.agency_removed
+        ? <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>
+        : <button type="button" disabled={Boolean(busy)} onClick={() => setLeaving(true)} className={button}><Unlink size={16} />Unlink agency</button>}
     </div>
     {workspace.agency_removed && <div className="mt-4 flex flex-wrap items-center gap-3">
       {!workspace.independent_trial_started && <button type="button" disabled={Boolean(busy)} onClick={() => void act("trial")} className={`${button} text-blue-700`}><Play size={16} />{busy === "trial" ? "Starting..." : "Start free trial"}</button>}
-      <Link href="/dashboard/billing" className={button}>View plans</Link>
+      <Link href="/dashboard/billing" className={button}>Subscribe directly</Link>
     </div>}
     {workspace.agency_removed && <div className="mt-5">
       <h3 className="text-sm font-semibold">Agency invitations</h3>
@@ -126,12 +134,21 @@ export function ClientWorkspaceOwnership({ userId, workspace }: { userId: string
       </div>)}
     </div>}
     {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
-    {error && <div role="alert" className="mt-3 flex items-start gap-3 text-sm text-red-600"><span className="min-w-0 flex-1">{error}</span><button type="button" disabled={Boolean(busy)} title="Retry invitations" aria-label="Retry invitations" onClick={() => { setError(""); setRetry(value => value + 1) }} className="shrink-0 rounded-md p-1"><RefreshCw size={16} /></button></div>}
-    {deleting && <div role="dialog" aria-modal="true" aria-labelledby="owned-workspace-delete" className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4">
+    {error && <div role="alert" className="mt-3 flex items-start gap-3 text-sm text-red-600"><span className="min-w-0 flex-1">{error}</span>{workspace.agency_removed && <button type="button" disabled={Boolean(busy)} title="Retry invitations" aria-label="Retry invitations" onClick={() => { setError(""); setRetry(value => value + 1) }} className="shrink-0 rounded-md p-1"><RefreshCw size={16} /></button>}</div>}
+    {leaving && !workspace.agency_removed && <div role="dialog" aria-modal="true" aria-labelledby="owned-workspace-unlink" className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4">
+      <form className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5" onSubmit={event => { event.preventDefault(); void act("leave") }}>
+        <h2 id="owned-workspace-unlink" className="text-lg font-semibold">Unlink your agency?</h2>
+        <p className="mt-3 text-sm text-gray-600">Your agency will lose access to {workspace.name} and will no longer pay for it. Your data will stay in this workspace.</p>
+        <p className="mt-2 text-sm text-gray-600">After unlinking, you can start a Decisionate trial, subscribe directly or delete the workspace.</p>
+        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+        <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setLeaving(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy)} className={button}><Unlink size={16} />{busy === "leave" ? "Unlinking..." : "Unlink agency"}</button></div>
+      </form>
+    </div>}
+    {deleting && workspace.agency_removed && <div role="dialog" aria-modal="true" aria-labelledby="owned-workspace-delete" className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4">
       <form className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5" onSubmit={event => { event.preventDefault(); void act("delete") }}>
         <h2 id="owned-workspace-delete" className="text-lg font-semibold">Delete your workspace?</h2>
         <p className="mt-3 text-sm text-gray-600">This permanently deletes {workspace.name}, its datasets, reports, connections and decisions.</p>
-        <p className="mt-2 text-sm text-gray-600">It also removes this workspace from your agency and signs you out. Your app account is removed if it has no other workspaces. Other members&apos; shared accounts and your sign-in provider account are not deleted.</p>
+        <p className="mt-2 text-sm text-gray-600">You will be signed out. Your app account is removed if it has no other workspaces. Other members&apos; shared accounts and your sign-in provider account are not deleted.</p>
         <label className="mt-4 block text-sm">Type {workspace.name} to confirm<input autoFocus value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={Boolean(busy)} className="mt-2 h-10 w-full rounded-md border border-gray-200 px-3" /></label>
         {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setDeleting(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy) || confirmation.trim() !== workspace.name} className={`${button} text-red-600`}><Trash2 size={16} />{busy === "delete" ? "Deleting..." : "Permanently delete"}</button></div>

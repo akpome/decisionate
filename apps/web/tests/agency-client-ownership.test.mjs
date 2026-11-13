@@ -7,10 +7,10 @@ import vm from "node:vm"
 const require = createRequire(import.meta.url), ts = require("typescript")
 const source = readFileSync(new URL("../features/settings/client-workspace-ownership.tsx", import.meta.url), "utf8")
 const tree = ts.createSourceFile("ownership.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-function declaration(name) {
+function declaration(name, target = tree) {
   let found
   function visit(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node; ts.forEachChild(node, visit) }
-  visit(tree); assert.ok(found); return found.getText(tree)
+  visit(target); assert.ok(found); return found.getText(target)
 }
 const compile = (code, context) => vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
 const workspace = { id: 2, name: "Client Shop", owner_user_id: "old:client:shop", agency_removed: true }
@@ -22,6 +22,8 @@ function harness(overrides = {}) {
     startIndependentWorkspaceTrial: async (...args) => { calls.push(["trial", ...args]); return { trial_days: 30 } },
     respondToAgencyClientInvitation: async (...args) => calls.push(["invitation", ...args]),
     deleteOwnedWorkspace: async (...args) => calls.push(["delete", ...args]),
+    unlinkOwnedWorkspaceAgency: async (...args) => calls.push(["unlink", ...args]),
+    setLeaving: value => { context.leaving = value },
     clearActiveWorkspaceId: (...args) => calls.push(["clear", ...args]),
     setDeleted: value => { context.deleted = value },
     signOut: async options => calls.push(["sign-out", options.redirectUrl]),
@@ -34,6 +36,41 @@ test("the trial starts on the same workspace and refreshes billing and permissio
   const h = harness(); await h.act("trial")
   assert.deepEqual(h.calls, [["trial", "client", "old:client:shop"]]); assert.equal(h.context.refreshed, true)
   assert.match(h.context.notice, /30-day trial has started/); assert.equal(h.context.pending.current, false)
+})
+
+test("a linked owner can unlink but cannot start a trial or delete before unlinking", async () => {
+  const h = harness({ workspace: { ...workspace, agency_removed: false }, confirmation: "Client Shop" })
+  await h.act("trial"); await h.act("delete")
+  assert.deepEqual(h.calls, [])
+  await h.act("leave")
+  assert.deepEqual(h.calls, [["unlink", "client", "old:client:shop"]])
+  assert.equal(h.context.leaving, false)
+  assert.equal(h.context.refreshed, true)
+  assert.equal(h.context.deleted, undefined)
+})
+
+test("failed unlinking leaves the workspace linked and its confirmation retryable", async () => {
+  const h = harness({ workspace: { ...workspace, agency_removed: false }, leaving: true, unlinkOwnedWorkspaceAgency: async () => { throw new Error("An import is active") } })
+  await h.act("leave")
+  assert.equal(h.context.error, "An import is active")
+  assert.equal(h.context.leaving, true)
+  assert.equal(h.context.refreshed, undefined)
+  assert.equal(h.context.pending.current, false)
+})
+
+test("unlinking and trial activation invalidate billing and workspace caches together", async () => {
+  const api = readFileSync(new URL("../lib/api.ts", import.meta.url), "utf8")
+  const target = ts.createSourceFile("api.ts", api, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const invalidated = [], calls = []
+  const context = {
+    API_URL: "https://api.example.test", JSON,
+    fetchOrganizationRequest: async (path, init) => { calls.push([path, init.method]); return { ok: true, json: async () => ({ removed: true }) } },
+    workspaceJsonHeaders: async () => ({}), invalidateApiReadCache: prefixes => invalidated.push(...prefixes),
+  }
+  const request = compile(`${declaration("clientAccountRequest", target)}\nclientAccountRequest`, context)
+  await request("leave-agency", "client", "old:client:shop", "POST")
+  assert.deepEqual(calls, [["https://api.example.test/organizations/leave-agency", "POST"]])
+  assert.deepEqual(invalidated, ["organization-workspaces:client", "organization:client", "billing-access:"])
 })
 
 test("joining or declining an agency acts only on the selected invitation and workspace", async () => {

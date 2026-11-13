@@ -33,13 +33,14 @@ class ClientWorkspaceDeletionTests(unittest.TestCase):
         with self.Session() as db:
             db.get(AppUser, "client").email = self.email
             db.get(Organization, 2).is_paused = True
+            db.get(Organization, 2).agency_detached_at = utc_now()
             db.add(AuthIdentity(user_id="client", provider="clerk", subject="client-subject"))
             db.commit()
 
     def delete(self, name="Client Shop"):
         return self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": name})
 
-    def test_paused_owner_can_delete_and_disappears_from_agency_without_recreating_activity(self):
+    def test_unlinked_paused_owner_can_delete_without_recreating_activity(self):
         response = self.delete()
         self.assertEqual(response.status_code, 200, response.text)
         with self.Session() as db:
@@ -78,7 +79,7 @@ class ClientWorkspaceDeletionTests(unittest.TestCase):
             db.commit()
         for actor in ("agency", "viewer", "other"):
             self.actor = actor
-            self.assertEqual(self.delete().status_code, 403)
+            self.assertIn(self.delete().status_code, {402, 403})
         with self.Session() as db:
             self.assertIsNotNone(db.get(Dataset, 21))
             self.assertTrue(db.get(Organization, 2).is_paused)

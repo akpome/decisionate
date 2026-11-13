@@ -54,6 +54,7 @@ import {
 import {
   getActiveWorkspaceId,
   setActiveWorkspaceId,
+  workspaceAccessChangedEvent,
 } from "@/lib/workspace-context"
 import {
   useActiveWorkspace,
@@ -317,6 +318,7 @@ export function DashboardShell({
   const [workspaceSetupUserId, setWorkspaceSetupUserId] =
     useState("")
   const [workspaceAccessError, setWorkspaceAccessError] = useState("")
+  const [workspaceAccessRevision, setWorkspaceAccessRevision] = useState(0)
   const [expandedNavGroups, setExpandedNavGroups] =
     useState<Record<string, boolean>>({})
   // The drawer is closed from navigation click handlers. Keeping the update in
@@ -379,6 +381,16 @@ export function DashboardShell({
   const activeNavItem = dashboardNavGroups.flatMap(group => group.items).find(
     item => isActiveDashboardPath(pathname, item.href)
   )
+
+  useEffect(() => {
+    const refreshWorkspaceAccess = () => setWorkspaceAccessRevision(value => value + 1)
+    window.addEventListener(workspaceAccessChangedEvent, refreshWorkspaceAccess)
+    window.addEventListener("focus", refreshWorkspaceAccess)
+    return () => {
+      window.removeEventListener(workspaceAccessChangedEvent, refreshWorkspaceAccess)
+      window.removeEventListener("focus", refreshWorkspaceAccess)
+    }
+  }, [])
 
   useEffect(() => {
     if (!mobileNavOpen || !isMobileNavigation) return
@@ -471,6 +483,7 @@ export function DashboardShell({
             user?.primaryEmailAddress?.emailAddress,
             {
               includeManagedClientWorkspaces: true,
+              forceRefresh: workspaceAccessRevision > 0,
             }
           ),
         ])
@@ -584,6 +597,7 @@ export function DashboardShell({
     pathname,
     user?.id,
     user?.primaryEmailAddress?.emailAddress,
+    workspaceAccessRevision,
   ])
 
   useEffect(() => {
@@ -827,7 +841,7 @@ export function DashboardShell({
           "unknown"
   const isClientWorkspaceContext =
     isAgencyManagedWorkspace(activeWorkspaceRecord)
-  const canDeleteClientWorkspace =
+  const canManageClientOwnership =
     Boolean(user?.id && activeWorkspaceRecord) &&
     ["client", "client_owner", "owner"].includes(activeWorkspaceRole)
   const isBusinessOwnerWorkspace =
@@ -1222,11 +1236,11 @@ export function DashboardShell({
         ) : activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/dashboard/settings", "/dashboard/billing", "/dashboard/help"].includes(pathname)) ? (
           <div>
             <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
-              <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Choose how to continue" : "Client account paused"}</h1>
-              <p className="mt-2 text-sm text-gray-600">{activeWorkspaceRecord.agency_removed ? "Your data is preserved. Start a trial or accept an agency invitation in Settings." : "Your data is preserved. Contact your agency to resume access."}</p>
-              {(activeWorkspaceRecord.agency_removed || canDeleteClientWorkspace) && pathname !== "/dashboard/settings" && <Link href="/dashboard/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
+              <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Client account unlinked" : "Client account paused"}</h1>
+              <p className="mt-2 text-sm text-gray-600">Your data is preserved. Contact your agency to resume access.</p>
+              {activeWorkspaceRecord.agency_removed && pathname !== "/dashboard/settings" && <Link href="/dashboard/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
             </section>
-            {pathname === "/dashboard/settings" && canDeleteClientWorkspace && user?.id && <ClientWorkspaceOwnership key={activeWorkspaceRecord.owner_user_id} userId={user.id} workspace={activeWorkspaceRecord} />}
+            {!activeWorkspaceRecord.agency_removed && canManageClientOwnership && user?.id && <ClientWorkspaceOwnership key={activeWorkspaceRecord.owner_user_id} userId={user.id} workspace={activeWorkspaceRecord} />}
           </div>
         ) : subscriptionAccessBlocked && subscriptionAccess ? (
           <SubscriptionRequiredPanel

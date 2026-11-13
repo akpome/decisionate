@@ -57,8 +57,9 @@ Deletion requires typing the workspace name and permanently removes its data.
 After the client accepts, the workspace belongs to that client owner. The agency
 can still pause and resume the client workspace while it manages that client.
 Only the managing agency owner can resume an agency-paused workspace; the client
-owner and other client users cannot override that pause. The paused notice asks
-the client to contact their agency. Pausing preserves data and billing settings
+owner and other client users cannot override that pause. A paused client owner
+can choose Unlink agency, or contact the agency to resume access. Other client
+users cannot unlink the workspace. Pausing preserves data and billing settings
 but blocks data access and background work. The agency can manage this status
 without being granted access to the client's data.
 
@@ -69,9 +70,12 @@ for that workspace. It does not delete datasets, reports, decisions, connections
 members or the workspace itself. Workspace IDs and data IDs stay unchanged.
 An active import, report analysis or AI request must finish before removal.
 
-The client owner can open Settings in the workspace navigation and choose Delete
-workspace, then type its name to confirm permanent deletion. This remains available
-when the agency has paused access; it does not let the client resume the workspace.
+The client owner must unlink the agency before deleting the workspace. While linked
+and paused, Unlink agency is the only available workspace action: deletion, trials,
+direct subscription changes and analysis remain blocked. Unlinking requires confirmation,
+removes the workspace from the agency's list and revokes its access without deleting data.
+After unlinking, the owner can choose Delete workspace and type its name to confirm
+permanent deletion, or continue independently with a trial or direct subscription.
 Other client users and the agency cannot permanently delete an accepted workspace.
 Deletion removes its data, connections, reports, decisions, matching records,
 memberships, invitations and agency listing. The owner is signed out afterwards.
@@ -87,7 +91,13 @@ must finish first; this protects against a worker recreating deleted data.
 
 ## Continue after leaving an agency
 
-The client owner can still open Settings and Billing after removal. Their data
+When the agency removes the client or the client chooses Unlink agency, the locked
+workspace shows Client account unlinked and confirms that its data is preserved.
+The notice directs the client to contact their agency to arrange restored access;
+an unlinked agency must send a new invitation, not simply resume the old account.
+The trial, direct subscription, deletion and agency invitation choices appear in
+Settings, not on the locked dashboard. Open Settings leads to those choices.
+The client owner can still open Settings and Billing. Their data
 is preserved while they choose how to continue. Data analysis, shared links and
 background work wait until an independent plan or an agency relationship is active.
 

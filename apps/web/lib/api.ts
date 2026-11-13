@@ -6310,7 +6310,9 @@ async function clientAccountRequest<T>(path: string, userId: string, workspaceId
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) await throwApiError(response, "Workspace account could not be updated")
-  if (method !== "GET") invalidateApiReadCache([`organization-workspaces:${userId.trim()}`])
+  if (method !== "GET") invalidateApiReadCache([
+    `organization-workspaces:${userId.trim()}`, `organization:${userId.trim()}`, "billing-access:",
+  ])
   return response.json()
 }
 
@@ -6325,6 +6327,9 @@ export const respondToAgencyClientInvitation = (id: string, accept: boolean, use
 
 export const startIndependentWorkspaceTrial = (userId: string, workspaceId: string) =>
   clientAccountRequest<{ trial_days: number }>("independent-trial", userId, workspaceId, "POST")
+
+export const unlinkOwnedWorkspaceAgency = (userId: string, workspaceId: string) =>
+  clientAccountRequest<{ removed: boolean; workspace_id: string }>("leave-agency", userId, workspaceId, "POST")
 
 export const deleteOwnedWorkspace = (confirmation: string, userId: string, workspaceId: string) =>
   clientAccountRequest("workspace", userId, workspaceId, "DELETE", { confirmation })
@@ -6545,12 +6550,14 @@ export async function getOrganizationWorkspaces(
   userEmail?: string,
   options?: {
     includeManagedClientWorkspaces?: boolean
+    forceRefresh?: boolean
   }
 ): Promise<OrganizationWorkspaceRecord[]> {
   const includeManagedClientWorkspaces =
     options?.includeManagedClientWorkspaces === true
   const cacheKey =
     `organization-workspaces:${userId.trim()}:${userEmail?.trim() || ""}:${includeManagedClientWorkspaces}`
+  if (options?.forceRefresh) invalidateApiReadCache([cacheKey])
 
   return getCachedRead(
     cacheKey,

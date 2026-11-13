@@ -84,6 +84,7 @@ class AgencyClientOwnershipTests(unittest.TestCase):
     def test_only_the_client_owner_can_delete_the_workspace_with_its_name_confirmed(self):
         denied = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": "Client Shop"})
         self.assertEqual(denied.status_code, 403)
+        self.assertEqual(self.client_request("leave-agency").status_code, 200)
         self.actor, self.email = "client", "client@example.test"
         for confirmation, code in (("wrong", 400), ("Client Shop", 200)):
             response = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": confirmation})

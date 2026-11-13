@@ -15,7 +15,7 @@ from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.service import PROFESSIONAL_PLAN, TRIAL_PERIOD_DAYS, get_client_workspace_limit, is_agency_plan
 from app.modules.identity.clerk import get_verified_clerk_primary_email
 from app.modules.organizations.invitations import build_invitation_sign_in_url
-from app.modules.organizations.ownership import independent_client, is_workspace_owner, managed_client_filter
+from app.modules.organizations.ownership import independent_client, is_workspace_owner, managed_client_filter, managing_agency_workspace_id
 from app.modules.organizations.schemas import AgencyInvitationCreate, WorkspaceDeleteConfirmation
 
 router = APIRouter()
@@ -52,6 +52,19 @@ def detach_workspace(db, organization):
     organization.is_paused = not build_subscription_access_state(subscription).access_allowed
 
 
+@router.post("/leave-agency")
+def leave_agency(request: Request):
+    auth = get_auth_context(request)
+    with SessionLocal() as db:
+        organization = owned_workspace(db, auth)
+        if not independent_client(organization):
+            if not managing_agency_workspace_id(organization):
+                raise HTTPException(409, "This workspace is not linked to an agency.")
+            detach_workspace(db, organization)
+            db.commit()
+        return {"removed": True, "workspace_id": organization.owner_user_id}
+
+
 @router.post("/independent-trial")
 def start_independent_trial(request: Request):
     auth = get_auth_context(request)
@@ -84,6 +97,8 @@ def delete_owned_workspace(payload: WorkspaceDeleteConfirmation, request: Reques
     auth = get_auth_context(request)
     with SessionLocal() as db:
         organization = owned_workspace(db, auth)
+        if managing_agency_workspace_id(organization):
+            raise HTTPException(409, "Unlink this workspace from its agency before deleting it.")
         if payload.confirmation.strip() != organization.name:
             raise HTTPException(400, "Type the workspace name to confirm deletion.")
         subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=auth.workspace_id).first()

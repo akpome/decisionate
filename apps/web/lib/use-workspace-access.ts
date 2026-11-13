@@ -65,12 +65,14 @@ export function useWorkspaceAccess(
       workspaceAccessChangedEvent,
       handleWorkspaceAccessChanged
     )
+    window.addEventListener("focus", handleWorkspaceAccessChanged)
 
     return () => {
       window.removeEventListener(
         workspaceAccessChangedEvent,
         handleWorkspaceAccessChanged
       )
+      window.removeEventListener("focus", handleWorkspaceAccessChanged)
     }
   }, [])
 
@@ -98,6 +100,7 @@ export function useWorkspaceAccess(
             userEmail,
             {
               includeManagedClientWorkspaces: true,
+              forceRefresh: accessRefreshKey > 0,
             }
           )
 

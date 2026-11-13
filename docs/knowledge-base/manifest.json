@@ -331,7 +331,8 @@
         "How does a client receive and accept their workspace invitation?",
         "Why did creating a client workspace not send an invitation email?",
         "How do I pause or resume a client account?",
-        "How do I delete a client workspace?"
+        "How do I delete a client workspace?",
+        "Can I unlink my agency when my workspace is paused?"
       ],
       "direct_questions": {
         "Invitations and first sign-in": [
@@ -345,7 +346,9 @@
           "How do I delete a client workspace?",
           "Who can resume a client workspace paused by its agency?",
           "Does pausing a client delete their data?",
-          "Does pausing a client change my agency subscription?"
+          "Does pausing a client change my agency subscription?",
+          "Can I unlink my agency when my workspace is paused?",
+          "Do I need to unlink my agency before deleting my workspace?"
         ],
         "Continue after leaving an agency": [
           "What happens when an agency removes my workspace?",
