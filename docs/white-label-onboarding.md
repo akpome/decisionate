@@ -1,12 +1,38 @@
 # White-label onboarding
 
-## Hosted self-service portals
+## Custom-domain self-service portals
 
-Agency owners open **Settings > Set up your branded portal** on Decisionate.ca.
+When commercial availability is enabled, Agency owners open
+**Settings > Set up a custom-domain portal** on the primary Decisionate app.
 This provisions a separate branded frontend from the existing repository; the
 customer does not deploy code, copy API credentials or create Stripe prices.
 The operator-managed workflow below remains available for independently deployed
 frontends. Neither workflow migrates existing workspaces between brands.
+
+This existing implementation is the **custom-domain offering**, not the new
+shared `agency.decisionate.app` offering. See
+[hosted-subdomain implementation status](hosted-subdomain-implementation-status.md)
+for that separate project and its authentication decision.
+
+### Commercial availability
+
+Full-access administrators use **Platform Admin > White label** to control new
+custom-domain setup. The switch defaults to **Off** and is persisted in the
+`white_label_availability` table. It is not an environment variable. A change
+requires confirmation and an up-to-date revision; the administrator, old/new
+values, timestamp and optional API-supplied reason are audited.
+
+Off hides new customer setup links and blocks saving a setup, connecting Stripe,
+preparation and launch through the API. Existing drafts and credentials remain
+stored. Existing portal owners retain a management link. Live registrations are
+not suspended, deleted or removed from CORS. Operator-managed maintenance remains
+available. Re-enabling the switch restores the existing workflow subject to its
+separate technical readiness checks.
+
+`HOSTED_PORTALS_ENABLED` remains the **technical custom-domain registry and
+provisioning flag**. Do not turn it off to stop new sales; that could remove live
+application registrations. Use the commercial switch instead. The hosted-subdomain
+commercial control is independent and cannot yet be enabled.
 
 ### Customer steps
 
@@ -109,7 +135,8 @@ not continuous monitoring or automatic account suspension.
 ## Operator-managed frontends: Start in Platform Admin
 
 Sign in to Decisionate.ca as a **full-access platform administrator**, open
-**Platform Admin > White-label setup**, and expand the section. Workspace and
+**Platform Admin > White label > Operator-managed applications**, and expand
+**White-label setup**. Workspace and
 agency administrators cannot use these controls.
 
 The wizard saves setup drafts. It does not create a website, turn on billing,

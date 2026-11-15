@@ -35,7 +35,16 @@ test("brand name suggests a stable, bounded application id", () => {
 })
 
 test("setup is offered only to full-access operators", () => {
-  assert.match(page, /adminAccess\.full_access && <WhiteLabelSetup userId=\{user\.id\}/)
+  const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let guardedSetup = false
+  function visit(node) {
+    if (ts.isJsxExpression(node) && node.expression?.getText(tree).startsWith('adminAccess.full_access && activeSection === "white_label"')) {
+      guardedSetup = node.getText(tree).includes('<WhiteLabelSetup userId={user.id}')
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(tree)
+  assert.equal(guardedSetup, true)
   assert.match(setup, /opened && <div id="white-label-setup" hidden=\{!expanded\}><SetupWizard key=\{userId\} userId=\{userId\}/)
   assert.doesNotMatch(setup, /type="password"|stripe_secret_key|resend_api_key/i)
 })

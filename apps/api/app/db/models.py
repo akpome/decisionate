@@ -41,6 +41,19 @@ class WhiteLabelSetup(Base):
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
 
+class WhiteLabelAvailability(Base):
+    """Commercial switches, independent of provider readiness and live access."""
+
+    __tablename__ = "white_label_availability"
+
+    id = Column(Integer, primary_key=True)
+    hosted_subdomain_enabled = Column(Boolean, nullable=False, default=False)
+    custom_domain_enabled = Column(Boolean, nullable=False, default=False)
+    revision = Column(Integer, nullable=False, default=1)
+    updated_by_user_id = Column(String, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
 class HostedPortal(Base):
     """Customer-owned provisioning state, separate from operator deployment drafts."""
 

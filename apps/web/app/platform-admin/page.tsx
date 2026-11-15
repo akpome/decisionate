@@ -27,9 +27,11 @@ import {
   useClerk,
   useUser,
 } from "@clerk/nextjs"
-import { Fragment, useEffect, useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { MarketingAdmin } from "@/features/marketing/marketing-admin"
 import { WhiteLabelSetup } from "@/features/white-label/setup"
+import { WhiteLabelAvailabilityPanel } from "@/features/white-label/availability"
+import { adminSections, sectionNeedsPermission, visibleAdminSections, type AdminSection } from "@/features/platform-admin/sections"
 import { AUTH_REDIRECTS } from "@/features/auth/lib/auth-redirects"
 
 import {
@@ -300,7 +302,7 @@ function MetricCard({
   icon: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-gray-500">{label}</p>
         <span className="text-blue-600">{icon}</span>
@@ -516,6 +518,15 @@ export default function PlatformAdminPage() {
     smtp_use_ssl: false,
   })
   const [retryKey, setRetryKey] = useState(0)
+  const [selectedSection, setSelectedSection] = useState<AdminSection>("overview")
+  const [operatorSetupOpen, setOperatorSetupOpen] = useState(false)
+  const [operatorNavigation, setOperatorNavigation] = useState({ dirty: false, busy: false })
+  const [marketingNavigation, setMarketingNavigation] = useState({ dirty: false, busy: false })
+  const [customerView, setCustomerView] = useState<"accounts" | "workspaces" | "create">("accounts")
+  const loadedSections = useRef(new Map<string, string>())
+  const availableSections = visibleAdminSections(adminAccess)
+  const activeSection = availableSections.find(section => section.id === selectedSection)?.id
+    ?? availableSections[0]?.id ?? "overview"
   const [organizationSearch, setOrganizationSearch] =
     useState("")
   const [customerSearch, setCustomerSearch] =
@@ -526,8 +537,32 @@ export default function PlatformAdminPage() {
     useState("")
   const canRefreshAIStatus = Boolean(
     overview && !loading && adminAccess?.allowed &&
+    activeSection === "overview" &&
     (adminAccess.full_access || adminAccess.permissions.includes("overview"))
   )
+  const canReadUsage = Boolean(adminAccess?.allowed && (adminAccess.full_access || adminAccess.permissions.includes("analytics")))
+  const editorBusy = activeSection === "white_label" ? operatorNavigation.busy : activeSection === "marketing" && marketingNavigation.busy
+
+  function canLeaveEditor() {
+    const editor = activeSection === "white_label" ? operatorNavigation : activeSection === "marketing" ? marketingNavigation : null
+    if (editor?.busy) return false
+    if (editor?.dirty && !window.confirm("Discard unsaved changes in this section?")) return false
+    setOperatorNavigation({ dirty: false, busy: false })
+    setMarketingNavigation({ dirty: false, busy: false })
+    return true
+  }
+
+  function selectSection(section: AdminSection) {
+    if (section !== activeSection && canLeaveEditor()) setSelectedSection(section)
+  }
+
+  function refreshSection() {
+    if (!canLeaveEditor()) return
+    for (const key of loadedSections.current.keys()) {
+      if (key.startsWith(`${user?.id}:${activeSection}:`)) loadedSections.current.delete(key)
+    }
+    setRetryKey(value => value + 1)
+  }
 
   useEffect(() => {
     if (!user?.id) {
@@ -551,8 +586,18 @@ export default function PlatformAdminPage() {
           return
         }
 
+        const sections = visibleAdminSections(access)
+        const section = sections.find(item => item.id === selectedSection)?.id ?? sections[0]?.id ?? "overview"
+        setError("")
+        const loadKey = `${user.id}:${section}:${access.full_access}:${access.permissions.join(",")}`
+        if (loadedSections.current.has(loadKey)) {
+          setError(loadedSections.current.get(loadKey) || "")
+          setLoading(false)
+          return
+        }
+        let sectionError = ""
         const canView = (permission: string) =>
-          access.full_access || access.permissions.includes(permission)
+          (access.full_access || access.permissions.includes(permission)) && sectionNeedsPermission(section, permission)
         const tasks: Promise<unknown>[] = []
 
         if (canView("overview")) {
@@ -563,9 +608,11 @@ export default function PlatformAdminPage() {
                   setOverview(overviewData)
                 }
               })
-              .catch(() => {
+              .catch((loadError) => {
                 if (!ignoreResult) {
                   setOverview(null)
+                  sectionError = loadError instanceof Error ? loadError.message : "Platform overview could not be loaded. Refresh to try again."
+                  setError(sectionError)
                 }
               })
           )
@@ -579,9 +626,11 @@ export default function PlatformAdminPage() {
                   setOrganizations(organizationData)
                 }
               })
-              .catch(() => {
+              .catch((loadError) => {
                 if (!ignoreResult) {
                   setOrganizations([])
+                  sectionError = loadError instanceof Error ? loadError.message : "Customer workspaces could not be loaded. Refresh to try again."
+                  setError(sectionError)
                 }
               })
           )
@@ -835,6 +884,7 @@ export default function PlatformAdminPage() {
 
         Promise.all(tasks).finally(() => {
           if (!ignoreResult) {
+            loadedSections.current.set(loadKey, sectionError)
             setLoading(false)
           }
         })
@@ -864,6 +914,7 @@ export default function PlatformAdminPage() {
     retryKey,
     user?.id,
     currentUserEmail,
+    selectedSection,
   ])
 
   useEffect(() => {
@@ -913,14 +964,7 @@ export default function PlatformAdminPage() {
   }, [canRefreshAIStatus, user?.id, aiStatusRefreshKey])
 
   useEffect(() => {
-    if (!user?.id || !adminAccess) {
-      return
-    }
-
-    if (
-      !adminAccess.full_access &&
-      !adminAccess.permissions.includes("analytics")
-    ) {
+    if (!user?.id || !canReadUsage || activeSection !== "analytics") {
       return
     }
 
@@ -955,7 +999,7 @@ export default function PlatformAdminPage() {
     return () => {
       ignoreResult = true
     }
-  }, [adminAccess, retryKey, usagePeriodDays, user?.id])
+  }, [canReadUsage, activeSection, retryKey, usagePeriodDays, user?.id])
 
   async function handleSaveEmailSettings(
     event: React.FormEvent<HTMLFormElement>
@@ -1997,25 +2041,20 @@ export default function PlatformAdminPage() {
   const canView = (permission: string) =>
     adminAccess?.full_access === true ||
     adminAccess?.permissions.includes(permission) === true
+  const showSection = (permission: string) => canView(permission) && sectionNeedsPermission(activeSection, permission)
 
   if (!user) {
     return null
   }
 
   return (
-    <main className="platform-admin-layout min-h-screen bg-gray-50 px-4 py-10 text-gray-900 sm:px-10">
-      <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col">
+    <main className="platform-admin-layout min-h-screen bg-gray-50 px-4 py-6 text-gray-900 sm:px-8">
+      <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col">
         <header className="flex flex-col gap-4 border-b border-gray-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-              Internal operations
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold">
               Platform Admin
             </h1>
-            <p className="mt-2 text-sm text-gray-600">
-              Aggregate application health and adoption overview.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -2036,8 +2075,8 @@ export default function PlatformAdminPage() {
             <UserButton />
             <button
               type="button"
-              onClick={() => setRetryKey((value) => value + 1)}
-              disabled={loading}
+              onClick={refreshSection}
+              disabled={loading || editorBusy}
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw size={16} />
@@ -2046,9 +2085,19 @@ export default function PlatformAdminPage() {
           </div>
         </header>
 
+        {adminAccess?.allowed && <nav aria-label="Platform administration" className="sticky top-0 z-10 flex flex-wrap gap-x-5 gap-y-1 border-b border-gray-200 bg-gray-50 py-2">
+          {availableSections.map(section => <button type="button" key={section.id}
+            aria-current={activeSection === section.id ? "page" : undefined}
+            disabled={editorBusy}
+            onClick={() => selectSection(section.id)}
+            className={`min-h-10 border-b-2 px-1 text-sm ${activeSection === section.id ? "border-blue-600 font-semibold text-blue-700" : "border-transparent text-gray-600 hover:text-gray-900"}`}>
+            {section.label}
+          </button>)}
+        </nav>}
+
         {loading && (
           <div className="mt-8 rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600">
-            Loading platform overview...
+            Loading {adminSections.find(section => section.id === activeSection)?.label.toLowerCase()}...
           </div>
         )}
 
@@ -2072,8 +2121,19 @@ export default function PlatformAdminPage() {
 
         {!loading && !adminAccessLoading && !error && adminAccess?.allowed && (
           <>
-            {adminAccess.full_access && <WhiteLabelSetup userId={user.id} />}
-            {overview && canView("overview") && (
+            {adminAccess.full_access && activeSection === "white_label" && <>
+              <WhiteLabelAvailabilityPanel userId={user.id} />
+              <details className="mt-8 border-t border-gray-200 pt-5" onToggle={event => { if (event.currentTarget.open) setOperatorSetupOpen(true) }}>
+                <summary className="cursor-pointer text-sm font-semibold">Operator-managed applications</summary>
+                {operatorSetupOpen && <WhiteLabelSetup userId={user.id} onNavigationChange={setOperatorNavigation} />}
+              </details>
+            </>}
+            {activeSection === "workspaces" && <nav aria-label="Customer management" className="mt-5 flex flex-wrap gap-2">
+              {([['accounts', 'Accounts'], ['workspaces', 'Workspaces'], ['create', 'New workspace']] as const).map(([id, label]) =>
+                <button key={id} type="button" aria-current={customerView === id ? "page" : undefined} onClick={() => setCustomerView(id)}
+                  className={`min-h-10 border-b-2 px-3 text-sm ${customerView === id ? "border-blue-600 font-medium text-blue-700" : "border-transparent text-gray-600"}`}>{label}</button>)}
+            </nav>}
+            {overview && showSection("overview") && (
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <MetricCard
                 label="Organizations"
@@ -2128,7 +2188,7 @@ export default function PlatformAdminPage() {
               </div>
             )}
 
-            <section className={canView("overview") ? "mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {showSection("analytics") && <section className="mt-8 border-t border-gray-200">
               <div className="border-b border-gray-200 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <BarChart3 className="text-blue-600" size={20} />
@@ -2213,9 +2273,9 @@ export default function PlatformAdminPage() {
                   )}
                 </div>
               </div>
-            </section>
+            </section>}
 
-            <section className={canView("workspaces") ? "mt-8 overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40 shadow-sm" : "hidden"}>
+            {activeSection === "workspaces" && canView("workspaces") && customerView === "create" && <section className="mt-6 border-t border-gray-200">
               <div className="border-b border-blue-100 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <Building2 className="text-blue-600" size={20} />
@@ -2329,9 +2389,9 @@ export default function PlatformAdminPage() {
                   </button>
                 </div>
               </form>
-            </section>
+            </section>}
 
-            <section className={canView("credit_settings") ? "mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {showSection("credit_settings") && <section className="mt-6 border-t border-gray-200">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="font-semibold">Billing and AI credit pricing</h2>
                 <p className="mt-1 text-sm text-gray-500">
@@ -2451,9 +2511,9 @@ export default function PlatformAdminPage() {
                   )}
                 </form>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("analytics") ? "mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {showSection("analytics") && <section className="mt-6 border-t border-gray-200">
               <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3">
@@ -2855,11 +2915,11 @@ export default function PlatformAdminPage() {
                   </div>
                 </>
               )}
-            </section>
+            </section>}
 
-            {overview && canView("overview") && (
+            {overview && showSection("overview") && (
             <div className="mt-8 grid gap-4 lg:grid-cols-2">
-              <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <section className="border-t border-gray-200 py-5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <BrainCircuit className="text-blue-600" size={20} />
@@ -2920,7 +2980,7 @@ export default function PlatformAdminPage() {
                 </dl>
               </section>
 
-              <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <section className="border-t border-gray-200 py-5">
                 <div className="flex items-center gap-3">
                   <Mail className="text-blue-600" size={20} />
                   <h2 className="font-semibold">Alert service</h2>
@@ -2939,17 +2999,15 @@ export default function PlatformAdminPage() {
                     </dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <p className="text-xs text-gray-500">
-                      Platform email settings are managed below. Workspace owners can manage alert recipients and schedules, but cannot override the platform provider.
-                    </p>
+                    {canView("email_settings") && <button type="button" onClick={() => selectSection("email")} className="inline-flex items-center gap-2 text-sm font-medium text-blue-700"><Mail size={15} />Manage email delivery</button>}
                   </div>
                 </dl>
               </section>
             </div>
             )}
 
-            {adminAccess.full_access && <MarketingAdmin userId={user.id} />}
-            <section className={canView("email_settings") ? "mt-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm" : "hidden"}>
+            {adminAccess.full_access && activeSection === "marketing" && <MarketingAdmin userId={user.id} onNavigationChange={setMarketingNavigation} />}
+            {showSection("email_settings") && <section className="mt-6 border-t border-gray-200 py-5">
               <div className="flex items-start gap-3">
                 <Mail className="mt-0.5 text-blue-600" size={20} />
                 <div>
@@ -3211,9 +3269,9 @@ export default function PlatformAdminPage() {
                   )}
                 </form>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("maintenance") ? "mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm" : "hidden"}>
+            {showSection("maintenance") && <section className="mt-6 border-t border-amber-200 py-5">
               <div className="flex items-start gap-3">
                 <Wrench className="mt-0.5 text-amber-700" size={20} />
                 <div>
@@ -3339,15 +3397,15 @@ export default function PlatformAdminPage() {
                   )}
                 </>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("workspaces") ? "mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {activeSection === "workspaces" && canView("workspaces") && customerView === "accounts" && <section className="mt-6 border-t border-gray-200">
               <div className="border-b border-gray-200 px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <h2 className="font-semibold">Customers</h2>
                     <p className="mt-1 text-sm text-gray-500">
-                      One row per primary customer workspace. Trial, paid, and free accounts include signup, billing, workspace, usage, and activity details. Managed agency client workspaces are listed below.
+                      Primary customer accounts and subscription status.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -3534,9 +3592,9 @@ export default function PlatformAdminPage() {
                     : "No customers are available."}
                 </p>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("workspaces") ? "order-10 mt-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {activeSection === "workspaces" && canView("workspaces") && customerView === "workspaces" && <section className="mt-6 border-t border-gray-200">
               <div className="border-b border-gray-200 px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
@@ -3767,9 +3825,9 @@ export default function PlatformAdminPage() {
                   {destructiveMessage}
                 </p>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("users") ? "mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {showSection("users") && <section className="mt-6 border-t border-gray-200">
               <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="font-semibold">Users</h2>
@@ -4034,9 +4092,9 @@ export default function PlatformAdminPage() {
                   </table>
                 </div>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("audit") ? "mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {showSection("audit") && <section className="mt-6 border-t border-gray-200">
               <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-semibold">Admin audit history</h2>
@@ -4168,9 +4226,9 @@ export default function PlatformAdminPage() {
                   </table>
                 </div>
               )}
-            </section>
+            </section>}
 
-            <section className={canView("alerts") ? "mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {showSection("alerts") && <section className="mt-6 border-t border-gray-200">
               <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="font-semibold">Alert delivery operations</h2>
@@ -4310,10 +4368,10 @@ export default function PlatformAdminPage() {
                   </table>
                 </div>
               )}
-            </section>
+            </section>}
 
-            {selectedOrganizationId !== null && (
-              <section className={canView("workspaces") ? "order-20 mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" : "hidden"}>
+            {selectedOrganizationId !== null && activeSection === "workspaces" && customerView === "workspaces" && canView("workspaces") && (
+              <section className="mt-6 border-t border-gray-200">
                 <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4">
                   <div>
                     <h2 className="font-semibold">

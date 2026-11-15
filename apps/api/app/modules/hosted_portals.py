@@ -148,8 +148,10 @@ def get_portal(request: Request, response: Response):
     auth = require_owner(request)
     response.headers["Cache-Control"] = "no-store"
     with SessionLocal() as db:
+        from app.modules.white_label_availability import availability
         row = db.query(HostedPortal).filter_by(owner_workspace_id=auth.workspace_id).first()
         return {"portal": public_portal(row) if row else None, "blockers": platform_blockers(),
+                "commercially_available": availability(db)["custom_domain_enabled"],
                 "prices": [{"key": key, "label": label} for key, label, _ in PRICES]}
 
 
@@ -161,6 +163,8 @@ def save_portal(request: Request, payload: SavePortal):
     if any(origin in app.allowed_origins for app in applications().values()):
         raise HTTPException(409, "This domain is already in use.")
     with SessionLocal() as db:
+        from app.modules.white_label_availability import require_custom_domain_sales
+        require_custom_domain_sales(db)
         if any(json.loads(draft.configuration).get("web_url", "").rstrip("/") == origin for draft in db.query(WhiteLabelSetup)):
             raise HTTPException(409, "This domain is reserved by another setup.")
         row = db.query(HostedPortal).filter_by(owner_workspace_id=auth.workspace_id).first()
@@ -194,6 +198,8 @@ def connect_stripe(request: Request):
     if platform_blockers():
         raise HTTPException(503, "Hosted setup is awaiting platform configuration.")
     with SessionLocal() as db:
+        from app.modules.white_label_availability import require_custom_domain_sales
+        require_custom_domain_sales(db)
         row = owned(db, auth)
         if row.stripe_account_id:
             raise HTTPException(409, "Stripe is already connected.")
@@ -458,6 +464,8 @@ def run_operation(request, *, launch):
         row = owned(db, auth)
         if row.status == "live":
             return public_portal(row)
+        from app.modules.white_label_availability import require_custom_domain_sales
+        require_custom_domain_sales(db)
         claim = db.execute(update(HostedPortal).where(
             HostedPortal.id == row.id,
             or_(HostedPortal.operation_token.is_(None), HostedPortal.operation_started_at < utc_now() - timedelta(minutes=10)),
@@ -481,6 +489,8 @@ def run_operation(request, *, launch):
                     state.pop("verification", None)
                     row.status = "waiting"
                     raise HTTPException(409, "A provider check is no longer ready. Check setup again.")
+                # Provider checks can outlive an availability change; serialize final activation with the switch.
+                require_custom_domain_sales(db, lock=True)
                 row.status = "live"
             else:
                 row.status = "preparing"

@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.application_context import application_scope, applications, scoped_setting, validate_applications
 from app.db.database import Base
-from app.db.models import HostedPortal, WorkspaceSubscription, utc_now
+from app.db.models import HostedPortal, WhiteLabelAvailability, WorkspaceSubscription, utc_now
 from app.modules import hosted_portals as portals, hosted_portal_registry as registry
 from app.modules import hosted_portal_providers as providers
 from app.modules.applications import ApplicationContextMiddleware, ApplicationCORSMiddleware
@@ -49,6 +49,7 @@ class HostedPortalTests(unittest.TestCase):
         self.patch(patch.object(portals, "build_subscription_access_state", return_value=SimpleNamespace(access_allowed=True)))
         with self.Session() as db:
             db.add(WorkspaceSubscription(workspace_id="owner", plan="agency", status="active"))
+            db.add(WhiteLabelAvailability(id=1, custom_domain_enabled=True, updated_by_user_id="test-admin"))
             db.commit()
         registry.invalidate_registry()
         self.addCleanup(registry.invalidate_registry)
@@ -73,6 +74,51 @@ class HostedPortalTests(unittest.TestCase):
 
     def save(self, **kwargs):
         return self.client.put("/api/v2/hosted-portals", json={"configuration": self.config, **kwargs})
+
+    def test_commercial_switch_blocks_new_setup_without_removing_saved_state(self):
+        self.saved_connected()
+        with self.Session() as db:
+            db.get(WhiteLabelAvailability, 1).custom_domain_enabled = False
+            db.commit()
+        for response in [self.save(), self.client.post("/api/v2/hosted-portals/stripe"),
+                         self.client.post("/api/v2/hosted-portals/prepare"),
+                         self.client.post("/api/v2/hosted-portals/launch")]:
+            self.assertEqual(response.status_code, 403, response.text)
+        result = self.client.get("/api/v2/hosted-portals")
+        self.assertFalse(result.json()["commercially_available"])
+        self.assertEqual(result.json()["portal"]["id"], self.portal_id)
+        with self.Session() as db:
+            self.assertEqual(db.get(HostedPortal, self.portal_id).stripe_account_id, "acct_customer")
+
+    def test_commercial_off_preserves_live_registry_and_live_operations(self):
+        self.saved_connected()
+        with self.Session() as db:
+            db.get(HostedPortal, self.portal_id).status = "live"
+            db.get(WhiteLabelAvailability, 1).custom_domain_enabled = False
+            db.commit()
+        self.assertEqual(self.client.post("/api/v2/hosted-portals/prepare").status_code, 200)
+        self.assertEqual(self.client.post("/api/v2/hosted-portals/launch").status_code, 200)
+
+    def test_launch_rechecks_availability_after_external_verification(self):
+        self.saved_connected()
+        self.provider_mocks()
+        self.prepare()
+        verify = portals.verify_portal
+
+        def close_sales_during_verification(row, state):
+            checks = verify(row, state)
+            with self.Session() as db:
+                db.get(WhiteLabelAvailability, 1).custom_domain_enabled = False
+                db.commit()
+            return checks
+
+        with patch.object(portals, "verify_portal", side_effect=close_sales_during_verification):
+            result = self.client.post("/api/v2/hosted-portals/launch")
+        self.assertEqual(result.status_code, 403, result.text)
+        with self.Session() as db:
+            row = db.get(HostedPortal, self.portal_id)
+            self.assertEqual(row.status, "ready")
+            self.assertIsNone(row.operation_token)
 
     def saved_connected(self):
         result = self.save()
@@ -274,6 +320,11 @@ class HostedPortalTests(unittest.TestCase):
         headers = {"Origin": origin, "Access-Control-Request-Method": "GET"}
         self.assertEqual(self.client.options("/api/v2/application", headers=headers).status_code, 400)
         self.prepare(); self.client.post("/api/v2/hosted-portals/launch")
+        self.assertEqual(self.client.options("/api/v2/application", headers=headers).headers["access-control-allow-origin"], origin)
+        with self.Session() as db:
+            db.get(WhiteLabelAvailability, 1).custom_domain_enabled = False
+            db.commit()
+        registry.invalidate_registry()
         self.assertEqual(self.client.options("/api/v2/application", headers=headers).headers["access-control-allow-origin"], origin)
         self.assertNotIn("access-control-allow-origin", self.client.options("/api/v2/application", headers={**headers, "Origin": "https://evil.example"}).headers)
 

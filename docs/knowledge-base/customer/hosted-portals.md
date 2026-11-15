@@ -1,12 +1,19 @@
-# Set up a branded customer portal
+# Set up a custom-domain customer portal
 
 ## Can I offer a portal under my own brand?
 
-An Agency workspace owner can open Settings and choose Set up your branded
-portal. Availability depends on the platform's hosting and provider setup. If
+An Agency workspace owner can open Settings and choose Set up a custom-domain
+portal when this offering is available. New custom-domain setup is closed by
+default. Availability depends on both commercial availability and the platform's
+hosting and provider setup. If
 the page says hosting setup is not available yet, contact support; entering brand
 details does not activate an unavailable service. Ordinary client workspaces
 cannot create a portal.
+
+If new setup is closed, saved setup details are preserved and existing live
+portals remain accessible. An owner with a saved portal uses Manage custom-domain
+portal in Settings. This custom-domain workflow is not the planned shared
+agency.decisionate.app offering; that separate offering is not available yet.
 
 ## How do I set up my portal?
 

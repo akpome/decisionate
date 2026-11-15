@@ -83,6 +83,7 @@ from app.modules.platform_admin import (
 )
 from app.modules.white_label import router as white_label_router
 from app.modules.hosted_portals import router as hosted_portal_router
+from app.modules.white_label_availability import router as white_label_availability_router
 from app.modules.maintenance import (
     router as maintenance_router,
 )
@@ -1875,6 +1876,7 @@ app.include_router(
     tags=["platform-admin"],
 )
 app.include_router(white_label_router)
+app.include_router(white_label_availability_router)
 app.include_router(hosted_portal_router)
 
 app.include_router(

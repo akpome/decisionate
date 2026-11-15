@@ -8,13 +8,15 @@ const emptySender: MarketingSender = { sender_identity: "", mailing_address: "",
 const preferenceLabels: Record<string, string> = { unknown: "Not opted in", pending_confirmation: "Awaiting verification", subscribed: "Subscribed", unsubscribed: "Unsubscribed" }
 const messageLabels: Record<string, string> = { delivery_test: "Delivery test", welcome: "Welcome", incomplete_setup: "Setup reminder", trial_ending: "Trial ending" }
 
-export function MarketingAdmin({ userId }: { userId: string }) {
+export function MarketingAdmin({ userId, onNavigationChange }: { userId: string; onNavigationChange?: (state: { dirty: boolean; busy: boolean }) => void }) {
   const [data, setData] = useState<MarketingSupport | null>(null)
   const [form, setForm] = useState(emptySender)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState("")
   const [preview, setPreview] = useState<string | null>(null)
   const previewTrigger = useRef<HTMLButtonElement | null>(null)
+  const dirty = Boolean(data && Object.entries(form).some(([key, value]) => value !== data.configuration[key as keyof MarketingSender]))
+  useEffect(() => { onNavigationChange?.({ dirty, busy }) }, [dirty, busy, onNavigationChange])
   useEffect(() => {
     if (preview === null) return
     const overflow = document.body.style.overflow

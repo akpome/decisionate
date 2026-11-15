@@ -12,18 +12,20 @@ export function suggestApplicationId(name: string) {
   return /^[a-z]/.test(id) ? id : id ? `brand-${id}`.slice(0, 63) : ""
 }
 
-export function WhiteLabelSetup({ userId }: { userId: string }) {
+type NavigationState = { dirty: boolean; busy: boolean }
+
+export function WhiteLabelSetup({ userId, onNavigationChange }: { userId: string; onNavigationChange?: (state: NavigationState) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [opened, setOpened] = useState(false)
   return <section className="mt-8 min-w-0 border-y border-gray-200 py-5">
     <button type="button" aria-expanded={expanded} aria-controls="white-label-setup" onClick={() => { setOpened(true); setExpanded(!expanded) }} className="flex w-full items-center gap-3 text-left text-lg font-semibold">
       <Globe size={20} className="text-blue-600" />White-label setup<span className="ml-auto text-sm font-normal text-blue-700">{expanded ? "Close" : "Open"}</span>
     </button>
-    {opened && <div id="white-label-setup" hidden={!expanded}><SetupWizard key={userId} userId={userId} /></div>}
+    {opened && <div id="white-label-setup" hidden={!expanded}><SetupWizard key={userId} userId={userId} onNavigationChange={onNavigationChange} /></div>}
   </section>
 }
 
-function SetupWizard({ userId }: { userId: string }) {
+function SetupWizard({ userId, onNavigationChange }: { userId: string; onNavigationChange?: (state: NavigationState) => void }) {
   const [data, setData] = useState<Listing | null>(null)
   const [saved, setSaved] = useState<Setup | null>(null)
   const [form, setForm] = useState(emptyConfiguration)
@@ -36,6 +38,7 @@ function SetupWizard({ userId }: { userId: string }) {
   const [pendingNavigation, setPendingNavigation] = useState<{ id: string } | "reload" | null>(null)
   const actionPending = useRef(false)
   const dirty = hasSetupChanges(form, saved)
+  useEffect(() => { onNavigationChange?.({ dirty, busy }) }, [dirty, busy, onNavigationChange])
   useEffect(() => {
     let current = true
     void whiteLabelRequest<Listing>(userId).then(result => { if (current) setData(result) })

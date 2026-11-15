@@ -13,7 +13,7 @@ type Portal = {
   step: string; checks: Record<string, boolean>; dns_records: { source: string; type: string; name: string; value: string; priority?: number | null }[]
   last_error: string; busy: boolean; url: string | null
 }
-type Listing = { portal: Portal | null; blockers: string[]; prices: { key: string; label: string }[] }
+type Listing = { portal: Portal | null; commercially_available: boolean; blockers: string[]; prices: { key: string; label: string }[] }
 const field = "mt-1 h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm disabled:bg-gray-100"
 const button = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
 const empty: Configuration = {
@@ -41,7 +41,7 @@ export function HostedPortalSetup({ userId }: { userId: string }) {
   const mounted = useRef(true)
   const locked = Boolean(portal && (portal.status !== "draft" || portal.stripe_connected || portal.busy))
   const dirty = JSON.stringify(form) !== JSON.stringify(portal?.configuration ?? empty)
-  const blocked = !listing || listing.blockers.length > 0
+  const blocked = !listing || !listing.commercially_available || listing.blockers.length > 0
 
   function accept(value: Portal) { setPortal(value); setForm(value.configuration) }
   async function refresh() {
@@ -101,7 +101,7 @@ export function HostedPortalSetup({ userId }: { userId: string }) {
 
   return <main className="mx-auto w-full max-w-5xl space-y-6 pb-8">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-5">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold"><Globe size={24} />Your branded portal</h1>
+      <h1 className="flex items-center gap-2 text-2xl font-semibold"><Globe size={24} />Custom-domain portal</h1>
       <button className={button} disabled={busy || dirty} onClick={() => void run(refresh)} title="Refresh setup"><RefreshCw size={16} /><span>Refresh</span></button>
     </header>
     {(error || portal?.last_error) && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error || portal?.last_error}</p>}
@@ -111,7 +111,8 @@ export function HostedPortalSetup({ userId }: { userId: string }) {
       <ul className="mt-2 list-disc space-y-1 pl-5">{listing.blockers.map(item => <li key={item}>{item}</li>)}</ul>
     </section> : null}
     {!listing && !error && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="animate-spin" size={16} />Loading setup</p>}
-    {listing && <>
+    {listing && !listing.commercially_available && portal?.status !== "live" && <p className="border-l-2 border-amber-400 pl-4 text-sm text-amber-900">Custom-domain setup is currently closed. Existing setup details are preserved.</p>}
+    {listing && (listing.commercially_available || portal?.status === "live") && <>
       <details open={!locked} className="min-w-0">
       <summary className="cursor-pointer text-base font-semibold">1. Your brand and prices{locked ? `: ${form.name}` : ""}</summary>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {

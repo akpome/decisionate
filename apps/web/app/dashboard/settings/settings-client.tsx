@@ -1,6 +1,6 @@
 "use client"
+import { WhiteLabelSettingsLink } from "@/features/white-label/settings-link"
 
-import Link from "next/link"
 
 import {
   AlertTriangle,
@@ -1419,7 +1419,7 @@ export function SettingsClient({
 
       <EmailPreferences userId={userId} />
       {ownershipPanel}
-      {canManageClientWorkspaces && !process.env.NEXT_PUBLIC_PORTAL_ID && <Link href="/white-label" className="text-sm font-medium text-blue-700 underline underline-offset-4">Set up your branded portal</Link>}
+      {canManageClientWorkspaces && !process.env.NEXT_PUBLIC_PORTAL_ID && <WhiteLabelSettingsLink userId={userId} />}
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>

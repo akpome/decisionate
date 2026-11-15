@@ -4124,6 +4124,14 @@ export async function hostedPortalRequest<T>(userId: string, path = "", init: Re
   return response.json()
 }
 
+export async function whiteLabelAvailabilityRequest<T>(userId: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiFetch(`${API_URL}/admin/white-label-availability`, {
+    ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, userId),
+  })
+  if (!response.ok) await throwApiError(response, "White-label availability could not be updated")
+  return response.json()
+}
+
 export async function downloadWhiteLabelPackage(userId: string, applicationId: string, revision?: number): Promise<Blob> {
   const query = revision === undefined ? "" : `?revision=${encodeURIComponent(revision)}`
   const response = await apiFetch(`${API_URL}/admin/white-label/${encodeURIComponent(applicationId)}/package${query}`, {
