@@ -4,14 +4,17 @@ import type {
   Viewport,
 } from "next"
 import type { ReactNode } from "react"
+import { headers } from "next/headers"
 import { AppClerkProvider } from "./clerk-provider"
 import { PwaRegistration } from "./pwa-registration"
 import { ThemeBootstrap } from "./theme-bootstrap"
 import { LanguageBootstrap } from "./language-bootstrap"
 import { WorkspaceFaviconBootstrap } from "./workspace-favicon-bootstrap"
 import { portalBrand } from "@/lib/portal-brand"
+import { getAuthRequestOrigin } from "@/features/auth/lib/auth-redirects"
+import { isDecisionatePwaHost } from "@/lib/decisionate-domains"
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   title: {
     default: portalBrand.name,
     template: `%s | ${portalBrand.name}`,
@@ -19,12 +22,6 @@ export const metadata: Metadata = {
   description:
     "Analyze business performance across datasets with selected metrics, dimension filters, seasonal checks, forecasts, weekly reports, and accountable decisions.",
   applicationName: portalBrand.name,
-  manifest: portalBrand.id ? undefined : "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    title: portalBrand.name,
-    statusBarStyle: "default",
-  },
   formatDetection: {
     telephone: false,
   },
@@ -34,6 +31,20 @@ export const metadata: Metadata = {
       "Compare accounting, sales and marketing data in cross-dataset reports, investigate relationships and unusual changes, and track the actions you choose.",
     type: "website",
   },
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const hostname = new URL(getAuthRequestOrigin(await headers())).hostname
+  const enabled = !portalBrand.id && isDecisionatePwaHost(hostname)
+  return {
+    ...baseMetadata,
+    manifest: enabled ? "/manifest.webmanifest" : undefined,
+    appleWebApp: enabled || portalBrand.id ? {
+      capable: true,
+      title: portalBrand.name,
+      statusBarStyle: "default",
+    } : undefined,
+  }
 }
 
 export const viewport: Viewport = {

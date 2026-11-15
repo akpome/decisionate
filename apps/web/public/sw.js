@@ -1,5 +1,6 @@
 const CACHE_PREFIX = "decisionate-pwa"
-const CACHE_VERSION = "v5"
+const CACHE_VERSION = "v6"
+const PWA_ENABLED = self.location.hostname === "app.decisionate.ca"
 const SHELL_CACHE = `${CACHE_PREFIX}-${CACHE_VERSION}-shell`
 const OFFLINE_URL = "/offline.html"
 
@@ -10,6 +11,10 @@ const SHELL_ASSETS = [
 ]
 
 self.addEventListener("install", (event) => {
+  if (!PWA_ENABLED) {
+    event.waitUntil(self.skipWaiting())
+    return
+  }
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
@@ -26,15 +31,15 @@ self.addEventListener("activate", (event) => {
         Promise.all(
           cacheNames
             .filter((cacheName) =>
-              cacheName.startsWith(CACHE_PREFIX) &&
-              cacheName !== SHELL_CACHE
+              cacheName.startsWith(`${CACHE_PREFIX}-`) &&
+              (!PWA_ENABLED || cacheName !== SHELL_CACHE)
             )
             .map((cacheName) =>
               caches.delete(cacheName)
             )
         )
       )
-      .then(() => self.clients.claim())
+      .finally(() => PWA_ENABLED ? self.clients.claim() : self.registration.unregister())
   )
 })
 
@@ -61,6 +66,7 @@ async function networkFirstNavigation(request) {
 }
 
 self.addEventListener("fetch", (event) => {
+  if (!PWA_ENABLED) return
   const { request } = event
 
   if (request.method !== "GET") {

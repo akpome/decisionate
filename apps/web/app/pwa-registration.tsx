@@ -1,36 +1,44 @@
 "use client"
 
 import { useEffect } from "react"
+import { isDecisionatePwaHost } from "@/lib/decisionate-domains"
+
+async function retireDecisionatePwa() {
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.filter(registration =>
+        [registration.active, registration.waiting, registration.installing].some(worker => {
+          if (!worker) return false
+          const script = new URL(worker.scriptURL)
+          return script.origin === window.location.origin && script.pathname === "/sw.js"
+        })
+      ).map(registration => registration.unregister()))
+    }
+  } catch {
+    // Cleanup must not block the marketing page or other registrations.
+  }
+  try {
+    if ("caches" in window) {
+      const names = await window.caches.keys()
+      await Promise.all(names.filter(name => name.startsWith("decisionate-pwa-")).map(name => window.caches.delete(name)))
+    }
+  } catch {
+    // Cache storage may be unavailable in private browsing.
+  }
+}
 
 export function PwaRegistration() {
   useEffect(() => {
+    if (!isDecisionatePwaHost(window.location.hostname) || process.env.NODE_ENV !== "production") {
+      void retireDecisionatePwa()
+      return
+    }
     if (!("serviceWorker" in navigator)) {
       return
     }
 
-    const isLocalhost =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1"
-    const isSecureContext =
-      window.location.protocol === "https:" ||
-      isLocalhost
-
-    if (!isSecureContext) {
-      return
-    }
-
-    if (process.env.NODE_ENV !== "production") {
-      navigator.serviceWorker
-        .getRegistrations()
-        .then((registrations) => {
-          registrations.forEach((registration) => {
-            void registration.unregister()
-          })
-        })
-        .catch(() => {
-          // Development should not fail because service worker cleanup failed.
-        })
-
+    if (window.location.protocol !== "https:") {
       return
     }
 

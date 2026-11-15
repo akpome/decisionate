@@ -1,3 +1,6 @@
+import { getAuthRequestOrigin } from "@/features/auth/lib/auth-redirects"
+import { isDecisionatePwaHost } from "@/lib/decisionate-domains"
+
 const defaultManifestName = "Decisionate"
 const defaultManifestDescription =
   "Decision intelligence workspace for growing businesses, with forecasts, alerts, recommendations, and accountable decisions."
@@ -16,6 +19,9 @@ type ManifestIcon = {
 }
 
 export function GET(request: Request) {
+  if (!isDecisionatePwaHost(new URL(getAuthRequestOrigin(request.headers, request.url)).hostname)) {
+    return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } })
+  }
   const searchParams =
     new URL(request.url).searchParams
   const name =

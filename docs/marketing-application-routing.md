@@ -65,6 +65,25 @@ these primary-host redirects. Custom-domain white labeling is not enabled.
 
 ## Deployment requirements
 
+### PWA placement
+
+Only `app.decisionate.ca` advertises the Decisionate manifest and registers the
+production service worker. Marketing pages on the apex have neither a manifest
+link nor Apple standalone-app metadata; the manifest endpoint rejects the apex
+and `www` hosts. Workspace-branded manifests keep the app's `/dashboard` start
+URL and root-level application shortcuts.
+
+The client cleanup and replacement worker remove only old `decisionate-pwa-*`
+caches and Decisionate's `/sw.js` registration on marketing origins. They do not
+clear cookies, local storage, sessions, or other workers. The replacement script
+must remain available for old registrations to retire themselves. A Vercel
+domain-level `www` redirect can prevent a worker on that old origin from fetching
+the replacement script; its browser site data may need manual removal.
+
+Previously installed apps or home-screen shortcuts cannot move between origins
+or be uninstalled by the website. Remove an old marketing-domain installation
+and install again from `https://app.decisionate.ca`.
+
 ### Vercel
 
 At the time of this audit, `https://decisionate.ca/` returned an HTTP 308 to
