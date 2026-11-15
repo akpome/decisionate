@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Menu, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
+import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
 
 const navLinks = [
   { label: "Product", href: "#product" },
@@ -75,13 +76,13 @@ export function LandingNavbar() {
         </nav>
         <div className="landing-nav-actions flex items-center gap-2 sm:gap-4">
           <Link
-            href="/sign-in"
+            href={DECISIONATE_AUTH_LINKS.signIn}
             className="landing-desktop-auth landing-sign-in min-h-11 items-center text-sm font-medium text-neutral-700 hover:text-neutral-950"
           >
             {t("Sign in")}
           </Link>
           <Link
-            href="/sign-up"
+            href={DECISIONATE_AUTH_LINKS.signUp}
             className="landing-desktop-auth landing-button landing-button-primary text-sm"
           >
             {t("Start trial")}
@@ -125,14 +126,14 @@ export function LandingNavbar() {
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-6 border-t border-neutral-200 pt-4">
           <Link
-            href="/sign-in"
+            href={DECISIONATE_AUTH_LINKS.signIn}
             onClick={() => setMenuOpen(false)}
             className="flex min-h-11 items-center text-sm font-medium text-neutral-700"
           >
             {t("Sign in")}
           </Link>
           <Link
-            href="/sign-up"
+            href={DECISIONATE_AUTH_LINKS.signUp}
             onClick={() => setMenuOpen(false)}
             className="landing-button landing-button-primary"
           >

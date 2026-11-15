@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useLandingText } from "@/app/use-decisionate-language"
+import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
 
 export function LandingFooter() {
   const { t } = useLandingText()
@@ -55,7 +56,7 @@ export function LandingFooter() {
         </div>
         <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-neutral-800 pt-5 text-xs">
           <span>© 2026 Decisionate. {t("All rights reserved.")}</span>
-          <Link href="/sign-in" className="hover:text-white">
+          <Link href={DECISIONATE_AUTH_LINKS.signIn} className="hover:text-white">
             {t("Sign in")}
           </Link>
         </div>

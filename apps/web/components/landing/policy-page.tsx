@@ -3,6 +3,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 
 import { LandingFooter } from "@/components/landing/footer"
+import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
 import "./landing.css"
 
 type PolicyPageProps = {
@@ -39,7 +40,7 @@ export function PolicyPage({
             </span>
           </Link>
           <Link
-            href="/sign-in"
+            href={DECISIONATE_AUTH_LINKS.signIn}
             className="landing-brand-link shrink-0 text-sm font-semibold"
           >
             Sign in

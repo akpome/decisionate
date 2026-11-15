@@ -14,6 +14,7 @@ import { useState } from "react"
 import { useLandingText } from "@/app/use-decisionate-language"
 import { dashboardDefinitions } from "@/features/dashboards/dashboard-definitions"
 import { faqs, integrationGroups } from "./landing-content"
+import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
 
 export function FeaturesSection() {
   const { t } = useLandingText()
@@ -80,7 +81,7 @@ export function BusinessSection() {
             {t("Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.")}
           </p>
           <Link
-            href="/sign-up"
+            href={DECISIONATE_AUTH_LINKS.signUp}
             className="landing-brand-link mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold"
           >
             {t("Start trial")}
@@ -150,7 +151,7 @@ export function AgencySection() {
             {t("Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.")}
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <Link href="/sign-up" className="landing-brand-link inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
+            <Link href={DECISIONATE_AUTH_LINKS.signUp} className="landing-brand-link inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
               {t("Start trial")}
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
@@ -365,7 +366,7 @@ export function PricingSection() {
                 ))}
               </ul>
               <Link
-                href="/sign-up"
+                href={DECISIONATE_AUTH_LINKS.signUp}
                 className="landing-button landing-button-primary mt-auto w-fit"
               >
                 {t("Start trial")}
@@ -457,14 +458,14 @@ export function FinalCTASection() {
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <Link
-            href="/sign-up"
+            href={DECISIONATE_AUTH_LINKS.signUp}
             className="landing-button border border-white bg-white text-neutral-950 hover:bg-neutral-100"
           >
             {t("Start trial")}
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
           <Link
-            href="/sign-in"
+            href={DECISIONATE_AUTH_LINKS.signIn}
             className="text-sm font-medium text-white underline underline-offset-4"
           >
             {t("Sign in")}

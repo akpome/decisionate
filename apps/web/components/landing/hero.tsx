@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react"
 import { useLandingText } from "@/app/use-decisionate-language"
 import { prefetchPublicDemo } from "@/features/demo/lib/demo-data"
 import { LandingProductDemo } from "./landing-product-demo"
+import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
 
 export function LandingHero() {
   const { t } = useLandingText()
@@ -33,7 +34,7 @@ export function LandingHero() {
             <div className="landing-hero-cta">
               <div className="landing-hero-actions">
                 <Link
-                  href="/sign-up"
+                  href={DECISIONATE_AUTH_LINKS.signUp}
                   className="landing-button landing-button-primary"
                 >
                   {t("Start your 30-day trial")}

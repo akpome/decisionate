@@ -97,6 +97,7 @@ test("hosted portal routing keeps default marketing and operator pages off custo
   let authCalls = 0
   const { default: proxy } = load(source("../proxy.ts"), { require: name => {
     if (name === "./lib/portal-brand") return { portalBrand }
+    if (name === "./lib/decisionate-domains") return load(source("../lib/decisionate-domains.ts"))
     if (name === "next/server") return { NextResponse }
     if (name.includes("auth-redirects")) return {}
     if (name === "@clerk/nextjs/server") return {

@@ -12,6 +12,7 @@ import {
   getSignInUrl,
 } from "./features/auth/lib/auth-redirects"
 import { portalBrand } from "./lib/portal-brand"
+import { DECISIONATE_APPLICATION_ORIGIN, DECISIONATE_MARKETING_ORIGIN } from "./lib/decisionate-domains"
 
 const isPublicDemoRoute = createRouteMatcher([
   "/",
@@ -32,7 +33,20 @@ const isSignUpRoute = createRouteMatcher([
   "/sign-up(.*)",
 ])
 
+function isApplicationHome(request: NextRequest) {
+  return !portalBrand.id && request.nextUrl.pathname === "/" &&
+    new URL(getAuthRequestOrigin(request.headers, request.url)).hostname === "app.decisionate.ca"
+}
+
 const clerkProxy = clerkMiddleware(async (auth, req) => {
+  if (isApplicationHome(req)) {
+    const { userId } = await auth()
+    const returnTo = getSafeReturnTo(req.nextUrl.searchParams.get("redirect_url"), DECISIONATE_APPLICATION_ORIGIN)
+    return NextResponse.redirect(new URL(
+      userId ? getAuthRedirectUrl(returnTo) : getSignInUrl(returnTo), DECISIONATE_APPLICATION_ORIGIN,
+    ), { status: 307, headers: { "Cache-Control": "private, no-store" } })
+  }
+
   if (isSignInRoute(req) || isSignUpRoute(req)) {
     const { userId } = await auth()
 
@@ -74,8 +88,24 @@ export default async function proxy(
     if (request.nextUrl.pathname.startsWith("/platform-admin") || request.nextUrl.pathname.startsWith("/dashboard/white-label")) {
       return new NextResponse("Not found", { status: 404 })
     }
+  } else {
+    const origin = getAuthRequestOrigin(request.headers, request.url)
+    const hostname = new URL(origin).hostname
+    const isLegacyMarketing = hostname === "www.decisionate.ca"
+    const isApplicationRoute = /^\/(sign-in|sign-up|auth|dashboard|onboarding|platform-admin)(\/|$)/.test(request.nextUrl.pathname)
+    const target = isLegacyMarketing ? DECISIONATE_MARKETING_ORIGIN
+      : hostname === "decisionate.ca" && isApplicationRoute ? DECISIONATE_APPLICATION_ORIGIN : null
+    if (target) {
+      const destination = new URL(target)
+      destination.pathname = request.nextUrl.pathname
+      destination.search = request.nextUrl.search
+      // Old invitations may carry an absolute return URL on the previous host.
+      const returnTo = getSafeReturnTo(request.nextUrl.searchParams.get("redirect_url"), origin)
+      if (returnTo) destination.searchParams.set("redirect_url", returnTo)
+      return NextResponse.redirect(destination, isLegacyMarketing ? 308 : 307)
+    }
   }
-  if (isPublicDemoRoute(request)) {
+  if (isPublicDemoRoute(request) && !isApplicationHome(request)) {
     return NextResponse.next()
   }
 

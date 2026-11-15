@@ -18,12 +18,14 @@ function load(path, overrides = {}) {
   vm.runInNewContext(outputText, {
     module: loaded,
     exports: loaded.exports,
-    require: name => Object.hasOwn(overrides, name) ? overrides[name] : require(name),
+    require: name => name === "@/lib/decisionate-domains" ? domains
+      : Object.hasOwn(overrides, name) ? overrides[name] : require(name),
   })
   return loaded.exports
 }
 
 const { integrationGroups, faqs } = load("../components/landing/landing-content.ts")
+const domains = load("../lib/decisionate-domains.ts")
 const connectors = integrationGroups.flatMap(group => group.items)
 const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
 const headline = "Decisionate"
@@ -104,7 +106,7 @@ test("trial wording matches no-card onboarding and emails remain opt-in", () => 
   assert.match(html, /Enable weekly report delivery and KPI alerts by email when you are ready/)
   assert.match(html, /No credit card required\./)
   assert.ok(html.indexOf("landing-hero-note") > html.indexOf("Explore live demo"))
-  assert.match(html, /href="\/sign-up"/)
+  assert.match(html, /href="https:\/\/app\.decisionate\.ca\/sign-up"/)
   assert.match(html, /href="\/demo"/)
   const hero = read("../components/landing/hero.tsx")
   for (const event of ["onFocus", "onPointerEnter", "onTouchStart"]) assert.match(hero, new RegExp(`${event}=\\{prefetchPublicDemo\\}`))
@@ -113,7 +115,9 @@ test("trial wording matches no-card onboarding and emails remain opt-in", () => 
 test("mobile menu owns auth links and retains keyboard dismissal with focus restoration", () => {
   const nav = read("../components/landing/navbar.tsx")
   const menu = nav.slice(nav.indexOf('id="landing-mobile-navigation"'))
-  for (const route of ["/sign-in", "/sign-up", "/demo"]) assert.ok(menu.includes(`href="${route}"`))
+  assert.match(menu, /href=\{DECISIONATE_AUTH_LINKS.signIn\}/)
+  assert.match(menu, /href=\{DECISIONATE_AUTH_LINKS.signUp\}/)
+  assert.ok(menu.includes('href="/demo"'))
   assert.match(nav, /aria-expanded=\{menuOpen\}/)
   assert.match(nav, /aria-controls="landing-mobile-navigation"/)
   assert.match(menu, /hidden=\{!menuOpen\}/)
@@ -125,6 +129,30 @@ test("mobile menu owns auth links and retains keyboard dismissal with focus rest
   assert.match(css, /\.landing-nav \.landing-desktop-auth\s*\{\s*display: none/)
   assert.match(css, /@media \(min-width: 1280px\)[\s\S]*\.landing-nav \.landing-desktop-auth\s*\{\s*display: inline-flex/)
   assert.doesNotMatch(css, /landing-sign-in\s*\{[^}]*grid-row: 2/)
+})
+
+test("all public sign-in and trial links point to the app host", () => {
+  const overrides = {
+    "next/link": { default: props => React.createElement("a", props) },
+    "next/image": { default: props => React.createElement("img", Object.fromEntries(Object.entries(props).filter(([key]) => key !== "priority"))) },
+    "@/app/use-decisionate-language": { useLandingText: () => ({ t: text => text }) },
+    "@/features/dashboards/dashboard-definitions": load("../features/dashboards/dashboard-definitions.ts"),
+    "./landing-content": { integrationGroups, faqs },
+    "./landing.css": {},
+  }
+  const { LandingNavbar } = load("../components/landing/navbar.tsx", overrides)
+  const { LandingFooter } = load("../components/landing/footer.tsx", overrides)
+  const { FinalCTASection } = load("../components/landing/landing-sections.tsx", overrides)
+  const { PolicyPage } = load("../components/landing/policy-page.tsx", { ...overrides,
+    "@/components/landing/footer": { LandingFooter },
+  })
+  const html = renderHero() + renderSections() + renderToStaticMarkup(React.createElement(React.Fragment, null,
+    React.createElement(LandingNavbar), React.createElement(LandingFooter), React.createElement(FinalCTASection),
+    React.createElement(PolicyPage, { title: "Privacy", eyebrow: "Legal", updated: "2026-11-15", description: "Policy" }),
+  ))
+  const links = [...html.matchAll(/href="([^"]*\/sign-(?:in|up))"/g)].map(match => match[1])
+  assert.ok(links.length >= 12)
+  for (const link of links) assert.ok(Object.values(domains.DECISIONATE_AUTH_LINKS).includes(link), link)
 })
 
 test("business and agency sections precede the evidence and action section", () => {
@@ -182,7 +210,7 @@ test("agency plan, permissions and four-step workflow are described in both lang
     const workflow = html.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/)[0]
     assert.equal((workflow.match(/<li\b/g) || []).length, 4)
     assert.match(html, /href="#pricing"/)
-    assert.match(html, /href="\/sign-up"/)
+    assert.match(html, /href="https:\/\/app\.decisionate\.ca\/sign-up"/)
     assert.match(html, /href="\/demo\?dashboard=/)
   }
   const backend = read("../../api/app/modules/organizations/router.py")

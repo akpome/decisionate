@@ -19,6 +19,7 @@ function load(relativePath, dependencies = {}, globals = {}) {
     module: loaded, exports: loaded.exports, URL, Event, Map,
     require: name => {
       if (name === "./lib/portal-brand") return { portalBrand: { id: "" } }
+      if (name === "./lib/decisionate-domains") return domains
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
     }, ...globals,
@@ -27,6 +28,7 @@ function load(relativePath, dependencies = {}, globals = {}) {
 }
 
 const redirects = load("../features/auth/lib/auth-redirects.ts")
+const domains = load("../lib/decisionate-domains.ts")
 const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-redirects": redirects })
 const own = { id: 1, owner_user_id: "reviewer", role: "owner" }
 const shared = { id: 2, owner_user_id: "agency:client:2", role: "client_user" }
@@ -171,7 +173,7 @@ test("invitation links choose only their authorized workspace and never fall bac
   assert.match(resolver, /requestedWorkspaceId && !workspace/)
 })
 
-function proxyHarness({ selfRewrite = false } = {}) {
+function proxyHarness({ selfRewrite = false, responseObjects = false } = {}) {
   let clerkCalls = 0
   const proxy = load("../proxy.ts", {
     "./features/auth/lib/auth-redirects": redirects,
@@ -187,7 +189,9 @@ function proxyHarness({ selfRewrite = false } = {}) {
         } }) : undefined)
       },
     },
-    "next/server": { NextResponse: { next: () => "next", redirect: url => url.toString() } },
+    "next/server": { NextResponse: { next: () => "next", redirect: (url, init = 307) =>
+      responseObjects ? new Response(null, { status: typeof init === "number" ? init : init.status,
+        headers: { ...(typeof init === "number" ? {} : init.headers), location: url.toString() } }) : url.toString() } },
   }).default
   return {
     run: (path, userId = null, forwardingHeaders = {}) => {
@@ -284,8 +288,105 @@ test("the proxy does not alter genuine rewrites to another destination", async (
 test("private and signed-in redirects use the public deployment origin", async () => {
   const proxy = proxyHarness()
   const headers = { "x-forwarded-host": "decisionate.ca", "x-forwarded-proto": "https" }
-  assert.equal(new URL(await proxy.run("/dashboard", null, headers)).origin, "https://decisionate.ca")
-  assert.equal(new URL(await proxy.run("/sign-in", "reviewer", headers)).origin, "https://decisionate.ca")
+  assert.equal(new URL(await proxy.run("/dashboard", null, headers)).origin, "https://app.decisionate.ca")
+  assert.equal(new URL(await proxy.run("/sign-in", "reviewer", headers)).origin, "https://app.decisionate.ca")
+})
+
+test("apex keeps the public landing page and www permanently redirects with path and query intact", async () => {
+  const proxy = proxyHarness({ responseObjects: true })
+  assert.equal(await proxy.run("https://decisionate.ca/"), "next")
+  assert.equal(await proxy.run("https://decisionate.ca/demo?dashboard=business"), "next")
+  for (const path of ["/", "/privacy", "/demo?dashboard=business&utm_source=review", "/dashboard/billing?checkout=success"]) {
+    const response = await proxy.run(`https://www.decisionate.ca${path}`)
+    assert.equal(response.status, 308)
+    assert.equal(response.headers.get("location"), `https://decisionate.ca${path}`)
+  }
+  assert.equal(proxy.clerkCalls(), 0)
+})
+
+test("app root uses Clerk and routes existing sessions through workspace authorization", async () => {
+  const proxy = proxyHarness({ responseObjects: true })
+  for (const [user, destination] of [[null, "/sign-in"], ["reviewer", "/auth/redirect"]]) {
+    const response = await proxy.run("https://app.decisionate.ca/", user)
+    assert.equal(response.status, 307)
+    assert.equal(response.headers.get("cache-control"), "private, no-store")
+    assert.equal(response.headers.get("location"), `https://app.decisionate.ca${destination}`)
+    assert.equal(await proxy.run(response.headers.get("location"), user), undefined)
+  }
+  assert.equal(proxy.clerkCalls(), 4)
+  const headers = { "x-forwarded-host": "app.decisionate.ca", "x-forwarded-proto": "https" }
+  assert.equal((await proxy.run("http://localhost:3000/", null, headers)).headers.get("location"), "https://app.decisionate.ca/sign-in")
+})
+
+test("direct app dashboard links remain protected and retain their authorized destination", async () => {
+  const proxy = proxyHarness({ responseObjects: true })
+  for (const path of ["/dashboard", "/dashboard/connections?provider=meta_ads&connected=true", "/onboarding", "/platform-admin"]) {
+    const response = await proxy.run(`https://app.decisionate.ca${path}`)
+    const login = new URL(response.headers.get("location"))
+    assert.equal(login.origin, domains.DECISIONATE_APPLICATION_ORIGIN)
+    assert.equal(login.pathname, "/sign-in")
+    assert.equal(login.searchParams.get("redirect_url"), path)
+    assert.equal(await proxy.run(`https://app.decisionate.ca${path}`, "reviewer"), undefined)
+  }
+})
+
+test("old application links move to app and preserve invitation, checkout and OAuth state without loops", async () => {
+  const proxy = proxyHarness({ responseObjects: true })
+  const workspace = "/dashboard?workspace_id=agency%3Aclient%3A2"
+  for (const origin of [domains.DECISIONATE_MARKETING_ORIGIN, "https://www.decisionate.ca"]) {
+    for (const path of [
+      `/sign-in?redirect_url=${encodeURIComponent(origin + workspace)}`,
+      "/dashboard/billing?checkout=success&session_id=cs_example",
+      "/dashboard/connections?provider=meta_ads&connected=true&state=a%2Bb%3D",
+      "/sign-up/verify-email-address?ticket=opaque%2Bvalue",
+    ]) {
+      let current = origin + path
+      const seen = new Set()
+      for (let hop = 0; hop < 5; hop++) {
+        assert.ok(!seen.has(current), `Redirect loop: ${current}`)
+        seen.add(current)
+        const response = await proxy.run(current)
+        if (!(response instanceof Response)) break
+        current = response.headers.get("location")
+      }
+      const result = new URL(current)
+      assert.equal(result.origin, domains.DECISIONATE_APPLICATION_ORIGIN)
+      if (path.startsWith("/sign-in")) {
+        assert.equal(result.searchParams.get("redirect_url"), workspace)
+        const switched = await proxy.run(`${current}&switch_account=1`, "reviewer")
+        assert.equal(switched, undefined)
+      }
+      if (path.startsWith("/dashboard")) {
+        assert.equal(result.pathname, "/sign-in")
+        assert.equal(result.searchParams.get("redirect_url"), path)
+      }
+      if (path.startsWith("/sign-up")) assert.equal(result.searchParams.get("ticket"), "opaque+value")
+    }
+  }
+})
+
+test("password recovery, auth callbacks, API and shared links are not captured by the app-root rule", async () => {
+  const proxy = proxyHarness({ responseObjects: true })
+  for (const origin of [domains.DECISIONATE_APPLICATION_ORIGIN, "https://localhost:3000", "https://tenant.decisionate.app"]) {
+    for (const path of ["/sign-in", "/sign-in/forgot-password", "/sign-in/reset-password", "/sign-in/sso-callback", "/sign-up/verify-email-address", "/auth/redirect", "/api/portal-health", "/__clerk/handshake", "/share/dashboard?token=opaque"]) {
+      assert.equal(await proxy.run(origin + path), undefined, origin + path)
+    }
+  }
+  for (const origin of ["https://localhost:3000", "https://preview.vercel.app", "https://tenant.decisionate.app", "https://app.decisionate.ca.attacker.test"]) {
+    assert.equal(await proxy.run(origin + "/"), "next")
+  }
+  assert.equal(await proxy.run("https://decisionate.ca/api/portal-health"), undefined)
+  const { unstable_doesMiddlewareMatch } = require("next/experimental/testing/server")
+  const { config } = load("../proxy.ts", {
+    "./features/auth/lib/auth-redirects": redirects,
+    "@clerk/nextjs/server": { createRouteMatcher: () => () => false, clerkMiddleware: () => () => {} },
+    "next/server": {},
+  })
+  for (const path of ["/_next/static/chunks/app.js", "/_next/image?url=logo", "/icons/decisionate-logo.png", "/sw.js", "/manifest.webmanifest"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: path }), false, path)
+  }
+  assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/dashboard/connections" }), true)
+  assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/portal-health" }), true)
 })
 
 function browserStorage(blocked = false) {
