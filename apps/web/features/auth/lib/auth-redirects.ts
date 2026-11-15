@@ -1,3 +1,5 @@
+import { canonicalWorkspacePathname, isWorkspacePathname } from "@/lib/application-routes"
+
 export const AUTH_REDIRECTS = {
   afterLogin: "/auth/redirect",
   afterSignup: "/auth/redirect",
@@ -48,10 +50,12 @@ export function getSafeReturnTo(value: RedirectValue, origin?: string): string |
       return null
     }
 
-    if (!["/dashboard", "/onboarding", "/platform-admin"].some(route => pathname === route || pathname.startsWith(`${route}/`))) {
+    const canonicalPathname = canonicalWorkspacePathname(pathname)
+    if (!isWorkspacePathname(canonicalPathname) && !["/onboarding", "/platform-admin"].some(route => pathname === route || pathname.startsWith(`${route}/`))) {
       return null
     }
 
+    url.pathname = canonicalPathname
     return `${url.pathname}${url.search}${url.hash}`
   } catch {
     return null
@@ -70,10 +74,10 @@ export const getOnboardingUrl = (value?: RedirectValue) => withReturnTo("/onboar
 
 export function getDashboardReturnTo(value: RedirectValue, origin?: string) {
   const returnTo = getSafeReturnTo(value, origin)
-  if (returnTo?.startsWith("/dashboard")) return returnTo
+  if (returnTo && isWorkspacePathname(new URL(returnTo, "https://decisionate.invalid").pathname)) return returnTo
   if (returnTo?.split(/[?#]/)[0] === "/onboarding") {
     const nested = getSafeReturnTo(new URL(returnTo, "https://decisionate.invalid").searchParams.get("redirect_url"), origin)
-    if (nested?.startsWith("/dashboard")) return nested
+    if (nested && isWorkspacePathname(new URL(nested, "https://decisionate.invalid").pathname)) return nested
   }
   return null
 }

@@ -44,7 +44,7 @@ const gettingStartedItems = [
     id: "dataset",
     title: "Load a dataset",
     description: "Upload a CSV or connect a supported data source.",
-    href: "/dashboard/datasets",
+    href: "/datasets",
     action: "Open datasets",
   },
   {
@@ -58,21 +58,21 @@ const gettingStartedItems = [
     id: "analysis",
     title: "Choose a tool in Business Analysis",
     description: "Compare results, check a business change, or review customers, sales and cash.",
-    href: "/dashboard/reports",
+    href: "/reports",
     action: "Open Business Analysis",
   },
   {
     id: "decision",
     title: "Create an accountable decision",
     description: "Turn a recommendation into a decision with an expected outcome.",
-    href: "/dashboard/decisions",
+    href: "/decisions",
     action: "Open decisions",
   },
   {
     id: "learning",
     title: "Record the result and lesson",
     description: "Capture what happened so future recommendations improve.",
-    href: "/dashboard/decisions",
+    href: "/decisions",
     action: "Open decisions",
   },
 ] as const
@@ -1128,7 +1128,7 @@ export default function HelpSupportPage() {
                 </p>
 
                   <Link
-                    href={item.id === "decision" ? "/dashboard/decisions" : item.href}
+                    href={item.id === "decision" ? "/decisions" : item.href}
                     title={item.description}
                     className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--decisionate-brand-primary-text)] hover:underline"
                   >

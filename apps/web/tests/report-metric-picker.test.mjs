@@ -229,7 +229,7 @@ test("empty selection, unsaved selection and calculation issues are not conflate
     const html = render({ datasets: [dataset({ metrics: [], metric_issues: [{ code }] })] })
     assert.ok(html.includes(message))
     assert.match(html, /No report-ready metrics/)
-    assert.match(html, /href="\/dashboard\/datasets\/1"/)
+    assert.match(html, /href="\/datasets\/1"/)
     assert.doesNotMatch(html, /<select|Date field/)
   }
 })

@@ -126,7 +126,7 @@ test("new Clerk user object instances do not restart the same activity timer", (
 })
 
 test("hidden pages, unrelated routes and signed-out users do not record activity", () => {
-  for (const options of [{ visible: false }, { pathname: "/dashboard/settings" }, { userId: null }]) {
+  for (const options of [{ visible: false }, { pathname: "/settings" }, { userId: null }]) {
     const h = trackerHarness(options), cleanup = h.run()
     for (const callback of h.timers.values()) callback()
     assert.equal(h.calls.length, 0)

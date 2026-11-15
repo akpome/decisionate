@@ -14,7 +14,8 @@ function load(path, dependencies = {}, globals = {}) {
   }, ...globals })
   return loaded.exports
 }
-const redirects = load("../features/auth/lib/auth-redirects.ts")
+const routes = load("../lib/application-routes.ts")
+const redirects = load("../features/auth/lib/auth-redirects.ts", { "@/lib/application-routes": routes })
 const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-redirects": redirects })
 const destination = "/dashboard?workspace_id=agency%3Aclient%3Aone"
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status } }

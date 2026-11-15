@@ -55,9 +55,9 @@ test("read-only, limited coverage and active-decision reports do not invite dupl
   assert.ok(limited.indexOf("usable results from at least two datasets") < limited.indexOf("What deserves attention"))
   const value = report(); value.intelligence.recommendations[0].related_decision_id = 42
   const html = render(value, () => {})
-  assert.doesNotMatch(html, /Create decision/); assert.match(html, /href="\/dashboard\/decisions\/42"/)
+  assert.doesNotMatch(html, /Create decision/); assert.match(html, /href="\/decisions\/42"/)
   value.intelligence.findings[0].related_decision_id = 42
-  assert.equal((render(value, () => {}).match(/href="\/dashboard\/decisions\/42"/g) || []).length, 1)
+  assert.equal((render(value, () => {}).match(/href="\/decisions\/42"/g) || []).length, 1)
 })
 
 test("older recommendations without a matching finding remain readable but cannot create a broken draft", () => {

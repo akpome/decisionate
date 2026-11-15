@@ -193,7 +193,7 @@ class RetiredExplorerTests(unittest.TestCase):
                 caps = self.client.get("/api/v2/correlation-capabilities").json()
                 self.assertTrue(caps["retired"])
                 self.assertTrue(all(caps[key] is False for key in ("api", "ui", "widgets", "lag", "ai")))
-                self.assertEqual(caps["replacement_url"], "/dashboard/reports")
+                self.assertEqual(caps["replacement_url"], "/reports")
                 for path, body in (
                     ("correlation-analyses", definition()),
                     ("correlation-analyses/historical-analysis/runs", {}),
@@ -307,7 +307,7 @@ class RetiredExplorerTests(unittest.TestCase):
             evidence = build_report(sources, payload)
             evidence["source_analysis"] = {"run_id": "historical-run", "engine_version": "legacy.shared-periods.v1", "note": "Original saved evidence"}
             context = encode({"evidence_kind": "correlation_v2", "run_id": "historical-run", "result_id": "historical-result-0",
-                              "evidence_url": "/dashboard/relationships/explorer?run=historical-run&result=historical-result-0"})
+                              "evidence_url": "/relationships/explorer?run=historical-run&result=historical-result-0"})
             db.add(BusinessReport(id="historical-report", workspace_id="owner", user_id="owner", name=payload["name"],
                                   definition=encode(payload), snapshot=encode(evidence)))
             db.add(Decision(id=7, clerk_user_id="owner", workspace_id="owner", dataset_id=1, title="Keep the budget unchanged",

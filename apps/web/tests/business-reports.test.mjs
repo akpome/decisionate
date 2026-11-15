@@ -143,7 +143,7 @@ test("a fresh preview includes findings automatically and keeps the returned sel
     crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
     analysisSubmission: { current: false }, busy: false, previewDisabled: false, weekly: false,
     defaultReportQuestion: () => "What changed in the selected metrics, and what needs attention?",
-    window: { location: { pathname: "/dashboard/reports" }, history: { replaceState() {} } }, encodeURIComponent,
+    window: { location: { pathname: "/reports" }, history: { replaceState() {} } }, encodeURIComponent,
     waitForAnalysis: async (request, identity) => {
       assert.equal(identity, "job-1")
       return { definition: { ...original, included_findings: ["finding-1"] } }
@@ -245,7 +245,7 @@ function draftHandoff(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nopenDecisionDraft`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams, pagePath: "/dashboard/reports",
+    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams, pagePath: "/reports",
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
     saveSnapshot: async () => { calls.push("save"); return { report_id: "report-1" } },
     request: async (path, init) => { calls.push([path, init.method]); return { decision_id: 4 } },
@@ -257,7 +257,7 @@ function draftHandoff(overrides = {}) {
 test("opening an existing draft saves selected report evidence before navigating to the canonical decision", async () => {
   const { handler, calls, errors, openingDraft } = draftHandoff()
   await handler(3)
-  assert.deepEqual(calls, ["save", ["/report-1/decision-drafts/3/evidence", "POST"], "/dashboard/decisions/4"])
+  assert.deepEqual(calls, ["save", ["/report-1/decision-drafts/3/evidence", "POST"], "/decisions/4"])
   assert.deepEqual(errors, [])
   assert.equal(openingDraft.current, false)
 })
@@ -275,15 +275,15 @@ test("a prepared draft opens the central form with this report without inserting
   assert.equal(calls.length, 2)
   assert.equal(calls[0], "save")
   const url = new URL(calls[1], "https://decisionate.test")
-  assert.equal(url.pathname, "/dashboard/decisions/new")
+  assert.equal(url.pathname, "/decisions/new")
   assert.equal(url.searchParams.get("report"), "report-1")
-  assert.equal(url.searchParams.get("returnTo"), "/dashboard/reports?report=report-1")
+  assert.equal(url.searchParams.get("returnTo"), "/reports?report=report-1")
 })
 
 test("an existing weekly-template draft keeps its original report instead of rebinding its evidence", async () => {
   const { handler, calls } = draftHandoff({ report: { decision_drafts: [{ id: 3, report_id: "template-report" }] } })
   await handler(3)
-  assert.deepEqual(calls, [["/template-report/decision-drafts/3/evidence", "POST"], "/dashboard/decisions/4"])
+  assert.deepEqual(calls, [["/template-report/decision-drafts/3/evidence", "POST"], "/decisions/4"])
 })
 
 test("a failed save or binding keeps the user in the report and permits retry", async () => {
@@ -291,7 +291,7 @@ test("a failed save or binding keeps the user in the report and permits retry", 
     const { handler, calls, errors, openingDraft } = draftHandoff({ [stage]: async () => { throw new Error("Unavailable") } })
     await handler(3)
     assert.deepEqual(errors, ["Unavailable"])
-    assert.ok(calls.every(item => typeof item !== "string" || !item.startsWith("/dashboard/decisions")))
+    assert.ok(calls.every(item => typeof item !== "string" || !item.startsWith("/decisions")))
     assert.equal(openingDraft.current, false)
   }
 })

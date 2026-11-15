@@ -128,7 +128,7 @@ def send_ai_credit_low_balance_notification(
     plan_name = get_billing_plan_definition(plan)["name"]
     billing_url = (
         get_runtime_configuration().web_url.rstrip("/")
-        + "/dashboard/billing"
+        + "/billing"
     )
     subject = f"Your {get_application().name} AI credits are running low"
     message = (
@@ -229,7 +229,7 @@ def build_lifecycle_notice(
 
     billing_url = (
         get_runtime_configuration().web_url.rstrip("/")
-        + "/dashboard/billing"
+        + "/billing"
         + "?workspace_id=" + quote(subscription.workspace_id, safe="")
     )
     body = (

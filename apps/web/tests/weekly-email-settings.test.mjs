@@ -71,6 +71,6 @@ test("report save/send controls belong to preview while scheduled email has its 
   assert.match(source, /report && view === "report" && <>/)
   assert.match(source, /view === "explore" && <button[^\n]+Refresh available datasets/)
   assert.match(source, /Email workspace owner/)
-  assert.match(source, /href="\/dashboard\/alerts#weekly-delivery"[^\n]+Scheduled email/)
-  assert.match(source, /href="\/dashboard\/alerts#delivery-history"/)
+  assert.match(source, /href="\/alerts#weekly-delivery"[^\n]+Scheduled email/)
+  assert.match(source, /href="\/alerts#delivery-history"/)
 })

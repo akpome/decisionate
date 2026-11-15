@@ -3065,7 +3065,7 @@ export default function DashboardPage() {
             : "flex flex-wrap items-center justify-end gap-2"
       }
     >
-      <Link href="/dashboard/reports" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
+      <Link href="/reports" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
         <GitCompare size={16} />Cross-dataset review
       </Link>
 
@@ -3312,7 +3312,7 @@ export default function DashboardPage() {
 
             {selectedDatasetId && (
               <Link
-                href={`/dashboard/datasets/${selectedDatasetId}`}
+                href={`/datasets/${selectedDatasetId}`}
                 className="block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
               >
                 Open dataset details
@@ -3628,7 +3628,7 @@ export default function DashboardPage() {
                 <>
                   No datasets available.{" "}
                   <Link
-                    href="/dashboard/datasets"
+                    href="/datasets"
                     className="font-medium underline"
                   >
                     Add a dataset
@@ -3834,7 +3834,7 @@ export default function DashboardPage() {
 
               {selectedDatasetId && (
                 <Link
-                  href={`/dashboard/datasets/${selectedDatasetId}`}
+                  href={`/datasets/${selectedDatasetId}`}
                   className="mt-1 block truncate text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
                 >
                   Open dataset details
@@ -3998,7 +3998,7 @@ export default function DashboardPage() {
 
             {canConfigureWorkspace && (
               <Link
-                href="/dashboard/datasets"
+                href="/datasets"
                 className="mt-4 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
               >
                 Go to Datasets

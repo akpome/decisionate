@@ -272,7 +272,7 @@ export default function ActionNeededPage() {
 
           <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
             <Link
-              href="/dashboard/decisions"
+              href="/decisions"
               className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] sm:w-auto"
             >
               {t("View decisions")}
@@ -357,7 +357,7 @@ function ActionNeededDecisionCard({
 
   return (
     <Link
-      href={`/dashboard/decisions/${decision.id}?focus=next-action&source=action-needed`}
+      href={`/decisions/${decision.id}?focus=next-action&source=action-needed`}
       className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm transition hover:border-[var(--decisionate-brand-primary-ring)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--decisionate-brand-primary-ring)]"
     >
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">

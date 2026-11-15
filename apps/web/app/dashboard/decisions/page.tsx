@@ -2427,7 +2427,7 @@ function DecisionActivityRow({
 
     return (
         <Link
-        href={`/dashboard/decisions/${activityItem.decision_id}`}
+        href={`/decisions/${activityItem.decision_id}`}
             aria-label={`${activityItem.decision_title}: ${activityItem.message}`}
             className="group flex flex-wrap items-start gap-3 py-3 transition hover:bg-gray-50"
         >
@@ -2541,8 +2541,8 @@ function DecisionCard({
         followUpActions[0] === addNotesFollowUpAction
     const decisionHref =
         followUpActions.length > 0
-            ? `/dashboard/decisions/${decision.id}?focus=next-action`
-            : `/dashboard/decisions/${decision.id}`
+            ? `/decisions/${decision.id}?focus=next-action`
+            : `/decisions/${decision.id}`
     const analysisSource =
         getAIRecommendationSource(
             decision.description

@@ -1307,7 +1307,7 @@ export default function ForecastsPage() {
                   : " • Auto metric"}
                 {selectedDatasetId && (
                   <Link
-                    href={`/dashboard/datasets/${selectedDatasetId}`}
+                    href={`/datasets/${selectedDatasetId}`}
                     className="ml-2 font-medium text-[var(--decisionate-brand-primary-text)] hover:underline"
                   >
                     Open dataset details
@@ -1362,7 +1362,7 @@ export default function ForecastsPage() {
             </p>
 
             <Link
-              href="/dashboard/datasets"
+              href="/datasets"
               className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90"
             >
               {canManageWorkspaceData

@@ -108,7 +108,7 @@ export function DatasetSelector({
     emptyMessage ?? (
       <>
         <Link
-          href="/dashboard/datasets"
+          href="/datasets"
           className="font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
         >
           {t("Add a dataset")}

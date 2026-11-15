@@ -781,7 +781,7 @@ export default function DatasetDetailsPage() {
       <DashboardPageHeader
         leading={
           <Link
-            href="/dashboard/datasets"
+            href="/datasets"
             className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
           >
             <ArrowLeft size={16} />
@@ -813,7 +813,7 @@ export default function DatasetDetailsPage() {
                     nextDatasetId !== datasetId
                   ) {
                     router.push(
-                      `/dashboard/datasets/${nextDatasetId}`
+                      `/datasets/${nextDatasetId}`
                     )
                   }
                 }}
@@ -822,7 +822,7 @@ export default function DatasetDetailsPage() {
             </div>
 
             <Link
-              href={`/dashboard/forecasts?dataset=${datasetId ?? ""}`}
+              href={`/forecasts?dataset=${datasetId ?? ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
               <LineChart size={16} />
@@ -838,7 +838,7 @@ export default function DatasetDetailsPage() {
             </Link>
 
             <Link
-              href={`/dashboard/reports/dataset?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
+              href={`/reports/dataset?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
               <Table2 size={16} />
@@ -846,7 +846,7 @@ export default function DatasetDetailsPage() {
             </Link>
 
             <Link
-              href={`/dashboard/reports?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
+              href={`/reports?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
               <FileText size={16} />

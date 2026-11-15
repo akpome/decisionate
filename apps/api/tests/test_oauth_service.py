@@ -723,7 +723,7 @@ class OAuthAndSchedulingTests(unittest.TestCase):
         )
         self.assertEqual(
             query["return_url"],
-            ["https://app.example.com/dashboard/connections"],
+            ["https://app.example.com/connections"],
         )
 
     def test_salesforce_token_exchange_includes_pkce_verifier(self):

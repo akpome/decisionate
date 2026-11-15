@@ -96,6 +96,7 @@ test("hosted portal routing keeps default marketing and operator pages off custo
   class NextResponse { constructor(body, init) { this.body = body; this.status = init.status } static redirect(url) { return url.href } static next() { return "next" } }
   let authCalls = 0
   const { default: proxy } = load(source("../proxy.ts"), { require: name => {
+    if (name === "./lib/application-routes") return load(source("../lib/application-routes.ts"))
     if (name === "./lib/portal-brand") return { portalBrand }
     if (name === "./lib/decisionate-domains") return load(source("../lib/decisionate-domains.ts"))
     if (name === "next/server") return { NextResponse }
@@ -111,6 +112,7 @@ test("hosted portal routing keeps default marketing and operator pages off custo
   assert.equal(await run("/privacy"), portalBrand.privacy)
   assert.equal(await run("/terms"), portalBrand.terms)
   assert.equal((await run("/platform-admin")).status, 404)
+  assert.equal((await run("/white-label")).status, 404)
   assert.equal((await run("/dashboard/white-label")).status, 404)
   assert.equal((await run("https://preview.vercel.app/dashboard")).status, 404)
   assert.equal(authCalls, 0)

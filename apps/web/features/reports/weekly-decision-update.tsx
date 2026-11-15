@@ -12,7 +12,7 @@ export function WeeklyAssessmentSetup({ definition, issue, onSwitch, preview }: 
     <h2 className="text-base font-semibold">Existing decision update</h2>
     <p className="break-words text-sm text-gray-700">{study.change || "No action recorded."}</p>
     <p className="text-sm text-gray-600">The existing assessment configuration is retained. Business impact is managed within Business Analysis.</p>
-    <Link href={study.decision_id ? `/dashboard/reports/impact?decision=${study.decision_id}` : "/dashboard/reports/impact"} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><ArrowUpRight size={16} />Open Business impact</Link>
+    <Link href={study.decision_id ? `/reports/impact?decision=${study.decision_id}` : "/reports/impact"} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><ArrowUpRight size={16} />Open Business impact</Link>
     {issue && <p role="status" className="text-sm text-amber-800">{issue}</p>}
     <div className="flex flex-wrap items-center gap-3">
       {onSwitch && <button type="button" onClick={onSwitch} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium"><ChartNoAxesCombined size={16} />Set up metric monitoring</button>}
@@ -30,7 +30,7 @@ export function WeeklyDecisionUpdate({ report }: { report: BusinessReport }) {
     <p className="break-words text-sm font-medium">{analysis.headline}</p>
     <p className="break-words text-sm leading-6 text-gray-700">{analysis.summary}</p>
     <p className="text-xs text-gray-600">Assessment period: {analysis.window.start} to {analysis.window.end}. {analysis.estimate ? "Estimated impact, not proof of cause and effect." : "No impact amount has been estimated."}</p>
-    {decisionId && !report.review_decision_missing && <Link href={`/dashboard/decisions/${decisionId}#business-impact-review`} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><ArrowUpRight size={16} />View decision</Link>}
+    {decisionId && !report.review_decision_missing && <Link href={`/decisions/${decisionId}#business-impact-review`} className="inline-flex min-h-10 items-center gap-2 text-sm text-blue-700 underline"><ArrowUpRight size={16} />View decision</Link>}
     <details className="min-w-0 text-sm"><summary className="cursor-pointer text-gray-600">Assessment evidence</summary><div className="mt-3 space-y-2 text-gray-600">
       <p>{analysis.change} / Implemented {analysis.change_date}</p>
       <ul className="list-disc space-y-2 pl-5">{analysis.checks.map(check => <li key={check.key}>{check.message}</li>)}</ul>

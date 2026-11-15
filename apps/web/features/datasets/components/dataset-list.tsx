@@ -326,7 +326,7 @@ function DatasetListItem({
     return (
         <div className="flex items-center gap-3 px-4 py-3 transition hover:bg-gray-50" aria-busy={deletingDatasetId === dataset.id}>
             <Link
-                href={`/dashboard/datasets/${dataset.id}`}
+                href={`/datasets/${dataset.id}`}
                 className="min-w-0 flex-1 rounded-md"
             >
                 <div className="flex min-w-0 items-center gap-3">
@@ -360,7 +360,7 @@ function DatasetListItem({
 
             <div className="flex shrink-0 items-center gap-1">
                 <Link
-                    href={`/dashboard/datasets/${dataset.id}`}
+                    href={`/datasets/${dataset.id}`}
                     aria-label={`${t("View dataset")}: ${dataset.file_name}`}
                     title={t("View dataset")}
                     className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"

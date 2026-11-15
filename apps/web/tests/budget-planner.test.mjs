@@ -90,7 +90,7 @@ test("supported preview can save but cannot create a decision before saving", ()
 test("saved plan has one decision action and an existing decision replaces that action", () => {
   assert.match(render({ ...ready, plan_id: "plan" }, 2), /Create Decision/)
   const linked = render({ ...ready, plan_id: "plan", decision_id: 8 }, 2)
-  assert.match(linked, /\/dashboard\/decisions\/8/)
+  assert.match(linked, /\/decisions\/8/)
   assert.doesNotMatch(linked, /Create Decision/)
   assert.doesNotMatch(render({ ...ready, plan_id: "plan" }, 2, false, false), /Create Decision|Save plan|Delete saved plan/)
 })

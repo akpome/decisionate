@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { workspaceRoutes } from "./lib/application-routes";
 
 const nextConfig: NextConfig = {
   // Keep the web container portable across Vercel, Railway, Cloud Run, ECS,
@@ -10,6 +11,12 @@ const nextConfig: NextConfig = {
     process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 32) ||
     undefined
   ),
+  async rewrites() {
+    return workspaceRoutes.map(route => ({
+      source: `${route.path}/:path*`,
+      destination: `${route.internal}/:path*`,
+    }));
+  },
   async headers() {
     const noStalePwaAssetHeaders = [
       {

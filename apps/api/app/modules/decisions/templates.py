@@ -133,4 +133,4 @@ def build_decision_template_url(
         params["metric"] = str(metric).strip()
 
     web_app_url = get_runtime_configuration().web_url.rstrip("/")
-    return f"{web_app_url}/dashboard/decisions/new?{urlencode(params)}"
+    return f"{web_app_url}/decisions/new?{urlencode(params)}"

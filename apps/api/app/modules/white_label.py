@@ -419,7 +419,7 @@ an application. Existing Decisionate.ca variables and subscriptions stay unchang
    key and server secret through that frontend's secret store. Read the public
    brand settings from GET /api/v2/application. Use the matching token issuer,
    X-Application-Id for server calls, and X-Workspace-Id for workspace requests.
-   Implement /sign-in, /dashboard, /dashboard/billing and /dashboard/connections.
+   Implement /sign-in, /dashboard, /billing and /connections.
 7. Refresh Platform Admin > White-label setup to check the API configuration.
    Complete and save every launch check in launch-checks.json, then choose
    Confirm launch in the wizard. This records operator sign-off; it does not

@@ -1318,7 +1318,7 @@ function DataSourceConnectionRow({
                         1 {t("dataset")}
                       </span>
                       <Link
-                        href={`/dashboard/datasets/${datasetIds[0]}`}
+                        href={`/datasets/${datasetIds[0]}`}
                         className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)]"
                       >
                         <Database size={14} />
@@ -1344,7 +1344,7 @@ function DataSourceConnectionRow({
                           const datasetId = event.target.value
                           if (datasetId) {
                             window.location.assign(
-                              `/dashboard/datasets/${datasetId}`
+                              `/datasets/${datasetId}`
                             )
                           }
                         }}

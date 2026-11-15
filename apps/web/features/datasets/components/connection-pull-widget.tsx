@@ -87,7 +87,7 @@ export function ConnectionPullWidget({
         </div>
 
         <Link
-          href="/dashboard/connections"
+          href="/connections"
           className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto sm:border-0 sm:px-0 sm:py-0 sm:hover:bg-transparent sm:hover:opacity-80"
         >
           {t("Manage connections")}

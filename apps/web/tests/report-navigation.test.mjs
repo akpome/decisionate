@@ -14,22 +14,22 @@ const { reportPagePath, reportHistoryQuery, reportSourceTabs } = loaded.exports
 
 test("three report tabs distinguish relationships, combined results and one dataset", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(reportSourceTabs)), [
-    { href: "/dashboard/reports", label: "Relationships report" },
-    { href: "/dashboard/reports/combined", label: "Combined metrics report" },
-    { href: "/dashboard/reports/dataset", label: "Single dataset report" },
+    { href: "/reports", label: "Relationships report" },
+    { href: "/reports/combined", label: "Combined metrics report" },
+    { href: "/reports/dataset", label: "Single dataset report" },
   ])
-  assert.equal(reportPagePath(false, false, "multi", false), "/dashboard/reports/combined")
-  assert.equal(reportPagePath(false, false, "single", false), "/dashboard/reports/dataset")
-  assert.equal(reportPagePath(true, false, "multi", false), "/dashboard/reports/weekly")
-  assert.equal(reportPagePath(false, true, "multi", false), "/dashboard/reports/impact")
+  assert.equal(reportPagePath(false, false, "multi", false), "/reports/combined")
+  assert.equal(reportPagePath(false, false, "single", false), "/reports/dataset")
+  assert.equal(reportPagePath(true, false, "multi", false), "/weekly-reports")
+  assert.equal(reportPagePath(false, true, "multi", false), "/reports/impact")
   assert.match(read("../app/dashboard/reports/combined/page.tsx"), /<ReportPage includeRelationships=\{false\}/)
 })
 
 test("saved definitions and resumed jobs route to their own workflow, including legacy weekly assessments", () => {
   for (const [weekly, impact, scope, path] of [
-    [false, false, "multi", "/dashboard/reports"], [false, false, "single", "/dashboard/reports/dataset"],
-    [false, true, "multi", "/dashboard/reports/impact"], [true, true, "multi", "/dashboard/reports/weekly"],
-    [true, false, "multi", "/dashboard/reports/weekly"],
+    [false, false, "multi", "/reports"], [false, false, "single", "/reports/dataset"],
+    [false, true, "multi", "/reports/impact"], [true, true, "multi", "/weekly-reports"],
+    [true, false, "multi", "/weekly-reports"],
   ]) assert.equal(reportPagePath(weekly, impact, scope), path)
   const source = read("../features/reports/report-workspace.tsx")
   assert.match(source, /reportPagePath\(job.kind !== "report", Boolean\(job.definition\?\.impact\), job.definition\?\.scope, job.definition\?\.include_relationships\)/)
@@ -46,9 +46,9 @@ test("saved metric analyses and assessments request separate histories without c
 
 test("decision entry and saved assessment links open Business Impact directly", () => {
   const source = read("../features/decisions/components/decision-impact-reviews.tsx")
-  assert.match(source, /\/dashboard\/reports\/impact\?decision=\$\{decision.id\}/)
-  assert.match(source, /\/dashboard\/reports\/impact\?report=\$\{encodeURIComponent\(review.report_id\)\}/)
-  assert.doesNotMatch(source, /\/dashboard\/business-impact/)
+  assert.match(source, /\/reports\/impact\?decision=\$\{decision.id\}/)
+  assert.match(source, /\/reports\/impact\?report=\$\{encodeURIComponent\(review.report_id\)\}/)
+  assert.doesNotMatch(source, /\/business-impact/)
   assert.match(read("../features/reports/report-page.tsx"), /key=\{`[^`]*\$\{impactPage\}/)
 })
 
@@ -61,7 +61,7 @@ test("old Business Impact links redirect with their decision, saved report and j
   for (const params of [{}, { decision: "7" }, { report: "saved & report", job: "running-job" }, { tag: ["one", "two"], missing: undefined }]) {
     await loaded.exports.default({ searchParams: Promise.resolve(params) })
     const destination = new URL(destinations.at(-1), "https://example.test")
-    assert.equal(destination.pathname, "/dashboard/reports/impact")
+    assert.equal(destination.pathname, "/reports/impact")
     for (const [key, value] of Object.entries(params)) {
       assert.deepEqual(destination.searchParams.getAll(key), value === undefined ? [] : Array.isArray(value) ? value : [value])
     }

@@ -74,7 +74,7 @@ def notify_workspace_owner_of_authorization_failure(
             str(getattr(connection, "source_type", "") or "")
         )
         web_url = get_runtime_configuration().web_url.rstrip("/")
-        connections_url = f"{web_url}/dashboard/connections"
+        connections_url = f"{web_url}/connections"
         display_name = str(
             getattr(connection, "display_name", source_label) or source_label
         ).strip()

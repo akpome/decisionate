@@ -1202,6 +1202,6 @@ def oauth_redirect(status: str, source_type: str | None = None):
     if source_type:
         params["source"] = str(source_type)
     return RedirectResponse(
-        url=f"{get_web_app_url()}/dashboard/connections?{urlencode(params)}",
+        url=f"{get_web_app_url()}/connections?{urlencode(params)}",
         status_code=303,
     )

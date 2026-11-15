@@ -17,13 +17,13 @@ function load(path, imports = {}, globals = {}) {
 const destinations = load("../features/reports/legacy-relationship-destination.ts")
 
 test("retired explorer links lead to Reports or frozen evidence without dropping run/result identities", () => {
-  assert.equal(destinations.legacyRelationshipDestination({}), "/dashboard/reports")
+  assert.equal(destinations.legacyRelationshipDestination({}), "/reports")
   for (const params of [{ run: "run-1" }, { result: "result-1" }, { run: "run-1", result: "result-1" }]) {
     const value = new URL(destinations.legacyRelationshipDestination(params), "https://decisionate.ca")
-    assert.equal(value.pathname, "/dashboard/reports/evidence")
+    assert.equal(value.pathname, "/reports/evidence")
     for (const [key, item] of Object.entries(params)) assert.equal(value.searchParams.get(key), item)
   }
-  assert.equal(destinations.legacyRelationshipDestination({ run: ["one", "two"], returnTo: "https://example.test" }), "/dashboard/reports")
+  assert.equal(destinations.legacyRelationshipDestination({ run: ["one", "two"], returnTo: "https://example.test" }), "/reports")
   const encoded = new URL(destinations.historicalEvidenceHref("a/b?c", "d&e"), "https://decisionate.ca")
   assert.equal(encoded.searchParams.get("run"), "a/b?c")
   assert.equal(encoded.searchParams.get("result"), "d&e")
@@ -36,7 +36,7 @@ test("the old Next route only redirects and no longer imports the explorer", asy
     "@/features/reports/legacy-relationship-destination": destinations,
   })
   await Page({ searchParams: Promise.resolve({ run: "original", result: "finding" }) })
-  assert.equal(location, "/dashboard/reports/evidence?run=original&result=finding")
+  assert.equal(location, "/reports/evidence?run=original&result=finding")
   assert.doesNotMatch(read("../app/dashboard/relationships/explorer/page.tsx"), /CorrelationExplorer|capabilities/)
 })
 
@@ -149,11 +149,11 @@ test("the historical view exposes no job/creation controls and large snapshots c
   const html = renderToStaticMarkup(view.tree)
   assert.match(html, /Historical snapshot/)
   assert.match(html, /legacy.shared-periods.v1/)
-  assert.match(html, /dashboard\/reports\?run=original/)
+  assert.match(html, /href="\/reports\?run=original"/)
   assert.doesNotMatch(html, /Run analysis|Save insight|Save relationship widget|Refresh analysis/)
   const large = harness({ state: [{ ...run, definition: { ...run.definition, metrics: Array(50).fill({}) } }, matrix, null, "", false, 0] })
   assert.doesNotMatch(renderToStaticMarkup(large.tree), /Build report/)
   nodes(view.tree, node => node.type === Evidence)[0].props.onClose()
   assert.equal(view.state[2], null)
-  assert.equal(view.urls[0], "/dashboard/reports/evidence?run=original")
+  assert.equal(view.urls[0], "/reports/evidence?run=original")
 })

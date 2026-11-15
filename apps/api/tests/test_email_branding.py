@@ -55,19 +55,19 @@ class EmailBrandingTests(unittest.TestCase):
 
     def test_system_html_escapes_subject_body_and_preserves_safe_clickable_urls(self):
         subject = "Trial <ended> & billing"
-        body = 'Hello <script>alert(1)</script>,\n\nOpen billing: https://www.decisionate.ca/dashboard/billing?workspace_id=owner&tab=plan\njavascript:alert(1)'
+        body = 'Hello <script>alert(1)</script>,\n\nOpen billing: https://www.decisionate.ca/billing?workspace_id=owner&tab=plan\njavascript:alert(1)'
         html = email_branding.build_system_email_html(subject, body)
         self.assertIn("Trial &lt;ended&gt; &amp; billing", html)
         self.assertNotIn("<script>", html)
         self.assertIn("&lt;script&gt;", html)
-        self.assertIn('href="https://www.decisionate.ca/dashboard/billing?workspace_id=owner&amp;tab=plan"', html)
+        self.assertIn('href="https://www.decisionate.ca/billing?workspace_id=owner&amp;tab=plan"', html)
         self.assertNotIn('href="javascript:', html)
         self.assertIn('alt="Decisionate" width="42" height="42"', html)
         self.assertIn('name="viewport"', html)
         self.assertIn('role="presentation"', html)
 
     def test_system_emails_have_logo_and_plain_text_on_both_transports(self):
-        body = "Hello,\n\nYour trial has ended.\nOpen billing: https://www.decisionate.ca/dashboard/billing\n\nDecisionate"
+        body = "Hello,\n\nYour trial has ended.\nOpen billing: https://www.decisionate.ca/billing\n\nDecisionate"
         for provider in ("smtp", "resend"):
             with self.subTest(provider=provider), patch.object(email_delivery, "get_platform_email_settings",
                     return_value=self.email_settings(provider)), patch.object(email_delivery.smtplib, "SMTP") as smtp, patch.object(
@@ -134,7 +134,7 @@ class EmailBrandingTests(unittest.TestCase):
                 self.assertNotIn('src="javascript:', html)
 
     def test_weekly_intelligence_preserves_agency_branding_and_frozen_report_link(self):
-        url = "https://www.decisionate.ca/dashboard/reports/weekly?report=frozen-report&workspace_id=client"
+        url = "https://www.decisionate.ca/weekly-reports?report=frozen-report&workspace_id=client"
         intelligence = {"summary": "Sales changed <safely>.", "findings": [], "recommendations": [], "decisions": [], "quality": ["Check coverage."]}
         for logo in (None, "javascript:alert(1)", "https://agency.example.test/logo.png"):
             with self.subTest(logo=logo):

@@ -1,5 +1,7 @@
 "use client"
 
+import { canonicalWorkspacePathname } from "@/lib/application-routes"
+
 import Link from "next/link"
 import {
   usePathname,
@@ -145,22 +147,22 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         icon: <Home size={18} />,
       },
       {
-        href: "/dashboard/dashboards",
+        href: "/dashboards",
         label: "Dashboards",
         icon: <LayoutDashboard size={18} />,
       },
       {
-        href: "/dashboard/decisions",
+        href: "/decisions",
         label: "Decisions",
         icon: <Target size={18} />,
       },
       {
-        href: "/dashboard/action-needed",
+        href: "/action-needed",
         label: "Action Needed",
         icon: <AlertCircle size={18} />,
       },
       {
-        href: "/dashboard/settings",
+        href: "/settings",
         label: "Settings",
         icon: <Settings size={18} />,
         roles: ["client", "client_owner", "client_user"],
@@ -172,32 +174,32 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     collapsible: true,
     items: [
       {
-        href: "/dashboard/reports",
+        href: "/reports",
         label: "Business Analysis",
         icon: <FileText size={18} />,
       },
       {
-        href: "/dashboard/budget-planner",
+        href: "/budget-planner",
         label: "Budget Planner",
         icon: <Wallet size={18} />,
       },
       {
-        href: "/dashboard/reports/weekly",
+        href: "/weekly-reports",
         label: "Weekly Reports",
         icon: <CalendarDays size={18} />,
       },
       {
-        href: "/dashboard/relationships",
+        href: "/relationships",
         label: "Relationships",
         icon: <GitCompare size={18} />,
       },
       {
-        href: "/dashboard/forecasts",
+        href: "/forecasts",
         label: "Forecasts",
         icon: <LineChart size={18} />,
       },
       {
-        href: "/dashboard/alerts",
+        href: "/alerts",
         label: "Alerts",
         icon: <Bell size={18} />,
         roles: ["owner", "client", "client_owner", "client_user", "managed_client"],
@@ -210,17 +212,17 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     roles: ["owner", "client", "client_owner", "client_user"],
     items: [
       {
-        href: "/dashboard/datasets",
+        href: "/datasets",
         label: "Datasets",
         icon: <Database size={18} />,
       },
       {
-        href: "/dashboard/entity-matching",
+        href: "/entity-matching",
         label: "Entity Matching",
         icon: <UsersRound size={18} />,
       },
       {
-        href: "/dashboard/connections",
+        href: "/connections",
         label: "Connections",
         icon: <Plug size={18} />,
         roles: ["owner", "client", "client_owner", "client_user"],
@@ -233,14 +235,14 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     roles: ["owner"],
     items: [
       {
-        href: "/dashboard/settings",
+        href: "/settings",
         label: "Settings",
         icon: <Settings size={18} />,
         ownerOnly: true,
         roles: ["owner"],
       },
       {
-        href: "/dashboard/billing",
+        href: "/billing",
         label: "Billing",
         icon: <CreditCard size={18} />,
         ownerOnly: true,
@@ -252,7 +254,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     label: "Support",
     items: [
       {
-        href: "/dashboard/help",
+        href: "/help",
         label: "Help & Support",
         icon: <LifeBuoy size={18} />,
       },
@@ -306,7 +308,7 @@ function getDashboardNavigationLabel(
 export function DashboardShell({
   children,
 }: DashboardShellProps) {
-  const pathname = usePathname()
+  const pathname = canonicalWorkspacePathname(usePathname())
   const router = useRouter()
   const { user } = useUser()
   const [organization, setOrganization] =
@@ -603,7 +605,7 @@ export function DashboardShell({
   useEffect(() => {
     if (
       !user?.id || !workspaceSelectionReady ||
-      pathname === "/dashboard/help"
+      pathname === "/help"
     ) {
       return
     }
@@ -870,9 +872,9 @@ export function DashboardShell({
 
   const subscriptionAccessBlocked =
     Boolean(
-      pathname !== "/dashboard/billing" &&
-      pathname !== "/dashboard/settings" &&
-      pathname !== "/dashboard/help" &&
+      pathname !== "/billing" &&
+      pathname !== "/settings" &&
+      pathname !== "/help" &&
       subscriptionAccessKey ===
         `${user?.id || ""}:${activeWorkspaceId || ""}` &&
       subscriptionAccess &&
@@ -1035,7 +1037,7 @@ export function DashboardShell({
 
               const visibleItems =
                 group.items.filter(
-                  item => item.href !== "/dashboard/billing" || subscriptionAccess?.billing_enabled !== false
+                  item => item.href !== "/billing" || subscriptionAccess?.billing_enabled !== false
                 ).filter(
                   item =>
                     !item.ownerOnly ||
@@ -1233,12 +1235,12 @@ export function DashboardShell({
             <p className="text-sm text-gray-600">{workspaceAccessError || "Loading your workspace..."}</p>
             {workspaceAccessError && <button type="button" onClick={() => window.location.reload()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium"><RefreshCw size={16} aria-hidden="true" />Reload</button>}
           </section>
-        ) : activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/dashboard/settings", "/dashboard/billing", "/dashboard/help"].includes(pathname)) ? (
+        ) : activeWorkspaceRecord?.is_paused && !(activeWorkspaceRecord.agency_removed && ["/settings", "/billing", "/help"].includes(pathname)) ? (
           <div>
             <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
               <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Client account unlinked" : "Client account paused"}</h1>
               <p className="mt-2 text-sm text-gray-600">Your data is preserved. Contact your agency to resume access.</p>
-              {activeWorkspaceRecord.agency_removed && pathname !== "/dashboard/settings" && <Link href="/dashboard/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
+              {activeWorkspaceRecord.agency_removed && pathname !== "/settings" && <Link href="/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
             </section>
             {!activeWorkspaceRecord.agency_removed && canManageClientOwnership && user?.id && <ClientWorkspaceOwnership key={activeWorkspaceRecord.owner_user_id} userId={user.id} workspace={activeWorkspaceRecord} />}
           </div>
@@ -1352,7 +1354,7 @@ function SubscriptionRequiredPanel({
       <div className="mt-6 flex flex-wrap items-center gap-3">
         {canManageBilling && !isClientWorkspaceContext ? (
             <Link
-              href="/dashboard/billing"
+              href="/billing"
               className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               <CreditCard size={16} aria-hidden="true" />
@@ -1366,7 +1368,7 @@ function SubscriptionRequiredPanel({
           </p>
         )}
         <Link
-          href="/dashboard/help"
+          href="/help"
           className="text-sm font-medium text-gray-600 underline underline-offset-4 hover:text-gray-900"
         >
           {t("Contact support")}
@@ -1493,7 +1495,7 @@ function isActiveDashboardPath(
   pathname: string,
   href: string
 ) {
-  if (href === "/dashboard/reports" && pathname.startsWith("/dashboard/reports/weekly")) return false
+  if (href === "/reports" && pathname.startsWith("/weekly-reports")) return false
   if (href === "/dashboard") {
     return pathname === href
   }

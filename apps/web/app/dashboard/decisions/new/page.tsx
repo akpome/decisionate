@@ -134,7 +134,7 @@ function getSafeReturnPath(
         value.startsWith("//") ||
         value.includes("://")
     ) {
-        return "/dashboard/decisions"
+        return "/decisions"
     }
 
     return value
@@ -809,7 +809,7 @@ function NewDecisionContent() {
                     >
                         <fieldset disabled={creatingDecision} className="grid min-w-0 gap-4 lg:grid-cols-3">
                         {selectedFindingId && !reportEvidence.loadingReport && !findingDraft && <p role="alert" className="text-sm text-amber-800 lg:col-span-3">This recommendation is not available in the selected report.</p>}
-                        {findingDraft?.existingDecisionId && <p role="status" className="text-sm lg:col-span-3">This finding already has an active decision. <Link className="text-blue-700 underline" href={`/dashboard/decisions/${findingDraft.existingDecisionId}`}>View existing decision</Link></p>}
+                        {findingDraft?.existingDecisionId && <p role="status" className="text-sm lg:col-span-3">This finding already has an active decision. <Link className="text-blue-700 underline" href={`/decisions/${findingDraft.existingDecisionId}`}>View existing decision</Link></p>}
                         <DecisionReportEvidence evidence={reportEvidence} outcome={reportOutcome} disabled={creatingDecision} outcomeLocked={Boolean(selectedFindingId)}
                             onReportChange={id => { reportEvidence.select(id); setReportOutcome(""); setCreateDecisionError("") }}
                             onOutcomeChange={id => { setReportOutcome(id); setCreateDecisionError("") }} />
@@ -932,7 +932,7 @@ function NewDecisionContent() {
                                     </span>
                                     {" · "}
                                     <Link
-                                        href={`/dashboard/datasets/${selectedDecisionDataset.id}`}
+                                        href={`/datasets/${selectedDecisionDataset.id}`}
                                         className="font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
                                     >
                                         Open dataset
@@ -1282,7 +1282,7 @@ function NewDecisionContent() {
 
                         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                             <Link
-                                href="/dashboard/datasets"
+                                href="/datasets"
                                 className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-[var(--decisionate-brand-primary-ring)] px-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)] sm:w-auto"
                             >
                                 View datasets

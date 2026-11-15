@@ -164,7 +164,7 @@ test("report links preserve the exact chosen references and can only narrow auth
   const metrics = fields.map(item => ({ ...item, metric_column: item.metric_key }))
   const href = new URL(decisionEvidenceHref(42, [fields[0], fields[2]]), "https://decisionate.test")
   const selection = href.searchParams.get("evidence_metrics")
-  assert.equal(href.pathname, "/dashboard/decisions/42")
+  assert.equal(href.pathname, "/decisions/42")
   assert.deepEqual(JSON.parse(selection), [[1, "spend"], [2, "orders"]])
   assert.deepEqual(Array.from(selectedDecisionEvidence(metrics, selection), item => item.metric_column), ["spend", "orders"])
   assert.equal(selectedDecisionEvidence(metrics, JSON.stringify([[99, "spend"]])).length, 0)

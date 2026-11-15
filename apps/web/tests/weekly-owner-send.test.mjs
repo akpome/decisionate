@@ -28,8 +28,8 @@ function harness(overrides = {}) {
     report: { report_id: "saved-report", analysis_job_id: "preview-job" }, analysisJob: previewJob, weeklyPreviewBeforeSend: { current: previewJob },
     AnalysisFailedError,
     managementAction: action, weeklySendRequest: requestKey, routeController: { current: null },
-    pagePath: "/dashboard/reports/weekly", encodeURIComponent,
-    window: { location: { pathname: "/dashboard/reports/weekly", search: "" }, history: { replaceState: (...args) => { state.url = args[2] } } },
+    pagePath: "/weekly-reports", encodeURIComponent,
+    window: { location: { pathname: "/weekly-reports", search: "" }, history: { replaceState: (...args) => { state.url = args[2] } } },
     crypto: { randomUUID: () => "owner-request" },
     execute: async fn => { try { await fn() } catch (error) { errors.push(error.message) } },
     request: async (path, init) => { calls.push([path, init]); return { job_id: "send-job", kind: "weekly_owner_send", status: "queued" } },
@@ -50,7 +50,7 @@ test("manual weekly sends reference the saved preview without saving settings or
   assert.equal(calls[0][1].headers["Idempotency-Key"], "owner-request")
   assert.match(state.message, /workspace owner/)
   assert.equal(requestKey.current, null)
-  assert.equal(state.url, "/dashboard/reports/weekly")
+  assert.equal(state.url, "/weekly-reports")
 })
 
 test("read-only, nonweekly, incomplete, busy and repeated send clicks cannot queue duplicates", async () => {
@@ -85,11 +85,11 @@ test("a failure after delivery could have started preserves duplicate-send prote
 test("successful retries return to the report rather than an earlier failed delivery job", async () => {
   for (const weeklyPreviewReady of [true, false]) {
     const { handler, state } = harness({ weeklyPreviewReady, window: {
-      location: { pathname: "/dashboard/reports/weekly", search: "?job=earlier-failed-send" },
+      location: { pathname: "/weekly-reports", search: "?job=earlier-failed-send" },
       history: { replaceState: (_value, _unused, value) => { state.url = value } },
     } })
     await handler()
-    assert.equal(state.url, "/dashboard/reports/weekly")
+    assert.equal(state.url, "/weekly-reports")
     assert.equal(state.job.kind, "weekly_preview")
     assert.equal(state.job.status, "succeeded")
     assert.match(state.message, /sent to the workspace owner/)

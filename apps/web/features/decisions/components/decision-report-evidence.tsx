@@ -87,7 +87,7 @@ export function DecisionReportEvidence({ evidence, outcome, onReportChange, onOu
     {evidence.loadingReport && <p role="status" className="text-sm text-gray-500">Loading report evidence...</p>}
     {report && <>
       <p className="break-words text-sm font-medium">{report.business_question}</p>
-      <p className="text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / <Link href={`/dashboard/reports${report.weekly_report ? "/weekly" : ""}?report=${encodeURIComponent(evidence.reportId)}`} className="text-blue-700 underline">View saved report</Link></p>
+      <p className="text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / <Link href={`${report.weekly_report ? "/weekly-reports" : "/reports"}?report=${encodeURIComponent(evidence.reportId)}`} className="text-blue-700 underline">View saved report</Link></p>
       <ul className="space-y-1 text-xs text-gray-600">{report.metrics.map(metric => <li key={metric.id} className="break-words">{metric.dataset_label} / {metric.label}</li>)}</ul>
       <ImpactResult analysis={report.impact_analysis} compact />
       {report.status !== "ready" && <p role="alert" className="text-sm text-amber-800">Resolve report coverage before using this report as decision evidence.</p>}

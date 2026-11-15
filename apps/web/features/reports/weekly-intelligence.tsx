@@ -42,7 +42,7 @@ function Finding({ item, report, actions, onReview, busy }: { item: Intelligence
       <p>{item.relevance}</p><p className="text-xs text-gray-500">Priority basis: {item.rank_basis}</p>
       <Notes values={item.limitations} />
     </details>
-    {decisionId ? <Link href={`/dashboard/decisions/${decisionId}`} className={link}>View existing decision<ArrowRight size={16} /></Link>
+    {decisionId ? <Link href={`/decisions/${decisionId}`} className={link}>View existing decision<ArrowRight size={16} /></Link>
       : actions.length > 0 && onReview && report.status === "ready" && <button type="button" className={`${link} disabled:opacity-50`} disabled={busy} onClick={() => onReview(item.id)}>Create decision<ArrowRight size={16} /></button>}
   </article>
 }
@@ -93,14 +93,14 @@ export function WeeklyIntelligenceReport({ report, snapshot, onReview, busy }: {
         <p className="break-words text-sm leading-6">{item.action}</p>
         <p className="break-words text-xs text-gray-600">{item.priority} / Success metric: {label(item.success_metric_id)}</p>
         <details className="space-y-2"><summary className="cursor-pointer text-sm">Expected result and limitations</summary><p className="text-sm">{item.expected_direction}</p><Notes values={item.limitations} /></details>
-        {item.related_decision_id && <Link className={link} href={`/dashboard/decisions/${item.related_decision_id}`}>View existing decision<ArrowRight size={16} /></Link>}
+        {item.related_decision_id && <Link className={link} href={`/decisions/${item.related_decision_id}`}>View existing decision<ArrowRight size={16} /></Link>}
       </article>)}
     </section>}
     <section className={section} aria-label="Decisions and outcomes"><h3 className={heading}>Decisions and outcomes</h3>
       <p className="text-xs text-gray-500">Recorded when this report was generated: {intelligence.as_of.slice(0, 19).replace("T", " ")} UTC</p>
       {!intelligence.decisions.length && <p className="text-sm text-gray-600">No relevant decision progress was recorded.</p>}
       {intelligence.decisions.map(item => <article key={item.id} className="min-w-0 space-y-2">
-        <Link href={`/dashboard/decisions/${item.id}`} className={link}>{item.title}<ArrowRight size={16} /></Link><p className="text-sm">{item.assessment} / {item.status.replaceAll("_", " ")}</p>
+        <Link href={`/decisions/${item.id}`} className={link}>{item.title}<ArrowRight size={16} /></Link><p className="text-sm">{item.assessment} / {item.status.replaceAll("_", " ")}</p>
         <p className="break-words text-sm">Success metric: {item.success_metric}</p>
         <details className="space-y-2 text-sm"><summary className="cursor-pointer">Progress evidence</summary>
           <p className="break-words">Owner: {item.owner_name || "Assigned owner"}</p><p>Baseline: {formatReportValue(item.baseline, item.currency)}</p><p className="break-words">Target: {item.target || "Not recorded"}</p>

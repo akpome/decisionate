@@ -126,7 +126,7 @@ test("the first view starts with one decision choice and does not ask for a comp
 test("one accessible edit icon follows the selected decision, with no duplicate navigation in the assessment", () => {
   for (const decision_id of [7, 12]) {
     const html = render({ definition: { ...definition, impact: { ...definition.impact, decision_id } } })
-    assert.match(html, new RegExp(`href="/dashboard/decisions/${decision_id}#decision-title"`))
+    assert.match(html, new RegExp(`href="/decisions/${decision_id}#decision-title"`))
     const link = html.match(/<a[^>]*aria-label="Edit decision"[^>]*>[\s\S]*?<\/a>/)?.[0]
     assert.ok(link)
     assert.match(link, /title="Edit decision"/)
@@ -136,7 +136,7 @@ test("one accessible edit icon follows the selected decision, with no duplicate 
     assert.equal((html.match(/aria-label="Edit decision"/g) || []).length, 1)
     assert.ok(html.indexOf('aria-label="Decision to review"') < html.indexOf(link))
     assert.ok(html.indexOf(link) < html.indexOf('aria-label="Decision data period"'))
-    assert.doesNotMatch(html, /Edit the action or result in Decision Details|Explore relationships|href="\/dashboard\/reports"/)
+    assert.doesNotMatch(html, /Edit the action or result in Decision Details|Explore relationships|href="\/reports"/)
   }
 })
 
@@ -149,7 +149,7 @@ test("missing comparison and timing retain their warnings without a shortcut tha
   assert.match(html, /A delay will not be assumed/)
   assert.match(html, /Comparison dataset/)
   assert.match(html, /Comparison metric/)
-  assert.doesNotMatch(html, /No fair comparison|Explore relationships|href="\/dashboard\/reports"/)
+  assert.doesNotMatch(html, /No fair comparison|Explore relationships|href="\/reports"/)
   assert.deepEqual(original, before)
   const source = readFileSync(new URL("../features/reports/impact-builder.tsx", import.meta.url), "utf8")
   assert.doesNotMatch(source, /onExplore|onChange\(\{ impact: null \}\)/)

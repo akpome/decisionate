@@ -96,7 +96,7 @@ export function missingSetup(value: ToolDefinition) {
   if (!value.amounts_confirmed) return "Confirm that you have checked these figures."
   return ""
 }
-export const performancePath = (kind: ToolKind) => `/dashboard/reports/${{ return: "returns", profit: "profitability", retention: "retention", conversion: "conversion", cashflow: "cash-flow" }[kind]}`
+export const performancePath = (kind: ToolKind) => `/reports/${{ return: "returns", profit: "profitability", retention: "retention", conversion: "conversion", cashflow: "cash-flow" }[kind]}`
 export function sameDatasetLayout(value: ToolDefinition) {
   if (value.kind === "cashflow") return !value.outgoing_source
   if (!isMoneyDefinition(value)) return true

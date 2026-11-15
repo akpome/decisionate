@@ -13,8 +13,8 @@ vm.runInNewContext(ts.transpileModule(read("../features/performance/types.ts"), 
 const { newPerformance, missingSetup, performancePath, sameDatasetLayout, toolLabels } = loaded.exports
 
 test("historical comparisons remain within Business Analysis without more sidebar pages", () => {
-  assert.equal(performancePath("return"), "/dashboard/reports/returns")
-  assert.equal(performancePath("profit"), "/dashboard/reports/profitability")
+  assert.equal(performancePath("return"), "/reports/returns")
+  assert.equal(performancePath("profit"), "/reports/profitability")
   const nav = read("../features/reports/analysis-tools.tsx")
   assert.ok(nav.includes("Compare metrics"))
   assert.deepEqual(Object.values(toolLabels).sort(), ["Cash flow planning", "Customer retention", "Profitability", "Return on spend", "Sales conversion"])
@@ -26,7 +26,7 @@ test("historical comparisons remain within Business Analysis without more sideba
 
 test("all five tools have their own routes and explicit input checks", () => {
   for (const kind of ["retention", "conversion", "cashflow"]) {
-    assert.match(performancePath(kind), /^\/dashboard\/reports\//)
+    assert.match(performancePath(kind), /^\/reports\//)
     const value = newPerformance(kind)
     assert.notEqual(missingSetup(value), "")
     value.source = { dataset_id: 1, date_column: "date" }

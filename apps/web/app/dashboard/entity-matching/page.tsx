@@ -399,7 +399,7 @@ function EntityMatchingWorkspace() {
             </select>
           </label>
           <div className="grid gap-2 sm:grid-cols-2">
-            {!loading && datasets.length === 0 && !error && <Link href="/dashboard/datasets" className="text-sm text-blue-700 underline">{t("Add datasets")}</Link>}
+            {!loading && datasets.length === 0 && !error && <Link href="/datasets" className="text-sm text-blue-700 underline">{t("Add datasets")}</Link>}
             {loading ? <p role="status" className="text-sm text-gray-500">{t("Loading datasets...")}</p> : datasets.map(dataset => (
               <label key={dataset.id} className={`flex min-w-0 items-center gap-3 rounded-lg border px-3 py-3 ${selectedIds.includes(dataset.id) ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-white"}`}>
                 <input
@@ -605,7 +605,7 @@ function EntityMatchingWorkspace() {
           <div className="mt-4 grid gap-3 sm:grid-cols-3"><Summary label={t("Identities")} value={result.canonical_entity_count.toLocaleString()} /><Summary label={t("Rows matched across sources")} value={result.matched_row_count.toLocaleString()} /><Summary label={t("Unlinked source rows")} value={result.unmatched_row_count.toLocaleString()} /></div>
           {result.unified_dataset_id && (
             <Link
-              href={`/dashboard/datasets/${result.unified_dataset_id}`}
+              href={`/datasets/${result.unified_dataset_id}`}
               className="mt-4 inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
             >
               {t("Open")} {result.unified_dataset_name ?? t("unified dataset")}

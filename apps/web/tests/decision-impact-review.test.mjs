@@ -129,7 +129,7 @@ test("impact reports link back to the same decision instead of exposing another 
     decision_review_id: "assessment-1", decisions: [], decision_drafts: [],
   }, onOpenDraft: () => { throw new Error("Never create a decision") } }))
   assert.match(html, /Decision under review|Improve staffing/)
-  assert.match(html, /\/dashboard\/decisions\/7#business-impact-review/)
+  assert.match(html, /\/decisions\/7#business-impact-review/)
   assert.match(html, /Assessment attached/)
   assert.doesNotMatch(html, /Decision draft|Create decision/)
 })

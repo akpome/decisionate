@@ -492,7 +492,7 @@ function RelationshipsWorkspace() {
         ) : datasets.length < 2 ? (
           <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {t("Add at least two datasets before defining a cross-source relationship.")}
-            <Link href="/dashboard/datasets" className="ml-2 underline">{t("Open datasets")}</Link>
+            <Link href="/datasets" className="ml-2 underline">{t("Open datasets")}</Link>
           </p>
         ) : (
           <div className="mt-6 space-y-5">

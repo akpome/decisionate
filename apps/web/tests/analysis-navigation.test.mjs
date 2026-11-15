@@ -93,10 +93,10 @@ test("French report labels use the existing translation dictionary", () => {
 test("Business Analysis has a distinct label in the Analysis sidebar alongside Weekly Reports and Relationships", () => {
   const source = read("../app/dashboard/dashboard-shell.tsx")
   const analysis = source.slice(source.indexOf('label: "Analysis"'), source.indexOf('label: "Data"'))
-  assert.match(analysis, /href: "\/dashboard\/relationships",\s+label: "Relationships"/)
+  assert.match(analysis, /href: "\/relationships",\s+label: "Relationships"/)
   assert.equal((analysis.match(/label: "Analysis"/g) ?? []).length, 1)
-  assert.match(analysis, /href: "\/dashboard\/reports",\s+label: "Business Analysis"/)
-  assert.doesNotMatch(analysis, /label: "Business Impact"|href: "\/dashboard\/business-impact"/)
+  assert.match(analysis, /href: "\/reports",\s+label: "Business Analysis"/)
+  assert.doesNotMatch(analysis, /label: "Business Impact"|href: "\/business-impact"/)
   assert.ok(analysis.indexOf('label: "Business Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
   assert.ok(analysis.indexOf('label: "Weekly Reports"') < analysis.indexOf('label: "Relationships"'))
 })
@@ -109,15 +109,15 @@ test("Business impact shares the desktop tools and mobile selector with a single
     "@/features/performance/types": compile("../features/performance/types.ts"),
   })
   const tree = AnalysisTools({ active: "impact" }), html = renderToStaticMarkup(tree)
-  assert.match(html, /href="\/dashboard\/reports\/impact" aria-current="page"/)
+  assert.match(html, /href="\/reports\/impact" aria-current="page"/)
   assert.equal((html.match(/aria-current="page"/g) || []).length, 1)
   assert.match(html, /<option value="impact" selected="">Business impact<\/option>/)
   assert.equal((html.match(/<option /g) || []).length, 7)
   const selector = tree.props.children[0].props.children[1]
   selector.props.onChange({ target: { value: "metrics" } })
-  assert.equal(destination, "/dashboard/reports")
+  assert.equal(destination, "/reports")
   selector.props.onChange({ target: { value: "impact" } })
-  assert.equal(destination, "/dashboard/reports/impact")
+  assert.equal(destination, "/reports/impact")
 })
 
 test("sidebar navigation marks only the current workflow as active, including the single-dataset route", () => {
@@ -127,15 +127,15 @@ test("sidebar navigation marks only the current workflow as active, including th
   const code = ts.transpileModule(`module.exports = ${declaration.getText(ast)}`, { compilerOptions: { target: ts.ScriptTarget.ES2021 } }).outputText
   const loaded = { exports: {} }; vm.runInNewContext(code, { module: loaded })
   const matches = loaded.exports
-  for (const path of ["/dashboard/reports", "/dashboard/reports/dataset", "/dashboard/reports/evidence", "/dashboard/reports/impact"]) {
-    assert.equal(matches(path, "/dashboard/reports"), true)
-    assert.equal(matches(path, "/dashboard/reports/weekly"), false)
+  for (const path of ["/reports", "/reports/dataset", "/reports/evidence", "/reports/impact"]) {
+    assert.equal(matches(path, "/reports"), true)
+    assert.equal(matches(path, "/weekly-reports"), false)
   }
-  assert.equal(matches("/dashboard/reports/weekly", "/dashboard/reports"), false)
-  assert.equal(matches("/dashboard/reports/weekly", "/dashboard/reports/weekly"), true)
-  assert.equal(matches("/dashboard/business-impact", "/dashboard/business-impact"), true)
-  assert.equal(matches("/dashboard/business-impact", "/dashboard/reports"), false)
-  assert.equal(matches("/dashboard/reports", "/dashboard/business-impact"), false)
+  assert.equal(matches("/weekly-reports", "/reports"), false)
+  assert.equal(matches("/weekly-reports", "/weekly-reports"), true)
+  assert.equal(matches("/business-impact", "/business-impact"), true)
+  assert.equal(matches("/business-impact", "/reports"), false)
+  assert.equal(matches("/reports", "/business-impact"), false)
 })
 
 test("cross-workflow navigation is removed without losing source scope, delivery or explicit copy actions", () => {
@@ -155,8 +155,8 @@ test("cross-workflow navigation is removed without losing source scope, delivery
   assert.match(report, /mode === "explore" \? setupLabel : previewLabel/)
   assert.match(report, /weekly \? "Preview report" : definition.impact \? busy \? "Analyzing business impact\.\.\." : "Analyze business impact" : "Preview analysis"/)
   assert.match(report, /Copy selection to Weekly Reports/)
-  assert.match(report, /href="\/dashboard\/alerts#weekly-delivery"/)
-  assert.doesNotMatch(report, /href="\/dashboard\/relationships\/explorer"/)
+  assert.match(report, /href="\/alerts#weekly-delivery"/)
+  assert.doesNotMatch(report, /href="\/relationships\/explorer"/)
 })
 
 test("advanced comparison is removed while the basic saved relationships remain available", () => {

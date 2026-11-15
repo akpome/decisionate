@@ -99,7 +99,7 @@ test("legacy decision deep links go to Business Impact before loading weekly set
   visit(ast)
   assert.ok(redirect)
   assert.ok(source.indexOf(redirect) < source.indexOf('"/business-reports/weekly-settings"'))
-  for (const [impactPage, query, expected] of [[false, "decision=7&weekly=1", "/dashboard/reports/impact?decision=7"], [false, "decision=bad%26weekly%3D1", "/dashboard/reports/impact?decision=bad%26weekly%3D1"], [true, "decision=7", undefined], [false, "", undefined]]) {
+  for (const [impactPage, query, expected] of [[false, "decision=7&weekly=1", "/reports/impact?decision=7"], [false, "decision=bad%26weekly%3D1", "/reports/impact?decision=bad%26weekly%3D1"], [true, "decision=7", undefined], [false, "", undefined]]) {
     let path
     vm.runInNewContext(ts.transpileModule(`(() => { ${redirect} })()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
       { impactPage, params: new URLSearchParams(query), router: { replace: value => { path = value } }, encodeURIComponent })
@@ -155,7 +155,7 @@ test("weekly preview calculates draft edits without persisting settings or snaps
     execute: async action => action(), crypto: { randomUUID: () => "unique" },
     request: async (path, init) => { calls.push(path); const payload = JSON.parse(init.body); assert.equal(payload.name, "Draft report"); assert.equal(payload.grain, "weekly"); assert.equal(payload.metrics.length, 2); return { job_id: "weekly-job" } },
     setAnalysisJob() {}, encodeURIComponent,
-    window: { location: { pathname: "/dashboard/reports/weekly" }, history: { replaceState() {} } },
+    window: { location: { pathname: "/weekly-reports" }, history: { replaceState() {} } },
     waitForAnalysis: async () => ({ weekly_report: true }), setReport() {}, setView() {},
     setDefinition: () => { throw new Error("A weekly snapshot must not replace editable weekly settings") },
   })
@@ -175,7 +175,7 @@ function saveHarness(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nsaveWeeklyReport`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
     weeklyPreviewReady: true, report: { analysis_job_id: "preview-id" }, canManage: true, canSave: true, busy: false,
     analysisJob: { weekly_settings_saved: false }, managementAction, weeklySendRequest: { current: "old-send" },
-    weeklyDefinition, routeController: { current: null }, encodeURIComponent, pagePath: "/dashboard/reports/weekly",
+    weeklyDefinition, routeController: { current: null }, encodeURIComponent, pagePath: "/weekly-reports",
     execute: async action => action(),
     window: { history: { replaceState: (...args) => { state.url = args[2] } } },
     request: async (path, init) => { calls.push([path, init]); return { report: { weekly_current: true, analysis_job_id: "preview-id", name: "Weekly report" }, settings: { definition } } },
@@ -198,7 +198,7 @@ test("one post-preview save stores the report and weekly setup together, once", 
   assert.equal(state.job.weekly_settings_saved, true)
   assert.equal(state.saved, undefined, "Updating the current report must not add a historical snapshot")
   assert.equal(state.report.weekly_current, true)
-  assert.equal(state.url, "/dashboard/reports/weekly")
+  assert.equal(state.url, "/weekly-reports")
   assert.match(state.message, /Delivery settings are unchanged/)
   assert.equal(managementAction.current, false)
 })

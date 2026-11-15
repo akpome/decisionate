@@ -57,7 +57,7 @@ confirmation. The additive `white_label_launch_confirmations` table stores its
 revision, operator, time and a change-detection digest, never raw credentials.
 See `docs/white-label-onboarding.md` for the onboarding sequence and limits.
 
-The separate hosted self-service path lives at `/dashboard/white-label` for
+The separate hosted self-service path lives at `/white-label` for
 default-application Agency owners. With operator provider configuration enabled,
 it creates a Vercel project, isolated production Clerk application, Stripe Connect
 prices/webhook and a restricted Resend sending key. The customer supplies brand,

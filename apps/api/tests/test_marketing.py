@@ -958,7 +958,7 @@ class MarketingTests(unittest.TestCase):
         messages = self.schedule()
         body = templates.render_message(self.db, self.contact, messages["welcome"])
         self.assertIn("Each client connects and manages their own business data", body["text"])
-        self.assertIn("/dashboard/settings", body["text"])
+        self.assertIn("/settings", body["text"])
         self.db.add(Organization(name="Client", owner_user_id="owner:client:first", business_type="client"))
         self.db.commit()
         self.assertEqual(service.message_blocker(self.db, self.contact, messages["incomplete_setup"]), "agency_client_workspace_created")

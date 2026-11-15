@@ -475,12 +475,12 @@ def create_checkout_session(
         "line_items[0][price]": price_id,
         "line_items[0][quantity]": "1",
         "success_url": (
-            f"{config['web_app_url']}/dashboard/billing?checkout=success"
+            f"{config['web_app_url']}/billing?checkout=success"
             f"&workspace_id={quote(workspace_id, safe='')}"
             "&session_id={CHECKOUT_SESSION_ID}"
         ),
         "cancel_url": (
-            f"{config['web_app_url']}/dashboard/billing?checkout=cancelled"
+            f"{config['web_app_url']}/billing?checkout=cancelled"
             f"&workspace_id={quote(workspace_id, safe='')}"
         ),
         "client_reference_id": workspace_id,
@@ -623,11 +623,11 @@ def create_ai_credit_topup_session(
         "line_items[0][price]": topup_price_id,
         "line_items[0][quantity]": str(clean_credit_packs),
         "success_url": (
-            f"{config['web_app_url']}/dashboard/billing?topup=success"
+            f"{config['web_app_url']}/billing?topup=success"
             f"&workspace_id={quote(workspace_id, safe='')}&session_id={{CHECKOUT_SESSION_ID}}"
         ),
         "cancel_url": (
-            f"{config['web_app_url']}/dashboard/billing?topup=cancelled"
+            f"{config['web_app_url']}/billing?topup=cancelled"
             f"&workspace_id={quote(workspace_id, safe='')}"
         ),
         "client_reference_id": workspace_id,
@@ -830,7 +830,7 @@ def create_customer_portal_session(
         {
             "customer": customer_id,
             "return_url": (
-                f"{config['web_app_url']}/dashboard/billing?portal=returned"
+                f"{config['web_app_url']}/billing?portal=returned"
                 f"&workspace_id={quote(workspace_id or '', safe='')}"
             ),
         },

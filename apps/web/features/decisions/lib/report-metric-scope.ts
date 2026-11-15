@@ -16,7 +16,7 @@ export function selectedReportMetrics(report: Pick<BusinessReport, "definition" 
 export function decisionEvidenceHref(decisionId: number, references: BusinessReport["definition"]["metrics"]) {
   const selected = references.map(metric => [metric.dataset_id, metric.metric_key])
   const query = new URLSearchParams({ evidence_metrics: JSON.stringify(selected) })
-  return `/dashboard/decisions/${decisionId}?${query}`
+  return `/decisions/${decisionId}?${query}`
 }
 
 export function selectedDecisionEvidence(metrics: DecisionEvidenceMetric[], selection: string | null) {

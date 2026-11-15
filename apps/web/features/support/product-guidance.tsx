@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowUp, BookOpen, LoaderCircle, MessageCircle, RotateCcw, Square, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { askProductGuidance, type GuidanceResponse, type GuidanceTurn } from "@/lib/api"
+import { canonicalWorkspacePathname, isWorkspacePathname } from "@/lib/application-routes"
 
 type Message = GuidanceTurn & { id: number; response?: GuidanceResponse }
 type Props = { userId: string; workspaceId: string; onContactSupport: (message: string) => void }
@@ -19,7 +20,8 @@ export function guidanceHistory(messages: GuidanceTurn[]): GuidanceTurn[] {
 }
 
 export function safeGuidanceRoute(route: string): boolean {
-  return /^\/(?:dashboard(?:\/[a-z0-9-]+)*|privacy|terms|security)$/.test(route)
+  return /^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/.test(route) &&
+    (isWorkspacePathname(canonicalWorkspacePathname(route)) || ["/privacy", "/terms", "/security"].includes(route))
 }
 
 export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props) {
@@ -135,7 +137,7 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
                 <summary className="cursor-pointer py-1 text-blue-600">{source.title} · {source.section}</summary>
                 <p className="my-2 whitespace-pre-wrap leading-5 text-gray-600 dark:text-gray-300">{source.content}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-2">
-                  {safeGuidanceRoute(source.route) && <Link href={source.route} className="inline-flex items-center gap-1 text-blue-600 underline"><BookOpen size={13} aria-hidden="true" />Open page</Link>}
+                  {safeGuidanceRoute(source.route) && <Link href={canonicalWorkspacePathname(source.route)} className="inline-flex items-center gap-1 text-blue-600 underline"><BookOpen size={13} aria-hidden="true" />Open page</Link>}
                   <span className="text-gray-500">Documentation reviewed {source.reviewed_on}</span>
                 </div>
               </details>

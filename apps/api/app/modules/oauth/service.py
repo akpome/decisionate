@@ -1094,7 +1094,7 @@ def build_woocommerce_authorization_url(
         "app_name": "Decisionate",
         "scope": "read",
         "user_id": state_token,
-        "return_url": f"{get_web_app_url()}/dashboard/connections",
+        "return_url": f"{get_web_app_url()}/connections",
         "callback_url": callback_url,
     }
     return f"{authorization_url}?{urlencode(params)}"

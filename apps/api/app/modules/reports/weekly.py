@@ -96,7 +96,7 @@ def archive_weekly_delivery(db, job, report):
 def link_weekly_delivery(digest, report_id, workspace):
     from urllib.parse import urlencode
     from app.configuration import get_runtime_configuration
-    url = get_runtime_configuration().web_url.rstrip("/") + "/dashboard/reports/weekly?" + urlencode({"report": report_id, "workspace_id": workspace})
+    url = get_runtime_configuration().web_url.rstrip("/") + "/weekly-reports?" + urlencode({"report": report_id, "workspace_id": workspace})
     digest.review_url = digest.decision_template_url = url
     digest.cross_dataset_report["report_id"] = report_id
 

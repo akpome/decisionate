@@ -66,7 +66,7 @@ test("the total includes only add-ons supported by the selected plan and interva
 test("the expired gate provides a single billing destination and refreshes after confirmation", () => {
   const shell = readFileSync(new URL("../app/dashboard/dashboard-shell.tsx", import.meta.url), "utf8")
   const panel = shell.slice(shell.indexOf("function SubscriptionRequiredPanel"), shell.indexOf("function getWorkspaceOptions"))
-  assert.equal((panel.match(/href="\/dashboard\/billing"/g) || []).length, 1)
+  assert.equal((panel.match(/href="\/billing"/g) || []).length, 1)
   assert.ok(!panel.includes("billing_interval=month"))
   assert.ok(shell.includes('window.addEventListener("decisionate:billing-updated", refreshAccess)'))
 })

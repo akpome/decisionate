@@ -10,7 +10,7 @@ const source = readFileSync(new URL("../features/decisions/lib/default-decision-
 const page = readFileSync(new URL("../app/dashboard/decisions/new/page.tsx", import.meta.url), "utf8")
 const identity = "abcddcba-1234-4abc-8abc-1234567890ab"
 
-function draft(url = "https://decisionate.test/dashboard/decisions/new") {
+function draft(url = "https://decisionate.test/decisions/new") {
   const changes = [], state = { __NA: true, nextRouterState: true }
   const window = { location: { href: url }, history: { state, replaceState(value, _, path) {
     changes.push({ state: value, path }); window.location.href = new URL(path, window.location.href).href
@@ -54,7 +54,7 @@ test("fresh creation forms receive distinct random default names", () => {
 })
 
 test("reloading a draft reuses its name and preserves navigation parameters without bypassing the router", () => {
-  const form = draft("https://decisionate.test/dashboard/decisions/new?dataset=39&metric=ad_spend&returnTo=%2Fdashboard%2Fdecisions#details")
+  const form = draft("https://decisionate.test/decisions/new?dataset=39&metric=ad_spend&returnTo=%2Fdecisions#details")
   const first = form.decisionDraftId()
   assert.equal(form.decisionDraftId(), first)
   assert.equal(draft(form.window.location.href).decisionDraftId(), first)
@@ -64,13 +64,13 @@ test("reloading a draft reuses its name and preserves navigation parameters with
   const url = new URL(form.window.location.href)
   assert.equal(url.searchParams.get("dataset"), "39")
   assert.equal(url.searchParams.get("metric"), "ad_spend")
-  assert.equal(url.searchParams.get("returnTo"), "/dashboard/decisions")
+  assert.equal(url.searchParams.get("returnTo"), "/decisions")
   assert.equal(url.hash, "#details")
 })
 
 test("invalid draft identifiers are replaced, never used as default names", () => {
   for (const invalid of ["", "Review joined dataset evidence", "<script>", "undefined", "../another-page"]) {
-    const form = draft(`https://decisionate.test/dashboard/decisions/new?draft=${encodeURIComponent(invalid)}`)
+    const form = draft(`https://decisionate.test/decisions/new?draft=${encodeURIComponent(invalid)}`)
     assert.match(form.decisionDraftId(), /^[0-9a-f-]{36}$/)
     assert.equal(form.changes.length, 1)
   }

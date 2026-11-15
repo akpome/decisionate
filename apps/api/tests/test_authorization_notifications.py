@@ -84,7 +84,7 @@ class AuthorizationNotificationTests(unittest.TestCase):
         recipient, subject, body = send_email.call_args.args
         self.assertEqual(recipient, "owner@example.com")
         self.assertIn("QuickBooks", subject)
-        self.assertIn("https://app.example.com/dashboard/connections", body)
+        self.assertIn("https://app.example.com/connections", body)
         self.assertIn("Reauthorize", body.title())
 
     def test_does_not_resend_the_same_failure(self):

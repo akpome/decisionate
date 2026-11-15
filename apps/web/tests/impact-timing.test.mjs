@@ -31,7 +31,7 @@ test("a single supported historical relationship supplies advice without a numer
   assert.match(html, /Earlier records showed Meta \/ Spend moving 2 weeks ahead of the outcome/)
   assert.match(html, /Both early and later results count/)
   assert.match(html, /actual response/)
-  assert.match(html, /\/dashboard\/reports\?report=source/)
+  assert.match(html, /\/reports\?report=source/)
   assert.match(html, /Open the earlier analysis/)
   assert.doesNotMatch(html, /Explore relationships/)
   assert.doesNotMatch(html, /type="number"|<select|type="date"/)
@@ -54,7 +54,7 @@ test("missing source reports keep timing guidance without generic navigation, wh
   }
   const html = render({ ...study, timing_evidence: { ...evidence, status: "unavailable", report_id: "source & report", choices: [], message: "Earlier history could not support a delay." } })
   assert.match(html, /Earlier history could not support a delay/)
-  assert.match(html, /href="\/dashboard\/reports\?report=source%20%26%20report"/)
+  assert.match(html, /href="\/reports\?report=source%20%26%20report"/)
   assert.match(html, /Open the earlier analysis/)
 })
 

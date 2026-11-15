@@ -13,6 +13,7 @@ import {
 } from "./features/auth/lib/auth-redirects"
 import { portalBrand } from "./lib/portal-brand"
 import { DECISIONATE_APPLICATION_ORIGIN, DECISIONATE_MARKETING_ORIGIN } from "./lib/decisionate-domains"
+import { canonicalWorkspacePathname, isWorkspacePathname } from "./lib/application-routes"
 
 const isPublicDemoRoute = createRouteMatcher([
   "/",
@@ -21,11 +22,24 @@ const isPublicDemoRoute = createRouteMatcher([
   "/terms",
   "/security",
 ])
-const isProtectedRoute = createRouteMatcher([
+const isLegacyProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/onboarding(.*)",
   "/platform-admin(.*)",
 ])
+
+function isProtectedRoute(request: NextRequest) {
+  return isLegacyProtectedRoute(request) || isWorkspacePathname(request.nextUrl.pathname)
+}
+
+function redirectApplicationPath(request: NextRequest, origin: string, pathname: string, status: number) {
+  const destination = new URL(origin)
+  destination.pathname = pathname
+  destination.search = request.nextUrl.search
+  const returnTo = getSafeReturnTo(request.nextUrl.searchParams.get("redirect_url"), getAuthRequestOrigin(request.headers, request.url))
+  if (returnTo) destination.searchParams.set("redirect_url", returnTo)
+  return NextResponse.redirect(destination, status)
+}
 const isSignInRoute = createRouteMatcher([
   "/sign-in(.*)",
 ])
@@ -85,25 +99,23 @@ export default async function proxy(
       return NextResponse.redirect(new URL(request.nextUrl.pathname === "/privacy" ? portalBrand.privacy : portalBrand.terms))
     }
     if (isPublicDemoRoute(request)) return NextResponse.redirect(new URL("/sign-in", portalBrand.url))
-    if (request.nextUrl.pathname.startsWith("/platform-admin") || request.nextUrl.pathname.startsWith("/dashboard/white-label")) {
+    if (request.nextUrl.pathname.startsWith("/platform-admin") || canonicalWorkspacePathname(request.nextUrl.pathname).startsWith("/white-label")) {
       return new NextResponse("Not found", { status: 404 })
     }
   } else {
     const origin = getAuthRequestOrigin(request.headers, request.url)
     const hostname = new URL(origin).hostname
     const isLegacyMarketing = hostname === "www.decisionate.ca"
-    const isApplicationRoute = /^\/(sign-in|sign-up|auth|dashboard|onboarding|platform-admin)(\/|$)/.test(request.nextUrl.pathname)
+    const isApplicationRoute = isProtectedRoute(request) || /^\/(sign-in|sign-up|auth)(\/|$)/.test(request.nextUrl.pathname)
     const target = isLegacyMarketing ? DECISIONATE_MARKETING_ORIGIN
       : hostname === "decisionate.ca" && isApplicationRoute ? DECISIONATE_APPLICATION_ORIGIN : null
     if (target) {
-      const destination = new URL(target)
-      destination.pathname = request.nextUrl.pathname
-      destination.search = request.nextUrl.search
-      // Old invitations may carry an absolute return URL on the previous host.
-      const returnTo = getSafeReturnTo(request.nextUrl.searchParams.get("redirect_url"), origin)
-      if (returnTo) destination.searchParams.set("redirect_url", returnTo)
-      return NextResponse.redirect(destination, isLegacyMarketing ? 308 : 307)
+      return redirectApplicationPath(request, target, canonicalWorkspacePathname(request.nextUrl.pathname), isLegacyMarketing ? 308 : 307)
     }
+  }
+  const canonicalPathname = canonicalWorkspacePathname(request.nextUrl.pathname)
+  if (canonicalPathname !== request.nextUrl.pathname) {
+    return redirectApplicationPath(request, getAuthRequestOrigin(request.headers, request.url), canonicalPathname, 308)
   }
   if (isPublicDemoRoute(request) && !isApplicationHome(request)) {
     return NextResponse.next()

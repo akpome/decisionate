@@ -547,7 +547,7 @@ def build_weekly_report_review_url() -> str | None:
     try:
         return (
             get_runtime_configuration().web_url.rstrip("/")
-            + "/dashboard/reports/weekly?weekly=1"
+            + "/weekly-reports?weekly=1"
         )
     except Exception:
         return None

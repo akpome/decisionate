@@ -42,7 +42,7 @@ function submission(createDecision) {
     createDecisionReviewDate: "2026-11-01", createDecisionPriority: "medium", createDecisionCategory: "marketing", createDecisionConfidence: "",
     selectedMetric: "orders", reportEvidence: { reportId: "" }, reportOutcomeMetric: undefined, selectedFindingId: "", findingDraft: null,
     getCreateDecisionDatasetId: Number, setCreatingDecision: () => {}, setCreateDecisionError: message => errors.push(message),
-    getDecisionPageErrorMessage: error => error.message, returnPath: "/dashboard/decisions",
+    getDecisionPageErrorMessage: error => error.message, returnPath: "/decisions",
     router: { replace: value => destinations.push(value) }, console: { error: () => {} }, crypto: { randomUUID },
     decisionCreationKey: keyFactory(),
     createDecision: async (...args) => { calls.push(args); return createDecision?.(...args) },
@@ -65,7 +65,7 @@ test("two submit events in the same render make one request and successful navig
   await first
   await form.submit()
   assert.equal(form.calls.length, 1)
-  assert.deepEqual(form.destinations, ["/dashboard/decisions"])
+  assert.deepEqual(form.destinations, ["/decisions"])
   assert.equal(form.bindings.submissionInFlight.current, true)
   assert.equal(form.calls[0][0].title, "Shift campaign budget")
 })

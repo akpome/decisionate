@@ -1494,7 +1494,7 @@ export default function DecisionPage() {
         user.id,
         activeWorkspaceId
       )
-      router.replace("/dashboard/decisions")
+      router.replace("/decisions")
     } catch (error) {
       console.error(error)
       setSaveError({
@@ -1553,7 +1553,7 @@ export default function DecisionPage() {
 
         <div className="space-y-3">
           <Link
-            href="/dashboard/decisions"
+            href="/decisions"
             className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
           >
             <ArrowLeft size={16} />
@@ -1699,8 +1699,8 @@ export default function DecisionPage() {
     })
   const backToDecisionsHref =
     showActionQueueBackLink
-      ? "/dashboard/action-needed"
-      : "/dashboard/decisions"
+      ? "/action-needed"
+      : "/decisions"
   const backToDecisionsLabel =
     showActionQueueBackLink
       ? "Back to Action Needed"
@@ -1842,7 +1842,7 @@ export default function DecisionPage() {
                 >
                   {index > 0 && <span aria-hidden="true">+</span>}
                   <Link
-                    href={`/dashboard/datasets/${evidenceDataset.id}`}
+                    href={`/datasets/${evidenceDataset.id}`}
                     title={evidenceDataset.label}
                     className="max-w-full truncate text-gray-700 underline decoration-gray-300 underline-offset-2 transition hover:text-[var(--decisionate-brand-primary-text)]"
                   >
@@ -1853,7 +1853,7 @@ export default function DecisionPage() {
             </div>
           ) : dataset ? (
             <Link
-              href={`/dashboard/datasets/${decision.dataset_id}`}
+              href={`/datasets/${decision.dataset_id}`}
               title={decisionDatasetLabel}
               className="inline-block max-w-full truncate rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:bg-[var(--decisionate-brand-primary-soft)] hover:text-[var(--decisionate-brand-primary-text)]"
             >
@@ -2364,7 +2364,7 @@ export default function DecisionPage() {
               </p>
 
               <Link
-                href="/dashboard/action-needed"
+                href="/action-needed"
                 className="mt-2 inline-flex font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
               >
                 Back to Action Needed →

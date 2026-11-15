@@ -37,7 +37,7 @@ def completed(run):
 def capabilities(request: Request):
     identity(request)
     return {"api": False, "ui": False, "widgets": False, "lag": False, "ai": False,
-            "retired": True, "replacement_url": "/dashboard/reports", "guided_limit": 25, "advanced_limit": 0}
+            "retired": True, "replacement_url": "/reports", "guided_limit": 25, "advanced_limit": 0}
 
 
 @router.get("/correlation-analyses/catalog", deprecated=True)

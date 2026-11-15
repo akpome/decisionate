@@ -135,7 +135,7 @@ export function WeeklyEmailSettings({ userId, workspaceId }: { userId: string; w
       <div className="space-y-1"><p className="text-sm font-semibold">{saved.enabled ? "Automatic email is on" : "Automatic email is off"}</p>
         <p className="text-sm text-gray-600">{saved.enabled ? `Every ${saved.delivery_day} / ${saved.recipient_emails.length} recipient${saved.recipient_emails.length === 1 ? "" : "s"}` : "No scheduled reports will be emailed."}</p>
       </div>
-      <Link href="/dashboard/reports/weekly" className={button}>Weekly Reports<ArrowRight size={16} /></Link>
+      <Link href="/weekly-reports" className={button}>Weekly Reports<ArrowRight size={16} /></Link>
     </section>
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}

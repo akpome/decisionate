@@ -18,6 +18,30 @@ The existing proxy now applies these rules to the primary product only:
 | Old auth, onboarding, dashboard or platform-admin paths on the apex | 307 redirect to the same path/query on the app domain |
 | Protected paths on the app domain | Existing Clerk protection and workspace authorization |
 
+## Root-level application URLs
+
+Navigation uses `/connections`, `/decisions`, `/datasets`, `/dashboards`,
+`/reports`, `/weekly-reports`, `/relationships`, `/forecasts`, `/alerts`,
+`/action-needed`, `/budget-planner`, `/entity-matching`, `/settings`, `/billing`
+and `/help`. The main dashboard remains `/dashboard`. Detail URLs keep their
+resource hierarchy, for example `/decisions/6` and `/datasets/104`.
+
+`lib/application-routes.ts` is the shared route map. The existing Clerk proxy
+protects these URLs before Next.js internally rewrites them to the existing
+`app/dashboard/...` pages. This preserves the shared dashboard layout and
+workspace permission checks without duplicating pages. The shell normalizes
+internal and visible paths so active navigation and restricted workspace states
+remain consistent.
+
+Old `/dashboard/...` links permanently redirect to their canonical URLs with
+query parameters intact. `/dashboard/reports/weekly` and `/reports/weekly` both
+redirect to `/weekly-reports`. Safe authentication returns accept both formats
+and normalize old destinations before sign-in or onboarding. New email links,
+Stripe return URLs and connector OAuth frontend returns use the clean paths;
+the backend API paths, OAuth callback endpoints and Stripe webhooks are unchanged.
+The same paths work on existing branded portals without enabling new hosts or
+changing their identity, billing or email configuration.
+
 The existing `/auth/redirect` resolver still chooses an authorized workspace,
 onboarding or platform administration. The proxy never chooses a workspace or
 grants access based on a hostname. App-root redirects are private and uncached.
@@ -33,7 +57,7 @@ links, password recovery, logout and post-auth destinations remain relative to
 the app host. Root routing does not capture API handlers, shared links or Clerk
 callbacks. Static assets retain the existing proxy exclusions.
 
-No backend code, application IDs, credentials, user records, subscriptions,
+No application IDs, credentials, user records, subscriptions,
 workspaces or connector registrations are changed. This does not add a Vercel
 project or Clerk instance. The existing hosted-portal branch runs first;
 `*.decisionate.app`, other custom hosts, previews and localhost do not receive
@@ -126,3 +150,10 @@ After deployment and configuration, verify in an incognito browser:
 Provider emails, live credentials, billing and third-party OAuth transactions
 must be checked in the configured environment; do not report route tests as
 completed live provider tests.
+
+For the root-URL migration, also check direct navigation to `/connections`,
+`/decisions/6`, `/reports`, `/weekly-reports` and `/settings`, their corresponding
+old `/dashboard/...` bookmarks, browser Back/Forward, and the selected sidebar
+item. No additional Vercel or Clerk configuration is required if the existing
+app host is already configured as above; deploy both web and API changes so
+newly generated links use the new paths immediately.

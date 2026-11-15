@@ -46,7 +46,7 @@ const renderFindings = (patch = {}) => renderToStaticMarkup(React.createElement(
 const renderDecisions = (patch = {}) => renderToStaticMarkup(React.createElement(ReportDecisions, { report: {
   report_id: "report-1", status: "ready", definition: { metrics: [{ dataset_id: 1, metric_key: "spend" }, { dataset_id: 2, metric_key: "orders" }] }, decisions: [], ...patch,
 } }))
-const decisionLinks = html => html.match(/href="\/dashboard\/decisions\/\d+(?:\?[^"]*)?"/g) || []
+const decisionLinks = html => html.match(/href="\/decisions\/\d+(?:\?[^"]*)?"/g) || []
 
 test("relationship findings are read-only results with no checkbox or print-only visibility", () => {
   const html = renderFindings()
@@ -137,7 +137,7 @@ test("the three older joined-data entries from the screenshot are not report dec
   assert.match(html, /No active decisions linked to this report/)
   assert.equal(decisionLinks(html).length, 0)
   assert.doesNotMatch(html, /Review joined|Not yet recorded/)
-  assert.match(html, /href="\/dashboard\/decisions">Manage decisions/)
+  assert.match(html, /href="\/decisions">Manage decisions/)
   assert.equal(legacy.length, 3)
   assert.equal(legacy[2].status, "archived")
 })
@@ -189,7 +189,7 @@ test("one existing active source draft remains editable without inventing an act
   const html = renderDecisions({ report_id: undefined, decision_drafts: drafts })
   assert.equal(decisionLinks(html).length, 1)
   assert.match(html, /Earlier draft for these datasets/)
-  assert.match(html, /href="\/dashboard\/decisions\/1\?evidence_metrics=[^"]+">Continue decision/)
+  assert.match(html, /href="\/decisions\/1\?evidence_metrics=[^"]+">Continue decision/)
   const href = html.match(/href="([^\"]+)">Continue decision/)?.[1]
   assert.deepEqual(JSON.parse(new URL(href, "https://decisionate.test").searchParams.get("evidence_metrics")), [[1, "spend"], [2, "orders"]])
   assert.match(html, /Action not recorded/)
@@ -325,7 +325,10 @@ test("Vercel manages deployment IDs while standalone builds retain version skew 
   ]) {
     const loaded = { exports: {} }
     vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
-      { module: loaded, exports: loaded.exports, process: { env } })
+      { module: loaded, exports: loaded.exports, process: { env }, require: name => {
+        assert.equal(name, "./lib/application-routes")
+        return load("../lib/application-routes.ts")
+      } })
     assert.equal(loaded.exports.default.deploymentId, expected)
     if (expected) {
       assert.ok(loaded.exports.default.deploymentId.length <= 32, "Vercel deployment IDs must not exceed 32 characters")

@@ -206,15 +206,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       try {
         const params = new URLSearchParams(window.location.search)
         if (!impactPage && params.has("decision")) {
-          router.replace(`/dashboard/reports/impact?decision=${encodeURIComponent(params.get("decision")!)}`)
+          router.replace(`/reports/impact?decision=${encodeURIComponent(params.get("decision")!)}`)
           return
         }
         if (!weekly && params.has("weekly")) {
-          router.replace(`/dashboard/reports/weekly?${params}`)
+          router.replace(`/weekly-reports?${params}`)
           return
         }
         if (impactPage && !params.has("report") && !params.has("job") && !params.has("decision") && (params.has("run") || params.has("dataset"))) {
-          router.replace(`/dashboard/reports?${params}`)
+          router.replace(`/reports?${params}`)
           return
         }
         let weeklyContext: WeeklySettings | null = null
@@ -316,8 +316,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (!weekly && params.get("run")) {
           const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          if (pagePath !== "/dashboard/reports") {
-            router.replace(`/dashboard/reports?${params}`)
+          if (pagePath !== "/reports") {
+            router.replace(`/reports?${params}`)
             return
           }
           setDefinition(editableDefinition({ ...result, name: draftName.current }))
@@ -495,11 +495,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         if (decisionId === undefined) {
           const query = new URLSearchParams({ report: snapshot.report_id!, returnTo: `${pagePath}?report=${snapshot.report_id}` })
           if (findingId) query.set("finding", findingId)
-          router.push(`/dashboard/decisions/new?${query}`)
+          router.push(`/decisions/new?${query}`)
           return
         }
         const result = await request<{ decision_id: number }>(`/${snapshot.report_id}/decision-drafts/${decisionId}/evidence`, { method: "POST" })
-        router.push(`/dashboard/decisions/${result.decision_id}`)
+        router.push(`/decisions/${result.decision_id}`)
       })
     } finally { openingDraft.current = false }
   }
@@ -654,8 +654,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           <p role="status" className="self-center text-xs text-gray-600">{report.weekly_current ? "Current weekly report" : report.report_id ? "Saved report" : "Preview only / Not saved"}</p>
           {!weekly && <button type="button" className={button} disabled={busy || !canSave || Boolean(report.report_id) || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void execute(async () => { const saved = await saveSnapshot(); setMessage(saved.decision_review_id ? "Assessment saved to the existing decision. Its recorded outcome and lessons are unchanged." : "Report saved.") })}><Save size={16} />{report.definition.impact?.decision_id ? "Save assessment to decision" : "Save report"}</button>}
           {weekly && weeklyPreviewReady && canManage && !report.weekly_current && !analysisJob?.weekly_settings_saved && <button type="button" className={primaryButton} disabled={busy || !canSave || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />Save changes</button>}
-          {report.definition.impact?.decision_id && <Link className={button} href={`/dashboard/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
-          {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/dashboard/reports/weekly?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
+          {report.definition.impact?.decision_id && <Link className={button} href={`/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
+          {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/weekly-reports?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
           <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>
         </>}
         {weekly && canManage && view === "report" && report && (!report.report_id || report.weekly_current) && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Email workspace owner</button>}
@@ -667,12 +667,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved report changes" : weeklySettings?.definition ? "Weekly report saved" : "No weekly report saved"} / {weeklySettings?.enabled ? "Automatic email on" : "Automatic email off"}</p>
       <div className="flex flex-wrap items-center gap-3">
         {view === "explore" && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>}
-        {canManage && <Link href="/dashboard/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Scheduled email</Link>}
+        {canManage && <Link href="/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Scheduled email</Link>}
         {canManage && weeklySettings?.definition && view === "explore" && <details className="relative"><summary className="cursor-pointer text-sm text-gray-600">Report options</summary><div className="absolute right-0 z-10 mt-2 w-64 max-w-[80vw] rounded-md border border-gray-200 bg-white p-2 shadow-sm"><button type="button" className={`${button} w-full text-red-700`} disabled={busy} onClick={() => void removeWeeklySettings()}><Trash2 size={16} />Remove weekly report setup</button></div></details>}
       </div>
     </section>}
     {weeklySendIssue && <p role="status" className="border-l-2 border-amber-500 pl-3 text-sm leading-6 text-amber-900">{weeklySendIssue}</p>}
-    {uncertainDelivery && <p role="status" className="text-sm leading-6 text-amber-900">Delivery could not be confirmed. Check <Link href="/dashboard/alerts#delivery-history" className="text-blue-700 underline">delivery history</Link> before attempting another send.</p>}
+    {uncertainDelivery && <p role="status" className="text-sm leading-6 text-amber-900">Delivery could not be confirmed. Check <Link href="/alerts#delivery-history" className="text-blue-700 underline">delivery history</Link> before attempting another send.</p>}
     {deliveryNotStarted && <p role="status" className="text-sm leading-6 text-amber-900">Report preparation stopped before email delivery started. No email was sent. Generate a new preview, then try sending again.</p>}
 
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">

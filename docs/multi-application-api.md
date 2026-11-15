@@ -135,7 +135,7 @@ DECISIONATE_AI_APPLICATION_LOGO_URL=https://www.decisionate.ai/logo.png
 Alternatively prefix the existing SMTP settings. Email sender settings saved in
 the .ca Platform Admin do not override .ai. Invitations, billing links and weekly
 report links use the application's registered frontend URL. Existing frontend
-paths such as `/sign-in`, `/dashboard/billing` and `/dashboard/connections`
+paths such as `/sign-in`, `/billing` and `/connections`
 remain the link contract; the new frontend should implement those routes.
 
 Connector OAuth client IDs/secrets must also be prefixed. Public provider URLs

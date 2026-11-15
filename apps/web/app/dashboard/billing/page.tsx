@@ -439,7 +439,7 @@ function BillingPageContent() {
             "This checkout belongs to another workspace. Select that workspace to check your payment."
           )}
         </p>
-        <Link href="/dashboard/billing" className={secondaryButton}>
+        <Link href="/billing" className={secondaryButton}>
           {t("Open current workspace billing")}
         </Link>
       </div>
@@ -457,7 +457,7 @@ function BillingPageContent() {
                 "Only the business owner can manage billing and subscriptions for this workspace."
               )}
         </p>
-        <Link href="/dashboard/help" className={secondaryButton}>
+        <Link href="/help" className={secondaryButton}>
           {t("Contact support")}
         </Link>
       </div>
@@ -555,12 +555,12 @@ function BillingPageContent() {
                 </p>
               )}
               {paymentPending && (
-                <Link href="/dashboard/help" className="inline-block underline">
+                <Link href="/help" className="inline-block underline">
                   {t("Contact support")}
                 </Link>
               )}
               {currentConfirmation === "confirmed" && (
-                <Link href="/dashboard/billing" className={secondaryButton}>
+                <Link href="/billing" className={secondaryButton}>
                   {t("Back to billing")}
                 </Link>
               )}
@@ -733,7 +733,7 @@ function BillingPageContent() {
                 {t(
                   "Online payments are not available yet. Contact support for help with your workspace."
                 )}{" "}
-                <Link href="/dashboard/help" className="underline">
+                <Link href="/help" className="underline">
                   {t("Contact support")}
                 </Link>
               </p>

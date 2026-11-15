@@ -13,7 +13,7 @@ export function MarketingActivityTracker() {
     if (!userId || process.env.NEXT_PUBLIC_PORTAL_ID) return
     const content = new URLSearchParams(window.location.search).get("utm_content")
     const messageId = content?.match(/^lifecycle-(\d+)$/)?.[1]
-    const meaningful = /^\/dashboard(?:$|\/(?:dashboards|insights|decisions)(?:\/|$))/.test(pathname)
+    const meaningful = /^\/(?:dashboard|dashboards|insights|decisions)(?:\/|$)/.test(pathname)
     if (!meaningful && !messageId) return
     const controller = new AbortController()
     const timer = window.setTimeout(() => {

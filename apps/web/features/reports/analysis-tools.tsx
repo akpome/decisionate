@@ -7,8 +7,8 @@ import { performancePath, toolLabels, type ToolKind } from "@/features/performan
 export function AnalysisTools({ active = "metrics" }: { active?: "metrics" | "impact" | ToolKind }) {
   const router = useRouter()
   const items = [
-      { key: "metrics", label: "Compare metrics", href: "/dashboard/reports" },
-      { key: "impact", label: "Business impact", href: "/dashboard/reports/impact" },
+      { key: "metrics", label: "Compare metrics", href: "/reports" },
+      { key: "impact", label: "Business impact", href: "/reports/impact" },
       ...Object.entries(toolLabels).map(([key, label]) => ({ key, label, href: performancePath(key as ToolKind) })),
   ]
   return <nav aria-label="Business analysis tools" className="border-b border-gray-200 pb-3 text-sm print:hidden">

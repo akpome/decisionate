@@ -324,12 +324,12 @@ class ApplicationIsolationTests(unittest.TestCase):
         request = Request({"type": "http", "method": "GET", "path": "/oauth/callback",
                            "headers": [], "query_string": b"state=state-ai&error=access_denied"})
         response = oauth.process_oauth_callback(request)
-        self.assertTrue(response.headers["location"].startswith("https://decisionate.ai/dashboard/connections?"))
+        self.assertTrue(response.headers["location"].startswith("https://decisionate.ai/connections?"))
         response = self.client.get("/oauth/callback?state=state-ai&error=access_denied", headers={
             "Origin": "https://external-provider.test", "X-Application-Id": "untrusted",
         }, follow_redirects=False)
         self.assertEqual(response.status_code, 303, response.text)
-        self.assertTrue(response.headers["location"].startswith("https://decisionate.ai/dashboard/connections?"))
+        self.assertTrue(response.headers["location"].startswith("https://decisionate.ai/connections?"))
         self.assertTrue(get_application().is_default)
 
     def test_ingestion_worker_restores_secondary_context_from_job(self):
@@ -458,9 +458,9 @@ class ApplicationIsolationTests(unittest.TestCase):
                 repeat = notifications.send_due_billing_lifecycle_notifications(db, now)
         self.assertEqual((result["notified"], repeat["notified"]), (2, 0))
         by_app = {identity: (body, sender) for identity, body, sender in sent}
-        self.assertIn("https://decisionate.ai/dashboard/billing", by_app["decisionate-ai"][0])
+        self.assertIn("https://decisionate.ai/billing", by_app["decisionate-ai"][0])
         self.assertEqual(by_app["decisionate-ai"][1], "no-reply@decisionate.ai")
-        self.assertIn("https://www.decisionate.ca/dashboard/billing", by_app[DEFAULT_APPLICATION_ID][0])
+        self.assertIn("https://www.decisionate.ca/billing", by_app[DEFAULT_APPLICATION_ID][0])
         self.assertEqual(by_app[DEFAULT_APPLICATION_ID][1], "no-reply@decisionate.ca")
         self.assertTrue(get_application().is_default)
 

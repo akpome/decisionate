@@ -142,10 +142,10 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
             {metricIssues.length > 0 && <details className="mt-2 text-sm"><summary className="min-h-10 cursor-pointer py-2 font-medium text-gray-600">{t("Unavailable metrics")} ({metricIssues.length})</summary><ul className="space-y-2 border-l-2 border-amber-200 pl-3 text-gray-600">{metricIssues.map(issue => <li key={`${issue.metric_key}:${issue.code}`} className="break-words"><span className="font-medium">{issue.metric_key}</span>: {issueText(issue)}</li>)}</ul></details>}
             {count > 0 && <p className="mt-3 border-t border-gray-100 pt-3 text-xs font-medium text-blue-800">{t("Selected metrics")}: {count}</p>}
           </>}
-          {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/dashboard/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
+          {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
         </fieldset>
       })}
-      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(!datasets.length ? "No datasets available." : singleDataset ? selectedDatasetId === null ? "No dataset selected." : "Selected dataset unavailable." : "No matching datasets or metrics.")}</p>{datasets.length === 0 && <Link href="/dashboard/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
+      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(!datasets.length ? "No datasets available." : singleDataset ? selectedDatasetId === null ? "No dataset selected." : "Selected dataset unavailable." : "No matching datasets or metrics.")}</p>{datasets.length === 0 && <Link href="/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
     </div>
     {!singleDataset && footer && <div className="mt-3 shrink-0">{footer}</div>}
   </section>

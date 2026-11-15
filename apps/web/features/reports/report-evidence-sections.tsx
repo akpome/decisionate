@@ -24,7 +24,7 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
   if (reviewedDecision) return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Decisions and outcomes">
     <h3 className="text-lg font-semibold">Decision under review</h3>
     {report.review_decision_missing ? <p className="text-sm text-gray-600">The decision is no longer available. This report remains historical evidence.</p> : <>
-      <Link className="break-words font-medium text-blue-700 underline" href={`/dashboard/decisions/${reviewedDecision}#business-impact-review`}>{report.review_decision ? getDecisionDisplayTitle(report.review_decision) : `Decision #${reviewedDecision}`}</Link>
+      <Link className="break-words font-medium text-blue-700 underline" href={`/decisions/${reviewedDecision}#business-impact-review`}>{report.review_decision ? getDecisionDisplayTitle(report.review_decision) : `Decision #${reviewedDecision}`}</Link>
       <p className="text-sm text-gray-600">{report.decision_review_id ? "Assessment attached to this decision." : "Assessment not yet saved to this decision."}</p>
     </>}
   </section>
@@ -49,7 +49,7 @@ export function ReportDecisions({ report, onOpenDraft, busy = false }: {
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Decisions and outcomes">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h3 className="text-lg font-semibold">Decisions and outcomes</h3>
-      <Link className="text-sm text-blue-700 underline print:hidden" href="/dashboard/decisions">Manage decisions</Link>
+      <Link className="text-sm text-blue-700 underline print:hidden" href="/decisions">Manage decisions</Link>
     </div>
     {active.length > 0 ? active.map(decision => <DecisionRow key={decision.id} decision={decision} report={report} />)
       : draft ? <div className="min-w-0 border-b border-gray-100 pb-3" aria-label="Existing decision draft">

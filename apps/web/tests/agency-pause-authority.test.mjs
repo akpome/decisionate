@@ -30,8 +30,8 @@ test("agency pause and resume controls are available after client ownership is a
 })
 
 test("paused managed clients cannot use independent-trial recovery controls", () => {
-  assert.match(shell, /activeWorkspaceRecord\.agency_removed && \["\/dashboard\/settings"/)
-  assert.match(shell, /activeWorkspaceRecord\.agency_removed && pathname !== "\/dashboard\/settings" && <Link/)
+  assert.match(shell, /activeWorkspaceRecord\.agency_removed && \["\/settings"/)
+  assert.match(shell, /activeWorkspaceRecord\.agency_removed && pathname !== "\/settings" && <Link/)
   assert.match(shell, /!activeWorkspaceRecord\.agency_removed && canManageClientOwnership && user\?\.id && <ClientWorkspaceOwnership/)
   assert.match(shell, /\["client", "client_owner", "owner"\]\.includes\(activeWorkspaceRole\)/)
   assert.match(shell, /"Client account unlinked" : "Client account paused"/)
@@ -57,11 +57,11 @@ function pausedMarkup(overrides = {}) {
 }
 
 test("unlinked dashboards show the requested status and only a Settings link", () => {
-  for (const pathname of ["/dashboard", "/dashboard/reports", "/dashboard/forecasts"]) {
+  for (const pathname of ["/dashboard", "/reports", "/forecasts"]) {
     const html = pausedMarkup({ pathname })
     assert.match(html, /Client account unlinked/)
     assert.match(html, /Your data is preserved\. Contact your agency to resume access\./)
-    assert.match(html, /href="\/dashboard\/settings"/)
+    assert.match(html, /href="\/settings"/)
     assert.doesNotMatch(html, /Ownership choices|Start free trial|Subscribe directly|Delete workspace/)
   }
 })

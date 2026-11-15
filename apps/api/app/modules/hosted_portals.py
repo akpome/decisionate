@@ -210,7 +210,7 @@ def connect_stripe(request: Request):
 
 @router.get("/stripe/callback")
 def stripe_callback(state: str = "", code: str = "", error: str = ""):
-    return_url = get_application().web_url + "/dashboard/white-label"
+    return_url = get_application().web_url + "/white-label"
     if not state or len(state) > 200 or len(code) > 500:
         raise HTTPException(400, "Invalid Stripe return link.")
     with SessionLocal() as db:

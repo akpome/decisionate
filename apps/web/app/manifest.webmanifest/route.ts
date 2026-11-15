@@ -64,13 +64,13 @@ export function GET(request: Request) {
       getManifestShortcut(
         "Alerts",
         "Open KPI email alerts",
-        "/dashboard/alerts",
+        "/alerts",
         logoUrl
       ),
       getManifestShortcut(
         "Decisions",
         "Open decision workspace",
-        "/dashboard/decisions",
+        "/decisions",
         logoUrl
       ),
     ],

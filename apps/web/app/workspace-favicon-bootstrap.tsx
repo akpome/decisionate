@@ -1,6 +1,7 @@
 "use client"
 
 import { useLayoutEffect } from "react"
+import { canonicalWorkspacePathname, isWorkspacePathname } from "@/lib/application-routes"
 
 const workspaceFaviconAttribute =
   "data-decisionate-workspace-favicon"
@@ -14,7 +15,7 @@ export function WorkspaceFaviconBootstrap() {
   useLayoutEffect(() => {
     const path = window.location.pathname
     const isWorkspaceRoute =
-      path.startsWith("/dashboard") ||
+      isWorkspacePathname(canonicalWorkspacePathname(path)) ||
       path.startsWith("/share")
     const iconUrl = isWorkspaceRoute
       ? pendingWorkspaceIconUrl

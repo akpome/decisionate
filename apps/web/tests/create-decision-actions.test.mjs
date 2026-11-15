@@ -100,14 +100,14 @@ test("compact evidence actions retain their contextual tooltip and variant", () 
 })
 
 test("creation links carry the dataset, focused metric and return location", () => {
-  const href = buildCreateDecisionHref({ datasetId: 39, metric: "Gross profit & margin", returnTo: "/dashboard/datasets/39" })
+  const href = buildCreateDecisionHref({ datasetId: 39, metric: "Gross profit & margin", returnTo: "/datasets/39" })
   const url = new URL(href, "https://decisionate.test")
-  assert.equal(url.pathname, "/dashboard/decisions/new")
+  assert.equal(url.pathname, "/decisions/new")
   assert.equal(url.searchParams.get("dataset"), "39")
   assert.equal(url.searchParams.get("metric"), "Gross profit & margin")
-  assert.equal(url.searchParams.get("returnTo"), "/dashboard/datasets/39")
+  assert.equal(url.searchParams.get("returnTo"), "/datasets/39")
   const html = render(CreateDecisionLink, { href })
-  assert.match(html, /href="\/dashboard\/decisions\/new\?/)
+  assert.match(html, /href="\/decisions\/new\?/)
   assert.match(html, />Create decision<\/a>/)
 })
 
@@ -116,7 +116,7 @@ test("manual creation omits empty metrics and invalid dataset ids", () => {
     const url = new URL(buildCreateDecisionHref({ datasetId, metric: "  " }), "https://decisionate.test")
     assert.equal(url.searchParams.has("dataset"), false)
     assert.equal(url.searchParams.has("metric"), false)
-    assert.equal(url.searchParams.get("returnTo"), "/dashboard/decisions")
+    assert.equal(url.searchParams.get("returnTo"), "/decisions")
   }
 })
 

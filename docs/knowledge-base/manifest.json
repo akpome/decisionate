@@ -25,8 +25,8 @@
         "Why is my branded portal waiting for DNS?"
       ],
       "routes": [
-        "/dashboard/white-label",
-        "/dashboard/settings"
+        "/white-label",
+        "/settings"
       ],
       "sources": [
         "apps/api/app/modules/hosted_portals.py",
@@ -77,12 +77,12 @@
         "When might cash run short?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/reports/returns",
-        "/dashboard/reports/profitability",
-        "/dashboard/reports/retention",
-        "/dashboard/reports/conversion",
-        "/dashboard/reports/cash-flow"
+        "/reports",
+        "/reports/returns",
+        "/reports/profitability",
+        "/reports/retention",
+        "/reports/conversion",
+        "/reports/cash-flow"
       ],
       "sources": [
         "apps/api/app/modules/performance/schemas.py",
@@ -107,24 +107,24 @@
         "decisions-outcomes"
       ],
       "section_routes": {
-        "How do I use Return on spend?": "/dashboard/reports/returns",
-        "How do I use Profitability?": "/dashboard/reports/profitability",
-        "How do I use Customer retention?": "/dashboard/reports/retention",
-        "How do I use Sales conversion?": "/dashboard/reports/conversion",
-        "How do I use Cash flow planning?": "/dashboard/reports/cash-flow",
-        "Which advertising platform gave better value for my money?": "/dashboard/reports/returns",
-        "Can I compare channels with only ad spend and total store revenue?": "/dashboard/reports/returns",
-        "Does a return of 3 mean I made 3 dollars of profit?": "/dashboard/reports/returns",
-        "Why is there no winning channel or return figure?": "/dashboard/reports/returns",
-        "Which products or services leave the most money?": "/dashboard/reports/profitability",
-        "Why can a high-margin product leave less money?": "/dashboard/reports/profitability",
-        "Are customers coming back?": "/dashboard/reports/retention",
-        "Can retention tell me which customers will leave or their lifetime value?": "/dashboard/reports/retention",
-        "Where are potential sales being lost?": "/dashboard/reports/conversion",
-        "Can I combine advertising clicks and store orders into a sales funnel?": "/dashboard/reports/conversion",
-        "When might cash run short?": "/dashboard/reports/cash-flow",
-        "Can a profitable business still run out of cash?": "/dashboard/reports/cash-flow",
-        "What if customers pay late or expenses rise?": "/dashboard/reports/cash-flow"
+        "How do I use Return on spend?": "/reports/returns",
+        "How do I use Profitability?": "/reports/profitability",
+        "How do I use Customer retention?": "/reports/retention",
+        "How do I use Sales conversion?": "/reports/conversion",
+        "How do I use Cash flow planning?": "/reports/cash-flow",
+        "Which advertising platform gave better value for my money?": "/reports/returns",
+        "Can I compare channels with only ad spend and total store revenue?": "/reports/returns",
+        "Does a return of 3 mean I made 3 dollars of profit?": "/reports/returns",
+        "Why is there no winning channel or return figure?": "/reports/returns",
+        "Which products or services leave the most money?": "/reports/profitability",
+        "Why can a high-margin product leave less money?": "/reports/profitability",
+        "Are customers coming back?": "/reports/retention",
+        "Can retention tell me which customers will leave or their lifetime value?": "/reports/retention",
+        "Where are potential sales being lost?": "/reports/conversion",
+        "Can I combine advertising clicks and store orders into a sales funnel?": "/reports/conversion",
+        "When might cash run short?": "/reports/cash-flow",
+        "Can a profitable business still run out of cash?": "/reports/cash-flow",
+        "What if customers pay late or expenses rise?": "/reports/cash-flow"
       },
       "direct_questions": {
         "How do I use Return on spend?": [
@@ -214,7 +214,7 @@
         "Can I compare spending options from any dataset?"
       ],
       "routes": [
-        "/dashboard/budget-planner"
+        "/budget-planner"
       ],
       "sources": [
         "apps/api/app/modules/budget_planner/engine.py",
@@ -270,9 +270,9 @@
         "Can Ask Decisionate check my results or change my account?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/decisions",
-        "/dashboard/help"
+        "/reports",
+        "/decisions",
+        "/help"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -288,7 +288,7 @@
         "relationship-monitors"
       ],
       "section_routes": {
-        "What can Ask Decisionate do?": "/dashboard/help"
+        "What can Ask Decisionate do?": "/help"
       },
       "section_questions": {
         "What can Ask Decisionate do?": [
@@ -311,9 +311,9 @@
         "How can I compare advertising with orders?"
       ],
       "routes": [
-        "/dashboard/datasets",
-        "/dashboard/reports",
-        "/dashboard/decisions"
+        "/datasets",
+        "/reports",
+        "/decisions"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -341,8 +341,8 @@
         "Why can I not see another workspace's datasets?"
       ],
       "routes": [
-        "/dashboard/settings",
-        "/dashboard/help"
+        "/settings",
+        "/help"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -401,9 +401,9 @@
         ]
       },
       "routes": [
-        "/dashboard/settings",
-        "/dashboard/billing",
-        "/dashboard/reports"
+        "/settings",
+        "/billing",
+        "/reports"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -421,6 +421,8 @@
         "apps/web/lib/workspace-ownership.ts",
         "apps/web/features/auth/lib/auth-workspaces.ts",
         "apps/web/features/auth/lib/auth-redirects.ts",
+        "apps/web/lib/application-routes.ts",
+        "apps/web/next.config.ts",
         "apps/web/features/auth/components/workspace-invitation-sign-in.tsx",
         "apps/web/app/auth/redirect/page.tsx",
         "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
@@ -449,7 +451,7 @@
         "Why is my upload taking too long?"
       ],
       "routes": [
-        "/dashboard/datasets"
+        "/datasets"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -481,7 +483,7 @@
         "Is every listed integration enabled?"
       ],
       "routes": [
-        "/dashboard/connections"
+        "/connections"
       ],
       "sources": [
         "apps/api/app/modules/datasets/services/sources.py",
@@ -511,8 +513,8 @@
         "Is older data deleted?"
       ],
       "routes": [
-        "/dashboard/connections",
-        "/dashboard/datasets"
+        "/connections",
+        "/datasets"
       ],
       "sources": [
         "apps/api/app/modules/datasets/router.py",
@@ -545,7 +547,7 @@
         "Why did my selection not save?"
       ],
       "routes": [
-        "/dashboard/datasets"
+        "/datasets"
       ],
       "sources": [
         "apps/api/app/modules/datasets/services/metric_selection.py",
@@ -579,7 +581,7 @@
         "Why does Lightspeed show only quantity?"
       ],
       "routes": [
-        "/dashboard/datasets"
+        "/datasets"
       ],
       "sources": [
         "apps/api/app/modules/datasets/services/salesforce_metrics.py",
@@ -611,8 +613,8 @@
         "Why are two pages showing different totals?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/forecasts"
+        "/reports",
+        "/forecasts"
       ],
       "sources": [
         "apps/api/app/modules/reports/service.py",
@@ -644,9 +646,9 @@
       ],
       "routes": [
         "/dashboard",
-        "/dashboard/reports",
-        "/dashboard/forecasts",
-        "/dashboard/relationships"
+        "/reports",
+        "/forecasts",
+        "/relationships"
       ],
       "sources": [
         "apps/api/app/modules/datasets/services/dimension_filters.py",
@@ -687,7 +689,7 @@
       ],
       "routes": [
         "/dashboard",
-        "/dashboard/dashboards"
+        "/dashboards"
       ],
       "sources": [
         "apps/web/features/dashboards/dashboard-definitions.ts",
@@ -738,10 +740,10 @@
         "Does preview create a decision?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/reports/combined",
-        "/dashboard/reports/dataset",
-        "/dashboard/reports/impact"
+        "/reports",
+        "/reports/combined",
+        "/reports/dataset",
+        "/reports/impact"
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
@@ -787,16 +789,16 @@
         "decisions-outcomes"
       ],
       "section_routes": {
-        "Which report should I choose?": "/dashboard/reports/combined",
-        "Where is Business impact and how do I use it?": "/dashboard/reports/impact",
-        "Did my business change help?": "/dashboard/reports/impact",
-        "How does Business impact allow time for results?": "/dashboard/reports/impact",
-        "What is a fair comparison for Business impact?": "/dashboard/reports/impact",
-        "Where do the Business impact dates come from?": "/dashboard/reports/impact",
-        "Does saving an assessment change my decision?": "/dashboard/reports/impact",
-        "Why is Business impact waiting for enough results?": "/dashboard/reports/impact",
-        "Usual ups and downs in impact assessments": "/dashboard/reports/impact",
-        "Analyze one dataset": "/dashboard/reports/dataset"
+        "Which report should I choose?": "/reports/combined",
+        "Where is Business impact and how do I use it?": "/reports/impact",
+        "Did my business change help?": "/reports/impact",
+        "How does Business impact allow time for results?": "/reports/impact",
+        "What is a fair comparison for Business impact?": "/reports/impact",
+        "Where do the Business impact dates come from?": "/reports/impact",
+        "Does saving an assessment change my decision?": "/reports/impact",
+        "Why is Business impact waiting for enough results?": "/reports/impact",
+        "Usual ups and downs in impact assessments": "/reports/impact",
+        "Analyze one dataset": "/reports/dataset"
       },
       "section_questions": {
         "Which report should I choose?": [
@@ -860,8 +862,8 @@
         "Can I delete a saved report or template?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/reports/dataset"
+        "/reports",
+        "/reports/dataset"
       ],
       "sources": [
         "apps/web/features/reports/indexed-trends.ts",
@@ -903,7 +905,7 @@
         "What decision can a relationship support?"
       ],
       "routes": [
-        "/dashboard/reports"
+        "/reports"
       ],
       "sources": [
         "apps/api/app/modules/reports/relationships.py",
@@ -940,7 +942,7 @@
         "Why is a one-year report insufficient?"
       ],
       "routes": [
-        "/dashboard/reports"
+        "/reports"
       ],
       "sources": [
         "apps/api/app/modules/reports/relationships.py",
@@ -973,9 +975,9 @@
         "Should I deploy the old correlation worker?"
       ],
       "routes": [
-        "/dashboard/relationships",
-        "/dashboard/reports",
-        "/dashboard/reports/evidence"
+        "/relationships",
+        "/reports",
+        "/reports/evidence"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -1027,8 +1029,8 @@
         "Does no unusual change mean the engine failed?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/reports/dataset"
+        "/reports",
+        "/reports/dataset"
       ],
       "sources": [
         "apps/api/app/modules/reports/anomalies.py",
@@ -1065,7 +1067,7 @@
         "Does worker readiness verify forecasts?"
       ],
       "routes": [
-        "/dashboard/forecasts"
+        "/forecasts"
       ],
       "sources": [
         "apps/api/app/modules/forecasting/services.py",
@@ -1104,8 +1106,8 @@
         "Does scheduler success mean delivered?"
       ],
       "routes": [
-        "/dashboard/reports/weekly",
-        "/dashboard/alerts"
+        "/weekly-reports",
+        "/alerts"
       ],
       "sources": [
         "apps/api/app/modules/alerts/router.py",
@@ -1147,8 +1149,8 @@
         "Is there a chart or PDF attachment?"
       ],
       "routes": [
-        "/dashboard/alerts",
-        "/dashboard/reports"
+        "/alerts",
+        "/reports"
       ],
       "sources": [
         "apps/api/app/modules/alerts/email_delivery.py",
@@ -1180,8 +1182,8 @@
         "Does editing create a new decision?"
       ],
       "routes": [
-        "/dashboard/decisions",
-        "/dashboard/decisions/new"
+        "/decisions",
+        "/decisions/new"
       ],
       "sources": [
         "apps/api/app/modules/decisions/router.py",
@@ -1217,8 +1219,8 @@
         "Why is rules fallback active?"
       ],
       "routes": [
-        "/dashboard/reports",
-        "/dashboard/alerts"
+        "/reports",
+        "/alerts"
       ],
       "sources": [
         "apps/api/app/modules/ai/service.py",
@@ -1251,7 +1253,7 @@
         "Does buying credits configure AI?"
       ],
       "routes": [
-        "/dashboard/billing"
+        "/billing"
       ],
       "sources": [
         "apps/api/app/modules/billing/renewals.py",
@@ -1283,8 +1285,8 @@
       ],
       "routes": [
         "/dashboard",
-        "/dashboard/decisions",
-        "/dashboard/reports"
+        "/decisions",
+        "/reports"
       ],
       "sources": [
         "apps/api/app/modules/public_dashboard.py",
@@ -1315,7 +1317,7 @@
         "Can I paste an API key for diagnosis?"
       ],
       "routes": [
-        "/dashboard/help"
+        "/help"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -1354,7 +1356,7 @@
         "/privacy",
         "/terms",
         "/security",
-        "/dashboard/help"
+        "/help"
       ],
       "sources": [
         "apps/api/app/modules/marketing/config.py",
@@ -1393,7 +1395,7 @@
       ],
       "routes": [
         "/dashboard",
-        "/dashboard/entity-matching"
+        "/entity-matching"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -1594,7 +1596,7 @@
         "What remains before chatbot rollout?"
       ],
       "routes": [
-        "/dashboard/help"
+        "/help"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",

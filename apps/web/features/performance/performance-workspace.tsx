@@ -187,7 +187,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
           setResult(data); window.history.replaceState(null, "", `${performancePath(kind)}?comparison=${data.analysis_id}`); await loadHistory()
         })}><Save size={16} />Save comparison</button>}
         {result.analysis_id && <span className="inline-flex items-center gap-2 text-sm text-emerald-800"><Check size={16} />Saved</span>}
-        {result.decision_id ? <Link className={command} href={`/dashboard/decisions/${result.decision_id}`}>Open decision</Link> : result.analysis_id && canDecide && !decision && <button className={command} disabled={busy} onClick={() => setDecision({ title: "", action: "", expected_outcome: "", review_date: "" })}><Target size={16} />Create decision</button>}
+        {result.decision_id ? <Link className={command} href={`/decisions/${result.decision_id}`}>Open decision</Link> : result.analysis_id && canDecide && !decision && <button className={command} disabled={busy} onClick={() => setDecision({ title: "", action: "", expected_outcome: "", review_date: "" })}><Target size={16} />Create decision</button>}
       </div>
       {decision && <form className="space-y-4 border-t border-gray-200 pt-5" onSubmit={event => { event.preventDefault(); void action(async () => {
         const data = await request<{ decision_id: number }>(`/${result.analysis_id}/decision`, { method: "POST", body: JSON.stringify(decision) })

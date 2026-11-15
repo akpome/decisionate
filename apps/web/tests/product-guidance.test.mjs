@@ -29,9 +29,13 @@ test("guidance history is bounded, contains only role and text, and never mutate
 })
 
 test("citations only link to allowed same-origin application routes", () => {
-  const safe = loadFunction(component, "safeGuidanceRoute")
-  for (const route of ["/dashboard/reports", "/dashboard/help", "/privacy"]) assert.equal(safe(route), true)
-  for (const route of ["https://bad.test", "//bad.test", "javascript:alert(1)", "/dashboard?workspace=victim", "/platform-admin", "/dashboard/../admin"]) assert.equal(safe(route), false)
+  const loaded = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../lib/application-routes.ts", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText, { module: loaded, exports: loaded.exports })
+  const safe = loadFunction(component, "safeGuidanceRoute", loaded.exports)
+  for (const route of ["/reports", "/help", "/privacy", "/weekly-reports", "/dashboard/reports"]) assert.equal(safe(route), true)
+  for (const route of ["https://bad.test", "//bad.test", "javascript:alert(1)", "/dashboard?workspace=victim", "/platform-admin", "/dashboard/../admin", "/reports-fake", "/api/portal-health"]) assert.equal(safe(route), false)
 })
 
 test("chat API uses authenticated workspace context, cancellation and no cached transcript", async () => {

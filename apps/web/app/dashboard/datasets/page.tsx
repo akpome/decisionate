@@ -236,7 +236,7 @@ export default function DatasetsPage() {
       <DashboardPageHeader
         title="Datasets"
         actions={<>
-          {canViewConnections && <Link href="/dashboard/connections" className="inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"><Plug size={16} aria-hidden="true" />{t("Connections")}</Link>}
+          {canViewConnections && <Link href="/connections" className="inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"><Plug size={16} aria-hidden="true" />{t("Connections")}</Link>}
           {(canConfigureWorkspace || canViewConnections) && <button type="button" aria-expanded={showImportTools} aria-controls="dataset-import-tools" onClick={() => setShowImportTools(current => !current)} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] hover:opacity-90">
             {showImportTools ? <X size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t(showImportTools ? "Close import" : "Add data")}
           </button>}

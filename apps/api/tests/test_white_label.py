@@ -369,7 +369,7 @@ class WhiteLabelTests(unittest.TestCase):
         with application_scope("north-star"):
             _, subject, body = build_lifecycle_notice(subscription, state)
             self.assertIn("North Star", subject)
-            self.assertIn("https://northstar.example/dashboard/billing", body)
+            self.assertIn("https://northstar.example/billing", body)
             self.assertNotIn("Decisionate", body + subject)
 
 

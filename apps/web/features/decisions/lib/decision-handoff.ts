@@ -1,7 +1,7 @@
 export function buildCreateDecisionHref({
   datasetId,
   metric,
-  returnTo = "/dashboard/decisions",
+  returnTo = "/decisions",
 }: {
   datasetId?: number
   metric?: string
@@ -14,5 +14,5 @@ export function buildCreateDecisionHref({
   if (metric?.trim()) {
     params.set("metric", metric.trim())
   }
-  return `/dashboard/decisions/new?${params.toString()}`
+  return `/decisions/new?${params.toString()}`
 }

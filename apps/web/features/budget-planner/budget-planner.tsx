@@ -75,7 +75,7 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
   const picker = { userId, workspaceId }
   const setupIssue = budgetSetupIssue(definition)
   return <div className={styles.planner} aria-busy={busy}>
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-5"><h1>Budget Planner</h1><Link href="/dashboard/help">Help &amp; Support</Link></header>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-5"><h1>Budget Planner</h1><Link href="/help">Help &amp; Support</Link></header>
     <div className="flex flex-wrap items-end gap-3 py-5">
       <div className="min-w-0 flex-1 sm:max-w-lg"><SearchableSelect label="Saved plans" options={saved.plans.map(item => ({ value: item.plan_id, label: `${item.name} (${item.created_at.slice(0, 10)})` }))} value={result?.plan_id || null} placeholder="Unsaved plan" disabled={busy}
         onChange={id => void action(async () => { const data = await request<BudgetResult>(`/${id}`); if (mounted.current) { requestKey.current = null; setResult(data); setDefinition(data.definition); setJobId(null); setDecision(null); setStep(data.status === "ready" ? 2 : 1) } })}
@@ -139,7 +139,7 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
         <button disabled={busy} onClick={() => setStep(0)}><ArrowLeft size={16} />Edit setup</button>
         {canSave && !result.plan_id && <button className={styles.primary} disabled={busy || !jobId} onClick={() => void action(async () => { const data = await request<BudgetResult>(`/jobs/${jobId}/save`, { method: "POST" }); if (mounted.current) setResult(data); await loadPlans() })}><Save size={16} />Save plan</button>}
         {result.plan_id && <span className="flex items-center gap-2 text-emerald-800"><Check size={16} />Saved</span>}
-        {result.decision_id ? <Link href={`/dashboard/decisions/${result.decision_id}`}>Open decision</Link> : canDecide && result.plan_id && !decision && <button disabled={busy} onClick={() => setDecision({ title: `${result.definition.name}: allocation test`, action: "", expected_outcome: "", review_date: "" })}><Target size={16} />Create Decision</button>}
+        {result.decision_id ? <Link href={`/decisions/${result.decision_id}`}>Open decision</Link> : canDecide && result.plan_id && !decision && <button disabled={busy} onClick={() => setDecision({ title: `${result.definition.name}: allocation test`, action: "", expected_outcome: "", review_date: "" })}><Target size={16} />Create Decision</button>}
       </div>
       {decision && <form className="space-y-4 border-t pt-5" onSubmit={event => { event.preventDefault(); void action(async () => { const data = await request<{ decision_id: number }>(`/${result.plan_id}/decision`, { method: "POST", body: JSON.stringify(decision) }); if (mounted.current) { setResult({ ...result, decision_id: data.decision_id }); setDecision(null) } }) }}><h3>Create Decision</h3>
         <fieldset disabled={busy} className="space-y-4"><label>Decision name<input required maxLength={200} value={decision.title} onChange={event => setDecision({ ...decision, title: event.target.value })} /></label>
