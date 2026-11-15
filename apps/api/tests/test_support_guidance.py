@@ -43,6 +43,12 @@ def configured(key="test-key"):
 
 
 class GuidanceTests(unittest.TestCase):
+    def test_knowledge_links_accept_root_application_pages_but_reject_unsafe_destinations(self):
+        for route in ("/connections", "/decisions/6", "/reports/returns", "/weekly-reports", "/help", "/dashboard/reports", "/privacy"):
+            self.assertIsNotNone(knowledge.KNOWLEDGE_ROUTE.fullmatch(route), route)
+        for route in ("/reports-fake", "/platform-admin", "/api/portal-health", "/reports?workspace=other", "/decisions/../admin", "//other.test", "https://other.test/reports"):
+            self.assertIsNone(knowledge.KNOWLEDGE_ROUTE.fullmatch(route), route)
+
     def test_screenshot_question_returns_usage_steps_without_needing_ai(self):
         question = "how do use the return on spend under business analysis"
         records = knowledge.retrieve(question)

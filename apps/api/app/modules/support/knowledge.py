@@ -8,6 +8,11 @@ from functools import lru_cache
 from pathlib import Path
 
 CORPUS = Path(__file__).with_name("knowledge") / "customer.jsonl"
+KNOWLEDGE_ROUTE = re.compile(
+    r"/(?:(?:dashboard|action-needed|alerts|billing|budget-planner|business-impact|"
+    r"connections|dashboards|datasets|decisions|entity-matching|forecasts|help|insights|"
+    r"relationships|reports|settings|weekly-reports|white-label)(?:/[a-z0-9-]+)*|privacy|terms|security)"
+)
 STOP_WORDS = frozenset(["a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "could", "did", "do", "does", "for", "from", "had", "has", "have", "how", "i", "if", "in", "is", "it", "its", "me", "my", "of", "on", "or", "our", "please", "should", "so", "than", "that", "the", "their", "them", "there", "these", "they", "this", "to", "use", "using", "was", "we", "what", "when", "where", "which", "why", "will", "with", "would", "you", "your"])
 
 
@@ -58,7 +63,7 @@ def load_knowledge():
         if (record.get("audience") != "customer" or record["article_id"].startswith("operator-")
                 or record["chunk_id"] in seen or len(record["content"]) > 12000):
             raise ValueError("Unapproved customer knowledge")
-        if any(not re.fullmatch(r"/(?:dashboard(?:/[a-z0-9-]+)*|privacy|terms|security)", route)
+        if any(not KNOWLEDGE_ROUTE.fullmatch(route)
                for route in record["routes"]):
             raise ValueError("Unapproved knowledge link")
         for field in ("section_questions", "direct_questions"):
