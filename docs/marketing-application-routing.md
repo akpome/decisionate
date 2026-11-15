@@ -59,6 +59,12 @@ Both apex and app must serve the project directly, not redirect to another host.
   `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and
   `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`. The existing provider/card props keep
   successful authentication at `/auth/redirect` and logout at `/sign-in`.
+- Let Vercel manage deployment IDs. Do not manually define `NEXT_DEPLOYMENT_ID`
+  with a commit SHA or fixed value in project settings. Preview, production and
+  redeploys of the same commit need distinct deployment IDs; reusing the SHA
+  causes an "already exists in this project" deployment failure. The Next.js
+  configuration no longer overrides Vercel's ID. Railway/standalone builds still
+  accept an explicit ID or use the Railway commit SHA for asset versioning.
 
 ### Existing Clerk production instance
 

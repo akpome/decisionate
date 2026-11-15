@@ -301,7 +301,7 @@ test("archived, unrelated and unscoped legacy drafts cannot reappear in a report
   assert.doesNotMatch(html, /Continue decision|Create decision/)
 })
 
-test("frontend deployments use the hosting commit id for version skew protection", () => {
+test("Vercel manages deployment IDs while standalone builds retain version skew protection", () => {
   const source = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8")
   const fullCommitSha = "2205b69d59becc4ada8a56458d84fc4023a14396"
   const shortCommitSha = fullCommitSha.slice(0, 32)
@@ -309,13 +309,19 @@ test("frontend deployments use the hosting commit id for version skew protection
     [{}, undefined],
     [{ NEXT_DEPLOYMENT_ID: "", VERCEL_GIT_COMMIT_SHA: "", RAILWAY_GIT_COMMIT_SHA: "" }, undefined],
     [{ NEXT_DEPLOYMENT_ID: "explicit-release", VERCEL_GIT_COMMIT_SHA: "web-commit" }, "explicit-release"],
-    [{ VERCEL_GIT_COMMIT_SHA: "web-commit" }, "web-commit"],
+    [{ VERCEL_GIT_COMMIT_SHA: "web-commit" }, undefined],
     [{ RAILWAY_GIT_COMMIT_SHA: "container-commit" }, "container-commit"],
-    [{ VERCEL_GIT_COMMIT_SHA: fullCommitSha }, shortCommitSha],
+    [{ VERCEL_GIT_COMMIT_SHA: fullCommitSha }, undefined],
     [{ RAILWAY_GIT_COMMIT_SHA: fullCommitSha }, shortCommitSha],
-    [{ VERCEL_GIT_COMMIT_SHA: fullCommitSha, RAILWAY_GIT_COMMIT_SHA: "container-commit" }, shortCommitSha],
+    [{ VERCEL_GIT_COMMIT_SHA: fullCommitSha, RAILWAY_GIT_COMMIT_SHA: "container-commit" }, "container-commit"],
     [{ NEXT_DEPLOYMENT_ID: "explicit-release", VERCEL_GIT_COMMIT_SHA: fullCommitSha }, "explicit-release"],
     [{ NEXT_DEPLOYMENT_ID: "dpl_" + "a".repeat(28), VERCEL_GIT_COMMIT_SHA: fullCommitSha }, "dpl_" + "a".repeat(28)],
+    [{ VERCEL: "1", VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_SHA: fullCommitSha }, undefined],
+    [{ VERCEL: "1", VERCEL_ENV: "production", VERCEL_GIT_COMMIT_SHA: fullCommitSha }, undefined],
+    [{ VERCEL: "1", VERCEL_GIT_COMMIT_SHA: fullCommitSha, NEXT_DEPLOYMENT_ID: "dpl_platform_unique" }, undefined],
+    [{ VERCEL: "1", VERCEL_GIT_COMMIT_SHA: fullCommitSha, NEXT_DEPLOYMENT_ID: "stale-custom-id", RAILWAY_GIT_COMMIT_SHA: "container-commit" }, undefined],
+    [{ VERCEL: "1", VERCEL_GIT_COMMIT_SHA: fullCommitSha, VERCEL_DEPLOYMENT_ID: "dpl_first_build" }, undefined],
+    [{ VERCEL: "1", VERCEL_GIT_COMMIT_SHA: fullCommitSha, VERCEL_DEPLOYMENT_ID: "dpl_redeployed_build" }, undefined],
   ]) {
     const loaded = { exports: {} }
     vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
