@@ -838,7 +838,7 @@ export default function DatasetDetailsPage() {
             </Link>
 
             <Link
-              href={`/reports/dataset?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
+              href={`/business-analysis/dataset?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
               <Table2 size={16} />
@@ -846,7 +846,7 @@ export default function DatasetDetailsPage() {
             </Link>
 
             <Link
-              href={`/reports?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
+              href={`/business-analysis?dataset=${datasetId ?? ""}${effectiveSelectedMetric ? `&metric=${encodeURIComponent(effectiveSelectedMetric)}` : ""}`}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
             >
               <FileText size={16} />

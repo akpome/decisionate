@@ -77,12 +77,12 @@
         "When might cash run short?"
       ],
       "routes": [
-        "/reports",
-        "/reports/returns",
-        "/reports/profitability",
-        "/reports/retention",
-        "/reports/conversion",
-        "/reports/cash-flow"
+        "/business-analysis",
+        "/business-analysis/returns",
+        "/business-analysis/profitability",
+        "/business-analysis/retention",
+        "/business-analysis/conversion",
+        "/business-analysis/cash-flow"
       ],
       "sources": [
         "apps/api/app/modules/performance/schemas.py",
@@ -107,24 +107,24 @@
         "decisions-outcomes"
       ],
       "section_routes": {
-        "How do I use Return on spend?": "/reports/returns",
-        "How do I use Profitability?": "/reports/profitability",
-        "How do I use Customer retention?": "/reports/retention",
-        "How do I use Sales conversion?": "/reports/conversion",
-        "How do I use Cash flow planning?": "/reports/cash-flow",
-        "Which advertising platform gave better value for my money?": "/reports/returns",
-        "Can I compare channels with only ad spend and total store revenue?": "/reports/returns",
-        "Does a return of 3 mean I made 3 dollars of profit?": "/reports/returns",
-        "Why is there no winning channel or return figure?": "/reports/returns",
-        "Which products or services leave the most money?": "/reports/profitability",
-        "Why can a high-margin product leave less money?": "/reports/profitability",
-        "Are customers coming back?": "/reports/retention",
-        "Can retention tell me which customers will leave or their lifetime value?": "/reports/retention",
-        "Where are potential sales being lost?": "/reports/conversion",
-        "Can I combine advertising clicks and store orders into a sales funnel?": "/reports/conversion",
-        "When might cash run short?": "/reports/cash-flow",
-        "Can a profitable business still run out of cash?": "/reports/cash-flow",
-        "What if customers pay late or expenses rise?": "/reports/cash-flow"
+        "How do I use Return on spend?": "/business-analysis/returns",
+        "How do I use Profitability?": "/business-analysis/profitability",
+        "How do I use Customer retention?": "/business-analysis/retention",
+        "How do I use Sales conversion?": "/business-analysis/conversion",
+        "How do I use Cash flow planning?": "/business-analysis/cash-flow",
+        "Which advertising platform gave better value for my money?": "/business-analysis/returns",
+        "Can I compare channels with only ad spend and total store revenue?": "/business-analysis/returns",
+        "Does a return of 3 mean I made 3 dollars of profit?": "/business-analysis/returns",
+        "Why is there no winning channel or return figure?": "/business-analysis/returns",
+        "Which products or services leave the most money?": "/business-analysis/profitability",
+        "Why can a high-margin product leave less money?": "/business-analysis/profitability",
+        "Are customers coming back?": "/business-analysis/retention",
+        "Can retention tell me which customers will leave or their lifetime value?": "/business-analysis/retention",
+        "Where are potential sales being lost?": "/business-analysis/conversion",
+        "Can I combine advertising clicks and store orders into a sales funnel?": "/business-analysis/conversion",
+        "When might cash run short?": "/business-analysis/cash-flow",
+        "Can a profitable business still run out of cash?": "/business-analysis/cash-flow",
+        "What if customers pay late or expenses rise?": "/business-analysis/cash-flow"
       },
       "direct_questions": {
         "How do I use Return on spend?": [
@@ -270,7 +270,7 @@
         "Can Ask Decisionate check my results or change my account?"
       ],
       "routes": [
-        "/reports",
+        "/business-analysis",
         "/decisions",
         "/help"
       ],
@@ -312,7 +312,7 @@
       ],
       "routes": [
         "/datasets",
-        "/reports",
+        "/business-analysis",
         "/decisions"
       ],
       "sources": [
@@ -403,7 +403,7 @@
       "routes": [
         "/settings",
         "/billing",
-        "/reports"
+        "/business-analysis"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -613,7 +613,7 @@
         "Why are two pages showing different totals?"
       ],
       "routes": [
-        "/reports",
+        "/business-analysis",
         "/forecasts"
       ],
       "sources": [
@@ -646,7 +646,7 @@
       ],
       "routes": [
         "/dashboard",
-        "/reports",
+        "/business-analysis",
         "/forecasts",
         "/relationships"
       ],
@@ -740,10 +740,10 @@
         "Does preview create a decision?"
       ],
       "routes": [
-        "/reports",
-        "/reports/combined",
-        "/reports/dataset",
-        "/reports/impact"
+        "/business-analysis",
+        "/business-analysis/combined",
+        "/business-analysis/dataset",
+        "/business-analysis/impact"
       ],
       "sources": [
         "apps/web/features/reports/report-workspace.tsx",
@@ -789,16 +789,16 @@
         "decisions-outcomes"
       ],
       "section_routes": {
-        "Which report should I choose?": "/reports/combined",
-        "Where is Business impact and how do I use it?": "/reports/impact",
-        "Did my business change help?": "/reports/impact",
-        "How does Business impact allow time for results?": "/reports/impact",
-        "What is a fair comparison for Business impact?": "/reports/impact",
-        "Where do the Business impact dates come from?": "/reports/impact",
-        "Does saving an assessment change my decision?": "/reports/impact",
-        "Why is Business impact waiting for enough results?": "/reports/impact",
-        "Usual ups and downs in impact assessments": "/reports/impact",
-        "Analyze one dataset": "/reports/dataset"
+        "Which report should I choose?": "/business-analysis/combined",
+        "Where is Business impact and how do I use it?": "/business-analysis/impact",
+        "Did my business change help?": "/business-analysis/impact",
+        "How does Business impact allow time for results?": "/business-analysis/impact",
+        "What is a fair comparison for Business impact?": "/business-analysis/impact",
+        "Where do the Business impact dates come from?": "/business-analysis/impact",
+        "Does saving an assessment change my decision?": "/business-analysis/impact",
+        "Why is Business impact waiting for enough results?": "/business-analysis/impact",
+        "Usual ups and downs in impact assessments": "/business-analysis/impact",
+        "Analyze one dataset": "/business-analysis/dataset"
       },
       "section_questions": {
         "Which report should I choose?": [
@@ -862,8 +862,8 @@
         "Can I delete a saved report or template?"
       ],
       "routes": [
-        "/reports",
-        "/reports/dataset"
+        "/business-analysis",
+        "/business-analysis/dataset"
       ],
       "sources": [
         "apps/web/features/reports/indexed-trends.ts",
@@ -905,7 +905,7 @@
         "What decision can a relationship support?"
       ],
       "routes": [
-        "/reports"
+        "/business-analysis"
       ],
       "sources": [
         "apps/api/app/modules/reports/relationships.py",
@@ -942,7 +942,7 @@
         "Why is a one-year report insufficient?"
       ],
       "routes": [
-        "/reports"
+        "/business-analysis"
       ],
       "sources": [
         "apps/api/app/modules/reports/relationships.py",
@@ -976,8 +976,8 @@
       ],
       "routes": [
         "/relationships",
-        "/reports",
-        "/reports/evidence"
+        "/business-analysis",
+        "/business-analysis/evidence"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
@@ -1029,8 +1029,8 @@
         "Does no unusual change mean the engine failed?"
       ],
       "routes": [
-        "/reports",
-        "/reports/dataset"
+        "/business-analysis",
+        "/business-analysis/dataset"
       ],
       "sources": [
         "apps/api/app/modules/reports/anomalies.py",
@@ -1150,7 +1150,7 @@
       ],
       "routes": [
         "/alerts",
-        "/reports"
+        "/business-analysis"
       ],
       "sources": [
         "apps/api/app/modules/alerts/email_delivery.py",
@@ -1219,7 +1219,7 @@
         "Why is rules fallback active?"
       ],
       "routes": [
-        "/reports",
+        "/business-analysis",
         "/alerts"
       ],
       "sources": [
@@ -1286,7 +1286,7 @@
       "routes": [
         "/dashboard",
         "/decisions",
-        "/reports"
+        "/business-analysis"
       ],
       "sources": [
         "apps/api/app/modules/public_dashboard.py",

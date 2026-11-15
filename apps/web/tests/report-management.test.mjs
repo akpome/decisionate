@@ -20,7 +20,7 @@ function management(name, overrides = {}) {
     analysisJob: { job_id: "job-1" } }
   const managementAction = { current: false }, deletedReports = { current: new Set() }
   const handler = vm.runInNewContext(ts.transpileModule(`${functions.get(name)}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
-    canManage: true, busy: false, weekly: true, impactPage: false, pagePath: "/reports", report: state.report, managementAction, deletedReports,
+    canManage: true, busy: false, weekly: true, impactPage: false, pagePath: "/business-analysis", report: state.report, managementAction, deletedReports,
     t: value => value, encodeURIComponent, weeklyDefinition: value => ({ name: "Weekly Business Report", ...value }),
     window: { confirm: () => true, history: { replaceState: (...args) => calls.push(["history", ...args]) } },
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
@@ -64,8 +64,8 @@ test("removing weekly settings pauses delivery but does not delete snapshots", a
 })
 
 test("snapshot deletion retains the correct workflow URL", async () => {
-  for (const pagePath of ["/reports", "/reports/dataset", "/weekly-reports", "/reports/impact"]) {
-    const { handler, calls } = management("deleteSavedReport", { pagePath, impactPage: pagePath === "/reports/impact" })
+  for (const pagePath of ["/business-analysis", "/business-analysis/dataset", "/weekly-reports", "/business-analysis/impact"]) {
+    const { handler, calls } = management("deleteSavedReport", { pagePath, impactPage: pagePath === "/business-analysis/impact" })
     await handler()
     assert.deepEqual(calls[1], ["history", null, "", pagePath])
   }

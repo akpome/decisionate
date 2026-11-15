@@ -16,12 +16,12 @@ function load(path, imports = {}, globals = {}) {
 const { legacyInsightsDestination } = load("../features/reports/legacy-insights-destination.ts")
 
 test("old Insights links default to the multi dataset Reports workflow", () => {
-  assert.equal(legacyInsightsDestination({}), "/reports")
+  assert.equal(legacyInsightsDestination({}), "/business-analysis")
 })
 
 test("old dataset and metric links retain their exact scope through the redirect", () => {
   const url = new URL(legacyInsightsDestination({ dataset: "12", metric: "net sales & returns" }), "https://decisionate.ca")
-  assert.equal(url.pathname, "/reports/dataset")
+  assert.equal(url.pathname, "/business-analysis/dataset")
   assert.equal(url.searchParams.get("dataset"), "12")
   assert.equal(url.searchParams.get("metric"), "net sales & returns")
 })
@@ -29,14 +29,14 @@ test("old dataset and metric links retain their exact scope through the redirect
 test("saved report, weekly and advanced-run links take precedence over dataset hints", () => {
   for (const key of ["report", "weekly", "run"]) {
     const url = new URL(legacyInsightsDestination({ dataset: "12", [key]: "saved-id" }), "https://decisionate.ca")
-    assert.equal(url.pathname, "/reports")
+    assert.equal(url.pathname, "/business-analysis")
     assert.equal(url.searchParams.get(key), "saved-id")
   }
 })
 
 test("redirect destinations are internal and ignore arrays and unknown return URLs", () => {
-  assert.equal(legacyInsightsDestination({ dataset: ["1", "2"], returnTo: "https://attacker.example" }), "/reports")
-  assert.equal(legacyInsightsDestination({ report: "//attacker.example" }).startsWith("/reports?"), true)
+  assert.equal(legacyInsightsDestination({ dataset: ["1", "2"], returnTo: "https://attacker.example" }), "/business-analysis")
+  assert.equal(legacyInsightsDestination({ report: "//attacker.example" }).startsWith("/business-analysis?"), true)
 })
 
 test("the Next route awaits searchParams and performs the server redirect", async () => {
@@ -46,13 +46,13 @@ test("the Next route awaits searchParams and performs the server redirect", asyn
     "@/features/reports/legacy-insights-destination": { legacyInsightsDestination },
   })
   await Page({ searchParams: Promise.resolve({ dataset: "5", metric: "orders" }) })
-  assert.equal(destination, "/reports/dataset?dataset=5&metric=orders")
+  assert.equal(destination, "/business-analysis/dataset?dataset=5&metric=orders")
 })
 
 test("Reports is the only navigation entry for both findings and saved analysis", () => {
   const source = read("../app/dashboard/dashboard-shell.tsx")
   const analysis = source.slice(source.indexOf('label: "Analysis"'), source.indexOf('label: "Data"'))
-  assert.match(analysis, /href: "\/reports"/)
+  assert.match(analysis, /href: "\/business-analysis"/)
   assert.doesNotMatch(analysis, /label: "Insights"|dashboard\/insights/)
   assert.match(analysis, /label: "Forecasts"/)
   assert.match(analysis, /label: "Relationships"/)

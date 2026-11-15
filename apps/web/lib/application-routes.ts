@@ -1,9 +1,10 @@
 export const workspaceRoutes = [
   { path: "/weekly-reports", internal: "/dashboard/reports/weekly" },
+  { path: "/business-analysis", internal: "/dashboard/reports" },
   ...[
     "action-needed", "alerts", "billing", "budget-planner", "business-impact",
     "connections", "dashboards", "datasets", "decisions", "entity-matching",
-    "forecasts", "help", "insights", "relationships", "reports", "settings", "white-label",
+    "forecasts", "help", "insights", "relationships", "settings", "white-label",
   ].map(segment => ({ path: `/${segment}`, internal: `/dashboard/${segment}` })),
 ]
 
@@ -16,8 +17,12 @@ export function isWorkspacePathname(pathname: string) {
 }
 
 export function canonicalWorkspacePathname(pathname: string) {
-  if (isPathWithin(pathname, "/reports/weekly")) {
-    return "/weekly-reports" + pathname.slice("/reports/weekly".length)
+  const weekly = ["/reports/weekly", "/business-analysis/weekly"].find(path => isPathWithin(pathname, path))
+  if (weekly) {
+    return "/weekly-reports" + pathname.slice(weekly.length)
+  }
+  if (isPathWithin(pathname, "/reports")) {
+    return "/business-analysis" + pathname.slice("/reports".length)
   }
   const legacy = workspaceRoutes.find(route => isPathWithin(pathname, route.internal))
   return legacy ? legacy.path + pathname.slice(legacy.internal.length) : pathname

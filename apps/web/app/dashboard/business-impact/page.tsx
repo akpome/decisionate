@@ -9,5 +9,5 @@ export default async function LegacyBusinessImpactPage({ searchParams }: {
       query.append(key, item)
     }
   }
-  redirect(`/reports/impact${query.size ? `?${query}` : ""}`)
+  redirect(`/business-analysis/impact${query.size ? `?${query}` : ""}`)
 }

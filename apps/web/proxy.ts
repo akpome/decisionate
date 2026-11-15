@@ -29,7 +29,7 @@ const isLegacyProtectedRoute = createRouteMatcher([
 ])
 
 function isProtectedRoute(request: NextRequest) {
-  return isLegacyProtectedRoute(request) || isWorkspacePathname(request.nextUrl.pathname)
+  return isLegacyProtectedRoute(request) || isWorkspacePathname(canonicalWorkspacePathname(request.nextUrl.pathname))
 }
 
 function redirectApplicationPath(request: NextRequest, origin: string, pathname: string, status: number) {

@@ -34,7 +34,7 @@ test("citations only link to allowed same-origin application routes", () => {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
   }).outputText, { module: loaded, exports: loaded.exports })
   const safe = loadFunction(component, "safeGuidanceRoute", loaded.exports)
-  for (const route of ["/reports", "/help", "/privacy", "/weekly-reports", "/dashboard/reports"]) assert.equal(safe(route), true)
+  for (const route of ["/business-analysis", "/help", "/privacy", "/weekly-reports", "/dashboard/reports"]) assert.equal(safe(route), true)
   for (const route of ["https://bad.test", "//bad.test", "javascript:alert(1)", "/dashboard?workspace=victim", "/platform-admin", "/dashboard/../admin", "/reports-fake", "/api/portal-health"]) assert.equal(safe(route), false)
 })
 

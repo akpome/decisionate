@@ -1,7 +1,7 @@
 export function historicalEvidenceHref(runId: string, resultId?: string) {
   const query = new URLSearchParams({ run: runId })
   if (resultId) query.set("result", resultId)
-  return `/reports/evidence?${query}`
+  return `/business-analysis/evidence?${query}`
 }
 
 export function legacyRelationshipDestination(search: Record<string, string | string[] | undefined>) {
@@ -10,5 +10,5 @@ export function legacyRelationshipDestination(search: Record<string, string | st
     const value = search[key]
     if (typeof value === "string" && value) query.set(key, value)
   }
-  return query.size ? `/reports/evidence?${query}` : "/reports"
+  return query.size ? `/business-analysis/evidence?${query}` : "/business-analysis"
 }

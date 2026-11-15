@@ -9,7 +9,7 @@ from pathlib import Path
 
 CORPUS = Path(__file__).with_name("knowledge") / "customer.jsonl"
 KNOWLEDGE_ROUTE = re.compile(
-    r"/(?:(?:dashboard|action-needed|alerts|billing|budget-planner|business-impact|"
+    r"/(?:(?:dashboard|action-needed|alerts|billing|budget-planner|business-impact|business-analysis|"
     r"connections|dashboards|datasets|decisions|entity-matching|forecasts|help|insights|"
     r"relationships|reports|settings|weekly-reports|white-label)(?:/[a-z0-9-]+)*|privacy|terms|security)"
 )

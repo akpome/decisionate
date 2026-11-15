@@ -20,7 +20,7 @@ test("weekly assessment setup is read-only and preserves its decision link witho
   const before = structuredClone(definition)
   const html = render(WeeklyAssessmentSetup, { definition, issue: "More matching records needed", onSwitch() {}, preview: React.createElement("button", null, "Preview report") })
   assert.match(html, /Existing decision update/)
-  assert.match(html, /href="\/reports\/impact\?decision=7"/)
+  assert.match(html, /href="\/business-analysis\/impact\?decision=7"/)
   assert.match(html, /Open Business impact/)
   assert.match(html, /Set up metric monitoring/)
   assert.match(html, /Preview report/)

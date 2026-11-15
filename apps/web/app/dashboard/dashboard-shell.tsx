@@ -174,7 +174,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
     collapsible: true,
     items: [
       {
-        href: "/reports",
+        href: "/business-analysis",
         label: "Business Analysis",
         icon: <FileText size={18} />,
       },
@@ -1495,7 +1495,7 @@ function isActiveDashboardPath(
   pathname: string,
   href: string
 ) {
-  if (href === "/reports" && pathname.startsWith("/weekly-reports")) return false
+  if (href === "/business-analysis" && pathname.startsWith("/weekly-reports")) return false
   if (href === "/dashboard") {
     return pathname === href
   }

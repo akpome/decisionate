@@ -95,7 +95,7 @@ test("Business Analysis has a distinct label in the Analysis sidebar alongside W
   const analysis = source.slice(source.indexOf('label: "Analysis"'), source.indexOf('label: "Data"'))
   assert.match(analysis, /href: "\/relationships",\s+label: "Relationships"/)
   assert.equal((analysis.match(/label: "Analysis"/g) ?? []).length, 1)
-  assert.match(analysis, /href: "\/reports",\s+label: "Business Analysis"/)
+  assert.match(analysis, /href: "\/business-analysis",\s+label: "Business Analysis"/)
   assert.doesNotMatch(analysis, /label: "Business Impact"|href: "\/business-impact"/)
   assert.ok(analysis.indexOf('label: "Business Analysis"') < analysis.indexOf('label: "Weekly Reports"'))
   assert.ok(analysis.indexOf('label: "Weekly Reports"') < analysis.indexOf('label: "Relationships"'))
@@ -109,15 +109,15 @@ test("Business impact shares the desktop tools and mobile selector with a single
     "@/features/performance/types": compile("../features/performance/types.ts"),
   })
   const tree = AnalysisTools({ active: "impact" }), html = renderToStaticMarkup(tree)
-  assert.match(html, /href="\/reports\/impact" aria-current="page"/)
+  assert.match(html, /href="\/business-analysis\/impact" aria-current="page"/)
   assert.equal((html.match(/aria-current="page"/g) || []).length, 1)
   assert.match(html, /<option value="impact" selected="">Business impact<\/option>/)
   assert.equal((html.match(/<option /g) || []).length, 7)
   const selector = tree.props.children[0].props.children[1]
   selector.props.onChange({ target: { value: "metrics" } })
-  assert.equal(destination, "/reports")
+  assert.equal(destination, "/business-analysis")
   selector.props.onChange({ target: { value: "impact" } })
-  assert.equal(destination, "/reports/impact")
+  assert.equal(destination, "/business-analysis/impact")
 })
 
 test("sidebar navigation marks only the current workflow as active, including the single-dataset route", () => {
@@ -127,15 +127,15 @@ test("sidebar navigation marks only the current workflow as active, including th
   const code = ts.transpileModule(`module.exports = ${declaration.getText(ast)}`, { compilerOptions: { target: ts.ScriptTarget.ES2021 } }).outputText
   const loaded = { exports: {} }; vm.runInNewContext(code, { module: loaded })
   const matches = loaded.exports
-  for (const path of ["/reports", "/reports/dataset", "/reports/evidence", "/reports/impact"]) {
-    assert.equal(matches(path, "/reports"), true)
+  for (const path of ["/business-analysis", "/business-analysis/dataset", "/business-analysis/evidence", "/business-analysis/impact"]) {
+    assert.equal(matches(path, "/business-analysis"), true)
     assert.equal(matches(path, "/weekly-reports"), false)
   }
-  assert.equal(matches("/weekly-reports", "/reports"), false)
+  assert.equal(matches("/weekly-reports", "/business-analysis"), false)
   assert.equal(matches("/weekly-reports", "/weekly-reports"), true)
   assert.equal(matches("/business-impact", "/business-impact"), true)
-  assert.equal(matches("/business-impact", "/reports"), false)
-  assert.equal(matches("/reports", "/business-impact"), false)
+  assert.equal(matches("/business-impact", "/business-analysis"), false)
+  assert.equal(matches("/business-analysis", "/business-impact"), false)
 })
 
 test("cross-workflow navigation is removed without losing source scope, delivery or explicit copy actions", () => {

@@ -21,7 +21,7 @@ The existing proxy now applies these rules to the primary product only:
 ## Root-level application URLs
 
 Navigation uses `/connections`, `/decisions`, `/datasets`, `/dashboards`,
-`/reports`, `/weekly-reports`, `/relationships`, `/forecasts`, `/alerts`,
+`/business-analysis`, `/weekly-reports`, `/relationships`, `/forecasts`, `/alerts`,
 `/action-needed`, `/budget-planner`, `/entity-matching`, `/settings`, `/billing`
 and `/help`. The main dashboard remains `/dashboard`. Detail URLs keep their
 resource hierarchy, for example `/decisions/6` and `/datasets/104`.
@@ -41,6 +41,12 @@ Stripe return URLs and connector OAuth frontend returns use the clean paths;
 the backend API paths, OAuth callback endpoints and Stripe webhooks are unchanged.
 The same paths work on existing branded portals without enabling new hosts or
 changing their identity, billing or email configuration.
+
+Business Analysis and its tools use `/business-analysis` and child paths such
+as `/business-analysis/impact`. Both `/reports/...` and `/dashboard/reports/...`
+bookmarks permanently redirect to those destinations, preserving report IDs,
+workspace selections and analysis-job parameters. Backend report API routes
+and saved report identities are unchanged.
 
 The existing `/auth/redirect` resolver still chooses an authorized workspace,
 onboarding or platform administration. The proxy never chooses a workspace or
@@ -171,7 +177,7 @@ must be checked in the configured environment; do not report route tests as
 completed live provider tests.
 
 For the root-URL migration, also check direct navigation to `/connections`,
-`/decisions/6`, `/reports`, `/weekly-reports` and `/settings`, their corresponding
+`/decisions/6`, `/business-analysis`, `/weekly-reports` and `/settings`, their corresponding
 old `/dashboard/...` bookmarks, browser Back/Forward, and the selected sidebar
 item. No additional Vercel or Clerk configuration is required if the existing
 app host is already configured as above; deploy both web and API changes so

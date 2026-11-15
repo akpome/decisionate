@@ -58,7 +58,7 @@ const gettingStartedItems = [
     id: "analysis",
     title: "Choose a tool in Business Analysis",
     description: "Compare results, check a business change, or review customers, sales and cash.",
-    href: "/reports",
+    href: "/business-analysis",
     action: "Open Business Analysis",
   },
   {

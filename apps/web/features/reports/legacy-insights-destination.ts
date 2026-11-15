@@ -5,6 +5,6 @@ export function legacyInsightsDestination(search: Record<string, string | string
     if (typeof value === "string" && value) query.set(key, value)
   }
   const single = query.has("dataset") && !["report", "weekly", "run"].some(key => query.has(key))
-  const path = single ? "/reports/dataset" : "/reports"
+  const path = single ? "/business-analysis/dataset" : "/business-analysis"
   return query.size ? `${path}?${query}` : path
 }

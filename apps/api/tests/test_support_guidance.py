@@ -44,9 +44,9 @@ def configured(key="test-key"):
 
 class GuidanceTests(unittest.TestCase):
     def test_knowledge_links_accept_root_application_pages_but_reject_unsafe_destinations(self):
-        for route in ("/connections", "/decisions/6", "/reports/returns", "/weekly-reports", "/help", "/dashboard/reports", "/privacy"):
+        for route in ("/connections", "/decisions/6", "/business-analysis/returns", "/weekly-reports", "/help", "/dashboard/reports", "/privacy"):
             self.assertIsNotNone(knowledge.KNOWLEDGE_ROUTE.fullmatch(route), route)
-        for route in ("/reports-fake", "/platform-admin", "/api/portal-health", "/reports?workspace=other", "/decisions/../admin", "//other.test", "https://other.test/reports"):
+        for route in ("/reports-fake", "/platform-admin", "/api/portal-health", "/business-analysis?workspace=other", "/decisions/../admin", "//other.test", "https://other.test/business-analysis"):
             self.assertIsNone(knowledge.KNOWLEDGE_ROUTE.fullmatch(route), route)
 
     def test_screenshot_question_returns_usage_steps_without_needing_ai(self):
@@ -58,7 +58,7 @@ class GuidanceTests(unittest.TestCase):
         configuration.assert_not_called()
         network.assert_not_called()
         self.assertEqual(result.mode, "documentation")
-        self.assertEqual(result.sources[0].route, "/reports/returns")
+        self.assertEqual(result.sources[0].route, "/business-analysis/returns")
         for step in ("1. Set From, To and Currency", "2. Answer Where are your revenue and spending figures stored?", "3. Review Date column", "4. Answer Where do your revenue figures come from?", "5. Choose Compare results", "Save comparison"):
             self.assertIn(step, result.answer)
         self.assertNotIn("I cannot confirm", result.answer)
@@ -191,13 +191,13 @@ class GuidanceTests(unittest.TestCase):
 
     def test_current_starters_retrieve_focused_documentation_and_working_destinations(self):
         for question, section, route in [
-            ("Which analysis tool should I use?", "Which analysis tool should I use?", "/reports"),
-            ("Which channel gave me more revenue per dollar spent?", "Which advertising platform gave better value for my money?", "/reports/returns"),
-            ("Where is Business impact and how do I use it?", "Where is Business impact and how do I use it?", "/reports/impact"),
-            ("Are my customers coming back to buy again?", "Are customers coming back?", "/reports/retention"),
-            ("Which products leave the most money after costs?", "Which products or services leave the most money?", "/reports/profitability"),
-            ("Where are potential sales being lost?", "Where are potential sales being lost?", "/reports/conversion"),
-            ("When might cash run short?", "When might cash run short?", "/reports/cash-flow"),
+            ("Which analysis tool should I use?", "Which analysis tool should I use?", "/business-analysis"),
+            ("Which channel gave me more revenue per dollar spent?", "Which advertising platform gave better value for my money?", "/business-analysis/returns"),
+            ("Where is Business impact and how do I use it?", "Where is Business impact and how do I use it?", "/business-analysis/impact"),
+            ("Are my customers coming back to buy again?", "Are customers coming back?", "/business-analysis/retention"),
+            ("Which products leave the most money after costs?", "Which products or services leave the most money?", "/business-analysis/profitability"),
+            ("Where are potential sales being lost?", "Where are potential sales being lost?", "/business-analysis/conversion"),
+            ("When might cash run short?", "When might cash run short?", "/business-analysis/cash-flow"),
         ]:
             with self.subTest(question=question):
                 records = knowledge.retrieve(question)
@@ -219,7 +219,7 @@ class GuidanceTests(unittest.TestCase):
         self.assertIn("Open Business Analysis", response.answer)
         self.assertIn("Save assessment to decision", response.answer)
         self.assertIn("not a guarantee of cause and effect", response.answer)
-        self.assertEqual(response.sources[0].route, "/reports/impact")
+        self.assertEqual(response.sources[0].route, "/business-analysis/impact")
 
     def test_historical_return_and_profit_questions_retrieve_their_own_workflow(self):
         for question in ("Which advertising platform gave me more revenue per dollar spent?",
@@ -525,7 +525,7 @@ class GuidanceRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.assertIn("5. Choose Compare results", response.json()["answer"])
-        self.assertEqual(response.json()["sources"][0]["route"], "/reports/returns")
+        self.assertEqual(response.json()["sources"][0]["route"], "/business-analysis/returns")
         self.assertFalse(response.json()["contact_support"])
         limits.assert_called_once_with(AuthContext("user", "workspace"))
         provider.assert_not_called()

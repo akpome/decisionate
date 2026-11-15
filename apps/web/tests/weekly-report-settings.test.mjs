@@ -99,7 +99,7 @@ test("legacy decision deep links go to Business Impact before loading weekly set
   visit(ast)
   assert.ok(redirect)
   assert.ok(source.indexOf(redirect) < source.indexOf('"/business-reports/weekly-settings"'))
-  for (const [impactPage, query, expected] of [[false, "decision=7&weekly=1", "/reports/impact?decision=7"], [false, "decision=bad%26weekly%3D1", "/reports/impact?decision=bad%26weekly%3D1"], [true, "decision=7", undefined], [false, "", undefined]]) {
+  for (const [impactPage, query, expected] of [[false, "decision=7&weekly=1", "/business-analysis/impact?decision=7"], [false, "decision=bad%26weekly%3D1", "/business-analysis/impact?decision=bad%26weekly%3D1"], [true, "decision=7", undefined], [false, "", undefined]]) {
     let path
     vm.runInNewContext(ts.transpileModule(`(() => { ${redirect} })()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText,
       { impactPage, params: new URLSearchParams(query), router: { replace: value => { path = value } }, encodeURIComponent })

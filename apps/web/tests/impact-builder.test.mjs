@@ -136,7 +136,7 @@ test("one accessible edit icon follows the selected decision, with no duplicate 
     assert.equal((html.match(/aria-label="Edit decision"/g) || []).length, 1)
     assert.ok(html.indexOf('aria-label="Decision to review"') < html.indexOf(link))
     assert.ok(html.indexOf(link) < html.indexOf('aria-label="Decision data period"'))
-    assert.doesNotMatch(html, /Edit the action or result in Decision Details|Explore relationships|href="\/reports"/)
+    assert.doesNotMatch(html, /Edit the action or result in Decision Details|Explore relationships|href="\/business-analysis"/)
   }
 })
 
@@ -149,7 +149,7 @@ test("missing comparison and timing retain their warnings without a shortcut tha
   assert.match(html, /A delay will not be assumed/)
   assert.match(html, /Comparison dataset/)
   assert.match(html, /Comparison metric/)
-  assert.doesNotMatch(html, /No fair comparison|Explore relationships|href="\/reports"/)
+  assert.doesNotMatch(html, /No fair comparison|Explore relationships|href="\/business-analysis"/)
   assert.deepEqual(original, before)
   const source = readFileSync(new URL("../features/reports/impact-builder.tsx", import.meta.url), "utf8")
   assert.doesNotMatch(source, /onExplore|onChange\(\{ impact: null \}\)/)

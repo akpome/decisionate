@@ -3065,7 +3065,7 @@ export default function DashboardPage() {
             : "flex flex-wrap items-center justify-end gap-2"
       }
     >
-      <Link href="/reports" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
+      <Link href="/business-analysis" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
         <GitCompare size={16} />Cross-dataset review
       </Link>
 

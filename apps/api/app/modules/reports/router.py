@@ -638,7 +638,7 @@ def decision_evidence(report_id: str, request: Request, payload: ReportDecision,
         raise HTTPException(400, "Select an outcome metric from the report")
     return {"decision_payload": {"dataset_id": outcome["dataset_id"], "outcome_dataset_id": outcome["dataset_id"],
             "metric_column": outcome["metric_key"], "title": payload.title, "action": payload.action,
-            "description": f"Business question: {snapshot['business_question']}\nReasoning and assumptions: {payload.reasoning}\nEvidence: /reports?report={report.id}",
+            "description": f"Business question: {snapshot['business_question']}\nReasoning and assumptions: {payload.reasoning}\nEvidence: /business-analysis?report={report.id}",
             "expected_outcome": payload.expected_outcome, "review_date": payload.review_date,
             "evidence_dataset_ids": list(dict.fromkeys(item["dataset_id"] for item in metrics)),
             "evidence_metrics": descriptors,

@@ -23,7 +23,7 @@ test("help updates retain checklist progress identities and all existing manual 
   assert.equal(referenceChapters.length, 13)
   assert.equal(new Set(referenceChapters.map(item => item.id)).size, 13)
   assert.equal(new Set(faqItems.map(item => item.question)).size, faqItems.length)
-  for (const item of gettingStartedItems) assert.match(item.href, /^\/(?:dashboard|datasets|reports|decisions)(?:[/?#]|$)/)
+  for (const item of gettingStartedItems) assert.match(item.href, /^\/(?:dashboard|datasets|business-analysis|decisions)(?:[/?#]|$)/)
   assert.match(source, /href=\{`#\$\{chapter.id\}`\}/)
   assert.match(source, /id=\{chapter.id\}/)
   assert.doesNotMatch(source, /href: "\/dashboard\/insights|href: "\/relationships\/explorer/)

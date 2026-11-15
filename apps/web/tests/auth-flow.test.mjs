@@ -98,7 +98,7 @@ test("all root workspace routes are safe return destinations without accepting l
     }
     assert.equal(redirects.getSafeReturnTo(path + "-fake"), null)
   }
-  assert.equal(redirects.getSafeReturnTo("/reports/weekly?report=one"), "/weekly-reports?report=one")
+  assert.equal(redirects.getSafeReturnTo("/business-analysis/weekly?report=one"), "/weekly-reports?report=one")
 })
 
 test("Clerk's same-origin absolute return URLs become relative without allowing external redirects", () => {
@@ -243,8 +243,29 @@ test("legacy workspace links permanently redirect once and keep query parameters
       else assert.equal(new URL(next.headers.get("location")).searchParams.get("redirect_url"), path + suffix)
     }
   }
-  assert.equal((await proxy.run("https://app.decisionate.ca/reports/weekly?report=one")).headers.get("location"),
+  assert.equal((await proxy.run("https://app.decisionate.ca/business-analysis/weekly?report=one")).headers.get("location"),
     "https://app.decisionate.ca/weekly-reports?report=one")
+})
+
+test("reports bookmarks and sign-in returns move to Business Analysis without losing report or workspace state", async () => {
+  const proxy = proxyHarness({ responseObjects: true })
+  for (const oldPath of ["/reports", "/dashboard/reports", "/reports/impact"]) {
+    const expected = routes.canonicalWorkspacePathname(oldPath)
+    const query = "?report=saved%20report&workspace_id=client%3Aone&job=pending-job"
+    const response = await proxy.run("https://app.decisionate.ca" + oldPath + query)
+    assert.equal(response.status, 308)
+    assert.equal(response.headers.get("location"), "https://app.decisionate.ca" + expected + query)
+    assert.equal(redirects.getSafeReturnTo(oldPath + query + "#evidence"), expected + query + "#evidence")
+    const login = await proxy.run(response.headers.get("location"))
+    assert.equal(new URL(login.headers.get("location")).searchParams.get("redirect_url"), expected + query)
+    assert.equal(await proxy.run(response.headers.get("location"), "reviewer"), undefined)
+    const apex = await proxy.run("https://decisionate.ca" + oldPath + query)
+    assert.equal(apex.headers.get("location"), "https://app.decisionate.ca" + expected + query)
+  }
+  for (const path of ["/reports/weekly", "/business-analysis/weekly"]) {
+    assert.equal((await proxy.run("https://app.decisionate.ca" + path + "?report=weekly")).headers.get("location"),
+      "https://app.decisionate.ca/weekly-reports?report=weekly")
+  }
 })
 
 test("signed-in users on either auth page reach the resolver with their return URL", async () => {

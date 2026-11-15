@@ -143,7 +143,7 @@ test("a fresh preview includes findings automatically and keeps the returned sel
     crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
     analysisSubmission: { current: false }, busy: false, previewDisabled: false, weekly: false,
     defaultReportQuestion: () => "What changed in the selected metrics, and what needs attention?",
-    window: { location: { pathname: "/reports" }, history: { replaceState() {} } }, encodeURIComponent,
+    window: { location: { pathname: "/business-analysis" }, history: { replaceState() {} } }, encodeURIComponent,
     waitForAnalysis: async (request, identity) => {
       assert.equal(identity, "job-1")
       return { definition: { ...original, included_findings: ["finding-1"] } }
@@ -245,7 +245,7 @@ function draftHandoff(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nopenDecisionDraft`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams, pagePath: "/reports",
+    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams, pagePath: "/business-analysis",
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
     saveSnapshot: async () => { calls.push("save"); return { report_id: "report-1" } },
     request: async (path, init) => { calls.push([path, init.method]); return { decision_id: 4 } },
@@ -277,7 +277,7 @@ test("a prepared draft opens the central form with this report without inserting
   const url = new URL(calls[1], "https://decisionate.test")
   assert.equal(url.pathname, "/decisions/new")
   assert.equal(url.searchParams.get("report"), "report-1")
-  assert.equal(url.searchParams.get("returnTo"), "/reports?report=report-1")
+  assert.equal(url.searchParams.get("returnTo"), "/business-analysis?report=report-1")
 })
 
 test("an existing weekly-template draft keeps its original report instead of rebinding its evidence", async () => {

@@ -206,7 +206,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       try {
         const params = new URLSearchParams(window.location.search)
         if (!impactPage && params.has("decision")) {
-          router.replace(`/reports/impact?decision=${encodeURIComponent(params.get("decision")!)}`)
+          router.replace(`/business-analysis/impact?decision=${encodeURIComponent(params.get("decision")!)}`)
           return
         }
         if (!weekly && params.has("weekly")) {
@@ -214,7 +214,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           return
         }
         if (impactPage && !params.has("report") && !params.has("job") && !params.has("decision") && (params.has("run") || params.has("dataset"))) {
-          router.replace(`/reports?${params}`)
+          router.replace(`/business-analysis?${params}`)
           return
         }
         let weeklyContext: WeeklySettings | null = null
@@ -316,8 +316,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (!weekly && params.get("run")) {
           const result = await correlationRequest<ReportDefinition>(userId, `/business-reports/from-run/${encodeURIComponent(params.get("run")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          if (pagePath !== "/reports") {
-            router.replace(`/reports?${params}`)
+          if (pagePath !== "/business-analysis") {
+            router.replace(`/business-analysis?${params}`)
             return
           }
           setDefinition(editableDefinition({ ...result, name: draftName.current }))

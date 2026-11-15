@@ -85,8 +85,8 @@ class KnowledgeRepositoryTests(unittest.TestCase):
             ("where-are-potential-sales-being-lost", "conversion"),
             ("when-might-cash-run-short", "cash-flow"),
         ]:
-            self.assertEqual(rows[f"performance-analysis:{slug}"]["routes"][0], f"/reports/{path}")
-        self.assertEqual(rows["reports-build:where-is-business-impact-and-how-do-i-use-it"]["routes"][0], "/reports/impact")
+            self.assertEqual(rows[f"performance-analysis:{slug}"]["routes"][0], f"/business-analysis/{path}")
+        self.assertEqual(rows["reports-build:where-is-business-impact-and-how-do-i-use-it"]["routes"][0], "/business-analysis/impact")
         self.assertEqual(rows["product-overview:what-can-ask-decisionate-do"]["routes"][0], "/help")
         self.assertEqual(json.dumps(manifest), original)
 
@@ -94,7 +94,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         article = self.manifest["articles"][0]
         heading = "Are customers coming back?"
         for routes in [[], {"Invented heading": article["routes"][0]}, {heading: "https://external.test"},
-                       {heading: "/platform-admin"}, {heading: "/reports?workspace=other"}]:
+                       {heading: "/platform-admin"}, {heading: "/business-analysis?workspace=other"}]:
             with self.subTest(routes=routes):
                 article["section_routes"] = routes
                 self.save_manifest()
@@ -121,7 +121,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         rows = {row["chunk_id"]: row for row in knowledge.export_records(manifest, documents)}
         direct = rows["performance-analysis:how-do-i-use-return-on-spend"]
         self.assertIn("how do use the return on spend under business analysis", direct["direct_questions"])
-        self.assertEqual(direct["routes"][0], "/reports/returns")
+        self.assertEqual(direct["routes"][0], "/business-analysis/returns")
         portal = rows["hosted-portals:how-do-i-set-up-my-portal"]
         self.assertIn("How do I set up a white-label portal?", portal["direct_questions"])
         self.assertEqual(portal["routes"][0], "/white-label")

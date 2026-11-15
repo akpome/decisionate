@@ -193,7 +193,7 @@ class RetiredExplorerTests(unittest.TestCase):
                 caps = self.client.get("/api/v2/correlation-capabilities").json()
                 self.assertTrue(caps["retired"])
                 self.assertTrue(all(caps[key] is False for key in ("api", "ui", "widgets", "lag", "ai")))
-                self.assertEqual(caps["replacement_url"], "/reports")
+                self.assertEqual(caps["replacement_url"], "/business-analysis")
                 for path, body in (
                     ("correlation-analyses", definition()),
                     ("correlation-analyses/historical-analysis/runs", {}),

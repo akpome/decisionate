@@ -16,7 +16,7 @@ const impact = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/reports/impact-types.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   { module: impact, exports: impact.exports })
 
-function draft(url = "https://decisionate.test/reports") {
+function draft(url = "https://decisionate.test/business-analysis") {
   const changes = []
   const window = { location: { href: url }, history: { replaceState(state, _, path) {
     changes.push({ state, path }); window.location.href = new URL(path, window.location.href).href
@@ -64,7 +64,7 @@ test("draft reloads preserve the generated name and source navigation parameters
 
 test("invalid URL draft identifiers are replaced, never inserted into a report name", () => {
   for (const value of ["", "undefined", "<script>", "../another-report", "review revenue"]) {
-    const form = draft(`https://decisionate.test/reports?draft=${encodeURIComponent(value)}`)
+    const form = draft(`https://decisionate.test/business-analysis?draft=${encodeURIComponent(value)}`)
     assert.match(form.reportDraftName(), namePattern)
     assert.equal(form.changes.length, 1)
   }

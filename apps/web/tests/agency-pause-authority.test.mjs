@@ -57,7 +57,7 @@ function pausedMarkup(overrides = {}) {
 }
 
 test("unlinked dashboards show the requested status and only a Settings link", () => {
-  for (const pathname of ["/dashboard", "/reports", "/forecasts"]) {
+  for (const pathname of ["/dashboard", "/business-analysis", "/forecasts"]) {
     const html = pausedMarkup({ pathname })
     assert.match(html, /Client account unlinked/)
     assert.match(html, /Your data is preserved\. Contact your agency to resume access\./)
