@@ -16,7 +16,7 @@ There are four alternative plans, not a base plan plus white-label add-ons:
 
 Custom-domain signup is closed by default and can be opened later by the platform
 administrator. Hosted-subdomain signup also depends on the platform's availability
-switch and verified launch checks. An unavailable plan cannot be activated just by
+switch and shared sign-in configuration. An unavailable plan cannot be activated just by
 choosing it in a request. Standard Branded Agency does not include a white-label portal.
 
 Platform Admin > Billing and AI credit pricing sets each plan's monthly and annual

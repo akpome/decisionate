@@ -216,16 +216,17 @@ its price alone never enables it. The public `/api/v2/application/plans` endpoin
 publishes safe plan amounts and availability without Stripe IDs or credentials.
 
 ```dotenv
-HOSTED_SUBDOMAINS_HOSTING_VERIFIED=false
-HOSTED_SUBDOMAINS_AUTH_VERIFIED=false
-HOSTED_SUBDOMAINS_DELIVERY_VERIFIED=false
 HOSTED_SUBDOMAINS_ASSET_HOSTS=app.decisionate.ca
 DECISIONATE_API_URL=https://api.decisionate.ca
 CLERK_SECRET_KEY=<existing primary-instance backend key>
 ```
 
-The three verification flags accept exactly `true` after operator checks; they
-are attestations, not live provider probes. API/worker/scheduler must share the
+No manual hosting, authentication or delivery verification flags are required.
+The hosted availability switch is managed in Platform Admin. Configuration checks
+require the real shared Clerk backend credential, and activation still reconciles
+the exact satellite domain with Clerk before publication. Wildcard DNS, HTTPS,
+email delivery and connector callbacks must work; the configuration status does
+not certify those external services. API/worker/scheduler must share the
 existing Agency billing configuration, database, primary application registry
 and public API URL. Provisioning
 credentials are API-only. Do not add wildcard CORS origins; exact active origins
@@ -242,7 +243,8 @@ Use the existing verified sender/key. Send test invitations, alerts and weekly
 reports to authorized test recipients. Inspect logos, names, reply-to and links
 from agency/client background jobs. Test pause/unlink during queued work and
 primary URL restoration for independent clients. Test OAuth main/hosted/custom
-callbacks and each provider's approvals. Set delivery verification only afterward.
+callbacks and each provider's approvals. These are deployment acceptance tests,
+not additional environment switches.
 
 ### Launch and rollback
 
@@ -265,7 +267,7 @@ and primary/custom routing. Browser fixtures use actual components with mocked
 API/Clerk, not live provider sessions.
 Production PostgreSQL concurrency, real Clerk synchronization, provider approvals
 and deliverability require the runbook. No production provider state was changed
-by local tests. Ready flags intentionally keep sales closed.
+by local tests. The persisted Admin availability switches default to closed.
 
 Initial implementation checks completed on November 15, 2026 (before the later
 Agency-included access change):

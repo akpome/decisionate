@@ -67,13 +67,9 @@ class Branding(BaseModel):
 
 
 def launch_blockers():
-    checks = {
-        "Shared wildcard hosting and HTTPS require operator verification.": os.getenv("HOSTED_SUBDOMAINS_HOSTING_VERIFIED") == "true",
-        "Shared Clerk satellite sign-in requires operator verification.": os.getenv("HOSTED_SUBDOMAINS_AUTH_VERIFIED") == "true",
-        "Hosted email and connector return flows require operator verification.": os.getenv("HOSTED_SUBDOMAINS_DELIVERY_VERIFIED") == "true",
-        "The shared Clerk backend credential is not configured.": bool(os.getenv("CLERK_SECRET_KEY")),
-    }
-    return [message for message, ready in checks.items() if not ready]
+    if not os.getenv("CLERK_SECRET_KEY", "").strip():
+        return ["The shared Clerk backend credential is not configured."]
+    return []
 
 
 def clerk_request(path, *, body=None):

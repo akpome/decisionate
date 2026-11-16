@@ -15,7 +15,9 @@ provider accounts or separate Vercel project are required. The branded welcome
 screen uses `app.decisionate.ca` for secure credential entry and returns to the
 authorized portal. It does not change the custom product below.
 
-Both commercial switches default Off. Live provider checks are required; see the
+Both commercial switches default Off. Shared portals use the existing Clerk
+credential and register their sign-in domain when published; no manual verification
+flags are required. Hosting, HTTPS, email and connector setup still need to work; see the
 [hosted deployment runbook](hosted-subdomain-implementation-status.md).
 
 ## Custom-domain self-service portals
@@ -50,7 +52,8 @@ separate technical readiness checks.
 `HOSTED_PORTALS_ENABLED` remains the **technical custom-domain registry and
 provisioning flag**. Do not turn it off to stop new sales; that could remove live
 application registrations. Use the commercial switch instead. The hosted-subdomain
-commercial control is independent and requires its own completed launch checks.
+commercial control is independent and requires shared Clerk configuration, with
+domain registration checked when each portal is published.
 
 ### Customer steps
 

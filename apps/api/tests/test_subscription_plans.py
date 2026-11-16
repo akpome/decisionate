@@ -1,5 +1,6 @@
 from datetime import timedelta
 import ast
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -15,7 +16,7 @@ from app.db.database import Base
 from app.db.models import Organization, PlatformBillingSettings, WhiteLabelAvailability, WorkspaceSubscription, utc_now
 from app.modules import applications, platform_admin, hosted_portals, white_label_availability
 from app.modules.billing import service, router as billing
-from app.modules.hosted_subdomains import context, service as hosted_service
+from app.modules.hosted_subdomains import context
 
 
 class SubscriptionPlanTests(unittest.TestCase):
@@ -28,7 +29,6 @@ class SubscriptionPlanTests(unittest.TestCase):
             self.mock(patch.object(module, "SessionLocal", self.Session))
         self.mock(patch.object(platform_admin, "require_platform_admin", return_value=SimpleNamespace(user_id="operator")))
         self.mock(patch.object(white_label_availability, "require_platform_admin_full_access", return_value=SimpleNamespace(user_id="operator")))
-        self.mock(patch.object(hosted_service, "launch_blockers", return_value=[]))
         self.mock(patch.object(hosted_portals, "platform_blockers", return_value=[]))
         app = FastAPI()
         app.include_router(platform_admin.router, prefix="/admin")
@@ -109,6 +109,20 @@ class SubscriptionPlanTests(unittest.TestCase):
             self.assertFalse(service.plan_available(service.AGENCY_SUBDOMAIN_PLAN, db))
         with patch.object(hosted_portals, "platform_blockers", return_value=["Not ready"]), self.Session() as db:
             self.assertFalse(service.plan_available(service.AGENCY_CUSTOM_DOMAIN_PLAN, db))
+
+    def test_hosted_plan_opens_without_manual_flags_and_preserves_admin_control(self):
+        with patch.dict(os.environ, {"CLERK_SECRET_KEY": "test_only"}, clear=True):
+            with self.Session() as db:
+                self.assertFalse(service.plan_available(service.AGENCY_SUBDOMAIN_PLAN, db))
+            response = self.client.put("/admin/white-label-availability", json={"offering": "hosted_subdomain", "enabled": True,
+                "revision": 0, "confirmation": "CHANGE AVAILABILITY"})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["hosted_subdomain_blockers"], [])
+            with self.Session() as db:
+                self.assertTrue(service.plan_available(service.AGENCY_SUBDOMAIN_PLAN, db))
+                self.assertFalse(service.plan_available(service.AGENCY_CUSTOM_DOMAIN_PLAN, db))
+                with patch.dict(os.environ, {"CLERK_SECRET_KEY": ""}):
+                    self.assertFalse(service.plan_available(service.AGENCY_SUBDOMAIN_PLAN, db))
 
     def test_closed_plan_rejects_checkout_before_calling_stripe(self):
         self.mock(patch.object(billing, "require_billing_owner", return_value=SimpleNamespace(user_id="owner", workspace_id="owner")))

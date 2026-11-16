@@ -80,8 +80,10 @@ Choose the subdomain, portal name, support email, logo, browser icon, colors and
 welcome message. Optional images must be PNG, JPEG or WebP, no larger than 128 KB
 each. Save draft reserves the address; it cannot then be renamed in this screen.
 Preview desktop or mobile, then explicitly activate or publish. Draft changes are
-not live until published. Reopen setup to continue. If platform launch checks are
-pending, save the draft and contact support.
+not live until published. Reopen setup to continue. Publishing registers the portal's
+sign-in domain with Clerk. If shared sign-in setup is unavailable, save the draft
+and contact support. No manual hosting, sign-in or email verification switches are
+needed; the portal still needs working HTTPS, authentication and delivery services.
 
 ## Where do hosted clients sign in and how are they invited?
 

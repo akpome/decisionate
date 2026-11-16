@@ -82,7 +82,7 @@ def change_availability(request: Request, response: Response, payload: Availabil
         if payload.revision != before["revision"]:
             raise HTTPException(409, "Availability changed. Refresh before saving.")
         if payload.enabled and payload.offering == "hosted_subdomain" and admin_listing(db)["hosted_subdomain_blockers"]:
-            raise HTTPException(409, "Complete hosted-subdomain launch checks before opening subscriptions.")
+            raise HTTPException(409, "Configure shared Clerk sign-in before opening hosted-subdomain subscriptions.")
         field = payload.offering + "_enabled"
         values = {field: payload.enabled, "revision": payload.revision + 1, "updated_by_user_id": auth.user_id}
         if payload.revision == 0:

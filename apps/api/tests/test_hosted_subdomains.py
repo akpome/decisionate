@@ -43,8 +43,7 @@ class HostedSubdomainTests(unittest.TestCase):
             "AUTH_JWT_AUDIENCE": "decisionate", "BILLING_ENFORCEMENT_ENABLED": "true",
             "BILLING_PROVIDER": "stripe",
             "STRIPE_SECRET_KEY": "sk_test_shared", "STRIPE_AGENCY_PRICE_ID": "price_agency",
-            "CLERK_SECRET_KEY": "sk_test_shared", "HOSTED_SUBDOMAINS_HOSTING_VERIFIED": "true",
-            "HOSTED_SUBDOMAINS_AUTH_VERIFIED": "true", "HOSTED_SUBDOMAINS_DELIVERY_VERIFIED": "true",
+            "CLERK_SECRET_KEY": "sk_test_shared",
         }, clear=True))
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
@@ -341,15 +340,32 @@ class HostedSubdomainTests(unittest.TestCase):
             subscription.current_period_end = None
             self.assertFalse(context.entitled(db, db.get(Organization, 1)))
 
-    def test_readiness_needs_provider_verification_but_no_extra_stripe_price(self):
+    def test_readiness_only_requires_the_real_shared_clerk_credential(self):
         self.assertEqual(service.launch_blockers(), [])
         self.assertEqual(self.save().status_code, 200)
-        for setting in ("HOSTED_SUBDOMAINS_HOSTING_VERIFIED", "HOSTED_SUBDOMAINS_AUTH_VERIFIED", "HOSTED_SUBDOMAINS_DELIVERY_VERIFIED"):
-            with patch.dict(os.environ, {setting: "false"}), patch.object(portals, "ensure_satellite") as clerk:
+        for secret in ("", "   "):
+            with patch.dict(os.environ, {"CLERK_SECRET_KEY": secret}), patch.object(portals, "ensure_satellite") as clerk:
                 self.assertEqual(len(service.launch_blockers()), 1)
                 result = self.client.post(self.base + "/activate", headers=self.headers(), json={"revision": 1, "confirmation": "PUBLISH PORTAL"})
                 self.assertEqual(result.status_code, 503, result.text)
+                self.assertEqual(result.json()["detail"], "Shared sign-in setup is not configured.")
                 clerk.assert_not_called()
+
+    def test_real_clerk_registration_failure_cannot_publish_the_portal(self):
+        from fastapi import HTTPException
+
+        self.assertEqual(self.save().status_code, 200)
+        with patch.object(portals, "ensure_satellite", side_effect=HTTPException(503, "Shared sign-in setup could not be confirmed.")) as clerk:
+            result = self.client.post(self.base + "/activate", headers=self.headers(), json={"revision": 1, "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(result.status_code, 503, result.text)
+        clerk.assert_called_once_with("north-star.decisionate.app")
+        with self.Session() as db:
+            row = db.query(HostedSubdomainPortal).one()
+            self.assertEqual(row.status, "reserved")
+            self.assertIsNone(row.published_configuration)
+            self.assertIsNone(row.clerk_domain_id)
+            self.assertEqual(row.last_error, "Shared sign-in setup could not be confirmed.")
+        self.assertFalse(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["active"])
 
     def test_removed_purchase_and_cancellation_routes_cannot_modify_billing(self):
         self.publish()

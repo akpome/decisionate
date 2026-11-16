@@ -75,16 +75,17 @@ class WhiteLabelAvailabilityTests(unittest.TestCase):
         self.assertEqual(self.change().status_code, 403)
         self.assertEqual(self.client.get("/admin/white-label-availability").status_code, 403)
 
-    def test_hosted_sales_stay_closed_until_launch_checks_are_implemented(self):
-        self.assertEqual(self.change(offering="hosted_subdomain").status_code, 409)
+    def test_hosted_sales_stay_closed_without_shared_signin_credentials(self):
+        for secret in ("", "   "):
+            with patch.dict(os.environ, {"CLERK_SECRET_KEY": secret}, clear=True):
+                result = self.change(offering="hosted_subdomain")
+            self.assertEqual(result.status_code, 409)
+            self.assertIn("Configure shared Clerk sign-in", result.json()["detail"])
         with self.Session() as db:
             self.assertEqual(db.query(WhiteLabelAvailability).count(), 0)
 
-    def test_hosted_setup_opens_with_verified_providers_without_an_addon_price(self):
-        with patch.dict(os.environ, {
-            "HOSTED_SUBDOMAINS_HOSTING_VERIFIED": "true", "HOSTED_SUBDOMAINS_AUTH_VERIFIED": "true",
-            "HOSTED_SUBDOMAINS_DELIVERY_VERIFIED": "true", "CLERK_SECRET_KEY": "test_only",
-        }, clear=True):
+    def test_hosted_setup_opens_with_shared_signin_and_no_manual_confirmation(self):
+        with patch.dict(os.environ, {"CLERK_SECRET_KEY": "test_only"}, clear=True):
             result = self.change(offering="hosted_subdomain")
         self.assertEqual(result.status_code, 200, result.text)
         self.assertTrue(result.json()["hosted_subdomain_enabled"])

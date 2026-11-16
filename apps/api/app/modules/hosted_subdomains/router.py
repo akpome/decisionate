@@ -147,7 +147,7 @@ def activate(request: Request, payload: PublishPortal):
         if not row.activated_at:
             require_sales(db)
         if launch_blockers():
-            raise HTTPException(503, "Hosted launch checks are not complete.")
+            raise HTTPException(503, "Shared sign-in setup is not configured.")
         hostname, portal_id = row.hostname, row.id
     try:
         domain_id = ensure_satellite(hostname)
