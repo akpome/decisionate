@@ -45,7 +45,7 @@ export function checkoutTotal(
       : billing.additional_client_workspace_price_cents
   return (
     (base ?? 0) +
-    (plan === "agency" ? workspaces * addon : 0) +
+    (option?.billing_model === "agency" ? workspaces * addon : 0) +
     (interval === "month" ? packs * billing.ai_credit_pack_price_cents : 0)
   )
 }

@@ -250,7 +250,7 @@ function downloadCsv(
 const creditSettingFields = [
   { key: "free_ai_credits", label: "Free" },
   { key: "professional_ai_credits", label: "Professional" },
-  { key: "agency_ai_credits", label: "Agency" },
+  { key: "agency_ai_credits", label: "All agency plans" },
   {
     key: "additional_client_workspace_ai_credits",
     label: "Additional client workspace",
@@ -263,6 +263,10 @@ const billingPriceSettingFields = [
   { key: "professional_annual_price_cents", label: "Professional annual price (CAD cents)" },
   { key: "agency_monthly_price_cents", label: "Agency monthly price (CAD cents)" },
   { key: "agency_annual_price_cents", label: "Agency annual price (CAD cents)" },
+  { key: "agency_subdomain_monthly_price_cents", label: "White Label Subdomain Agency monthly price (CAD cents)" },
+  { key: "agency_subdomain_annual_price_cents", label: "White Label Subdomain Agency annual price (CAD cents)" },
+  { key: "agency_custom_domain_monthly_price_cents", label: "Custom Domain White Label Agency monthly price (CAD cents)" },
+  { key: "agency_custom_domain_annual_price_cents", label: "Custom Domain White Label Agency annual price (CAD cents)" },
   {
     key: "additional_client_workspace_monthly_price_cents",
     label: "Additional workspace monthly price (CAD cents)",
@@ -280,6 +284,10 @@ const billingStripePriceFields = [
   { key: "professional_annual_price_id", label: "Professional annual Stripe price ID" },
   { key: "agency_price_id", label: "Agency monthly Stripe price ID" },
   { key: "agency_annual_price_id", label: "Agency annual Stripe price ID" },
+  { key: "agency_subdomain_price_id", label: "White Label Subdomain Agency monthly Stripe price ID" },
+  { key: "agency_subdomain_annual_price_id", label: "White Label Subdomain Agency annual Stripe price ID" },
+  { key: "agency_custom_domain_price_id", label: "Custom Domain White Label Agency monthly Stripe price ID" },
+  { key: "agency_custom_domain_annual_price_id", label: "Custom Domain White Label Agency annual Stripe price ID" },
   {
     key: "client_workspace_addon_price_id",
     label: "Additional workspace monthly Stripe price ID",
@@ -290,6 +298,13 @@ const billingStripePriceFields = [
   },
   { key: "ai_credit_pack_price_id", label: "Monthly AI pack Stripe price ID" },
   { key: "ai_credit_topup_price_id", label: "One-time top-up Stripe price ID" },
+] as const
+
+const subscriptionPriceRows = [
+  { key: "professional", name: "Professional" },
+  { key: "agency", name: "Standard Branded Agency" },
+  { key: "agency_subdomain", name: "White Label Subdomain Agency" },
+  { key: "agency_custom_domain", name: "Custom Domain White Label Agency" },
 ] as const
 
 function MetricCard({
@@ -488,6 +503,10 @@ export default function PlatformAdminPage() {
     professional_annual_price_cents: "79000",
     agency_monthly_price_cents: "19900",
     agency_annual_price_cents: "199000",
+    agency_subdomain_monthly_price_cents: "0",
+    agency_subdomain_annual_price_cents: "0",
+    agency_custom_domain_monthly_price_cents: "0",
+    agency_custom_domain_annual_price_cents: "0",
     additional_client_workspace_monthly_price_cents: "2000",
     additional_client_workspace_annual_price_cents: "20000",
     ai_credit_pack_price_cents: "750",
@@ -496,6 +515,10 @@ export default function PlatformAdminPage() {
     professional_annual_price_id: "",
     agency_price_id: "",
     agency_annual_price_id: "",
+    agency_subdomain_price_id: "",
+    agency_subdomain_annual_price_id: "",
+    agency_custom_domain_price_id: "",
+    agency_custom_domain_annual_price_id: "",
     client_workspace_addon_price_id: "",
     client_workspace_addon_annual_price_id: "",
     ai_credit_pack_price_id: "",
@@ -837,6 +860,10 @@ export default function PlatformAdminPage() {
                     agency_annual_price_cents: String(
                       settings.agency_annual_price_cents
                     ),
+                    agency_subdomain_monthly_price_cents: String(settings.agency_subdomain_monthly_price_cents ?? 0),
+                    agency_subdomain_annual_price_cents: String(settings.agency_subdomain_annual_price_cents ?? 0),
+                    agency_custom_domain_monthly_price_cents: String(settings.agency_custom_domain_monthly_price_cents ?? 0),
+                    agency_custom_domain_annual_price_cents: String(settings.agency_custom_domain_annual_price_cents ?? 0),
                     additional_client_workspace_monthly_price_cents: String(
                       settings.additional_client_workspace_monthly_price_cents
                     ),
@@ -853,6 +880,10 @@ export default function PlatformAdminPage() {
                     professional_annual_price_id: settings.professional_annual_price_id,
                     agency_price_id: settings.agency_price_id,
                     agency_annual_price_id: settings.agency_annual_price_id,
+                    agency_subdomain_price_id: settings.agency_subdomain_price_id ?? "",
+                    agency_subdomain_annual_price_id: settings.agency_subdomain_annual_price_id ?? "",
+                    agency_custom_domain_price_id: settings.agency_custom_domain_price_id ?? "",
+                    agency_custom_domain_annual_price_id: settings.agency_custom_domain_annual_price_id ?? "",
                     client_workspace_addon_price_id:
                       settings.client_workspace_addon_price_id,
                     client_workspace_addon_annual_price_id:
@@ -1171,12 +1202,12 @@ export default function PlatformAdminPage() {
         }
       )
       setCreditSettings(settings)
-      setCreditSettingsMessage("AI credit allocations saved.")
+      setCreditSettingsMessage("Pricing and credits saved.")
     } catch (saveError) {
       setCreditSettingsError(
         saveError instanceof Error
           ? saveError.message
-          : "AI credit allocations could not be saved."
+          : "Pricing and credits could not be saved."
       )
     } finally {
       setCreditSettingsSaving(false)
@@ -1994,8 +2025,8 @@ export default function PlatformAdminPage() {
   const selectedOrganizationIsClient =
     selectedOrganization?.plan === "client" ||
     selectedOrganization?.owner_user_id.includes(":client:") === true
-  const planChart = ["free", "professional", "agency", "client"].map(plan => ({
-    label: plan === "free" ? "Free" : plan[0].toUpperCase() + plan.slice(1),
+  const planChart = ["free", ...subscriptionPriceRows.map(plan => plan.key), "client"].map(plan => ({
+    label: subscriptionPriceRows.find(item => item.key === plan)?.name ?? (plan === "free" ? "Free" : "Client"),
     value: organizations.filter(organization => organization.plan === plan).length,
   }))
   const maxPlanCount = Math.max(...planChart.map(item => item.value), 1)
@@ -2332,8 +2363,7 @@ export default function PlatformAdminPage() {
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
                   >
                     <option value="free">Free evaluation</option>
-                    <option value="professional">Professional</option>
-                    <option value="agency">Agency</option>
+                    {subscriptionPriceRows.map(plan => <option key={plan.key} value={plan.key}>{plan.name}</option>)}
                   </select>
                 </label>
                 <label className="text-xs font-medium text-gray-700">
@@ -2395,7 +2425,7 @@ export default function PlatformAdminPage() {
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="font-semibold">Billing and AI credit pricing</h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Configure plan entitlements, customer-facing prices, and the Stripe price IDs used for checkout. Changes apply to new billing displays and checkout sessions.
+                  Set monthly and annual prices for four alternative plans. Existing subscriptions keep their Stripe prices. White-label availability is controlled under White label.
                 </p>
               </div>
 
@@ -2418,6 +2448,38 @@ export default function PlatformAdminPage() {
                     void handleSaveCreditSettings(event)
                   }}
                 >
+                  <div>
+                    <h3 className="text-sm font-semibold">Subscription plans</h3>
+                    <p className="mt-1 text-xs text-gray-500">Amounts are in CAD cents. Select matching recurring prices from Stripe. Custom-domain white label stays unavailable until enabled under White label.</p>
+                    <div className="mt-4 divide-y divide-gray-200 border-y border-gray-200">
+                      {subscriptionPriceRows.map(plan => (
+                        <div key={plan.key} className="grid min-w-0 gap-4 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                          <h4 className="text-sm font-medium">{plan.name}</h4>
+                          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                            {(["monthly", "annual"] as const).map(interval => {
+                              const amountKey = `${plan.key}_${interval}_price_cents` as keyof typeof creditForm
+                              const stripeKey = `${plan.key}_${interval === "annual" ? "annual_" : ""}price_id` as keyof typeof creditForm
+                              return <div key={interval} className="min-w-0 space-y-3">
+                                <label className="block text-xs font-medium text-gray-600">
+                                  {interval === "monthly" ? "Monthly price (CAD cents)" : "Annual price (CAD cents)"}
+                                  <input aria-label={`${plan.name} ${interval} price (CAD cents)`} type="number" min="0" step="1" required value={creditForm[amountKey]}
+                                    onChange={event => setCreditForm(form => ({ ...form, [amountKey]: event.target.value }))}
+                                    className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm font-normal" />
+                                </label>
+                                <label className="block text-xs font-medium text-gray-600">
+                                  {interval === "monthly" ? "Monthly Stripe price ID" : "Annual Stripe price ID"}
+                                  <input aria-label={`${plan.name} ${interval} Stripe price ID`} value={creditForm[stripeKey]} placeholder="price_..."
+                                    onChange={event => setCreditForm(form => ({ ...form, [stripeKey]: event.target.value }))}
+                                    className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm font-normal" />
+                                </label>
+                              </div>
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <h3 className="text-sm font-semibold">AI credit allowances</h3>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {creditSettingFields.map((field) => (
                       <label
@@ -2441,10 +2503,10 @@ export default function PlatformAdminPage() {
                   </div>
 
                   <div className="border-t border-gray-100 pt-5">
-                    <h3 className="text-sm font-semibold text-gray-900">Subscription and AI bundle prices</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">Additional workspace and AI bundle prices</h3>
                     <p className="mt-1 text-xs text-gray-500">Enter amounts in CAD cents. The monthly AI pack renews with the subscription; the one-time top-up does not.</p>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {billingPriceSettingFields.map((field) => (
+                      {billingPriceSettingFields.filter(field => !subscriptionPriceRows.some(plan => field.key.startsWith(`${plan.key}_`))).map((field) => (
                         <label
                           key={field.key}
                           className="text-xs font-medium text-gray-600"
@@ -2470,7 +2532,7 @@ export default function PlatformAdminPage() {
                     <h3 className="text-sm font-semibold text-gray-900">Stripe price IDs</h3>
                     <p className="mt-1 text-xs text-gray-500">Create or select the matching Stripe prices first, then save their IDs here so checkout charges the configured amount.</p>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {billingStripePriceFields.map((field) => (
+                      {billingStripePriceFields.filter(field => !subscriptionPriceRows.some(plan => field.key.startsWith(`${plan.key}_`))).map((field) => (
                         <label
                           key={field.key}
                           className="text-xs font-medium text-gray-600"
@@ -2501,7 +2563,7 @@ export default function PlatformAdminPage() {
                       disabled={creditSettingsSaving}
                       className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {creditSettingsSaving ? "Saving..." : "Save credit settings"}
+                      {creditSettingsSaving ? "Saving..." : "Save pricing and credits"}
                     </button>
                   </div>
                   {creditSettingsMessage && (
@@ -4406,12 +4468,11 @@ export default function PlatformAdminPage() {
                         value={billingPlan}
                         onChange={(event) => setBillingPlan(event.target.value)}
                         disabled={billingSaving || selectedOrganizationIsClient}
-                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 lg:w-44"
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 lg:w-72"
                       >
                         <option value="client">Client workspace</option>
                         <option value="free">Free evaluation</option>
-                        <option value="professional">Professional</option>
-                        <option value="agency">Agency</option>
+                        {subscriptionPriceRows.map(plan => <option key={plan.key} value={plan.key}>{plan.name}</option>)}
                       </select>
                     </label>
                     <label className="text-xs font-medium text-gray-700">
@@ -4727,7 +4788,7 @@ export default function PlatformAdminPage() {
                 its users and memberships, datasets, decisions, connections,
                 invites, and all associated data.
               </p>
-              {deleteModalOrganization.plan === "agency" && (
+              {subscriptionPriceRows.some(plan => plan.key !== "professional" && plan.key === deleteModalOrganization.plan) && (
                 <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">
                   Because this is an agency workspace, all client workspaces
                   managed by it will be deleted as well.

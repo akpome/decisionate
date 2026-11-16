@@ -46,7 +46,7 @@ function renderHero(language = "en") {
   return renderToStaticMarkup(React.createElement(LandingHero))
 }
 
-function renderSections(language = "en") {
+function renderSections(language = "en", catalog) {
   const overrides = {
     "next/link": { default: props => React.createElement("a", props) },
     "@/app/use-decisionate-language": {
@@ -58,7 +58,7 @@ function renderSections(language = "en") {
   const sections = load("../components/landing/landing-sections.tsx", overrides)
   return renderToStaticMarkup(React.createElement(React.Fragment, null,
     ...["BusinessSection", "AgencySection", "FeaturesSection", "IntegrationsSection", "PricingSection", "FAQSection"]
-      .map(name => React.createElement(sections[name], { key: name }))
+      .map(name => React.createElement(sections[name], { key: name, catalog }))
   ))
 }
 
@@ -166,7 +166,7 @@ test("business and agency sections precede the evidence and action section", () 
   assert.doesNotMatch(sections, /audience ===|Workspace type|Manage your agency and client workspaces separately/)
   const page = read("../app/page.tsx")
   const order = ["BusinessSection", "AgencySection", "FeaturesSection", "IntegrationsSection", "PricingSection", "FAQSection"]
-    .map(name => page.indexOf(`<${name} />`))
+    .map(name => page.indexOf(`<${name} `))
   assert.ok(order.every(index => index >= 0))
   assert.ok(order.every((index, position) => !position || index > order[position - 1]))
   assert.match(page, /<AgencySection \/>\s*<FeaturesSection \/>/)
@@ -336,6 +336,23 @@ test("walkthrough preserves deferred playback, caption assets, chapter seeking a
   const poster = imageSize(readFileSync(new URL("../public/media/decisionate-demo-poster.webp", import.meta.url)))
   assert.equal(poster.width, Number(demo.match(/width=\{(\d+)\}/)[1]))
   assert.equal(poster.height, Number(demo.match(/height=\{(\d+)\}/)[1]))
+})
+
+test("pricing shows four distinct admin-priced plans and keeps custom-domain signup closed", () => {
+  const catalog = { currency: "CAD", plans: [
+    { plan: "professional", monthly_price_cents: 12345, annual_price_cents: 123450, monthly_configured: true, annual_configured: true, available: true },
+    { plan: "agency", monthly_price_cents: 23456, annual_price_cents: 234560, monthly_configured: true, annual_configured: true, available: true },
+    { plan: "agency_subdomain", monthly_price_cents: 34567, annual_price_cents: 345670, monthly_configured: true, annual_configured: true, available: true },
+    { plan: "agency_custom_domain", monthly_price_cents: 45678, annual_price_cents: 456780, monthly_configured: true, annual_configured: true, available: false },
+  ] }
+  const html = renderSections("en", catalog)
+  for (const name of ["Professional", "Standard Branded Agency", "White Label Subdomain Agency", "Custom Domain White Label Agency"]) assert.ok(html.includes(name))
+  for (const amount of ["123.45", "234.56", "345.67", "456.78"]) assert.ok(html.includes(amount))
+  const pricing = html.slice(html.indexOf('id="pricing"'), html.indexOf('id="questions"'))
+  assert.equal((pricing.match(/Start trial/g) || []).length, 3)
+  assert.match(pricing, /Not open for new subscriptions yet/)
+  assert.doesNotMatch(renderSections(), /\$0\.00/)
+  for (const name of ["Standard Branded Agency", "White Label Subdomain Agency", "Custom Domain White Label Agency"]) assert.ok(refreshedLandingFrench[name])
 })
 
 test("industry links select the corresponding demo dashboard and pricing retains translation", () => {

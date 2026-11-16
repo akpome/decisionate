@@ -15,6 +15,7 @@ import { useLandingText } from "@/app/use-decisionate-language"
 import { dashboardDefinitions } from "@/features/dashboards/dashboard-definitions"
 import { faqs, integrationGroups } from "./landing-content"
 import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
+import type { PublicPlanCatalog } from "@/lib/api"
 
 export function FeaturesSection() {
   const { t } = useLandingText()
@@ -260,36 +261,44 @@ export function IntegrationsSection() {
   )
 }
 
-export function PricingSection() {
+export function PricingSection({ catalog }: { catalog?: PublicPlanCatalog | null }) {
   const { t } = useLandingText()
   const [annual, setAnnual] = useState(false)
   const plans = [
     {
+      id: "professional",
       name: "Professional",
       description: "For a business managing its own workspace.",
-      monthly: 79,
-      yearly: 790,
       items: [
         "1 business workspace",
         "Unlimited datasets",
         "All industry dashboards",
         "Decision management and outcome tracking",
-        "5,000 AI credits/month or 60,000/year"
       ]
     },
     {
-      name: "Agency",
+      id: "agency",
+      name: "Standard Branded Agency",
       description: "For an agency working across client businesses.",
-      monthly: 199,
-      yearly: 1990,
       items: [
         "Agency workspace and 10 client workspaces",
         "Separate client access",
-        "Agency branding and client portal",
+        "Decisionate-branded application",
         "All Professional features",
-        "25,000 AI credits/month or 300,000/year"
       ]
-    }
+    },
+    {
+      id: "agency_subdomain",
+      name: "White Label Subdomain Agency",
+      description: "Your brand on a Decisionate-hosted portal.",
+      items: ["All Standard Branded Agency features", "Your logo, colours and welcome screen", "Your portal at agency.decisionate.app"],
+    },
+    {
+      id: "agency_custom_domain",
+      name: "Custom Domain White Label Agency",
+      description: "Your branded portal on your own domain.",
+      items: ["All agency workspace features", "Your portal at analytics.agency.com", "Your branding and billing setup"],
+    },
   ]
   return (
     <section id="pricing" className="landing-section border-y border-neutral-200 bg-neutral-50">
@@ -325,7 +334,13 @@ export function PricingSection() {
           </div>
         </div>
         <div className="mt-9 grid gap-5 md:grid-cols-2">
-          {plans.map((plan) => (
+          {plans.map((plan) => {
+            const option = catalog?.plans.find(option => option.plan === plan.id)
+            const configured = annual ? option?.annual_configured : option?.monthly_configured
+            const amount = annual ? option?.annual_price_cents : option?.monthly_price_cents
+            const hasPrice = amount != null && (amount > 0 || configured)
+            const available = option?.available ?? (plan.id === "professional" || plan.id === "agency")
+            return (
             <article
               key={plan.name}
               className="flex min-w-0 flex-col rounded-lg border border-neutral-200 bg-white p-6 sm:p-8"
@@ -335,19 +350,16 @@ export function PricingSection() {
                 {t(plan.description)}
               </p>
               <div className="mt-6 flex flex-wrap items-baseline gap-2">
-                <span className="text-4xl font-semibold tabular-nums">
-                  $
-                  {(annual ? plan.yearly : plan.monthly).toLocaleString(
-                    "en-CA"
-                  )}
+                <span className="text-3xl font-semibold tabular-nums">
+                  {hasPrice ? new Intl.NumberFormat("en-CA", { style: "currency", currency: catalog!.currency }).format(amount! / 100) : t(available ? catalog ? "Price not set" : "Pricing temporarily unavailable" : "Coming soon")}
                 </span>
                 <span className="text-sm text-neutral-500">
-                  {t(annual ? "CAD / year" : "CAD / month")}
+                  {hasPrice && `${catalog!.currency} / ${t(annual ? "year" : "month")}`}
                 </span>
               </div>
               <p className="landing-brand-text mt-2 min-h-5 text-xs">
                 {annual
-                  ? t("Two months less than monthly billing.")
+                  ? t("Billed annually.")
                   : t("Billed monthly.")}
               </p>
               <ul className="my-7 space-y-3">
@@ -365,15 +377,15 @@ export function PricingSection() {
                   </li>
                 ))}
               </ul>
-              <Link
+              {available ? <Link
                 href={DECISIONATE_AUTH_LINKS.signUp}
                 className="landing-button landing-button-primary mt-auto w-fit"
               >
                 {t("Start trial")}
                 <ArrowRight size={16} aria-hidden="true" />
-              </Link>
+              </Link> : <p className="mt-auto text-sm text-neutral-500">{t("Not open for new subscriptions yet")}</p>}
             </article>
-          ))}
+          )})}
         </div>
         <div className="mt-6 grid gap-4 border-t border-neutral-200 pt-5 text-xs leading-6 text-neutral-500 sm:grid-cols-2">
           <p>

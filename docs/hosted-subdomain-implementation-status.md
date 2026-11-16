@@ -8,9 +8,11 @@ preview/publication, central sign-in, workspace isolation and admin lifecycle
 controls. Both commercial switches default **Off**. Live Vercel, Clerk, Stripe,
 Resend and connector acceptance checks have **not** been performed.
 
-Hosted access is included in the existing Agency plan, with no additional charge.
-The normal Agency trial, renewal, cancellation and grace-period rules apply.
-No additional Stripe product, price or subscription item is required.
+The four alternative base plans are Professional, Standard Branded Agency,
+White Label Subdomain Agency and Custom Domain White Label Agency. The hosted
+portal requires one of the white-label tiers, not Standard Branded Agency.
+Normal trial, renewal, cancellation and grace-period rules apply. There is no
+additional portal subscription item. Custom-domain signup stays Off by default.
 
 The owner approved central sign-in: a branded welcome page sends users to the
 existing `app.decisionate.ca` Clerk sign-in, then returns through Clerk session
@@ -37,8 +39,8 @@ Audit findings and differences from the original handoff:
 ## Agency workflow
 
 1. Agency owner opens Settings > Hosted portal on the main application.
-2. The existing Agency subscription provides access. If it is inactive, restore
-   it through Billing; there is no additional purchase in portal setup.
+2. Choose White Label Subdomain Agency through Billing when available. If it is
+   inactive, restore it through Billing; portal setup does not add another charge.
 3. Enter the subdomain, name, support address, colors, optional images and welcome
    message. Save draft atomically reserves the address; it cannot then be renamed.
 4. Preview desktop/mobile appearance, then explicitly activate/publish. Draft
@@ -102,10 +104,9 @@ and logout need real cross-domain testing before launch.
 
 ## Billing and lifecycle
 
-Portal eligibility uses the existing Agency subscription and shared billing access
+Portal eligibility uses the white-label agency base plan and shared billing access
 state. Portal setup does not call Stripe, modify subscriptions or create a second
-charge. Base-plan webhooks and renewal processing remain authoritative. No special
-hosted price variables are read. Historical add-on rows are retained solely to
+charge. Base-plan webhooks and renewal processing remain authoritative. Historical add-on rows are retained solely to
 avoid destructive database changes and to recognize the base plan in old webhook
 payloads. They are not required for access. The removed quote, purchase and
 cancellation endpoints are no longer available.
@@ -197,12 +198,22 @@ isolation. Do not add wildcard redirect origins or weaken issuer verification.
 
 ### Agency billing and Railway variables
 
-Keep the existing Agency prices, Stripe account and signed webhook endpoint.
-Do not create a hosted add-on price. There is no hosted-agency Stripe Connect
-account. The old hosted monthly/annual price variables may be removed from Railway
-after the API and workers are upgraded. If an operator previously added a separate
+Keep the existing Professional and Agency prices, Stripe account and signed webhook
+endpoint. In Platform Admin > Billing and AI credit pricing, set monthly/annual
+amounts and matching recurring Stripe IDs for all four base plans. The new tiers'
+amounts default to zero with no price IDs; the UI shows an unset price, not a free
+offer. Environment bootstrap IDs are optional: `STRIPE_AGENCY_SUBDOMAIN_PRICE_ID`,
+`STRIPE_AGENCY_SUBDOMAIN_ANNUAL_PRICE_ID`, `STRIPE_AGENCY_CUSTOM_DOMAIN_PRICE_ID`
+and `STRIPE_AGENCY_CUSTOM_DOMAIN_ANNUAL_PRICE_ID`. Saved admin values take priority.
+These are alternative base prices, never additional hosted items. The old
+`STRIPE_HOSTED_SUBDOMAIN_*` add-on variables are still unused. There is no
+hosted-subdomain Stripe Connect account. If an operator previously added a separate
 hosted line item in Stripe, review and remove that external charge explicitly;
 deploying this change does not automatically modify or refund Stripe subscriptions.
+Use Platform Admin > White label to open new hosted signups after launch checks.
+Leave Custom-domain white label > Accept new customers Off until ready; setting
+its price alone never enables it. The public `/api/v2/application/plans` endpoint
+publishes safe plan amounts and availability without Stripe IDs or credentials.
 
 ```dotenv
 HOSTED_SUBDOMAINS_HOSTING_VERIFIED=false

@@ -82,7 +82,7 @@ test("hosted setup uses a native modal, immutable addresses, explicit publish an
   assert.match(source, /data.blockers.length > 0/)
   assert.match(source, /working.current = true/)
   assert.match(source, /Hosted portal included/)
-  assert.match(source, /Agency subscription required/)
+  assert.match(source, /White-label subscription required/)
   assert.doesNotMatch(source, /HOSTED_PORTALS_|Stripe Connect|Clerk API key|subscription-offer|Add hosted white label|Cancel hosted white label|View subscription price|\/subscription["']/)
 })
 
@@ -114,7 +114,7 @@ test("eligible agencies go directly to portal setup without a price, purchase or
 
 test("inactive Agency access and closed availability keep setup blocked without offering an add-on", () => {
   const inactive = renderSetup({ entitled: false })
-  assert.match(inactive, /Agency subscription required/)
+  assert.match(inactive, /White-label subscription required/)
   assert.match(inactive, /href="\/billing"/)
   assert.doesNotMatch(inactive, /<form|Preview portal|Add hosted white label/)
   const closed = renderSetup({ available: false })

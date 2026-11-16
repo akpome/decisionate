@@ -65,7 +65,7 @@ class HostedSubdomainTests(unittest.TestCase):
             db.add_all([OrganizationMember(organization_id=3, clerk_user_id="client", role="owner"),
                         OrganizationMember(organization_id=1, clerk_user_id="staff", role="member")])
             for index, workspace in enumerate(("agency", "another"), start=1):
-                db.add(WorkspaceSubscription(id=index, workspace_id=workspace, provider="stripe", status="active", plan="agency",
+                db.add(WorkspaceSubscription(id=index, workspace_id=workspace, provider="stripe", status="active", plan="agency_subdomain",
                     provider_subscription_id="sub_" + workspace, provider_customer_id="cus_" + workspace,
                     billing_interval="month", current_period_end=utc_now() + timedelta(days=30)))
             db.add(WhiteLabelAvailability(id=1, hosted_subdomain_enabled=True, custom_domain_enabled=False, updated_by_user_id="operator"))
@@ -204,7 +204,7 @@ class HostedSubdomainTests(unittest.TestCase):
         for user, workspace in [("client", "agency:client:1"), ("staff", "agency")]:
             self.assertEqual(self.save(user=user, workspace=workspace).status_code, 403)
 
-    def test_agency_plan_includes_portal_without_a_separate_purchase(self):
+    def test_white_label_base_plan_includes_portal_without_a_separate_purchase(self):
         with patch("app.modules.billing.service.stripe_request", side_effect=AssertionError("Portal setup must not charge Stripe")) as stripe:
             setup = self.client.get(self.base, headers=self.headers())
             self.assertTrue(setup.json()["entitled"])
@@ -213,13 +213,13 @@ class HostedSubdomainTests(unittest.TestCase):
         with self.Session() as db:
             self.assertEqual(db.query(HostedSubdomainEntitlement).count(), 0)
             subscription = db.get(WorkspaceSubscription, 1)
-            self.assertEqual(subscription.plan, "agency")
+            self.assertEqual(subscription.plan, "agency_subdomain")
             self.assertEqual(subscription.provider_subscription_id, "sub_agency")
             self.assertEqual(subscription.status, "active")
 
     def test_other_plans_cannot_enable_hosted_access_even_with_billing_bypass(self):
         with patch.dict(os.environ, {"BILLING_ENFORCEMENT_ENABLED": "false"}):
-            for plan in ("professional", "free"):
+            for plan in ("professional", "free", "agency"):
                 with self.Session() as db:
                     db.get(WorkspaceSubscription, 1).plan = plan
                     db.commit()
@@ -359,7 +359,7 @@ class HostedSubdomainTests(unittest.TestCase):
                 self.assertEqual(result.status_code, 404, result.text)
             stripe.assert_not_called()
         with self.Session() as db:
-            self.assertEqual(db.get(WorkspaceSubscription, 1).plan, "agency")
+            self.assertEqual(db.get(WorkspaceSubscription, 1).plan, "agency_subdomain")
             self.assertEqual(db.get(WorkspaceSubscription, 1).status, "active")
             self.assertEqual(db.get(HostedSubdomainPortal, self.portal_id).status, "active")
         self.assertTrue(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["active"])

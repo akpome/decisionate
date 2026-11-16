@@ -13,8 +13,14 @@ class BillingPlanOption(BaseModel):
     ai_credit_limit: int
     annual_ai_credit_limit: int
     configured: bool
+    available: bool = True
     monthly_configured: bool = False
     annual_configured: bool = False
+
+
+class PublicPlanCatalogResponse(BaseModel):
+    currency: str
+    plans: list[BillingPlanOption]
 
 
 class BillingStatusResponse(BaseModel):

@@ -856,6 +856,7 @@ export type BillingAccessStatus = {
 
 export type BillingPlanOption = {
   plan: string
+  available?: boolean
   name: string
   billing_model: "direct" | "agency"
   monthly_price_cents?: number | null
@@ -866,6 +867,14 @@ export type BillingPlanOption = {
   configured: boolean
   monthly_configured: boolean
   annual_configured: boolean
+}
+
+export type PublicPlanCatalog = { currency: string; plans: BillingPlanOption[] }
+
+export async function getPublicBillingPlans(): Promise<PublicPlanCatalog> {
+  const response = await apiFetch(`${API_URL}/api/v2/application/plans`, { cache: "no-store" })
+  if (!response.ok) await throwApiError(response, "Pricing is temporarily unavailable")
+  return response.json()
 }
 
 export type BillingCheckoutPayload = {
@@ -1429,6 +1438,10 @@ export type PlatformAdminCreditSettings = {
   professional_annual_price_cents: number
   agency_monthly_price_cents: number
   agency_annual_price_cents: number
+  agency_subdomain_monthly_price_cents: number
+  agency_subdomain_annual_price_cents: number
+  agency_custom_domain_monthly_price_cents: number
+  agency_custom_domain_annual_price_cents: number
   additional_client_workspace_monthly_price_cents: number
   additional_client_workspace_annual_price_cents: number
   ai_credit_pack_price_cents: number
@@ -1437,6 +1450,10 @@ export type PlatformAdminCreditSettings = {
   professional_annual_price_id: string
   agency_price_id: string
   agency_annual_price_id: string
+  agency_subdomain_price_id: string
+  agency_subdomain_annual_price_id: string
+  agency_custom_domain_price_id: string
+  agency_custom_domain_annual_price_id: string
   client_workspace_addon_price_id: string
   client_workspace_addon_annual_price_id: string
   ai_credit_pack_price_id: string
@@ -1861,7 +1878,7 @@ export type OrganizationBrandingPayload = {
 
 export type OrganizationCreatePayload =
   OrganizationBrandingPayload & {
-    plan?: "professional" | "agency"
+    plan?: "professional" | "agency" | "agency_subdomain" | "agency_custom_domain"
     first_name?: string
     last_name?: string
     business_type?: "business" | "agency"

@@ -53,7 +53,7 @@ test("money uses dollar values and retains cents", () => {
 
 test("the total includes only add-ons supported by the selected plan and interval", () => {
   const billing = {
-    plan_options: [{ plan: "professional", monthly_price_cents: 7900, annual_price_cents: 79000 }, { plan: "agency", monthly_price_cents: 19900, annual_price_cents: 199000 }],
+    plan_options: [{ plan: "professional", billing_model: "direct", monthly_price_cents: 7900, annual_price_cents: 79000 }, ...["agency", "agency_subdomain", "agency_custom_domain"].map(plan => ({ plan, billing_model: "agency", monthly_price_cents: 19900, annual_price_cents: 199000 }))],
     additional_client_workspace_price_cents: 2000,
     additional_client_workspace_annual_price_cents: 20000,
     ai_credit_pack_price_cents: 750,
@@ -61,6 +61,10 @@ test("the total includes only add-ons supported by the selected plan and interva
   assert.equal(upgrade.checkoutTotal(billing, "professional", "month", 5, 2), 9400)
   assert.equal(upgrade.checkoutTotal(billing, "agency", "month", 2, 1), 24650)
   assert.equal(upgrade.checkoutTotal(billing, "agency", "year", 2, 10), 239000)
+  for (const plan of ["agency_subdomain", "agency_custom_domain"]) {
+    assert.equal(upgrade.checkoutTotal(billing, plan, "month", 2, 1), 24650)
+    assert.equal(upgrade.checkoutTotal(billing, plan, "year", 2, 10), 239000)
+  }
 })
 
 test("the expired gate provides a single billing destination and refreshes after confirmation", () => {

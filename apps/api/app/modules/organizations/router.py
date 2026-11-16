@@ -34,7 +34,8 @@ from app.modules.billing.service import (
     BillingProviderUnavailable,
     FREE_PLAN,
     PROFESSIONAL_PLAN,
-    AGENCY_PLAN,
+    PUBLIC_BILLING_PLANS,
+    plan_available,
     TRIAL_PERIOD_DAYS,
     get_billing_plan_definition,
     get_client_workspace_limit,
@@ -1605,13 +1606,10 @@ async def create_organization(
     selected_plan = normalize_billing_plan(
         organization.plan,
     )
-    if selected_plan not in {
-        PROFESSIONAL_PLAN,
-        AGENCY_PLAN,
-    }:
+    if selected_plan not in PUBLIC_BILLING_PLANS:
         raise HTTPException(
             status_code=400,
-            detail="Choose Professional or Agency for your free trial",
+            detail="Choose a subscription plan for your free trial",
         )
 
     first_name = clean_required_onboarding_value(
@@ -1628,16 +1626,13 @@ async def create_organization(
         ONBOARDING_BUSINESS_TYPES,
         lowercase=True,
     )
-    expected_plan = (
-        AGENCY_PLAN
-        if business_type == "agency"
-        else PROFESSIONAL_PLAN
-    )
-    if selected_plan != expected_plan:
+    if is_agency_plan(selected_plan) != (business_type == "agency"):
         raise HTTPException(
             status_code=400,
             detail="Business type and trial plan must match",
         )
+    if not plan_available(selected_plan):
+        raise HTTPException(409, "This white-label plan is not open for new workspaces yet.")
     country = clean_required_onboarding_value(
         organization.country,
         "Country",

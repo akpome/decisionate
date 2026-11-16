@@ -2,7 +2,7 @@
 
 ## Can I offer a portal under my own brand?
 
-An Agency workspace owner can open Settings and choose Set up a custom-domain
+An owner on Custom Domain White Label Agency can open Settings and choose Set up a custom-domain
 portal when this offering is available. New custom-domain setup is closed by
 default. Availability depends on both commercial availability and the platform's
 hosting and provider setup. If
@@ -64,11 +64,13 @@ copy of your clients or datasets. The custom-domain product above is different.
 
 ## How do I get a hosted agency portal?
 
-Hosted white label is included in the Agency plan. There is no separate portal
-purchase, extra recurring charge or hosted Stripe price to configure. When available,
-an Agency owner opens Settings > Hosted portal and starts with the portal address
-and branding. The existing Agency subscription's trial, renewal, cancellation and
-payment grace rules still apply. If Agency access is inactive, use Billing to
+Choose White Label Subdomain Agency in Billing when the plan is available.
+Professional and Standard Branded Agency do not include hosted white label.
+White Label Subdomain Agency is one complete subscription, not a portal add-on
+charged on top of Standard Branded Agency. Its monthly and annual prices are set
+by the platform administrator. An eligible owner opens Settings > Hosted portal
+and starts with the portal address and branding. Normal trial, renewal,
+cancellation and payment grace rules still apply. If plan access is inactive, use Billing to
 restore it. If new portals are unavailable, contact support. Branding alone cannot
 enable one before the platform is ready.
 
@@ -92,7 +94,7 @@ workspace starts on the main application before that workspace joins the agency.
 ## What happens when Agency access ends or a client leaves?
 
 There is no separate hosted subscription to cancel. Hosted access follows your
-Agency plan: cancellation at the end of the billing period retains access until
+white-label agency plan: cancellation at the end of the billing period retains access until
 then; expiry or the end of the existing payment grace period stops access. Agency
 pause or platform suspension can also stop portal access. Configuration and data
 are preserved. An unlinked client loses agency portal access but keeps the existing

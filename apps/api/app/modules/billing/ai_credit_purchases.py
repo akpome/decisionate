@@ -10,6 +10,7 @@ from app.modules.billing.lifecycle import (
 from app.modules.billing.service import (
     BillingProviderUnavailable,
     PUBLIC_BILLING_PLANS,
+    plan_price_keys,
     require_billing_application,
 )
 
@@ -23,10 +24,7 @@ def credit_purchase_blocker(subscription, config, *, ai_configured, pack_size=1)
         return "AI credit payments are not available. Please contact support."
     plan_configured = any(
         config.get(key)
-        for key in (
-            "professional_price_id", "professional_annual_price_id",
-            "agency_price_id", "agency_annual_price_id",
-        )
+        for key in plan_price_keys()
     )
     if (
         config.get("provider") != "stripe"

@@ -81,11 +81,14 @@ from app.modules.billing.service import (
     AGENCY_PLAN,
     FREE_PLAN,
     PROFESSIONAL_PLAN,
+    BILLING_PRICING_COLUMNS,
+    BILLING_PRICE_ID_COLUMNS,
     get_billing_pricing,
     get_billing_config,
     get_ai_credit_allocations,
     get_ai_credit_pack_size,
     normalize_billing_plan,
+    is_agency_plan,
 )
 from app.modules.identity.service import (
     find_internal_user_id,
@@ -479,6 +482,10 @@ class PlatformAdminCreditSettingsResponse(BaseModel):
     professional_annual_price_cents: int
     agency_monthly_price_cents: int
     agency_annual_price_cents: int
+    agency_subdomain_monthly_price_cents: int
+    agency_subdomain_annual_price_cents: int
+    agency_custom_domain_monthly_price_cents: int
+    agency_custom_domain_annual_price_cents: int
     additional_client_workspace_monthly_price_cents: int
     additional_client_workspace_annual_price_cents: int
     ai_credit_pack_price_cents: int
@@ -487,6 +494,10 @@ class PlatformAdminCreditSettingsResponse(BaseModel):
     professional_annual_price_id: str
     agency_price_id: str
     agency_annual_price_id: str
+    agency_subdomain_price_id: str
+    agency_subdomain_annual_price_id: str
+    agency_custom_domain_price_id: str
+    agency_custom_domain_annual_price_id: str
     client_workspace_addon_price_id: str
     client_workspace_addon_annual_price_id: str
     ai_credit_pack_price_id: str
@@ -504,6 +515,10 @@ class PlatformAdminCreditSettingsUpdate(BaseModel):
     professional_annual_price_cents: int | None = None
     agency_monthly_price_cents: int | None = None
     agency_annual_price_cents: int | None = None
+    agency_subdomain_monthly_price_cents: int | None = None
+    agency_subdomain_annual_price_cents: int | None = None
+    agency_custom_domain_monthly_price_cents: int | None = None
+    agency_custom_domain_annual_price_cents: int | None = None
     additional_client_workspace_monthly_price_cents: int | None = None
     additional_client_workspace_annual_price_cents: int | None = None
     ai_credit_pack_price_cents: int | None = None
@@ -512,6 +527,10 @@ class PlatformAdminCreditSettingsUpdate(BaseModel):
     professional_annual_price_id: str | None = None
     agency_price_id: str | None = None
     agency_annual_price_id: str | None = None
+    agency_subdomain_price_id: str | None = None
+    agency_subdomain_annual_price_id: str | None = None
+    agency_custom_domain_price_id: str | None = None
+    agency_custom_domain_annual_price_id: str | None = None
     client_workspace_addon_price_id: str | None = None
     client_workspace_addon_annual_price_id: str | None = None
     ai_credit_pack_price_id: str | None = None
@@ -835,6 +854,8 @@ def serialize_platform_admin_credit_settings() -> PlatformAdminCreditSettingsRes
         billing_config = get_billing_config(db)
         return PlatformAdminCreditSettingsResponse(
             source="database" if settings else "environment/default",
+            **{key: pricing[key] for key in BILLING_PRICING_COLUMNS if key.startswith(("agency_subdomain_", "agency_custom_domain_"))},
+            **{key: billing_config.get(key, "") for key in BILLING_PRICE_ID_COLUMNS if key.startswith(("agency_subdomain_", "agency_custom_domain_"))},
             free_ai_credits=allocations["free"],
             professional_ai_credits=allocations[PROFESSIONAL_PLAN],
             agency_ai_credits=allocations[AGENCY_PLAN],
@@ -1303,6 +1324,7 @@ async def update_platform_admin_credit_settings(
 ):
     auth_context = require_platform_admin(request)
     numeric_fields = {
+        *BILLING_PRICING_COLUMNS,
         "free_ai_credits",
         "professional_ai_credits",
         "agency_ai_credits",
@@ -2126,8 +2148,10 @@ def platform_admin_account_type_for_organization(
     plan = normalize_billing_plan(
         subscription.plan if subscription else FREE_PLAN,
     )
-    if plan in {AGENCY_PLAN, PROFESSIONAL_PLAN}:
-        return plan
+    if is_agency_plan(plan):
+        return AGENCY_PLAN
+    if plan == PROFESSIONAL_PLAN:
+        return PROFESSIONAL_PLAN
 
     business_type = str(organization.business_type or "").strip().lower()
     if business_type == "agency":
@@ -4017,7 +4041,7 @@ async def get_platform_admin_usage_activity(
                 )
                 if normalized_plan == PROFESSIONAL_PLAN:
                     segment = "Professional"
-                elif normalized_plan == AGENCY_PLAN:
+                elif is_agency_plan(normalized_plan):
                     segment = "Agency"
                 else:
                     segment = "Free"

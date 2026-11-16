@@ -1717,6 +1717,15 @@ class PlatformBillingSettings(Base):
         default=199000,
     )
 
+    agency_subdomain_monthly_price_cents = Column(Integer, nullable=False, default=0)
+    agency_subdomain_annual_price_cents = Column(Integer, nullable=False, default=0)
+    agency_custom_domain_monthly_price_cents = Column(Integer, nullable=False, default=0)
+    agency_custom_domain_annual_price_cents = Column(Integer, nullable=False, default=0)
+    agency_subdomain_price_id = Column(String, nullable=True)
+    agency_subdomain_annual_price_id = Column(String, nullable=True)
+    agency_custom_domain_price_id = Column(String, nullable=True)
+    agency_custom_domain_annual_price_id = Column(String, nullable=True)
+
     additional_client_workspace_monthly_price_cents = Column(
         Integer,
         nullable=False,

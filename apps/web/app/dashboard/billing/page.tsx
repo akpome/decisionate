@@ -212,7 +212,7 @@ function BillingPageContent() {
         setLoadedKey(key)
         setConfirmation(nextConfirmation)
         if (attempts === 0) {
-          setSelectedPlan(result.plan === "agency" ? "agency" : "professional")
+          setSelectedPlan(result.plan_options.some(option => option.plan === result.plan) ? result.plan : "professional")
           setInterval(
             intervalQuery === "year" || intervalQuery === "month"
               ? intervalQuery
@@ -307,6 +307,7 @@ function BillingPageContent() {
       : selectedOption?.monthly_configured
   const canCheckout = Boolean(
     current?.configured &&
+    selectedOption?.available !== false &&
     priceConfigured &&
     !managing &&
     !paymentPending &&
@@ -382,7 +383,7 @@ function BillingPageContent() {
           plan: selectedPlan,
           billing_interval: interval,
           additional_client_workspaces:
-            selectedPlan === "agency" ? extraWorkspaces : 0,
+            selectedOption?.billing_model === "agency" ? extraWorkspaces : 0,
           additional_ai_credit_packs: effectiveExtraPacks
         })
         window.location.assign(result.checkout_url)
@@ -771,7 +772,11 @@ function BillingPageContent() {
                 className="grid min-w-0 gap-4 sm:grid-cols-2"
               >
                 <legend className="sr-only">{t("Choose your plan")}</legend>
-                {current.plan_options.map((option) => (
+                {current.plan_options.map((option) => {
+                  const cents = interval === "year" ? option.annual_price_cents : option.monthly_price_cents
+                  const configured = interval === "year" ? option.annual_configured : option.monthly_configured
+                  const hasPrice = cents != null && (cents > 0 || configured)
+                  return (
                   <label
                     key={option.plan}
                     className={`flex min-w-0 cursor-pointer gap-3 rounded-lg border p-5 ${selectedPlan === option.plan ? "border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)]" : "border-gray-200 bg-white"}`}
@@ -781,6 +786,7 @@ function BillingPageContent() {
                       name="plan"
                       value={option.plan}
                       checked={selectedPlan === option.plan}
+                      disabled={option.available === false}
                       onChange={() => setSelectedPlan(option.plan)}
                       className="mt-1 h-4 w-4 shrink-0 accent-[var(--decisionate-brand-primary)]"
                     />
@@ -789,13 +795,9 @@ function BillingPageContent() {
                         {option.name}
                       </h3>
                       <p className="mt-3 text-xl font-semibold">
-                        {formatPrice(
-                          interval === "year"
-                            ? option.annual_price_cents
-                            : option.monthly_price_cents
-                        )}{" "}
+                        {hasPrice ? formatPrice(cents) : t("Price not set")}{" "}
                         <span className="text-sm font-normal text-gray-500">
-                          CAD/{t(interval === "year" ? "year" : "month")}
+                          {hasPrice && <>CAD/{t(interval === "year" ? "year" : "month")}</>}
                         </span>
                       </p>
                       <p className="mt-3 text-sm text-gray-600">
@@ -806,22 +808,25 @@ function BillingPageContent() {
                       <p className="mt-2 text-sm text-gray-600">
                         {t(
                           option.billing_model === "agency"
-                            ? "Client portal, agency branding, dashboards and decision tracking."
+                            ? option.plan === "agency_custom_domain"
+                              ? "Your branded portal on your own domain."
+                              : option.plan === "agency_subdomain"
+                                ? "Your branded portal at agency.decisionate.app."
+                                : "Client workspaces on the Decisionate-branded application."
                             : "Datasets, dashboards, decisions and outcome tracking."
                         )}
                       </p>
-                      {!(interval === "year"
-                        ? option.annual_configured
-                        : option.monthly_configured) && (
+                      {option.available === false && <p className="mt-3 text-xs text-amber-800">{t("Not open for new subscriptions yet")}</p>}
+                      {!configured && (
                         <p className="mt-3 text-xs text-amber-800">
                           {t("Not available for this billing interval")}
                         </p>
                       )}
                     </div>
                   </label>
-                ))}
+                )})}
               </fieldset>
-              {selectedPlan === "agency" && (
+              {selectedOption?.billing_model === "agency" && (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
                   <div>
                     <label
@@ -970,7 +975,7 @@ function BillingPageContent() {
                 </dd>
               </div>
             </dl>
-            {current.plan === "agency" && (
+            {current.billing_model === "agency" && (
               <p className="text-sm text-gray-600">
                 {t(
                   "This credit balance is shared with your agency's client workspaces."

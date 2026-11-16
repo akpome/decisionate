@@ -20,7 +20,6 @@ from app.db.database import SessionLocal
 from app.db.models import HostedPortal, WhiteLabelSetup, WorkspaceSubscription, utc_now
 from app.modules.auth_context import get_auth_context
 from app.modules.billing.lifecycle import build_subscription_access_state
-from app.modules.billing.service import is_agency_plan
 from app.modules.white_label import PRICES, deployment_api_url, https_url
 from app.modules import hosted_portal_providers as providers
 from app.security.secrets import decrypt_secret, encrypt_secret, secret_encryption_is_configured
@@ -100,8 +99,9 @@ def require_owner(request):
         raise HTTPException(403, "Open white-label setup from your own agency workspace.")
     with SessionLocal() as db:
         sub = db.query(WorkspaceSubscription).filter_by(workspace_id=auth.workspace_id).first()
-        if not sub or not is_agency_plan(sub.plan) or not build_subscription_access_state(sub).access_allowed:
-            raise HTTPException(403, "An active Agency subscription is required for a hosted portal.")
+        from app.modules.billing.service import AGENCY_CUSTOM_DOMAIN_PLAN, normalize_billing_plan
+        if not sub or normalize_billing_plan(sub.plan) != AGENCY_CUSTOM_DOMAIN_PLAN or not build_subscription_access_state(sub).access_allowed:
+            raise HTTPException(403, "A Custom Domain White Label Agency subscription is required.")
     return auth
 
 

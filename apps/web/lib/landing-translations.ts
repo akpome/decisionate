@@ -158,5 +158,24 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Bring your next decision into focus.": "Clarifiez votre prochaine décision.",
   "Start with a file or connection. Build from there.":
     "Commencez par un fichier ou une connexion. Continuez à partir de là.",
-  "Footer navigation": "Navigation du pied de page"
+  "Footer navigation": "Navigation du pied de page",
+  "Standard Branded Agency": "Agence avec marque Decisionate",
+  "White Label Subdomain Agency": "Agence en marque blanche sur sous-domaine",
+  "Custom Domain White Label Agency": "Agence en marque blanche sur domaine personnalisé",
+  "Your brand on a Decisionate-hosted portal.": "Votre marque sur un portail hébergé par Decisionate.",
+  "Your branded portal on your own domain.": "Votre portail de marque sur votre propre domaine.",
+  "Decisionate-branded application": "Application à la marque Decisionate",
+  "All Standard Branded Agency features": "Toutes les fonctions du forfait Agence avec marque Decisionate",
+  "Your logo, colours and welcome screen": "Votre logo, vos couleurs et votre écran d'accueil",
+  "Your portal at agency.decisionate.app": "Votre portail sur agence.decisionate.app",
+  "All agency workspace features": "Toutes les fonctions des espaces d'agence",
+  "Your portal at analytics.agency.com": "Votre portail sur analytics.agence.com",
+  "Your branding and billing setup": "Votre marque et votre configuration de facturation",
+  "Price not set": "Prix non configuré",
+  "Pricing temporarily unavailable": "Tarifs temporairement indisponibles",
+  "Coming soon": "Bientôt disponible",
+  "Not open for new subscriptions yet": "Pas encore ouvert aux nouvelles souscriptions",
+  "Billed annually.": "Facturé annuellement.",
+  "year": "an",
+  "month": "mois"
 }

@@ -177,6 +177,19 @@ class ApplicationIsolationTests(unittest.TestCase):
         self.assertNotIn("key", json.dumps(ai).lower())
         self.assertFalse(ai["features"]["marketing_preferences"])
 
+    def test_public_plan_catalog_keeps_other_frontend_prices_and_currency_isolated(self):
+        with patch.dict(os.environ, {"DECISIONATE_AI_BILLING_PROFESSIONAL_MONTHLY_PRICE_CENTS": "4200"}):
+            result = self.client.get("/api/v2/application/plans", headers={"Origin": "https://decisionate.ai"})
+        self.assertEqual(result.status_code, 200, result.text)
+        catalog = result.json()
+        self.assertEqual(catalog["currency"], "USD")
+        self.assertEqual(catalog["plans"][0]["monthly_price_cents"], 4200)
+        self.assertEqual(len(catalog["plans"]), 4)
+        self.assertFalse(catalog["plans"][2]["available"])
+        self.assertFalse(catalog["plans"][3]["available"])
+        self.assertNotIn("price_id", result.text)
+        self.assertNotIn("secret_key", result.text)
+
     def test_api_clients_can_select_application_without_browser_origin(self):
         headers = self.headers("decisionate-ai")
         headers.pop("Origin")

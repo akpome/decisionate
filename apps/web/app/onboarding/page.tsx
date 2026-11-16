@@ -14,6 +14,8 @@ import { ArrowLeft, ArrowRight, LoaderCircle, LogOut, RefreshCw } from "lucide-r
 import {
   createOrganization,
   getOrganizationWorkspaces,
+  getPublicBillingPlans,
+  type BillingPlanOption,
   type OrganizationCreatePayload,
 } from "@/lib/api"
 import {
@@ -127,6 +129,8 @@ export default function OnboardingPage() {
   const [lastName, setLastName] = useState<string | null>(null)
   const [businessType, setBusinessType] =
     useState<BusinessType>("business")
+  const [agencyPlan, setAgencyPlan] = useState<"agency" | "agency_subdomain" | "agency_custom_domain">("agency")
+  const [plans, setPlans] = useState<BillingPlanOption[]>([])
   const [country, setCountry] = useState("")
   const [industry, setIndustry] = useState("")
   const [companySize, setCompanySize] = useState("")
@@ -201,7 +205,7 @@ export default function OnboardingPage() {
 
       const organizationPayload: OrganizationCreatePayload = {
         name: organizationName.trim(),
-        plan: businessType === "agency" ? "agency" : "professional",
+        plan: businessType === "agency" ? agencyPlan : "professional",
         first_name: resolvedFirstName,
         last_name: resolvedLastName,
         business_type: businessType,
@@ -236,6 +240,14 @@ export default function OnboardingPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+    void getPublicBillingPlans().then(catalog => {
+      if (!cancelled) setPlans(catalog.plans)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!isLoaded) return
@@ -421,6 +433,14 @@ export default function OnboardingPage() {
                         })}
                       </div>
                     </div>
+
+                    {businessType === "agency" && <label className="block text-sm font-medium text-gray-700">
+                      {t("Agency plan")}
+                      <select value={agencyPlan} onChange={event => setAgencyPlan(event.target.value as typeof agencyPlan)} className="mt-2 h-11 w-full rounded-lg border bg-white px-3 font-normal">
+                        <option value="agency">{t("Standard Branded Agency")}</option>
+                        {plans.filter(plan => plan.billing_model === "agency" && plan.plan !== "agency").map(plan => <option key={plan.plan} value={plan.plan} disabled={plan.available === false}>{t(plan.name)}{plan.available === false ? ` (${t("Coming soon")})` : ""}</option>)}
+                      </select>
+                    </label>}
 
                     <label className="block text-sm font-medium text-gray-700">
                       {t("Country")}

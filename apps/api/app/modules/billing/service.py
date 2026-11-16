@@ -23,6 +23,9 @@ DEFAULT_WEBHOOK_TOLERANCE_SECONDS = 300
 FREE_PLAN = "free"
 PROFESSIONAL_PLAN = "professional"
 AGENCY_PLAN = "agency"
+AGENCY_SUBDOMAIN_PLAN = "agency_subdomain"
+AGENCY_CUSTOM_DOMAIN_PLAN = "agency_custom_domain"
+AGENCY_PLANS = (AGENCY_PLAN, AGENCY_SUBDOMAIN_PLAN, AGENCY_CUSTOM_DOMAIN_PLAN)
 LEGACY_PLAN_ALIASES = {
     "agency_starter": AGENCY_PLAN,
     "agency_growth": AGENCY_PLAN,
@@ -44,6 +47,10 @@ BILLING_PRICING_COLUMNS = {
     "professional_annual_price_cents": "professional_annual_price_cents",
     "agency_monthly_price_cents": "agency_monthly_price_cents",
     "agency_annual_price_cents": "agency_annual_price_cents",
+    "agency_subdomain_monthly_price_cents": "agency_subdomain_monthly_price_cents",
+    "agency_subdomain_annual_price_cents": "agency_subdomain_annual_price_cents",
+    "agency_custom_domain_monthly_price_cents": "agency_custom_domain_monthly_price_cents",
+    "agency_custom_domain_annual_price_cents": "agency_custom_domain_annual_price_cents",
     "additional_client_workspace_monthly_price_cents": (
         "additional_client_workspace_monthly_price_cents"
     ),
@@ -58,6 +65,10 @@ BILLING_PRICE_ID_COLUMNS = {
     "professional_annual_price_id": "professional_annual_price_id",
     "agency_price_id": "agency_price_id",
     "agency_annual_price_id": "agency_annual_price_id",
+    "agency_subdomain_price_id": "agency_subdomain_price_id",
+    "agency_subdomain_annual_price_id": "agency_subdomain_annual_price_id",
+    "agency_custom_domain_price_id": "agency_custom_domain_price_id",
+    "agency_custom_domain_annual_price_id": "agency_custom_domain_annual_price_id",
     "client_workspace_addon_price_id": (
         "client_workspace_addon_price_id"
     ),
@@ -72,6 +83,10 @@ BILLING_PRICING_DEFAULTS = {
     "professional_annual_price_cents": 79000,
     "agency_monthly_price_cents": 19900,
     "agency_annual_price_cents": 199000,
+    "agency_subdomain_monthly_price_cents": 0,
+    "agency_subdomain_annual_price_cents": 0,
+    "agency_custom_domain_monthly_price_cents": 0,
+    "agency_custom_domain_annual_price_cents": 0,
     "additional_client_workspace_monthly_price_cents": (
         ADDITIONAL_CLIENT_WORKSPACE_PRICE_CENTS
     ),
@@ -90,6 +105,8 @@ AI_CREDIT_ALLOCATION_COLUMNS = {
 PUBLIC_BILLING_PLANS = (
     PROFESSIONAL_PLAN,
     AGENCY_PLAN,
+    AGENCY_SUBDOMAIN_PLAN,
+    AGENCY_CUSTOM_DOMAIN_PLAN,
 )
 
 BILLING_PLAN_DEFINITIONS = {
@@ -112,7 +129,7 @@ BILLING_PLAN_DEFINITIONS = {
         "annual_price_config_key": "professional_annual_price_id",
     },
     AGENCY_PLAN: {
-        "name": "Agency",
+        "name": "Standard Branded Agency",
         "billing_model": "agency",
         "monthly_price_cents": 19900,
         "annual_price_cents": 199000,
@@ -120,6 +137,22 @@ BILLING_PLAN_DEFINITIONS = {
         "ai_credit_limit": 25000,
         "price_config_key": "agency_price_id",
         "annual_price_config_key": "agency_annual_price_id",
+    },
+    AGENCY_SUBDOMAIN_PLAN: {
+        "name": "White Label Subdomain Agency",
+        "billing_model": "agency",
+        "included_client_workspaces": 10,
+        "ai_credit_limit": 25000,
+        "price_config_key": "agency_subdomain_price_id",
+        "annual_price_config_key": "agency_subdomain_annual_price_id",
+    },
+    AGENCY_CUSTOM_DOMAIN_PLAN: {
+        "name": "Custom Domain White Label Agency",
+        "billing_model": "agency",
+        "included_client_workspaces": 10,
+        "ai_credit_limit": 25000,
+        "price_config_key": "agency_custom_domain_price_id",
+        "annual_price_config_key": "agency_custom_domain_annual_price_id",
     },
 }
 
@@ -225,6 +258,7 @@ def get_ai_credit_allocations(db=None) -> dict[str, int]:
             if value is not None:
                 allocations[plan] = max(int(value), 0)
 
+    allocations.update({plan: allocations[AGENCY_PLAN] for plan in (AGENCY_SUBDOMAIN_PLAN, AGENCY_CUSTOM_DOMAIN_PLAN)})
     return allocations
 
 
@@ -277,6 +311,10 @@ def get_billing_config(db=None) -> dict[str, str]:
         "agency_annual_price_id": clean_env(
             "STRIPE_AGENCY_ANNUAL_PRICE_ID"
         ),
+        "agency_subdomain_price_id": clean_env("STRIPE_AGENCY_SUBDOMAIN_PRICE_ID"),
+        "agency_subdomain_annual_price_id": clean_env("STRIPE_AGENCY_SUBDOMAIN_ANNUAL_PRICE_ID"),
+        "agency_custom_domain_price_id": clean_env("STRIPE_AGENCY_CUSTOM_DOMAIN_PRICE_ID"),
+        "agency_custom_domain_annual_price_id": clean_env("STRIPE_AGENCY_CUSTOM_DOMAIN_ANNUAL_PRICE_ID"),
         "client_workspace_addon_price_id": clean_env(
             "STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID"
         ),
@@ -315,12 +353,7 @@ def is_billing_configured() -> bool:
         and config["secret_key"]
         and any(
             config.get(price_key)
-            for price_key in (
-                "professional_price_id",
-                "professional_annual_price_id",
-                "agency_price_id",
-                "agency_annual_price_id",
-            )
+            for price_key in plan_price_keys()
         )
     )
 
@@ -376,6 +409,7 @@ def get_billing_plan_options(db=None) -> list[dict]:
         options.append({
             "plan": plan,
             **get_billing_plan_definition(plan, db),
+            "available": plan_available(plan, db),
             "configured": bool(
                 config.get(price_key)
                 or config.get(
@@ -388,6 +422,29 @@ def get_billing_plan_options(db=None) -> list[dict]:
             ),
         })
     return options
+
+
+def plan_price_keys() -> tuple[str, ...]:
+    return tuple(
+        BILLING_PLAN_DEFINITIONS[plan][key]
+        for plan in PUBLIC_BILLING_PLANS
+        for key in ("price_config_key", "annual_price_config_key")
+    )
+
+
+def plan_available(plan: str, db=None) -> bool:
+    if plan not in (AGENCY_SUBDOMAIN_PLAN, AGENCY_CUSTOM_DOMAIN_PLAN):
+        return True
+    if not get_application().is_default:
+        return False
+    from app.modules.white_label_availability import availability
+    from app.modules.hosted_subdomains.service import launch_blockers
+    from app.modules.hosted_portals import platform_blockers
+    with (SessionLocal() if db is None else nullcontext(db)) as session:
+        flags = availability(session)
+    if plan == AGENCY_SUBDOMAIN_PLAN:
+        return bool(flags["hosted_subdomain_enabled"] and not launch_blockers())
+    return bool(flags["custom_domain_enabled"] and not platform_blockers())
 
 
 def get_client_workspace_limit(
@@ -403,7 +460,7 @@ def get_client_workspace_limit(
 
 
 def is_agency_plan(plan: str | None) -> bool:
-    return get_billing_plan_definition(plan)["billing_model"] == "agency"
+    return normalize_billing_plan(plan) in AGENCY_PLANS
 
 
 def validate_email(value: str | None) -> str | None:
@@ -433,6 +490,8 @@ def create_checkout_session(
 ) -> dict:
     config = require_billing_config()
     normalized_plan = normalize_billing_plan(plan)
+    if not plan_available(normalized_plan):
+        raise BillingProviderUnavailable("This white-label plan is not available for new subscriptions yet.")
     normalized_interval = normalize_billing_interval(
         billing_interval
     )
@@ -868,12 +927,7 @@ def require_billing_config() -> dict[str, str]:
         )
     if not config["secret_key"] or not any(
         config.get(price_key)
-        for price_key in (
-            "professional_price_id",
-            "professional_annual_price_id",
-            "agency_price_id",
-            "agency_annual_price_id",
-        )
+        for price_key in plan_price_keys()
     ):
         raise BillingProviderUnavailable(
             "Billing is not configured. Set STRIPE_SECRET_KEY and at least one Stripe plan price."

@@ -1261,12 +1261,16 @@
         "billing",
         "trial",
         "renewal",
-        "credits"
+        "credits",
+        "pricing",
+        "subscription plans",
+        "white label"
       ],
       "questions": [
         "Is my renewal date an expiry date?",
         "Are AI credits the same as provider tokens?",
-        "Does buying credits configure AI?"
+        "Does buying credits configure AI?",
+        "Which subscription plans are available?"
       ],
       "routes": [
         "/billing"
@@ -1274,14 +1278,25 @@
       "sources": [
         "apps/api/app/modules/billing/renewals.py",
         "apps/api/app/modules/billing/router.py",
+        "apps/api/app/modules/billing/service.py",
+        "apps/api/app/modules/platform_admin.py",
+        "apps/api/app/modules/applications.py",
         "apps/api/app/modules/ai/credits.py",
         "apps/web/app/dashboard/help/page.tsx"
       ],
       "related": [
         "ai-interpretation",
         "privacy-preferences",
-        "troubleshooting-support"
-      ]
+        "troubleshooting-support",
+        "hosted-portals"
+      ],
+      "direct_questions": {
+        "Which subscription plans are available?": [
+          "What are the four subscription plans?",
+          "What is the difference between the agency plans?",
+          "Can I subscribe to custom-domain white label now?"
+        ]
+      }
     },
     {
       "id": "sharing-exports",

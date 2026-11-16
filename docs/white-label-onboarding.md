@@ -4,8 +4,11 @@
 
 The independent shared `agency.decisionate.app` product uses the existing agency's
 workspaces, Clerk identity, Decisionate Stripe subscription and email sender.
-Hosted access is included in the existing Agency plan, with its normal trial,
-renewal and grace-period rules. There is no separate portal subscription or charge.
+Hosted access requires White Label Subdomain Agency (or the higher custom-domain
+tier), with normal trial, renewal and grace-period rules. This is an alternative
+base subscription, not an add-on to Standard Branded Agency. Platform Admin sets
+monthly/annual amounts and recurring Stripe IDs for all four plans. Existing
+Professional and Agency subscriptions and prices are preserved.
 When enabled, Settings > Hosted portal offers address reservation, branding draft,
 desktop/mobile preview and explicit activation. No agency-owned
 provider accounts or separate Vercel project are required. The branded welcome
@@ -17,7 +20,7 @@ Both commercial switches default Off. Live provider checks are required; see the
 
 ## Custom-domain self-service portals
 
-When commercial availability is enabled, Agency owners open
+When commercial availability is enabled, Custom Domain White Label Agency owners open
 **Settings > Set up a custom-domain portal** on the primary Decisionate app.
 This provisions a separate branded frontend from the existing repository; the
 customer does not deploy code, copy API credentials or create Stripe prices.

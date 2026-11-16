@@ -16,6 +16,7 @@ from app.application_context import (
 )
 from app.db.database import SessionLocal
 from app.db.models import WorkspaceApplication
+from app.modules.billing.schemas import BillingPlanOption, PublicPlanCatalogResponse
 
 
 def workspace_application_id(db, workspace_id):
@@ -139,6 +140,17 @@ class ApplicationCORSMiddleware(CORSMiddleware):
 router = APIRouter(prefix="/api/v2/application", tags=["application"])
 
 
+@router.get("/plans", response_model=PublicPlanCatalogResponse)
+def application_plans(response: Response):
+    from app.modules.billing.service import get_billing_plan_options
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Origin, X-Application-Id"
+    with SessionLocal() as db:
+        # Serialize only public fields, never provider credentials or price IDs.
+        plans = [BillingPlanOption(**plan).model_dump() for plan in get_billing_plan_options(db)]
+    return {"currency": scoped_setting("BILLING_CURRENCY", "CAD").upper(), "plans": plans}
+
+
 class ApplicationConfigurationResponse(BaseModel):
     id: str
     name: str
@@ -177,7 +189,7 @@ def install_api_contract(app):
             "type": "http", "scheme": "bearer", "bearerFormat": "JWT",
             "description": "A session token from the selected application's registered issuer.",
         }
-        public = {"/", "/health", "/ready", "/api/v2/application", "/api/v2/hosted-subdomains/resolve", "/maintenance/active", "/marketing/consent", "/marketing/unsubscribe"}
+        public = {"/", "/health", "/ready", "/api/v2/application", "/api/v2/application/plans", "/api/v2/hosted-subdomains/resolve", "/maintenance/active", "/marketing/consent", "/marketing/unsubscribe"}
         for path, methods in result["paths"].items():
             callback = path.startswith(("/public/", "/billing/webhook", "/oauth/callback", "/marketing/webhook", "/api/v2/hosted-subdomains/assets/"))
             scheduler = path.endswith(("/send-due", "/sync-due", "/reconcile"))

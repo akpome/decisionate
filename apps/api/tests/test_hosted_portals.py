@@ -48,7 +48,7 @@ class HostedPortalTests(unittest.TestCase):
             user_id="owner", workspace_id="owner", workspace_role="owner")))
         self.patch(patch.object(portals, "build_subscription_access_state", return_value=SimpleNamespace(access_allowed=True)))
         with self.Session() as db:
-            db.add(WorkspaceSubscription(workspace_id="owner", plan="agency", status="active"))
+            db.add(WorkspaceSubscription(workspace_id="owner", plan="agency_custom_domain", status="active"))
             db.add(WhiteLabelAvailability(id=1, custom_domain_enabled=True, updated_by_user_id="test-admin"))
             db.commit()
         registry.invalidate_registry()
@@ -74,6 +74,13 @@ class HostedPortalTests(unittest.TestCase):
 
     def save(self, **kwargs):
         return self.client.put("/api/v2/hosted-portals", json={"configuration": self.config, **kwargs})
+
+    def test_custom_domain_requires_custom_domain_plan(self):
+        for plan in ("professional", "agency", "agency_subdomain"):
+            with self.Session() as db:
+                db.query(WorkspaceSubscription).filter_by(workspace_id="owner").one().plan = plan
+                db.commit()
+            self.assertEqual(self.save().status_code, 403)
 
     def test_commercial_switch_blocks_new_setup_without_removing_saved_state(self):
         self.saved_connected()

@@ -53,12 +53,12 @@ def hostname_from_origin(origin):
 def entitled(db, agency):
     from app.db.models import WorkspaceSubscription
     from app.modules.billing.lifecycle import build_subscription_access_state
-    from app.modules.billing.service import is_agency_plan
+    from app.modules.billing.service import AGENCY_SUBDOMAIN_PLAN, AGENCY_CUSTOM_DOMAIN_PLAN, normalize_billing_plan
 
     if not agency or agency.is_paused:
         return False
     subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=agency.owner_user_id).first()
-    return bool(subscription and is_agency_plan(subscription.plan)
+    return bool(subscription and normalize_billing_plan(subscription.plan) in {AGENCY_SUBDOMAIN_PLAN, AGENCY_CUSTOM_DOMAIN_PLAN}
                 and build_subscription_access_state(subscription).access_allowed)
 
 

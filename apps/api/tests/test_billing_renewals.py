@@ -241,6 +241,20 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(subscription.billing_interval, "year")
         self.assertEqual(subscription.plan, "agency")
 
+    def test_white_label_base_prices_override_stale_metadata_on_upgrade_and_renewal(self):
+        self.seed()
+        for plan in ("agency_subdomain", "agency_custom_domain"):
+            for interval in ("month", "year"):
+                key = f"{plan}_{'annual_' if interval == 'year' else ''}price_id"
+                price = f"price_{plan}_{interval}"
+                self.config[key] = price
+                remote = self.remote(interval)
+                remote["items"]["data"][0]["price"]["id"] = price
+                subscription = self.apply(remote)
+                self.assertEqual(subscription.plan, plan)
+                self.assertEqual(subscription.billing_interval, interval)
+                self.assertTrue(build_subscription_access_state(subscription).access_allowed)
+
     def test_calendar_periods_follow_provider_including_leap_year(self):
         subscription = WorkspaceSubscription(current_period_start=datetime(2027, 2, 28), status="active")
         start, end = datetime(2028, 2, 29), datetime(2029, 2, 28)

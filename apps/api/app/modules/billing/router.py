@@ -61,6 +61,8 @@ from app.modules.billing.service import (
     get_billing_period_ai_credit_limit,
     normalize_billing_plan,
     PUBLIC_BILLING_PLANS,
+    is_agency_plan,
+    plan_available,
     TRIAL_PERIOD_DAYS,
     get_billing_plan_definition,
     get_billing_plan_options,
@@ -549,8 +551,10 @@ async def create_billing_checkout(
     if plan not in PUBLIC_BILLING_PLANS:
         raise HTTPException(
             status_code=400,
-            detail="Choose Professional or Agency",
+            detail="Choose one of the available subscription plans",
         )
+    if not plan_available(plan):
+        raise HTTPException(409, "This white-label plan is not available for new subscriptions yet.")
     if payload.additional_client_workspaces < 0:
         raise HTTPException(
             status_code=400,
@@ -562,7 +566,7 @@ async def create_billing_checkout(
             detail="Additional client workspaces cannot exceed 1000",
         )
     if (
-        plan != AGENCY_PLAN
+        not is_agency_plan(plan)
         and payload.additional_client_workspaces
     ):
         raise HTTPException(
@@ -1005,7 +1009,7 @@ def apply_stripe_billing_event(
     supplementary_price_ids = addon_price_ids | {configured.get("ai_credit_pack_price_id")}
     if get_application().is_default:
         # Retain base-plan recognition for any historical add-on records;
-        # hosted access is now included in Agency and never creates a charge.
+        # White-label tiers use a base plan, never a second hosted charge.
         from app.db.models import HostedSubdomainEntitlement
         legacy_hosted = db.get(HostedSubdomainEntitlement, subscription.id)
         if legacy_hosted:
@@ -1033,7 +1037,7 @@ def apply_stripe_billing_event(
         or metadata.get("billing_interval")
     )
     configured_plan = next(
-        (plan for plan in (PROFESSIONAL_PLAN, AGENCY_PLAN)
+        (plan for plan in PUBLIC_BILLING_PLANS
          if subscription.price_id and subscription.price_id in {
              configured.get(f"{plan}_price_id"), configured.get(f"{plan}_annual_price_id"),
          }),

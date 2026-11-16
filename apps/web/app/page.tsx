@@ -4,6 +4,7 @@ import { LandingNavbar } from "@/components/landing/navbar"
 import "@/components/landing/landing.css"
 import { isMarketingRequest, marketingPageMetadata } from "@/lib/seo-server"
 import { marketingStructuredData, serializeStructuredData } from "@/lib/seo"
+import type { PublicPlanCatalog } from "@/lib/api"
 import {
   AgencySection,
   BusinessSection,
@@ -20,6 +21,12 @@ export function generateMetadata() {
 
 export default async function HomePage() {
   const marketing = await isMarketingRequest()
+  let catalog: PublicPlanCatalog | null = null
+  try {
+    const api = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "")
+    const response = await fetch(`${api}/api/v2/application/plans`, { cache: "no-store", signal: AbortSignal.timeout(2500) })
+    if (response.ok) catalog = await response.json()
+  } catch { /* The marketing page remains available during API maintenance. */ }
   return (
     <div className="landing-page min-h-screen bg-white text-neutral-950">
       {marketing && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeStructuredData(marketingStructuredData) }} />}
@@ -30,7 +37,7 @@ export default async function HomePage() {
         <AgencySection />
         <FeaturesSection />
         <IntegrationsSection />
-        <PricingSection />
+        <PricingSection catalog={catalog} />
         <FAQSection />
         <FinalCTASection />
       </main>

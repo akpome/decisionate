@@ -21,6 +21,7 @@ from app.modules.billing.renewals import reconcile_subscription_if_needed
 from app.modules.billing.service import (
     get_billing_plan_definition,
     normalize_billing_plan,
+    is_agency_plan,
 )
 from app.modules.billing.data_retention import (
     purge_workspace_data_after_expiry,
@@ -136,7 +137,7 @@ def send_ai_credit_low_balance_notification(
         f"AI credits remaining out of {max(int(credit_limit), 0):,}. "
         "Top up your AI credit pool to keep analysis available."
     )
-    if plan == "agency":
+    if is_agency_plan(plan):
         message += " This balance is shared by your agency and client workspaces."
 
     body = (

@@ -5,6 +5,27 @@ allowances and applicable prices. Use that page as the authority for your
 account. Historical screenshots and static support articles do not establish
 current prices, trial dates or entitlements.
 
+## Which subscription plans are available?
+
+There are four alternative plans, not a base plan plus white-label add-ons:
+
+- Professional: one business workspace.
+- Standard Branded Agency: agency and client workspaces in the Decisionate-branded application.
+- White Label Subdomain Agency: agency workspaces and a branded portal at an address such as agency.decisionate.app.
+- Custom Domain White Label Agency: a branded portal on the agency's own domain, such as analytics.agency.com.
+
+Custom-domain signup is closed by default and can be opened later by the platform
+administrator. Hosted-subdomain signup also depends on the platform's availability
+switch and verified launch checks. An unavailable plan cannot be activated just by
+choosing it in a request. Standard Branded Agency does not include a white-label portal.
+
+Platform Admin > Billing and AI credit pricing sets each plan's monthly and annual
+amounts and matching recurring Stripe price IDs. The pricing page and Billing use
+these saved values. Annual prices are the entire year's charge. New white-label
+prices are unset until configured, not automatically free. Changes do not rewrite
+existing Stripe subscriptions. Review the available plan-change options in Billing;
+do not create a second subscription to change tiers.
+
 ## Subscription changes
 
 An active paid period normally renews; its end date is not automatically an
