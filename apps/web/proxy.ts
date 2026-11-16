@@ -162,6 +162,9 @@ export default async function proxy(
   if (canonicalPathname !== request.nextUrl.pathname) {
     return redirectApplicationPath(request, getAuthRequestOrigin(request.headers, request.url), canonicalPathname, 308)
   }
+  if (["/robots.txt", "/sitemap.xml"].includes(request.nextUrl.pathname)) {
+    return NextResponse.next()
+  }
   if (isPublicDemoRoute(request) && !isApplicationHome(request) && !hosted) {
     return NextResponse.next()
   }

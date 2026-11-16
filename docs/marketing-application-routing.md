@@ -78,11 +78,22 @@ these primary-host redirects. Custom-domain white labeling is not enabled.
 
 ### PWA placement
 
-Only `app.decisionate.ca` advertises the Decisionate manifest and registers the
-production service worker. Marketing pages on the apex have neither a manifest
-link nor Apple standalone-app metadata; the manifest endpoint rejects the apex
-and `www` hosts. Workspace-branded manifests keep the app's `/dashboard` start
-URL and root-level application shortcuts.
+Only protected workspace pages on `app.decisionate.ca`, such as `/dashboard`,
+`/connections` and `/decisions`, advertise the Decisionate manifest and initiate
+service-worker registration. The manifest and Apple standalone metadata belong
+to the dashboard layout, not the shared root layout. Sign-in, signup, password
+recovery, onboarding, shared links and marketing pages do not advertise an
+installation. The client suppresses `beforeinstallprompt` outside workspace
+routes, including after client-side navigation. The manifest endpoint still
+rejects the apex and `www` hosts.
+
+Workspace-branded manifests retain the existing `/dashboard` app identity and
+start URL, `/` scope and root-level application shortcuts. Narrowing the scope
+to `/dashboard` would exclude `/connections` and the other root-level routes.
+Signing out does not unregister an existing installation or erase its caches.
+Browser-controlled menu commands, cached install badges and "open installed app"
+controls cannot be forcibly removed by site code; check fresh tabs after a
+deployment, not just a tab that still has the previous layout loaded.
 
 The client cleanup and replacement worker remove only old `decisionate-pwa-*`
 caches and Decisionate's `/sw.js` registration on marketing origins. They do not
@@ -158,6 +169,47 @@ Do not change `DECISIONATE_APPLICATIONS`, JWT issuer/JWKS, Stripe customer/price
 IDs or connector credentials. Connector OAuth callbacks and Stripe webhooks stay
 on their existing Railway endpoints. No Railway deployment settings were changed
 by this repository patch.
+
+## Search and sharing
+
+The canonical public website is `https://decisionate.ca`. The homepage, live demo,
+security, privacy and terms pages have distinct titles and descriptions, canonical
+URLs, Open Graph metadata and Twitter sharing cards. `/social-preview.png` is a
+1200 by 630 branded preview generated from the local logo, with no external image
+or font request at render time. The homepage emits Organization, WebSite and
+SoftwareApplication JSON-LD. No ratings, customer counts or prices are invented.
+
+`/sitemap.xml` lists only those five canonical public URLs. It contains neither
+workspace routes nor query-string variants and does not fabricate fresh
+modification dates on each request. `/robots.txt` advertises that sitemap only
+on the production marketing host. Neither endpoint needs Clerk sign-in.
+
+Root metadata defaults to `noindex, nofollow`. Only explicitly approved public
+pages on the marketing host opt into indexing. App, sign-in, shared-dashboard,
+hosted-portal and preview pages remain noindex; the app host also sends an
+`X-Robots-Tag` response header. Pages remain crawlable so crawlers can read the
+noindex directive; robots rules exclude API, Clerk proxy and sample-data paths.
+Neither robots nor noindex is an access-control mechanism.
+
+After deployment:
+
+1. Verify the `decisionate.ca` property in Google Search Console and Bing
+   Webmaster Tools. DNS verification needs no code configuration. For HTML-tag
+   verification, set `GOOGLE_SITE_VERIFICATION` and/or `BING_SITE_VERIFICATION`
+   to the provider's token in the Vercel production environment and redeploy.
+   These public verification tokens are emitted only on the marketing site.
+2. Submit `https://decisionate.ca/sitemap.xml` and inspect the homepage's rendered
+   canonical URL, indexing status and structured data with the providers' tools.
+3. Monitor indexing and Core Web Vitals after real traffic accumulates. These
+   technical changes do not guarantee indexing, rich results or ranking.
+
+Client-side English/French translation does not create distinct crawlable language
+URLs, so no alternate-language URLs are invented. Legal text, prices and product
+claims remain unchanged by this SEO work.
+
+References: [Google's noindex guidance](https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag),
+[sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap),
+and [browser installation criteria](https://web.dev/articles/install-criteria).
 
 ## Verification
 

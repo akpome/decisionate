@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { isDecisionatePwaHost } from "@/lib/decisionate-domains"
+import { canonicalWorkspacePathname, isWorkspacePathname } from "@/lib/application-routes"
 
 async function retireDecisionatePwa() {
   try {
@@ -29,11 +31,24 @@ async function retireDecisionatePwa() {
 }
 
 export function PwaRegistration() {
+  const pathname = usePathname()
+  const workspacePage = isWorkspacePathname(canonicalWorkspacePathname(pathname))
+
+  useEffect(() => {
+    if (workspacePage && isDecisionatePwaHost(window.location.hostname)) return
+    const suppressInstall = (event: Event) => event.preventDefault()
+    window.addEventListener("beforeinstallprompt", suppressInstall)
+    return () => window.removeEventListener("beforeinstallprompt", suppressInstall)
+  }, [workspacePage])
+
   useEffect(() => {
     if (!isDecisionatePwaHost(window.location.hostname) || process.env.NODE_ENV !== "production") {
       void retireDecisionatePwa()
       return
     }
+    // Keep an existing installation working across sign-in; only workspace
+    // pages advertise a manifest or initiate service-worker registration.
+    if (!workspacePage) return
     if (!("serviceWorker" in navigator)) {
       return
     }
@@ -80,7 +95,7 @@ export function PwaRegistration() {
         handleWindowLoad
       )
     }
-  }, [])
+  }, [workspacePage])
 
   return null
 }

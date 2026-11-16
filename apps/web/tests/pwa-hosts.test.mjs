@@ -25,7 +25,7 @@ const auth = load("../features/auth/lib/auth-redirects.ts", { "@/lib/application
 const common = { "@/lib/decisionate-domains": domains, "@/features/auth/lib/auth-redirects": auth }
 const forbiddenHosts = ["decisionate.ca", "www.decisionate.ca", "preview.vercel.app", "tenant.decisionate.app", "app.decisionate.ca.attacker.test", "localhost"]
 
-test("only the app host advertises an installable manifest and Apple PWA metadata", async () => {
+test("the shared layout never advertises installation on sign-in or public pages", async () => {
   for (const hostname of ["app.decisionate.ca", ...forbiddenHosts]) {
     const { generateMetadata } = load("../app/layout.tsx", {
       ...common, "./globals.css": {}, "react/jsx-runtime": {}, "./clerk-provider": {}, "./pwa-registration": {},
@@ -33,10 +33,25 @@ test("only the app host advertises an installable manifest and Apple PWA metadat
       "@/lib/portal-brand": { portalBrand: { name: "Decisionate", id: "" } },
       "next/headers": { headers: async () => new Headers({ host: "internal:3000", "x-forwarded-host": hostname, "x-forwarded-proto": "https" }) },
     })
+    const metadata = await generateMetadata()
+    assert.equal(metadata.manifest, undefined, hostname)
+    assert.equal(metadata.appleWebApp, undefined, hostname)
+    assert.equal(metadata.robots.index, false)
+    assert.equal(metadata.title.default, "Decisionate")
+  }
+})
+
+test("only protected workspace pages on the app host advertise installation", async () => {
+  for (const hostname of ["app.decisionate.ca", ...forbiddenHosts]) {
+    const { generateMetadata } = load("../app/dashboard/layout.tsx", {
+      ...common, "react/jsx-runtime": {}, "./dashboard-shell": {}, "@/features/marketing/activity-tracker": {},
+      "@/lib/portal-brand": { portalBrand: { name: "Decisionate", id: "" } },
+      "next/headers": { headers: async () => new Headers({ host: hostname }) },
+    })
     const metadata = await generateMetadata(), enabled = hostname === "app.decisionate.ca"
     assert.equal(metadata.manifest, enabled ? "/manifest.webmanifest" : undefined, hostname)
     assert.equal(metadata.appleWebApp?.capable, enabled ? true : undefined, hostname)
-    assert.equal(metadata.title.default, "Decisionate")
+    assert.equal(metadata.robots.index, false)
   }
 })
 
@@ -59,19 +74,17 @@ test("the manifest endpoint rejects marketing and unrelated origins and retains 
 })
 
 test("the primary-host change does not enable PWA installation for hosted portals", async () => {
-  const { generateMetadata } = load("../app/layout.tsx", {
-    ...common, "./globals.css": {}, "react/jsx-runtime": {}, "./clerk-provider": {}, "./pwa-registration": {},
-    "./theme-bootstrap": {}, "./language-bootstrap": {}, "./workspace-favicon-bootstrap": {},
+  const { generateMetadata } = load("../app/dashboard/layout.tsx", {
+    ...common, "react/jsx-runtime": {}, "./dashboard-shell": {}, "@/features/marketing/activity-tracker": {},
     "@/lib/portal-brand": { portalBrand: { name: "Agency portal", id: "agency" } },
     "next/headers": { headers: async () => new Headers({ host: "tenant.decisionate.app", "x-forwarded-proto": "https" }) },
   })
   const metadata = await generateMetadata()
   assert.equal(metadata.manifest, undefined)
-  assert.equal(metadata.applicationName, "Agency portal")
   assert.equal(metadata.appleWebApp.capable, true, "Existing portal Apple metadata is unchanged")
 })
 
-function registrationHarness(hostname, { environment = "production", readyState = "complete", protocol = "https:", failCleanup = false } = {}) {
+function registrationHarness(hostname, { environment = "production", readyState = "complete", protocol = "https:", failCleanup = false, path = "/dashboard" } = {}) {
   const calls = [], listeners = new Map()
   const registration = name => ({ active: { scriptURL: `https://${hostname}/${name}` }, unregister: async () => calls.push(`unregister:${name}`) })
   const navigator = { serviceWorker: {
@@ -82,12 +95,23 @@ function registrationHarness(hostname, { environment = "production", readyState 
     caches: { keys: async () => ["decisionate-pwa-v5-shell", "decisionate-pwa-v6-shell", "unrelated-cache"], delete: async name => calls.push(`delete:${name}`) },
     addEventListener: (name, handler) => listeners.set(name, handler), removeEventListener: name => listeners.delete(name),
   }
-  let cleanup
+  let pathname = path, effectIndex = 0
+  const effects = []
   const { PwaRegistration } = load("../app/pwa-registration.tsx", {
-    "@/lib/decisionate-domains": domains, react: { useEffect: effect => { cleanup = effect() } },
+    "@/lib/decisionate-domains": domains, "@/lib/application-routes": routes,
+    "next/navigation": { usePathname: () => pathname },
+    react: { useEffect: (effect, dependencies) => {
+      const previous = effects[effectIndex]
+      if (!previous || dependencies.some((value, index) => value !== previous.dependencies[index])) {
+        previous?.cleanup?.()
+        effects[effectIndex] = { dependencies, cleanup: effect() }
+      }
+      effectIndex++
+    } },
   }, { window, navigator, document: { readyState }, process: { env: { NODE_ENV: environment } } })
-  PwaRegistration()
-  return { calls, listeners, cleanup }
+  const render = nextPath => { pathname = nextPath; effectIndex = 0; PwaRegistration() }
+  render(path)
+  return { calls, listeners, render, cleanup: () => effects.forEach(effect => effect.cleanup?.()) }
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
@@ -122,6 +146,38 @@ test("production registers on the secure app host after load; development only c
   await settle()
   assert.ok(development.calls.includes("unregister:sw.js"))
   assert.equal(registrationHarness("app.decisionate.ca", { protocol: "http:" }).calls.length, 0)
+})
+
+test("login, signup, recovery and public pages do not initiate installation or remove an existing app", async () => {
+  for (const path of ["/", "/sign-in", "/sign-in/forgot-password", "/sign-up", "/auth/redirect", "/onboarding", "/privacy", "/share/dashboard"]) {
+    const h = registrationHarness("app.decisionate.ca", { path })
+    await settle()
+    assert.equal(h.calls.length, 0, path)
+    let suppressed = false
+    h.listeners.get("beforeinstallprompt")({ preventDefault() { suppressed = true } })
+    assert.equal(suppressed, true, path)
+    h.cleanup()
+    assert.equal(h.listeners.size, 0)
+  }
+})
+
+test("install eligibility updates when navigating between workspace and sign-in without a reload", async () => {
+  const h = registrationHarness("app.decisionate.ca", { path: "/sign-in", readyState: "loading" })
+  assert.equal(h.listeners.has("beforeinstallprompt"), true)
+  h.render("/connections")
+  assert.equal(h.listeners.has("beforeinstallprompt"), false)
+  assert.equal(h.listeners.has("load"), true)
+  h.render("/sign-in")
+  assert.equal(h.listeners.has("load"), false, "Do not register after leaving a workspace")
+  assert.equal(h.listeners.has("beforeinstallprompt"), true)
+  await settle()
+  assert.equal(h.calls.length, 0)
+  for (const { path } of routes.workspaceRoutes) {
+    const app = registrationHarness("app.decisionate.ca", { path })
+    await settle()
+    assert.ok(app.calls.some(call => call.url === "/sw.js"), path)
+    assert.equal(app.listeners.has("beforeinstallprompt"), false)
+  }
 })
 
 function workerHarness(hostname) {

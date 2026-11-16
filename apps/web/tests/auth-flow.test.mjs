@@ -336,6 +336,8 @@ test("public demo pages keep the fast path without bypassing auth pages", async 
   const proxy = proxyHarness()
   assert.equal(await proxy.run("/"), "next")
   assert.equal(await proxy.run("/demo/datasets"), "next")
+  assert.equal(await proxy.run("/robots.txt"), "next")
+  assert.equal(await proxy.run("/sitemap.xml"), "next")
   assert.equal(proxy.clerkCalls(), 0)
   await proxy.run("/sign-in")
   assert.equal(proxy.clerkCalls(), 1)

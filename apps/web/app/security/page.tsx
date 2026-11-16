@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
-export const metadata = {
-  title: "Security",
-  description: "Decisionate's workspace and report-job access controls, credential protection, AI context, storage, retention, and security reporting."
+import { marketingPageMetadata } from "@/lib/seo-server"
+
+export function generateMetadata() {
+  return marketingPageMetadata("/security")
 }
 
 export default function SecurityPage() {

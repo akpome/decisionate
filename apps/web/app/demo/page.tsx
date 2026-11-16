@@ -1,9 +1,9 @@
 import SharedDashboardPage from "@/app/share/dashboard/page"
 
-export const metadata = {
-  title: "Decisionate Live Demo",
-  description:
-    "Explore Decisionate dashboards with sample Google Analytics, Google Ads, Stripe, Shopify, QuickBooks, FreshBooks, Sage, Xero, Zoho Books, HubSpot, Salesforce Sales Cloud, and Meta Ads data.",
+import { marketingPageMetadata } from "@/lib/seo-server"
+
+export function generateMetadata() {
+  return marketingPageMetadata("/demo")
 }
 
 export default function DemoPage() {

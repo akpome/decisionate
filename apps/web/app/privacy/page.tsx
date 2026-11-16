@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
-export const metadata = {
-  title: "Privacy Policy",
-  description: "How Decisionate handles connected data, report settings and results, AI analysis, retention, and privacy requests."
+import { marketingPageMetadata } from "@/lib/seo-server"
+
+export function generateMetadata() {
+  return marketingPageMetadata("/privacy")
 }
 
 const processors = [

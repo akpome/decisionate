@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { PolicyPage, PolicySection } from "@/components/landing/policy-page"
 
-export const metadata = {
-  title: "Terms of Service",
-  description: "Terms for Decisionate workspaces, cross-dataset reports, forecasts, connectors, AI, billing, and deletion."
+import { marketingPageMetadata } from "@/lib/seo-server"
+
+export function generateMetadata() {
+  return marketingPageMetadata("/terms")
 }
 
 export default function TermsPage() {

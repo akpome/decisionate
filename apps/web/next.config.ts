@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        source: "/:path*",
+        has: [{ type: "host", value: "app\\.decisionate\\.ca" }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
         source: "/demo-data/:path*",
         headers: [
           {

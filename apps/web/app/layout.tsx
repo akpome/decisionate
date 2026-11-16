@@ -11,8 +11,6 @@ import { ThemeBootstrap } from "./theme-bootstrap"
 import { LanguageBootstrap } from "./language-bootstrap"
 import { WorkspaceFaviconBootstrap } from "./workspace-favicon-bootstrap"
 import { portalBrand } from "@/lib/portal-brand"
-import { getAuthRequestOrigin } from "@/features/auth/lib/auth-redirects"
-import { isDecisionatePwaHost } from "@/lib/decisionate-domains"
 import { requestHostedPortal } from "@/features/hosted-subdomains/server"
 import { HostedPortalProvider } from "@/features/hosted-subdomains/provider"
 
@@ -24,6 +22,7 @@ const baseMetadata: Metadata = {
   description:
     "Analyze business performance across datasets with selected metrics, dimension filters, seasonal checks, forecasts, weekly reports, and accountable decisions.",
   applicationName: portalBrand.name,
+  robots: { index: false, follow: false },
   formatDetection: {
     telephone: false,
   },
@@ -37,19 +36,11 @@ const baseMetadata: Metadata = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const portal = await requestHostedPortal()
-  const hostname = new URL(getAuthRequestOrigin(await headers())).hostname
-  const enabled = !portalBrand.id && isDecisionatePwaHost(hostname)
   return {
     ...baseMetadata,
     ...(portal?.branding ? { title: portal.branding.name, applicationName: portal.branding.name,
       icons: portal.branding.favicon_url || portal.branding.logo_url || undefined,
       openGraph: { title: portal.branding.name } } : {}),
-    manifest: enabled ? "/manifest.webmanifest" : undefined,
-    appleWebApp: enabled || portalBrand.id ? {
-      capable: true,
-      title: portalBrand.name,
-      statusBarStyle: "default",
-    } : undefined,
   }
 }
 
