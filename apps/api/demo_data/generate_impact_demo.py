@@ -43,5 +43,5 @@ def generate(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[3] / "sample-data" / "business-impact")
+    parser.add_argument("--output", type=Path, required=True, help="Explicit destination for generated study files")
     print(json.dumps(generate(parser.parse_args().output), indent=2))

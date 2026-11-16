@@ -159,7 +159,7 @@ The machine-readable [surface inventory](MVP_CONSOLIDATION_V2_SURFACE_AUDIT.json
 | Forecast | GET /forecasting/{dataset_id}. |
 | Public and sample | GET /public/dashboard/{dataset_id}; GET /public/demo. |
 
-Full HTTP method/path/handler/line declarations remain in [Technical Inventory](CHATGPT_PROJECT_TECHNICAL_INVENTORY.json). A declaration is not proof of live availability or permission for a caller.
+Consult the current router declarations under `apps/api/app/modules` and their mounts in `apps/api/app/main.py` for HTTP methods, paths and handlers. A declaration is not proof of live availability or permission for a caller.
 
 ## 7. Decision CTA and Insertion Audit
 

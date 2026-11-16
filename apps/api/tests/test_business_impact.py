@@ -319,7 +319,7 @@ class BusinessImpactTests(unittest.TestCase):
             self.assertGreaterEqual(covered / accepted, .8, (effect, accepted, covered))
             self.assertLessEqual(false_direction, 3, (effect, accepted, false_direction))
 
-    def test_committed_demo_has_known_effects_and_is_reproducible(self):
+    def test_generated_study_has_known_effects_and_is_reproducible(self):
         import importlib.util
         from pathlib import Path
         import tempfile
@@ -327,12 +327,17 @@ class BusinessImpactTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("impact_demo", root / "apps/api/demo_data/generate_impact_demo.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        with tempfile.TemporaryDirectory() as folder:
+        with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryDirectory() as repeated_folder:
             manifest = module.generate(folder)
+            self.assertTrue(manifest["synthetic"])
+            self.assertEqual(manifest["effects_per_week"], {
+                "orders_helpful_change": 30, "orders_no_effect": 0, "orders_harmful_change": -30,
+            })
+            self.assertEqual(module.generate(repeated_folder), manifest)
             for name in ("changed_store.csv", "unchanged_store.csv", "manifest.json"):
-                self.assertEqual((Path(folder) / name).read_bytes(), (root / "sample-data/business-impact" / name).read_bytes())
-        changed = pd.read_csv(root / "sample-data/business-impact/changed_store.csv")
-        control = pd.read_csv(root / "sample-data/business-impact/unchanged_store.csv")
+                self.assertEqual((Path(folder) / name).read_bytes(), (Path(repeated_folder) / name).read_bytes())
+            changed = pd.read_csv(Path(folder) / "changed_store.csv")
+            control = pd.read_csv(Path(folder) / "unchanged_store.csv")
         dates = pd.to_datetime(changed.week)
         for key, effect in manifest["effects_per_week"].items():
             definition, metadata, _ = experiment()
