@@ -16,6 +16,7 @@ import { DECISIONATE_APPLICATION_ORIGIN, DECISIONATE_MARKETING_ORIGIN } from "./
 import { canonicalWorkspacePathname, internalWorkspacePathname, isWorkspacePathname } from "./lib/application-routes"
 import { resolveHostedPortal, safeHostedReturn } from "./features/hosted-subdomains/server"
 import { hostedPrimaryOrigin, isHostedHostname, type HostedPortal } from "./features/hosted-subdomains/types"
+import { unavailablePortalPage, unavailablePortalHeaders } from "./features/hosted-subdomains/unavailable-page"
 
 const isPublicDemoRoute = createRouteMatcher([
   "/",
@@ -122,7 +123,7 @@ export default async function proxy(
   if (hosted) {
     portal = isHostedHostname(hostname) ? await resolveHostedPortal(hostname) : null
     if (!portal || (!portal.active && !request.nextUrl.pathname.startsWith("/__clerk/"))) {
-      return new NextResponse("This portal is unavailable. Contact your agency or sign in at app.decisionate.ca.", { status: 404, headers: { "Cache-Control": "no-store" } })
+      return new NextResponse(unavailablePortalPage, { status: 404, headers: unavailablePortalHeaders })
     }
     const canonical = canonicalWorkspacePathname(request.nextUrl.pathname)
     if (["/platform-admin", "/white-label", "/hosted-portal", "/onboarding", "/demo"].some(path => canonical === path || canonical.startsWith(path + "/"))) {

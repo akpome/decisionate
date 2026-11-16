@@ -103,3 +103,11 @@ are preserved. An unlinked client loses agency portal access but keeps the exist
 main-app recovery options. Closing new setup does not delete a live portal.
 Ask Decisionate cannot confirm live billing/provider status; use Billing or contact
 support.
+
+## Why does my portal show Portal unavailable?
+
+An unavailable hosted address shows a neutral page, without workspace details or
+a link to another application. Check the web address or ask the agency that shared
+your link for help. Try again checks the same portal's home address. The message
+does not confirm whether an address is unregistered, access is paused or a service
+is temporarily unavailable. Ask Decisionate cannot check the portal's live status.

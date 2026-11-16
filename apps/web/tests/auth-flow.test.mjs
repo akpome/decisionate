@@ -22,6 +22,7 @@ function load(relativePath, dependencies = {}, globals = {}) {
       if (name === "./lib/decisionate-domains") return domains
       if (name === "./lib/application-routes" || name === "@/lib/application-routes") return routes
       if (name.endsWith("hosted-subdomains/types")) return hostedTypes
+      if (name.endsWith("hosted-subdomains/unavailable-page")) return load("../features/hosted-subdomains/unavailable-page.ts")
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
     }, ...globals,
@@ -492,8 +493,20 @@ test("registered hosted roots use central Clerk satellites and retain normal wor
 
 test("unknown hosted domains never fall back to Decisionate, and inactive domains only bootstrap Clerk", async () => {
   const h = proxyHarness({ responseObjects: true })
-  for (const path of ["/", "/sign-in", "/dashboard", "/__clerk/v1/client"])
-    assert.equal((await h.run("https://unknown.decisionate.app" + path)).status, 404, path)
+  for (const origin of ["https://decisionate.app", "https://unknown.decisionate.app"]) {
+    for (const path of ["/", "/sign-in", "/dashboard", "/__clerk/v1/client"]) {
+      const response = await h.run(origin + path + "?redirect_url=https://app.decisionate.ca&token=private")
+      assert.equal(response.status, 404, path)
+      assert.match(response.headers.get("content-type"), /^text\/html/)
+      assert.equal(response.headers.get("cache-control"), "no-store")
+      assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow")
+      const html = await response.text()
+      assert.match(html, /We can't open this portal/)
+      assert.match(html, /href="\/">Try again/)
+      assert.doesNotMatch(html, /decisionate\.ca|sign.in|private|redirect_url|<script/i)
+    }
+  }
+  assert.equal(h.clerkCalls(), 0)
   const inactive = proxyHarness({ responseObjects: true, hostedPortal: { hostname: "north.decisionate.app", active: false } })
   assert.equal((await inactive.run("https://north.decisionate.app/sign-in")).status, 404)
   assert.equal(await inactive.run("https://north.decisionate.app/__clerk/v1/client"), undefined)

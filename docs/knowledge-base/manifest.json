@@ -25,7 +25,8 @@
         "How do I set up a white-label portal?",
         "Can my customers pay into my Stripe account?",
         "Why is my branded portal waiting for DNS?",
-        "How do I get a hosted agency portal?"
+        "How do I get a hosted agency portal?",
+        "Why does my portal show Portal unavailable?"
       ],
       "routes": [
         "/white-label",
@@ -36,6 +37,8 @@
         "apps/api/app/modules/hosted_portal_providers.py",
         "apps/web/features/white-label/hosted-setup.tsx",
         "apps/web/features/hosted-subdomains/setup.tsx",
+        "apps/web/features/hosted-subdomains/unavailable-page.ts",
+        "apps/web/proxy.ts",
         "apps/api/app/modules/hosted_subdomains/router.py",
         "apps/api/app/modules/hosted_subdomains/context.py",
         "apps/api/app/modules/hosted_subdomains/service.py",
@@ -59,6 +62,9 @@
         ],
         "Where do hosted clients sign in and how are they invited?": [
           "Where do my hosted portal clients log in?"
+        ],
+        "Why does my portal show Portal unavailable?": [
+          "Why is my portal unavailable?"
         ]
       }
     },

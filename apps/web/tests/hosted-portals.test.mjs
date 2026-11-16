@@ -115,6 +115,7 @@ test("hosted portal routing keeps default marketing and operator pages off custo
   let authCalls = 0
   const { default: proxy } = load(source("../proxy.ts"), { require: name => {
     if (name === "./features/hosted-subdomains/server") return {}
+    if (name === "./features/hosted-subdomains/unavailable-page") return load(source("../features/hosted-subdomains/unavailable-page.ts"))
     if (name === "./features/hosted-subdomains/types") return load(source("../features/hosted-subdomains/types.ts"))
     if (name === "./lib/application-routes") return load(source("../lib/application-routes.ts"))
     if (name === "./lib/portal-brand") return { portalBrand }

@@ -45,6 +45,7 @@ function navigationProxy(userId) {
     "./lib/application-routes": routes,
     "./features/auth/lib/auth-redirects": redirects,
     "./features/hosted-subdomains/types": hostedTypes,
+    "./features/hosted-subdomains/unavailable-page": load("../features/hosted-subdomains/unavailable-page.ts"),
     "./features/hosted-subdomains/server": {
       resolveHostedPortal: async hostname => hostname === hostedPortal.hostname ? hostedPortal : null,
       safeHostedReturn: async () => null,
@@ -133,5 +134,22 @@ test("authentication, API and public links are not rewritten into the dashboard"
     const response = await run(proxy, "https://app.decisionate.ca" + path + "?_rsc=public", { rsc: "1" })
     assert.equal(response.headers.get("x-middleware-rewrite"), null, path)
     assert.equal(response.headers.get("x-middleware-next"), "1", path)
+  }
+})
+
+test("unavailable portals return a non-indexable HTML page before Clerk for document and RSC requests", async () => {
+  const proxy = navigationProxy(null)
+  for (const mode of modes) {
+    const response = await run(proxy, "https://unknown.decisionate.app/connections?workspace_id=private" + mode.query, mode.headers)
+    assert.equal(response.status, 404)
+    assert.match(response.headers.get("content-type"), /^text\/html/)
+    assert.equal(response.headers.get("cache-control"), "no-store")
+    assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow")
+    assert.equal(response.headers.get("location"), null)
+    assert.equal(response.headers.get("set-cookie"), null)
+    assert.equal(response.headers.get("x-middleware-rewrite"), null)
+    const html = await response.text()
+    assert.match(html, /We can't open this portal/)
+    assert.doesNotMatch(html, /decisionate\.ca|private|<script/i)
   }
 })
