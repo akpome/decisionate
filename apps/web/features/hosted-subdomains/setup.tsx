@@ -10,7 +10,6 @@ import { type HostedBrand } from "./types"
 
 type PortalRecord = { id: string; slug: string; hostname: string; revision: number; status: string; configuration: HostedBrand; url: string; published: boolean; last_error: string | null }
 type Setup = { portal: PortalRecord | null; entitled: boolean; commercially_available: boolean; blockers: string[]; defaults: Partial<HostedBrand> }
-type Offer = { price_id: string; amount: number; currency: string; interval: string }
 const emptyBrand: HostedBrand = { name: "", logo_url: "", favicon_url: "", background_url: "", primary_color: "#2563EB", accent_color: "#059669", background_color: "#F8FAFC", support_email: "", welcome_heading: "Welcome back", welcome_text: "" }
 const inputClass = "mt-1 h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm"
 const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm disabled:opacity-50"
@@ -29,7 +28,6 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState(false)
   const [mobile, setMobile] = useState(false)
-  const [offer, setOffer] = useState<Offer | null>(null)
   const [reload, setReload] = useState(0)
   const working = useRef(false)
   const previewDialog = useRef<HTMLDialogElement>(null)
@@ -110,31 +108,10 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
     {data && <>
       <section className="border-b border-gray-200 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">Subscription</h2><span className="text-sm text-gray-600">{data.entitled ? "Hosted white label active" : "Hosted white label not active"}</span>
+          <h2 className="font-semibold">Agency plan</h2><span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "Agency subscription required"}</span>
         </div>
-        {!data.entitled && data.commercially_available && <div className="mt-4 flex flex-wrap items-center gap-3">
-          {!offer ? <button className={buttonClass} disabled={busy} onClick={() => void perform(async () => setOffer(await hostedSubdomainRequest<Offer>(userId, "/subscription-offer")))}>View subscription price</button> : <>
-            <span className="text-sm">{new Intl.NumberFormat("en", { style: "currency", currency: offer.currency }).format(offer.amount / 100)} / {offer.interval}</span>
-            <button className={buttonClass} disabled={busy} onClick={() => void perform(async () => {
-              if (!window.confirm("Add hosted white label to your Agency subscription at this recurring price? Stripe will charge the prorated amount to your saved payment method.")) return
-              const result = await hostedSubdomainRequest<{ pending: boolean; invoice_url: string | null }>(userId, "/subscription", { method: "POST", body: JSON.stringify({ ...offer, confirmation: "ADD HOSTED WHITE LABEL" }) })
-              if (result.invoice_url) { window.location.assign(result.invoice_url); return }
-              setNotice(result.pending ? "Payment confirmation is pending. Check Billing before trying again." : "Subscription updated.")
-              setReload(value => value + 1)
-            })}>Add hosted white label</button>
-          </>}
-          <Link href="/billing" className="text-sm text-blue-700 underline">Manage billing</Link>
-        </div>}
+        {!data.entitled && <Link href="/billing" className="mt-3 inline-block text-sm text-blue-700 underline">Manage Agency subscription</Link>}
         {!data.commercially_available && !data.portal?.published && <p className="mt-3 text-sm text-gray-600">New hosted portals are not available yet.</p>}
-        {data.entitled && <details className="mt-4 text-sm"><summary className="cursor-pointer text-gray-600">Subscription options</summary>
-          <div className="mt-3 flex flex-wrap items-center gap-4"><Link href="/billing" className="text-blue-700 underline">Manage billing</Link>
-            <button type="button" disabled={busy} className="text-red-700 underline" onClick={() => void perform(async () => {
-              if (!window.confirm("Cancel hosted white label now? The branded portal will stop working immediately. Your Agency plan, workspaces and data stay available in Decisionate. This does not refund the current period.")) return
-              await hostedSubdomainRequest(userId, "/subscription", { method: "DELETE", body: JSON.stringify({ confirmation: "CANCEL HOSTED WHITE LABEL" }) })
-              setPreview(false); setNotice("Hosted white label canceled. Your workspaces and data are preserved."); setReload(value => value + 1)
-            })}>Cancel hosted white label</button>
-          </div>
-        </details>}
       </section>
       {data.portal?.published && <section className="flex flex-wrap items-center gap-3 border-b border-gray-200 py-5">
         <span className="min-w-0 break-all text-sm">{data.portal.hostname}</span>

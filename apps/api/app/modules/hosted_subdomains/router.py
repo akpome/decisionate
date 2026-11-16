@@ -57,7 +57,7 @@ def require_sales(db):
 
 def require_entitlement(db, agency):
     if not entitled(db, agency):
-        raise HTTPException(403, "An active hosted white-label subscription is required.")
+        raise HTTPException(403, "An active Agency subscription is required for your hosted portal.")
 
 
 @router.get("/resolve")
@@ -157,7 +157,7 @@ def activate(request: Request, payload: PublishPortal):
             db.commit()
         raise
     with SessionLocal() as db:
-        # Recheck paid access, revision and commercial state after the provider call.
+        # Recheck Agency access, revision and commercial state after the provider call.
         auth, agency, _ = require_agency(request, db)
         require_entitlement(db, agency)
         row = db.get(HostedSubdomainPortal, portal_id, with_for_update=True)

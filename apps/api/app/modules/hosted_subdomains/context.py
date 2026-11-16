@@ -51,20 +51,15 @@ def hostname_from_origin(origin):
 
 
 def entitled(db, agency):
-    from app.db.models import HostedSubdomainEntitlement, WorkspaceSubscription, utc_now
+    from app.db.models import WorkspaceSubscription
     from app.modules.billing.lifecycle import build_subscription_access_state
     from app.modules.billing.service import is_agency_plan
 
     if not agency or agency.is_paused:
         return False
     subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=agency.owner_user_id).first()
-    # A development billing bypass must not accidentally grant this paid product.
-    return bool(subscription and subscription.provider == "stripe" and subscription.provider_subscription_id
-                and subscription.status in {"active", "trialing", "past_due"}
-                and subscription.current_period_end and is_agency_plan(subscription.plan)
-                and (subscription.current_period_end > utc_now() or build_subscription_access_state(subscription).status == "grace_period")
-                and build_subscription_access_state(subscription).access_allowed
-                and db.get(HostedSubdomainEntitlement, subscription.id))
+    return bool(subscription and is_agency_plan(subscription.plan)
+                and build_subscription_access_state(subscription).access_allowed)
 
 
 def resolve_portal(db, hostname):

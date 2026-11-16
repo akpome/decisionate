@@ -4,8 +4,10 @@
 
 The independent shared `agency.decisionate.app` product uses the existing agency's
 workspaces, Clerk identity, Decisionate Stripe subscription and email sender.
-When enabled, Settings > Hosted portal offers an add-on quote, address reservation,
-branding draft, desktop/mobile preview and explicit activation. No agency-owned
+Hosted access is included in the existing Agency plan, with its normal trial,
+renewal and grace-period rules. There is no separate portal subscription or charge.
+When enabled, Settings > Hosted portal offers address reservation, branding draft,
+desktop/mobile preview and explicit activation. No agency-owned
 provider accounts or separate Vercel project are required. The branded welcome
 screen uses `app.decisionate.ca` for secure credential entry and returns to the
 authorized portal. It does not change the custom product below.

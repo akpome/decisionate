@@ -25,7 +25,7 @@
         "How do I set up a white-label portal?",
         "Can my customers pay into my Stripe account?",
         "Why is my branded portal waiting for DNS?",
-        "How do I subscribe to a hosted agency portal?"
+        "How do I get a hosted agency portal?"
       ],
       "routes": [
         "/white-label",
@@ -37,7 +37,8 @@
         "apps/web/features/white-label/hosted-setup.tsx",
         "apps/web/features/hosted-subdomains/setup.tsx",
         "apps/api/app/modules/hosted_subdomains/router.py",
-        "apps/api/app/modules/hosted_subdomains/billing.py",
+        "apps/api/app/modules/hosted_subdomains/context.py",
+        "apps/api/app/modules/hosted_subdomains/service.py",
         "docs/white-label-onboarding.md"
       ],
       "related": [
@@ -50,8 +51,11 @@
           "How do I set up a white-label portal?",
           "How do I create a branded customer portal?"
         ],
-        "How do I subscribe to a hosted agency portal?": [
-          "How do I get an agency.decisionate.app portal?"
+        "How do I get a hosted agency portal?": [
+          "How do I get an agency.decisionate.app portal?",
+          "How do I subscribe to a hosted agency portal?",
+          "Is hosted white label included in my Agency plan?",
+          "Do I need a separate Stripe price for hosted white label?"
         ],
         "Where do hosted clients sign in and how are they invited?": [
           "Where do my hosted portal clients log in?"

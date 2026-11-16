@@ -1002,10 +1002,14 @@ def apply_stripe_billing_event(
         )
         if value
     }
-    from app.modules.hosted_subdomains.service import price_ids as hosted_price_ids
     supplementary_price_ids = addon_price_ids | {configured.get("ai_credit_pack_price_id")}
     if get_application().is_default:
-        supplementary_price_ids |= hosted_price_ids()
+        # Retain base-plan recognition for any historical add-on records;
+        # hosted access is now included in Agency and never creates a charge.
+        from app.db.models import HostedSubdomainEntitlement
+        legacy_hosted = db.get(HostedSubdomainEntitlement, subscription.id)
+        if legacy_hosted:
+            supplementary_price_ids.add(legacy_hosted.price_id)
     base_item = next(
         (
             item
@@ -1070,8 +1074,6 @@ def apply_stripe_billing_event(
         deleted=event_type == "customer.subscription.deleted",
         previous_credit_limit=previous_credit_limit,
     )
-    from app.modules.hosted_subdomains.billing import sync_entitlement
-    sync_entitlement(db, subscription, item_data)
 
 
 def get_or_create_subscription(

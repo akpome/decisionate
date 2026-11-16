@@ -71,15 +71,9 @@ def launch_blockers():
         "Shared wildcard hosting and HTTPS require operator verification.": os.getenv("HOSTED_SUBDOMAINS_HOSTING_VERIFIED") == "true",
         "Shared Clerk satellite sign-in requires operator verification.": os.getenv("HOSTED_SUBDOMAINS_AUTH_VERIFIED") == "true",
         "Hosted email and connector return flows require operator verification.": os.getenv("HOSTED_SUBDOMAINS_DELIVERY_VERIFIED") == "true",
-        "A hosted white-label add-on price is not configured.": bool(price_ids()),
         "The shared Clerk backend credential is not configured.": bool(os.getenv("CLERK_SECRET_KEY")),
     }
     return [message for message, ready in checks.items() if not ready]
-
-
-def price_ids():
-    return {value.strip() for value in (os.getenv("STRIPE_HOSTED_SUBDOMAIN_PRICE_ID", ""),
-                                      os.getenv("STRIPE_HOSTED_SUBDOMAIN_ANNUAL_PRICE_ID", "")) if value.strip()}
 
 
 def clerk_request(path, *, body=None):

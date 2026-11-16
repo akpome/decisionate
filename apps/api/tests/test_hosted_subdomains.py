@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 import base64
-import copy
 import json
 import os
 from types import SimpleNamespace
@@ -23,7 +22,7 @@ from app.db.models import (AppUser, AuthIdentity, HostedSubdomainPortal, HostedS
 from app.modules import applications, auth_context, workspace_lifecycle
 from app.modules.identity import service as identity
 from app.modules.organizations import router as organizations
-from app.modules.hosted_subdomains import router as portals, service, context, billing, admin
+from app.modules.hosted_subdomains import router as portals, service, context, admin
 
 
 class HostedSubdomainTests(unittest.TestCase):
@@ -42,7 +41,7 @@ class HostedSubdomainTests(unittest.TestCase):
             "DECISIONATE_WEB_APP_URL": "https://app.decisionate.ca", "DECISIONATE_API_URL": "https://api.decisionate.ca",
             "AUTH_JWKS_URL": "https://shared.clerk.test/jwks", "AUTH_JWT_ISSUER": "https://shared.clerk.test",
             "AUTH_JWT_AUDIENCE": "decisionate", "BILLING_ENFORCEMENT_ENABLED": "true",
-            "BILLING_PROVIDER": "stripe", "STRIPE_HOSTED_SUBDOMAIN_PRICE_ID": "price_hosted",
+            "BILLING_PROVIDER": "stripe",
             "STRIPE_SECRET_KEY": "sk_test_shared", "STRIPE_AGENCY_PRICE_ID": "price_agency",
             "CLERK_SECRET_KEY": "sk_test_shared", "HOSTED_SUBDOMAINS_HOSTING_VERIFIED": "true",
             "HOSTED_SUBDOMAINS_AUTH_VERIFIED": "true", "HOSTED_SUBDOMAINS_DELIVERY_VERIFIED": "true",
@@ -51,7 +50,7 @@ class HostedSubdomainTests(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         self.addCleanup(self.engine.dispose)
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
-        for module in (portals, billing, admin, applications, auth_context, identity, workspace_lifecycle, organizations):
+        for module in (portals, admin, applications, auth_context, identity, workspace_lifecycle, organizations):
             self.patched(patch.object(module, "SessionLocal", self.Session))
         self.patched(patch("app.db.database.SessionLocal", self.Session))
         self.patched(patch.object(auth_context, "get_jwks_client", return_value=SimpleNamespace(
@@ -69,7 +68,6 @@ class HostedSubdomainTests(unittest.TestCase):
                 db.add(WorkspaceSubscription(id=index, workspace_id=workspace, provider="stripe", status="active", plan="agency",
                     provider_subscription_id="sub_" + workspace, provider_customer_id="cus_" + workspace,
                     billing_interval="month", current_period_end=utc_now() + timedelta(days=30)))
-                db.add(HostedSubdomainEntitlement(subscription_id=index, stripe_item_id="si_" + workspace, price_id="price_hosted"))
             db.add(WhiteLabelAvailability(id=1, hosted_subdomain_enabled=True, custom_domain_enabled=False, updated_by_user_id="operator"))
             db.commit()
         app = FastAPI()
@@ -202,17 +200,30 @@ class HostedSubdomainTests(unittest.TestCase):
                 result = self.client.put(self.base, headers=self.headers(), json={"slug": "north-star", "configuration": brand})
                 self.assertEqual(result.status_code, 422, result.text)
 
-    def test_client_and_staff_cannot_provision_or_purchase(self):
+    def test_client_and_staff_cannot_provision(self):
         for user, workspace in [("client", "agency:client:1"), ("staff", "agency")]:
             self.assertEqual(self.save(user=user, workspace=workspace).status_code, 403)
-            self.assertEqual(self.client.get(self.base + "/subscription-offer", headers=self.headers(user=user, workspace=workspace)).status_code, 403)
 
-    def test_entitlement_not_granted_by_basic_agency_plan_or_billing_bypass(self):
+    def test_agency_plan_includes_portal_without_a_separate_purchase(self):
+        with patch("app.modules.billing.service.stripe_request", side_effect=AssertionError("Portal setup must not charge Stripe")) as stripe:
+            setup = self.client.get(self.base, headers=self.headers())
+            self.assertTrue(setup.json()["entitled"])
+            self.publish()
+        stripe.assert_not_called()
         with self.Session() as db:
-            db.delete(db.get(HostedSubdomainEntitlement, 1))
-            db.commit()
+            self.assertEqual(db.query(HostedSubdomainEntitlement).count(), 0)
+            subscription = db.get(WorkspaceSubscription, 1)
+            self.assertEqual(subscription.plan, "agency")
+            self.assertEqual(subscription.provider_subscription_id, "sub_agency")
+            self.assertEqual(subscription.status, "active")
+
+    def test_other_plans_cannot_enable_hosted_access_even_with_billing_bypass(self):
         with patch.dict(os.environ, {"BILLING_ENFORCEMENT_ENABLED": "false"}):
-            self.assertEqual(self.save().status_code, 403)
+            for plan in ("professional", "free"):
+                with self.Session() as db:
+                    db.get(WorkspaceSubscription, 1).plan = plan
+                    db.commit()
+                self.assertEqual(self.save().status_code, 403)
 
     def test_cors_requires_exact_active_portal_and_blocks_admin_even_for_valid_user(self):
         self.publish()
@@ -306,102 +317,52 @@ class HostedSubdomainTests(unittest.TestCase):
                 service.ensure_satellite(domain["name"])
             self.assertEqual(caught.exception.status_code, 409)
 
-    def test_stripe_entitlement_sync_does_not_accept_unknown_price_or_duplicate_quantity(self):
+    def test_portal_uses_existing_agency_trial_renewal_and_grace_rules(self):
+        from app.modules.billing.lifecycle import build_subscription_access_state
+        now = utc_now()
         with self.Session() as db:
             subscription = db.get(WorkspaceSubscription, 1)
-            for price, quantity in [("price_hosted", 2), ("price_other", 1)]:
-                billing.sync_entitlement(db, subscription, [{"id": "si_new", "price": {"id": price}, "quantity": quantity}])
-                db.flush()
-                self.assertIsNone(db.get(HostedSubdomainEntitlement, 1))
-            billing.sync_entitlement(db, subscription, [{"id": "si_new", "price": {"id": "price_hosted"}, "quantity": 1}])
-            db.flush()
-            self.assertEqual(db.get(HostedSubdomainEntitlement, 1).stripe_item_id, "si_new")
-            subscription.status = "canceled"
-            billing.sync_entitlement(db, subscription, [{"id": "si_new", "price": {"id": "price_hosted"}, "quantity": 1}])
-            db.flush()
-            self.assertIsNone(db.get(HostedSubdomainEntitlement, 1))
+            for interval in ("month", "year"):
+                subscription.billing_interval = interval
+                for status, elapsed, expected in [("active", None, True), ("trialing", None, True),
+                                                   ("past_due", 1, True), ("past_due", 8, False),
+                                                   ("canceled", None, False), ("incomplete", None, False)]:
+                    with self.subTest(interval=interval, status=status, elapsed=elapsed):
+                        subscription.status = status
+                        subscription.current_period_end = now + timedelta(days=30)
+                        subscription.payment_due_at = now - timedelta(days=elapsed) if elapsed else None
+                        self.assertEqual(build_subscription_access_state(subscription).access_allowed, expected)
+                        self.assertEqual(context.entitled(db, db.get(Organization, 1)), expected)
+            subscription.status = "active"
+            subscription.cancel_at_period_end = 1
+            self.assertTrue(context.entitled(db, db.get(Organization, 1)))
+            subscription.current_period_end = now - timedelta(days=1)
+            self.assertFalse(context.entitled(db, db.get(Organization, 1)))
+            subscription.current_period_end = None
+            self.assertFalse(context.entitled(db, db.get(Organization, 1)))
 
-    def payment_fixture(self, *, pending=False, has_addon=False):
-        now = int(datetime.now(UTC).timestamp())
-        item = {"id": "si_hosted", "price": {"id": "price_hosted", "recurring": {"interval": "month"}}, "quantity": 1}
-        remote = {"id": "sub_agency", "customer": "cus_agency", "currency": "cad", "collection_method": "charge_automatically",
-            "status": "active", "metadata": {"workspace_id": "agency", "plan": "agency"},
-            "current_period_start": now - 86400, "current_period_end": now + 29 * 86400,
-            "items": {"data": [{"id": "si_base", "price": {"id": "price_agency", "recurring": {"interval": "month"}}, "quantity": 1}]},
-            "latest_invoice": {"id": "in_base", "status": "paid"}}
-        if has_addon:
-            remote["items"]["data"].append(item)
-        calls = []
-        def stripe(path, data, secret, method="POST", **kwargs):
-            self.assertEqual(secret, "sk_test_shared")
-            calls.append((path, data, method, kwargs))
-            if path == "/prices/price_hosted":
-                return {"id": "price_hosted", "active": True, "unit_amount": 1234, "currency": "cad", "billing_scheme": "per_unit",
-                        "recurring": {"interval": "month", "interval_count": 1, "usage_type": "licensed"}}
-            self.assertEqual(path, "/subscriptions/sub_agency")
-            if method == "POST":
-                if data.get("items[0][deleted]"):
-                    self.assertEqual(data["items[0][id]"], "si_hosted")
-                    remote["items"]["data"] = [entry for entry in remote["items"]["data"] if entry["id"] != "si_hosted"]
-                elif pending:
-                    remote["pending_update"] = {"expires_at": now + 3600}
-                    remote["latest_invoice"] = {"id": "in_hosted", "status": "open", "hosted_invoice_url": "https://invoice.stripe.com/i/test"}
-                else:
-                    remote["items"]["data"].append(item)
-                    remote["latest_invoice"] = {"id": "in_hosted", "status": "paid"}
-            return copy.deepcopy(remote)
-        self.patched(patch.object(billing, "stripe_request", side_effect=stripe))
-        with self.Session() as db:
-            if not has_addon:
-                db.delete(db.get(HostedSubdomainEntitlement, 1))
-                db.commit()
-        return calls
+    def test_readiness_needs_provider_verification_but_no_extra_stripe_price(self):
+        self.assertEqual(service.launch_blockers(), [])
+        self.assertEqual(self.save().status_code, 200)
+        for setting in ("HOSTED_SUBDOMAINS_HOSTING_VERIFIED", "HOSTED_SUBDOMAINS_AUTH_VERIFIED", "HOSTED_SUBDOMAINS_DELIVERY_VERIFIED"):
+            with patch.dict(os.environ, {setting: "false"}), patch.object(portals, "ensure_satellite") as clerk:
+                self.assertEqual(len(service.launch_blockers()), 1)
+                result = self.client.post(self.base + "/activate", headers=self.headers(), json={"revision": 1, "confirmation": "PUBLISH PORTAL"})
+                self.assertEqual(result.status_code, 503, result.text)
+                clerk.assert_not_called()
 
-    def test_purchase_updates_existing_subscription_once_and_preserves_base_plan(self):
-        calls = self.payment_fixture()
-        offer = self.client.get(self.base + "/subscription-offer", headers=self.headers()).json()
-        for _ in range(2):
-            result = self.client.post(self.base + "/subscription", headers=self.headers(), json={**offer, "confirmation": "ADD HOSTED WHITE LABEL"})
-            self.assertEqual(result.status_code, 200, result.text)
-            self.assertFalse(result.json()["pending"])
-        writes = [call for call in calls if call[2] == "POST"]
-        self.assertEqual(len(writes), 1)
-        self.assertEqual(writes[0][1]["payment_behavior"], "pending_if_incomplete")
-        self.assertTrue(writes[0][3]["idempotency_key"].startswith("hosted-addon:sub_agency:"))
-        with self.Session() as db:
-            self.assertEqual(db.query(WorkspaceSubscription).count(), 2)
-            self.assertEqual(db.get(WorkspaceSubscription, 1).price_id, "price_agency")
-            self.assertEqual(db.get(WorkspaceSubscription, 1).plan, "agency")
-            self.assertIsNotNone(db.get(HostedSubdomainEntitlement, 1))
-
-    def test_pending_payment_and_browser_price_tampering_do_not_grant_entitlement(self):
-        calls = self.payment_fixture(pending=True)
-        offer = self.client.get(self.base + "/subscription-offer", headers=self.headers()).json()
-        bad = self.client.post(self.base + "/subscription", headers=self.headers(), json={**offer, "amount": 0, "confirmation": "ADD HOSTED WHITE LABEL"})
-        self.assertEqual(bad.status_code, 409)
-        self.assertFalse(any(call[2] == "POST" for call in calls))
-        result = self.client.post(self.base + "/subscription", headers=self.headers(), json={**offer, "confirmation": "ADD HOSTED WHITE LABEL"})
-        self.assertEqual(result.status_code, 200, result.text)
-        self.assertTrue(result.json()["pending"])
-        self.assertEqual(result.json()["invoice_url"], "https://invoice.stripe.com/i/test")
-        with self.Session() as db:
-            self.assertIsNone(db.get(HostedSubdomainEntitlement, 1))
-
-    def test_addon_cancellation_preserves_agency_plan_and_works_when_sales_are_off(self):
+    def test_removed_purchase_and_cancellation_routes_cannot_modify_billing(self):
         self.publish()
-        calls = self.payment_fixture(has_addon=True)
+        with patch("app.modules.billing.service.stripe_request") as stripe:
+            for method, path in [("GET", "/subscription-offer"), ("POST", "/subscription"), ("DELETE", "/subscription")]:
+                result = self.client.request(method, self.base + path, headers=self.headers(), json={"confirmation": "old-client"})
+                self.assertEqual(result.status_code, 404, result.text)
+            stripe.assert_not_called()
         with self.Session() as db:
-            db.get(WhiteLabelAvailability, 1).hosted_subdomain_enabled = False
-            db.commit()
-        result = self.client.request("DELETE", self.base + "/subscription", headers=self.headers(), json={"confirmation": "CANCEL HOSTED WHITE LABEL"})
-        self.assertEqual(result.status_code, 200, result.text)
-        self.assertEqual([call[1].get("proration_behavior") for call in calls if call[2] == "POST"], ["none"])
-        with self.Session() as db:
-            self.assertIsNone(db.get(HostedSubdomainEntitlement, 1))
             self.assertEqual(db.get(WorkspaceSubscription, 1).plan, "agency")
             self.assertEqual(db.get(WorkspaceSubscription, 1).status, "active")
             self.assertEqual(db.get(HostedSubdomainPortal, self.portal_id).status, "active")
-        self.assertFalse(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["active"])
+        self.assertTrue(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["active"])
 
     def test_uploaded_images_are_published_as_bounded_raster_assets_and_hidden_when_suspended(self):
         png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6jXAAAAAASUVORK5CYII=")
@@ -428,6 +389,9 @@ class HostedSubdomainTests(unittest.TestCase):
         from app.modules.hosted_subdomains.cleanup import delete_hosted_workspace
         self.publish()
         with self.Session() as db:
+            db.add_all([HostedSubdomainEntitlement(subscription_id=index, stripe_item_id=f"si_legacy_{index}", price_id="price_legacy")
+                        for index in (1, 2)])
+            db.flush()
             self.assertGreater(db.query(HostedSubdomainEvent).count(), 0)
             delete_hosted_workspace(db, "agency", 1)
             db.commit()

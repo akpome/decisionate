@@ -99,7 +99,7 @@ export function WhiteLabelAvailabilityPanel({ userId }: { userId: string }) {
         })}
       </div>
       <h3 className="mt-7 font-semibold">Hosted portals ({data.hosted_subdomain_portal_count || 0})</h3>
-      <p className="mt-1 text-sm text-gray-500">{data.hosted_subdomain_active_count || 0} published; access also requires an active agency subscription.</p>
+      <p className="mt-1 text-sm text-gray-500">{data.hosted_subdomain_active_count || 0} published; included with an active Agency subscription.</p>
       {!data.hosted_subdomain_portals?.length ? <p className="mt-2 text-sm text-gray-500">No hosted portals.</p> : <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left text-sm"><thead><tr className="border-b border-gray-200"><th className="py-3 pr-4">Address</th><th className="px-4">Status</th><th className="pl-4">Actions</th></tr></thead>
           <tbody>{data.hosted_subdomain_portals.map(portal => <tr key={portal.id} className="border-b border-gray-200"><td className="py-3 pr-4">{portal.hostname}{portal.last_error && <p className="mt-1 text-xs text-amber-800">{portal.last_error}</p>}</td><td className="px-4">{portal.status}</td><td className="pl-4"><div className="flex gap-2">

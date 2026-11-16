@@ -98,7 +98,7 @@ class HostedSubdomainPortal(Base):
 
 
 class HostedSubdomainEntitlement(Base):
-    """Verified Stripe add-on on the existing agency subscription."""
+    """Legacy add-on records retained for upgrades, never required for portal access."""
 
     __tablename__ = "hosted_subdomain_entitlements"
     subscription_id = Column(Integer, ForeignKey("workspace_subscriptions.id", ondelete="CASCADE"), primary_key=True)

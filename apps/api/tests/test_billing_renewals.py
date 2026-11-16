@@ -87,6 +87,21 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
             db.commit()
             return db.query(WorkspaceSubscription).one()
 
+    def test_legacy_hosted_item_never_replaces_agency_plan_or_creates_an_extra_charge(self):
+        self.seed(plan="agency", price_id="price_agency")
+        with self.sessions() as db:
+            subscription = db.query(WorkspaceSubscription).one()
+            db.add(HostedSubdomainEntitlement(subscription_id=subscription.id, stripe_item_id="si_legacy", price_id="price_legacy_hosted"))
+            db.commit()
+        remote = self.remote(metadata={"workspace_id": "owner", "plan": "agency"})
+        remote["items"]["data"][0]["price"]["id"] = "price_agency"
+        remote["items"]["data"].insert(0, {"id": "si_legacy", "price": {"id": "price_legacy_hosted", "recurring": {"interval": "month"}}, "quantity": 1})
+        with patch.object(service, "stripe_request", side_effect=AssertionError("Subscription events must not create charges")):
+            subscription = self.apply(remote)
+        self.assertEqual(subscription.plan, "agency")
+        self.assertEqual(subscription.price_id, "price_agency")
+        self.assertEqual(subscription.provider_subscription_id, "sub_owner")
+
     def failed(self, interval="month", **values):
         remote = self.remote(interval, status="past_due", latest_invoice={
             "id": "in_renewal", "status": "open", "billing_reason": "subscription_cycle", "created": timestamp(self.now),

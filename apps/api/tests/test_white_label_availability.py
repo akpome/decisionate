@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -78,6 +79,17 @@ class WhiteLabelAvailabilityTests(unittest.TestCase):
         self.assertEqual(self.change(offering="hosted_subdomain").status_code, 409)
         with self.Session() as db:
             self.assertEqual(db.query(WhiteLabelAvailability).count(), 0)
+
+    def test_hosted_setup_opens_with_verified_providers_without_an_addon_price(self):
+        with patch.dict(os.environ, {
+            "HOSTED_SUBDOMAINS_HOSTING_VERIFIED": "true", "HOSTED_SUBDOMAINS_AUTH_VERIFIED": "true",
+            "HOSTED_SUBDOMAINS_DELIVERY_VERIFIED": "true", "CLERK_SECRET_KEY": "test_only",
+        }, clear=True):
+            result = self.change(offering="hosted_subdomain")
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertTrue(result.json()["hosted_subdomain_enabled"])
+        self.assertEqual(result.json()["hosted_subdomain_blockers"], [])
+        self.assertFalse(result.json()["custom_domain_enabled"])
 
     def test_closing_sales_preserves_live_portals_and_protected_settings(self):
         with self.Session() as db:

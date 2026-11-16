@@ -62,13 +62,15 @@ agency workspace and Decisionate-managed authentication, billing and email. It d
 not require your own Stripe, Resend or hosting accounts. It does not create another
 copy of your clients or datasets. The custom-domain product above is different.
 
-## How do I subscribe to a hosted agency portal?
+## How do I get a hosted agency portal?
 
-When available, an Agency owner opens Settings > Hosted portal, reviews the current
-recurring price and confirms adding hosted white label to the existing Agency
-subscription. Payment must be confirmed before setup. Follow the invoice or Billing
-link if payment needs attention; do not repeatedly subscribe. If new portals are
-unavailable, contact support. Branding alone cannot enable one.
+Hosted white label is included in the Agency plan. There is no separate portal
+purchase, extra recurring charge or hosted Stripe price to configure. When available,
+an Agency owner opens Settings > Hosted portal and starts with the portal address
+and branding. The existing Agency subscription's trial, renewal, cancellation and
+payment grace rules still apply. If Agency access is inactive, use Billing to
+restore it. If new portals are unavailable, contact support. Branding alone cannot
+enable one before the platform is ready.
 
 ## How do I brand and publish my hosted portal?
 
@@ -87,12 +89,13 @@ normal workspace invitation and permission; signup alone does not grant access.
 Manage invitations in Settings. An invitation to attach an existing independent
 workspace starts on the main application before that workspace joins the agency.
 
-## What happens when I cancel, pause or unlink a hosted portal?
+## What happens when Agency access ends or a client leaves?
 
-Cancel hosted white label under Subscription options immediately stops the portal
-without refunding the current period. Your Agency subscription, workspaces and
-data remain in Decisionate. Subscription expiry, agency pause or platform suspension
-can also stop portal access. An unlinked client loses agency portal access but keeps
-the existing main-app recovery options. Closing new sales does not delete a live
-portal. Ask Decisionate cannot confirm live billing/provider status; use Billing
-or contact support.
+There is no separate hosted subscription to cancel. Hosted access follows your
+Agency plan: cancellation at the end of the billing period retains access until
+then; expiry or the end of the existing payment grace period stops access. Agency
+pause or platform suspension can also stop portal access. Configuration and data
+are preserved. An unlinked client loses agency portal access but keeps the existing
+main-app recovery options. Closing new setup does not delete a live portal.
+Ask Decisionate cannot confirm live billing/provider status; use Billing or contact
+support.

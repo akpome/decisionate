@@ -84,7 +84,6 @@ from app.modules.platform_admin import (
 from app.modules.white_label import router as white_label_router
 from app.modules.hosted_portals import router as hosted_portal_router
 from app.modules.hosted_subdomains.router import router as hosted_subdomain_router
-from app.modules.hosted_subdomains import billing as hosted_subdomain_billing  # Registers billing endpoints on the shared router.
 from app.modules.hosted_subdomains.admin import router as hosted_subdomain_admin_router
 from app.modules.white_label_availability import router as white_label_availability_router
 from app.modules.maintenance import (

@@ -81,5 +81,43 @@ test("hosted setup uses a native modal, immutable addresses, explicit publish an
   assert.match(source, /Save draft/)
   assert.match(source, /data.blockers.length > 0/)
   assert.match(source, /working.current = true/)
-  assert.doesNotMatch(source, /HOSTED_PORTALS_|Stripe Connect|Clerk API key/)
+  assert.match(source, /Hosted portal included/)
+  assert.match(source, /Agency subscription required/)
+  assert.doesNotMatch(source, /HOSTED_PORTALS_|Stripe Connect|Clerk API key|subscription-offer|Add hosted white label|Cancel hosted white label|View subscription price|\/subscription["']/)
+})
+
+function renderSetup({ entitled = true, available = true } = {}) {
+  const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
+  const brand = { name: "North Star", support_email: "help@northstar.test", logo_url: "", favicon_url: "", background_url: "",
+    primary_color: "#2563EB", accent_color: "#059669", background_color: "#FFFFFF", welcome_heading: "Welcome", welcome_text: "" }
+  const states = [{ portal: null, entitled, commercially_available: available, blockers: [], defaults: brand },
+    brand, "", "", "", false, false, false, 0]
+  let index = 0
+  const { HostedSubdomainSetup } = load("../features/hosted-subdomains/setup.tsx", {
+    "react/jsx-runtime": require("react/jsx-runtime"),
+    react: { ...React, useState: initial => [index < states.length ? states[index++] : initial, () => {}], useEffect() {}, useRef: value => ({ current: value }) },
+    "next/link": { default: props => React.createElement("a", props) }, "lucide-react": require("lucide-react"),
+    "@/lib/api": { hostedSubdomainRequest: () => assert.fail("Server render must not request a purchase") },
+    "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: "agency" }) },
+    "@/lib/workspace-brand": { getBrandSurfaceTextColor: () => "#ffffff" },
+  })
+  return renderToStaticMarkup(React.createElement(HostedSubdomainSetup, { userId: "owner" }))
+}
+
+test("eligible agencies go directly to portal setup without a price, purchase or extra subscription", () => {
+  const html = renderSetup()
+  assert.match(html, /Hosted portal included/)
+  assert.match(html, /Portal address/)
+  assert.match(html, /Preview portal/)
+  assert.doesNotMatch(html, /View subscription price|Cancel hosted white label|Subscription options|Add hosted white label/)
+})
+
+test("inactive Agency access and closed availability keep setup blocked without offering an add-on", () => {
+  const inactive = renderSetup({ entitled: false })
+  assert.match(inactive, /Agency subscription required/)
+  assert.match(inactive, /href="\/billing"/)
+  assert.doesNotMatch(inactive, /<form|Preview portal|Add hosted white label/)
+  const closed = renderSetup({ available: false })
+  assert.match(closed, /New hosted portals are not available yet/)
+  assert.doesNotMatch(closed, /<form|Preview portal|Add hosted white label/)
 })
