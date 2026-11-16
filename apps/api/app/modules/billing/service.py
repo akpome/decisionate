@@ -886,6 +886,7 @@ def stripe_request(
     params: dict[str, str],
     secret_key: str,
     method: str = "POST",
+    *, idempotency_key: str | None = None,
 ) -> dict:
     auth = base64.b64encode(
         f"{secret_key}:".encode("utf-8")
@@ -910,6 +911,7 @@ def stripe_request(
             "Authorization": f"Basic {auth}",
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
+            **({"Idempotency-Key": idempotency_key} if idempotency_key else {}),
             **({"Stripe-Account": scoped_setting("STRIPE_CONNECTED_ACCOUNT_ID")}
                if scoped_setting("STRIPE_CONNECTED_ACCOUNT_ID") else {}),
         },

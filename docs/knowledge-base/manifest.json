@@ -17,12 +17,15 @@
         "agency",
         "Stripe Connect",
         "domain",
-        "DNS"
+        "DNS",
+        "hosted portal",
+        "agency subdomain"
       ],
       "questions": [
         "How do I set up a white-label portal?",
         "Can my customers pay into my Stripe account?",
-        "Why is my branded portal waiting for DNS?"
+        "Why is my branded portal waiting for DNS?",
+        "How do I subscribe to a hosted agency portal?"
       ],
       "routes": [
         "/white-label",
@@ -32,6 +35,9 @@
         "apps/api/app/modules/hosted_portals.py",
         "apps/api/app/modules/hosted_portal_providers.py",
         "apps/web/features/white-label/hosted-setup.tsx",
+        "apps/web/features/hosted-subdomains/setup.tsx",
+        "apps/api/app/modules/hosted_subdomains/router.py",
+        "apps/api/app/modules/hosted_subdomains/billing.py",
         "docs/white-label-onboarding.md"
       ],
       "related": [
@@ -43,6 +49,12 @@
         "How do I set up my portal?": [
           "How do I set up a white-label portal?",
           "How do I create a branded customer portal?"
+        ],
+        "How do I subscribe to a hosted agency portal?": [
+          "How do I get an agency.decisionate.app portal?"
+        ],
+        "Where do hosted clients sign in and how are they invited?": [
+          "Where do my hosted portal clients log in?"
         ]
       }
     },

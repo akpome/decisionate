@@ -4,13 +4,15 @@ import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 import { marketingRequest } from "@/lib/api"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 
 export function MarketingActivityTracker() {
   const pathname = usePathname()
   const { user } = useUser()
   const userId = user?.id
+  const { portal } = useHostedPortal()
   useEffect(() => {
-    if (!userId || process.env.NEXT_PUBLIC_PORTAL_ID) return
+    if (!userId || process.env.NEXT_PUBLIC_PORTAL_ID || portal) return
     const content = new URLSearchParams(window.location.search).get("utm_content")
     const messageId = content?.match(/^lifecycle-(\d+)$/)?.[1]
     const meaningful = /^\/(?:dashboard|dashboards|insights|decisions)(?:\/|$)/.test(pathname)
@@ -24,6 +26,6 @@ export function MarketingActivityTracker() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [pathname, userId])
+  }, [pathname, userId, portal])
   return null
 }

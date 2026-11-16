@@ -253,6 +253,11 @@ def is_email_delivery_configured(
 def get_platform_sender_details(
     settings: dict,
 ) -> tuple[str, str]:
+    from app.modules.hosted_subdomains.context import current_portal
+    portal = current_portal()
+    if portal:
+        return (settings["resend_from_email"] if settings["provider"] == "resend" else settings["smtp_from_email"],
+                portal.branding["name"] + " via Decisionate")
     if settings["provider"] == "resend":
         return (
             settings["resend_from_email"],
@@ -407,6 +412,9 @@ def send_platform_system_email(
     message["To"] = clean_recipient
     if idempotency_key:
         message["X-Decisionate-Idempotency-Key"] = idempotency_key
+    from app.modules.hosted_subdomains.context import current_portal
+    if current_portal() and not reply_to:
+        reply_to = current_portal().branding["support_email"]
     if reply_to:
         message["Reply-To"] = reply_to
     message.set_content(body)
@@ -1025,6 +1033,9 @@ def build_weekly_report_email_message(
     message["Subject"] = digest.subject
     message["From"] = sender
     message["To"] = recipient
+    from app.modules.hosted_subdomains.context import current_portal
+    if current_portal():
+        message["Reply-To"] = current_portal().branding["support_email"]
     message.set_content(
         build_weekly_report_email_text(
             digest

@@ -15,6 +15,7 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 import { getAuthRedirectUrl, getSignInUrl, getSignUpUrl } from "@/features/auth/lib/auth-redirects"
 import { readSignupConsent, subscribeSignupConsent, writeSignupConsent } from "@/features/auth/lib/signup-consent"
 import { SignupMarketingOptIn } from "@/features/marketing/email-preferences"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 
 type ClerkAuthCardProps = {
   mode: "sign-in" | "sign-up"
@@ -35,7 +36,8 @@ export function ClerkAuthCard({
   returnTo,
 }: ClerkAuthCardProps) {
   const { t } = useDecisionateText()
-  const redirectUrl = getAuthRedirectUrl(returnTo)
+  const { returnTo: hostedReturn } = useHostedPortal()
+  const redirectUrl = hostedReturn || getAuthRedirectUrl(returnTo)
 
   if (mode === "sign-up") {
     return <SignUpWithConsent returnTo={returnTo} />
@@ -60,7 +62,7 @@ export function ClerkAuthCard({
           forceRedirectUrl={redirectUrl}
           withSignUp={false}
           transferable={false}
-          signUpUrl={getSignUpUrl(returnTo)}
+          signUpUrl={hostedReturn ? `/sign-up?redirect_url=${encodeURIComponent(hostedReturn)}` : getSignUpUrl(returnTo)}
           signUpFallbackRedirectUrl={redirectUrl}
           signUpForceRedirectUrl={redirectUrl}
           appearance={authAppearance}
@@ -74,13 +76,14 @@ export function ClerkAuthCard({
 }
 
 function SignUpWithConsent({ returnTo }: { returnTo?: string | null }) {
+  const { returnTo: hostedReturn } = useHostedPortal()
   const { t } = useDecisionateText()
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [continued, setContinued] = useState(false)
   const storedConsent = useSyncExternalStore(subscribeSignupConsent, readSignupConsent, () => false)
   const canContinue = termsAccepted && privacyAccepted
-  const redirectUrl = getAuthRedirectUrl(returnTo)
+  const redirectUrl = hostedReturn || getAuthRedirectUrl(returnTo)
 
   if (!continued && !storedConsent) {
     return (
@@ -179,7 +182,7 @@ function SignUpWithConsent({ returnTo }: { returnTo?: string | null }) {
           path="/sign-up"
           fallbackRedirectUrl={redirectUrl}
           forceRedirectUrl={redirectUrl}
-          signInUrl={getSignInUrl(returnTo)}
+          signInUrl={hostedReturn ? `/sign-in?redirect_url=${encodeURIComponent(hostedReturn)}` : getSignInUrl(returnTo)}
           signInFallbackRedirectUrl={redirectUrl}
           signInForceRedirectUrl={redirectUrl}
           appearance={authAppearance}

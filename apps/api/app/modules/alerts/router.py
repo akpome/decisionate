@@ -491,6 +491,18 @@ def get_weekly_report_branding(
         .first()
     )
 
+    from app.modules.hosted_subdomains.context import current_portal
+    portal = current_portal()
+    if portal:
+        return {
+            "brand_name": portal.branding["name"], "agency_name": portal.branding["name"],
+            "workspace_name": organization.name if organization else "",
+            "brand_logo_url": portal.branding["logo_url"],
+            "brand_primary_color": portal.branding["primary_color"],
+            "brand_accent_color": portal.branding["accent_color"], "is_managed_client": True,
+            "review_url": build_weekly_report_review_url(),
+        }
+
     if not organization:
         return {
             "brand_name": get_application().name,

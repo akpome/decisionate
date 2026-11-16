@@ -12,6 +12,9 @@ DECISIONATE_LOGO_PATH = "/icons/decisionate-logo.png"
 
 
 def build_decisionate_logo_url() -> str | None:
+    from app.modules.hosted_subdomains.context import current_portal
+    if current_portal():
+        return current_portal().branding["logo_url"] or None
     try:
         if not get_application().is_default:
             return application_branding()["logo_url"] or None
@@ -42,6 +45,10 @@ def render_decisionate_logo(width: int = 42) -> str:
 
 
 def build_decisionate_email_header() -> str:
+    from app.modules.hosted_subdomains.context import current_portal
+    portal = current_portal()
+    if portal:
+        return build_client_email_header(portal.branding["name"], portal.branding["logo_url"])
     logo = render_decisionate_logo()
     image_cell = f'<td width="42" style="padding:0 12px 0 0;vertical-align:middle;">{logo}</td>' if logo else ""
     tagline = '<div style="font-size:12px;line-height:18px;color:#64748B;">Decisions from Data.</div>' if get_application().is_default else ""

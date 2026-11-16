@@ -87,6 +87,7 @@ function trackerHarness({ pathname = "/dashboard", visible = true, userId = "own
     module: loaded, exports: loaded.exports, window, URLSearchParams, AbortController, process: { env: {} },
     document: { visibilityState: visible ? "visible" : "hidden" },
     require: name => {
+      if (name === "@/features/hosted-subdomains/provider") return { useHostedPortal: () => ({ portal: null }) }
       if (name === "react") return { useEffect: (callback, deps) => { effect = callback; dependencies = deps } }
       if (name === "next/navigation") return { usePathname: () => pathname }
       if (name === "@clerk/nextjs") return { useUser: () => ({ user: userId ? { id: userId } : null }) }
@@ -122,7 +123,7 @@ test("new Clerk user object instances do not restart the same activity timer", (
   const dependencies = h.dependencies()
   h.rerender()
   assert.deepEqual(h.dependencies(), dependencies)
-  assert.deepEqual(dependencies, ["/dashboard", "owner"])
+  assert.deepEqual(dependencies, ["/dashboard", "owner", null])
 })
 
 test("hidden pages, unrelated routes and signed-out users do not record activity", () => {

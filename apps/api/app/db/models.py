@@ -4,6 +4,7 @@ from sqlalchemy import Column
 from sqlalchemy import Boolean
 from sqlalchemy import DateTime
 from sqlalchemy import Float
+from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import Text
@@ -73,6 +74,54 @@ class HostedPortal(Base):
     oauth_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class HostedSubdomainPortal(Base):
+    """A branded view of existing agency workspaces, not a separate application."""
+
+    __tablename__ = "hosted_subdomain_portals"
+    id = Column(String, primary_key=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, unique=True)
+    application_id = Column(String, nullable=False, default="decisionate-ca")
+    slug = Column(String(63), nullable=False, unique=True)
+    hostname = Column(String(253), nullable=False, unique=True)
+    configuration = Column(Text, nullable=False)
+    published_configuration = Column(Text, nullable=True)
+    status = Column(String, nullable=False, default="reserved")
+    revision = Column(Integer, nullable=False, default=1)
+    clerk_domain_id = Column(String, nullable=True)
+    last_error = Column(String(300), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    activated_at = Column(DateTime, nullable=True)
+    suspended_at = Column(DateTime, nullable=True)
+
+
+class HostedSubdomainEntitlement(Base):
+    """Verified Stripe add-on on the existing agency subscription."""
+
+    __tablename__ = "hosted_subdomain_entitlements"
+    subscription_id = Column(Integer, ForeignKey("workspace_subscriptions.id", ondelete="CASCADE"), primary_key=True)
+    stripe_item_id = Column(String, nullable=False)
+    price_id = Column(String, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class HostedSubdomainEvent(Base):
+    __tablename__ = "hosted_subdomain_events"
+    id = Column(Integer, primary_key=True)
+    portal_id = Column(String, ForeignKey("hosted_subdomain_portals.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, nullable=False)
+    action = Column(String, nullable=False)
+    revision = Column(Integer, nullable=False)
+    reason = Column(String(500), nullable=False, default="")
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+
+
+class HostedSubdomainOAuthReturn(Base):
+    __tablename__ = "hosted_subdomain_oauth_returns"
+    state_id = Column(Integer, ForeignKey("oauth_connection_states.id", ondelete="CASCADE"), primary_key=True)
+    portal_id = Column(String, ForeignKey("hosted_subdomain_portals.id", ondelete="CASCADE"), nullable=False)
 
 
 class WhiteLabelLaunchConfirmation(Base):

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from svix.webhooks import Webhook
@@ -17,7 +17,7 @@ from app.db.database import Base
 from app.db.models import AppUser, Dataset, DataIngestionJob, Organization, OrganizationMember, WorkspaceSubscription, utc_now
 from app.modules.marketing import config, provider, router, service, templates, worker
 from app.modules.marketing.config import SEGMENTS
-from app.modules.marketing.hooks import install_marketing_hooks
+from app.modules.marketing.hooks import after_flush, before_flush, install_marketing_hooks
 from app.modules.marketing.models import MarketingContact, MarketingConsentEvent, MarketingEmail, MarketingJob, MarketingWorkspace, MarketingLinkVisit, MarketingWebhook
 from app.modules.marketing.provider import ProviderError
 
@@ -27,6 +27,9 @@ class MarketingTests(unittest.TestCase):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.factory = sessionmaker(bind=self.engine, autoflush=False)
+        install_marketing_hooks(self.factory.class_)
+        self.addCleanup(event.remove, self.factory.class_, "before_flush", before_flush)
+        self.addCleanup(event.remove, self.factory.class_, "after_flush_postexec", after_flush)
         self.db = self.factory()
         self.now = utc_now()
         self.config = {
@@ -48,7 +51,6 @@ class MarketingTests(unittest.TestCase):
         self.patches.append(patch.dict(os.environ, {"MARKETING_UNSUBSCRIBE_SECRET": "test-only-secret-" * 4}))
         for item in self.patches:
             item.start()
-        install_marketing_hooks(self.factory.class_)
         self.user = AppUser(id="owner", email="owner@example.test", first_name="Sam")
         self.org = Organization(name="Test workspace", owner_user_id="owner", business_type="business")
         self.db.add_all([self.user, self.org])

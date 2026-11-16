@@ -4124,6 +4124,14 @@ export async function hostedPortalRequest<T>(userId: string, path = "", init: Re
   return response.json()
 }
 
+export async function hostedSubdomainRequest<T>(userId: string, path = "", init: RequestInit = {}, admin = false): Promise<T> {
+  const response = await apiFetch(`${API_URL}${admin ? "/admin" : "/api/v2"}/hosted-subdomains${path}`, {
+    ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, admin ? userId : undefined),
+  }, 90_000)
+  if (!response.ok) await throwApiError(response, "Hosted portal could not be updated")
+  return response.json()
+}
+
 export async function whiteLabelAvailabilityRequest<T>(userId: string, init: RequestInit = {}): Promise<T> {
   const response = await apiFetch(`${API_URL}/admin/white-label-availability`, {
     ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, userId),

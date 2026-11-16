@@ -1,5 +1,18 @@
 # White-label onboarding
 
+## Decisionate-hosted agency subdomains
+
+The independent shared `agency.decisionate.app` product uses the existing agency's
+workspaces, Clerk identity, Decisionate Stripe subscription and email sender.
+When enabled, Settings > Hosted portal offers an add-on quote, address reservation,
+branding draft, desktop/mobile preview and explicit activation. No agency-owned
+provider accounts or separate Vercel project are required. The branded welcome
+screen uses `app.decisionate.ca` for secure credential entry and returns to the
+authorized portal. It does not change the custom product below.
+
+Both commercial switches default Off. Live provider checks are required; see the
+[hosted deployment runbook](hosted-subdomain-implementation-status.md).
+
 ## Custom-domain self-service portals
 
 When commercial availability is enabled, Agency owners open
@@ -12,7 +25,7 @@ frontends. Neither workflow migrates existing workspaces between brands.
 This existing implementation is the **custom-domain offering**, not the new
 shared `agency.decisionate.app` offering. See
 [hosted-subdomain implementation status](hosted-subdomain-implementation-status.md)
-for that separate project and its authentication decision.
+for that separate implementation and approved central authentication flow.
 
 ### Commercial availability
 
@@ -32,7 +45,7 @@ separate technical readiness checks.
 `HOSTED_PORTALS_ENABLED` remains the **technical custom-domain registry and
 provisioning flag**. Do not turn it off to stop new sales; that could remove live
 application registrations. Use the commercial switch instead. The hosted-subdomain
-commercial control is independent and cannot yet be enabled.
+commercial control is independent and requires its own completed launch checks.
 
 ### Customer steps
 

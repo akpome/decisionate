@@ -240,7 +240,7 @@ def get_verified_workspace_access(
 
     from app.modules.applications import require_workspace_application
     with SessionLocal() as db:
-        require_workspace_application(db, workspace_id)
+        require_workspace_application(db, workspace_id, discovery=getattr(request, "scope", {}).get("path") == "/organizations/workspaces")
 
     clean_user_id = clean_auth_value(
         user_id

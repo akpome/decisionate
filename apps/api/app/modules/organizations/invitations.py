@@ -10,6 +10,7 @@ from app.application_context import get_application
 from app.db.models import OrganizationInvite, utc_now
 from app.modules.alerts.email_delivery import send_platform_system_email
 from app.modules.organizations.branding import get_client_email_branding
+from app.modules.applications import workspace_scoped
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ def build_invitation_sign_in_url(workspace_id: str) -> str:
     return urlunsplit((parsed.scheme, parsed.netloc, "/sign-in", urlencode({"redirect_url": workspace}), ""))
 
 
+@workspace_scoped("organization", "owner_user_id")
 def send_invitation_email(db, organization, invite, *, resend=False):
     invite = db.query(OrganizationInvite).populate_existing().filter_by(
         id=invite.id, organization_id=organization.id,

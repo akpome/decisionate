@@ -139,7 +139,10 @@ def invite_existing_client(payload: AgencyInvitationCreate, request: Request):
         invitation.email_attempted_at, invitation.email_error = now, None
         db.commit()
         try:
-            url = urlsplit(build_invitation_sign_in_url(""))._replace(query=urlencode({"redirect_url": "/settings"})).geturl()
+            # A prospective client is not authorized on the agency portal until they accept.
+            from app.modules.hosted_subdomains.context import portal_scope
+            with portal_scope(None):
+                url = urlsplit(build_invitation_sign_in_url(""))._replace(query=urlencode({"redirect_url": "/settings"})).geturl()
             agency_name = " ".join(agency.name.split())
             send_platform_system_email(email, f"{agency_name} invited your workspace to their agency",
                 f"{agency_name} would like to manage your existing {get_application().name} workspace.\n\nSign in using {email}: {url}\n\n"

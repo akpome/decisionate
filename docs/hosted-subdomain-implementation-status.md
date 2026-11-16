@@ -1,214 +1,293 @@
-# Hosted subdomain implementation status
+# Decisionate-hosted agency portals
 
-## Scope and current status
+## Status and architecture
 
-The November 15, 2026 handoff requests a new shared, Decisionate-managed
-`agency.decisionate.app` offering alongside the existing custom-domain product.
-This change implements the independent commercial-control foundation and
-Platform Admin cleanup. It does **not** complete the hosted-subdomain offering.
+The shared `agency.decisionate.app` implementation is independent of the existing
+custom-domain product. It includes self-service billing, reservation, branding,
+preview/publication, central sign-in, workspace isolation and admin lifecycle
+controls. Both commercial switches default **Off**. Live Vercel, Clerk, Stripe,
+Resend and connector acceptance checks have **not** been performed.
 
-Both commercial settings default to Off. Custom-domain setup can be reopened
-by a full-access administrator, subject to existing technical checks. Hosted
-subdomain sales cannot be enabled until the authentication decision, remaining
-implementation and real-provider launch checks are complete. No production
-provider configuration was changed or validated by this implementation.
+The owner approved central sign-in: a branded welcome page sends users to the
+existing `app.decisionate.ca` Clerk sign-in, then returns through Clerk session
+synchronization. Credential entry and password recovery retain the primary
+Decisionate identity. No second Clerk instance is created.
 
-## Repository audit
+Audit findings and differences from the original handoff:
 
-- `modules/hosted_portals.py` is the existing custom-domain product. It provisions
-  separate Vercel and Clerk applications, uses customer Stripe Connect accounts,
-  and provisions a sender domain. It must not implement the new shared product.
-- `modules/hosted_portal_registry.py` restores live custom-domain applications.
-  Its `HOSTED_PORTALS_ENABLED` flag is technical, not a safe commercial kill switch.
-- `application_context.py` validates distinct issuers for independent applications.
-  Existing default-app workspaces cannot simply be assigned a new agency
-  application ID without affecting identity and authorization.
-- `auth_context.py` and organization membership/lifecycle code already enforce
-  workspace ownership and agency-client access. These remain authoritative.
-- Billing stores the existing agency subscription and processes verified Stripe
-  updates. The new product needs a narrowly scoped entitlement extension, not a
-  second customer account, duplicate base subscription or Connect account.
-- Background jobs restore application context from the workspace. Hosted-brand
-  context must eventually extend this for email links and OAuth returns.
-- The primary Next.js proxy already implements `.ca` marketing/application
-  routing and isolated custom portals. This change does not modify it, Clerk
-  configuration, PWA handling, OAuth, billing returns or invitation routing.
+- Existing `modules/hosted_portals.py` implements **custom-domain** provisioning
+  with separate Vercel/Clerk applications, Stripe Connect and sender setup. Its
+  technical `HOSTED_PORTALS_ENABLED` is not a commercial availability switch.
+  Existing registrations, drafts and operator maintenance are retained.
+- Existing default-application workspaces cannot safely be assigned new agency
+  application IDs. The new portal is a **branded access context over
+  decisionate-ca**, not another application identity or analytical data store.
+- Existing JWT issuer/audience verification and workspace roles remain decisive.
+  Hostnames and Origin headers are not authentication. Portal access further
+  restricts users to their agency and its currently managed client workspaces.
+- Workers restore current portal context from workspace ownership without changing
+  the application credentials. Context is reset after each operation.
+- The new modules use `hosted_subdomains`; the old `hosted_portals` naming remains
+  for backward compatibility. No identities, subscriptions or data are migrated.
 
-## Authentication decision pending
+## Agency workflow
 
-The requested agency-branded login must be reconciled with Clerk's supported
-cross-domain flow. Clerk satellites reuse an instance, but credential entry is
-completed on its primary domain. A satellite may present an agency-branded
-entry screen and securely return after primary-domain sign-in; it cannot simply
-embed an independent sign-in form and assume cookies span `.ca` and `.app`.
-[Clerk satellite-domain documentation](https://clerk.com/docs/guides/dashboard/dns-domains/satellite-domains).
+1. Agency owner opens Settings > Hosted portal on the main application.
+2. Review the current recurring add-on quote and confirm adding it to the existing
+   Agency subscription. Complete any payment verification before setup.
+3. Enter the subdomain, name, support address, colors, optional images and welcome
+   message. Save draft atomically reserves the address; it cannot then be renamed.
+4. Preview desktop/mobile appearance, then explicitly activate/publish. Draft
+   editing does not provision Clerk resources or change live branding.
+5. Open/copy the URL and manage client invitations using existing Settings.
+   Signup alone never grants membership in an agency or client workspace.
 
-The proposed user-facing flow is:
+Owner/admin can edit branding; only the owner can change billing. Cancellation
+under Subscription options immediately stops hosted access without a current-period
+refund. The confirmation explains this. The base Agency plan and data remain.
 
-1. Open the agency's branded portal entry page.
-2. Continue through supported Clerk sign-in on `app.decisionate.ca`.
-3. Return to the registered agency portal with Clerk's session synchronization.
-4. Resolve only workspaces authorized for both the verified identity and agency.
+## Database and API
 
-Approval for this departure from a wholly agency-hosted sign-in experience is
-pending. The implementation must use Clerk's URL builders and exact registered
-redirect origins, verify paid production satellite support and DNS, and test
-sign-in, invitation acceptance, password recovery and logout on real domains.
-Do not create a custom token-exchange authentication system as a workaround.
+The existing serialized SQLAlchemy startup bootstrap creates additive tables:
 
-The recommended data model is a separate hosted-subdomain portal record and a
-branded access context over the existing default application. No workspace or
-identity migration is proposed. This model and routing are **not yet implemented**.
+- `white_label_availability`: independent persisted flags and revision.
+- `hosted_subdomain_portals`: unique agency/slug/hostname, draft/published config,
+  status, revisions, Clerk reference, provisioning errors and timestamps.
+- `hosted_subdomain_entitlements`: confirmed add-on on an existing subscription.
+- `hosted_subdomain_events`: attributed configuration/lifecycle audit.
+- `hosted_subdomain_oauth_returns`: initiating connector state to portal binding.
 
-## Implemented controls
+No existing records are rewritten. New routes:
 
-`white_label_availability` is an additive table created through the existing
-serialized SQLAlchemy startup bootstrap. It contains a singleton record with:
+| Route | Purpose |
+| --- | --- |
+| `GET /api/v2/hosted-subdomains/resolve?hostname=...` | Exact public config, no secrets, no-store |
+| `GET /api/v2/hosted-subdomains/assets/{hostname}/{field}` | Active published raster images |
+| `GET/PUT /api/v2/hosted-subdomains` | Agency owner/admin setup and versioned drafts |
+| `POST /api/v2/hosted-subdomains/activate` | Entitlement/readiness/revision-checked publication |
+| `GET /api/v2/hosted-subdomains/subscription-offer` | Owner-only Stripe quote |
+| `POST/DELETE /api/v2/hosted-subdomains/subscription` | Owner-only add/cancel hosted add-on |
+| `POST /admin/hosted-subdomains/{id}/status` | Full-admin suspend/resume/retire, reason and revision |
+| `GET /admin/hosted-subdomains/{id}/events` | Full-admin history |
+| `GET/PUT /admin/white-label-availability` | Commercial flags and technical blockers |
 
-- Independent `hosted_subdomain_enabled` and `custom_domain_enabled` booleans.
-- An optimistic-concurrency revision.
-- Last modifying administrator and timestamp.
+Unknown/retired hosts fail closed. Inactive/reserved hosts expose no branding;
+only Clerk proxy bootstrap is available on the frontend. Active exact origins
+enter CORS dynamically. No wildcard authentication/CORS/redirect permission is
+added. Hosted origins cannot access platform or marketing administration.
 
-An absent row means both settings are Off. Reads do not create a row. No existing
-tables or business data are rewritten. Availability changes are recorded in the
-existing Platform Admin audit table in the same transaction.
+Uploads allow PNG/JPEG/WebP up to 128 KB each, validated base64 and signatures;
+SVG/HTML/scripts are rejected. Bounded image data is stored with the configuration
+and served through fixed raster URLs. Optional HTTPS raster URLs require an
+operator-approved asset hostname. Arbitrary CSS/HTML is not accepted.
 
-### API
+## Authentication and routing
 
-- `GET /admin/white-label-availability`: full-admin-only current settings,
-  technical blockers, custom-domain counts and latest 200 portal records.
-- `PUT /admin/white-label-availability`: full-admin-only, with `offering`,
-  `enabled`, `revision`, `confirmation: "CHANGE AVAILABILITY"`, optional `reason`.
-  Stale writes return 409; unsupported hosted enablement returns 409.
-- `GET /api/v2/hosted-portals`: adds `commercially_available` to the existing
-  agency-owned setup response.
-- Existing custom-domain save, Stripe-start, prepare and launch endpoints enforce
-  the commercial setting. In-progress Stripe callbacks retain their original
-  one-use-state checks, but cannot bypass the separate launch gate.
+The existing Next.js 16 proxy integrates hostname lookup and Clerk. Existing `.ca`
+marketing redirects, primary app, root navigation, custom portals and PWA rules
+remain. Hosted PWA installation is not introduced.
 
-Live custom-domain registrations, protected credentials, operator-managed drafts
-and existing application identities are preserved. Commercial availability does
-not suspend individual portals. Individual hosted suspension remains part of the
-unimplemented hosted lifecycle.
+The branded entry uses Clerk URL builders. Primary sign-in validates the return
+host with the backend and permits only that exact origin and safe application
+routes. Spoofed request headers cannot supply a trusted return. Satellites reuse
+the same issuer with a Frontend API proxy at `/__clerk`. Publication reconciles the
+exact Clerk hostname, satellite status and proxy URL; conflicts fail closed.
+
+Discovery shows only permitted workspaces. Unrelated users get an access message,
+not a new agency. Signup, invitation acceptance, recovery, wrong-account switching
+and logout need real cross-domain testing before launch.
+
+## Billing and lifecycle
+
+Use one fixed licensed add-on price per supported base billing interval, not a
+product per agency. Quote amount/currency and subscription/customer ownership are
+revalidated server-side. Stripe writes use idempotency keys and pending payment
+behavior. Server-retrieved state and existing signed webhook processing synchronize
+entitlement; frontend success redirects do not. Hosted prices are excluded from
+base-plan detection. Keep price IDs stable while subscribers use them.
+
+| Event | Behavior |
+| --- | --- |
+| New sales Off | Blocks new purchase/setup/publication, preserves live portals and published-brand edits |
+| Add-on removal or subscription cancellation/expiry | Portal unavailable, configuration/data retained |
+| Past due | Existing bounded subscription grace rules |
+| Agency pause | Portal unavailable, no deletion |
+| Client pause | Existing client restrictions |
+| Client unlink | No former agency portal access; existing main-app recovery/settings remain |
+| Admin suspend | Agency cannot self-resume |
+| Admin resume | Published config, Clerk reference and paid entitlement required |
+| Admin retire | Address cannot be reactivated by agency |
+| Workspace deletion | Removes hosted database references through existing deletion workflow |
+
+Workspace deletion does not automatically delete the external Clerk satellite.
+Operators must confirm ownership and remove unused provider resources separately.
+Do not remove live/shared provider domains as a side effect of toggling sales.
+
+## Email and OAuth
+
+Existing Decisionate sender credentials remain authoritative. Agency name/logo,
+reply-to and links can change; the sending address stays on a verified
+Decisionate-controlled domain. Invitations, standard notification templates and
+weekly-report branding use hosted context, including jobs restored by workspace.
+Clerk-managed account emails keep primary-instance settings.
+
+An invitation to attach an existing independent workspace starts on the main app:
+it is not yet authorized on the destination portal. Normal managed-client
+invitations can return to their agency portal.
+
+OAuth keeps existing backend callbacks and one-use-state validation. A server row
+binds the initiating portal; return uses it only if active and still managing that
+workspace. Otherwise it uses the primary app. Custom-domain provider credentials
+are never borrowed. Shared callbacks do not establish provider approval: test
+each enabled connector and confirm its registered app/branding permits this use.
+Additional Meta, Google, Shopify or accounting-provider review may be required.
 
 ## Platform Admin
 
-The initial screen is Overview. Permission-aware navigation separates Customers,
-People & access, Usage, Billing, Email, White label, Marketing and Operations.
-Customers has separate Accounts, Workspaces and New workspace views.
+Overview is the initial screen. Customers, People & access, Usage, Billing, Email,
+White label, Marketing and Operations have separate, permission-aware views.
+Only selected-section data loads. Unsaved settings remain in state; sensitive
+editors require discard confirmation. AI polling runs only on Overview.
 
-Only the current section's data is requested. Previously loaded settings remain
-in page state when switching sections, preserving unsaved email, billing and
-maintenance edits. Explicit Refresh reloads the selected section. Hidden panels
-are not mounted; white-label operator setup and marketing do not load on Overview.
-AI status polling runs only on Overview. Existing destructive confirmations and
-backend permissions remain in place.
+White label distinguishes the two products, technical blockers, commercial state
+and counts. Hosted records include lifecycle/errors and explicit actions/history.
+Listings are bounded to 200 records, audit to 100 events; inline image data is not
+loaded into listings. Availability is not an emergency suspension mechanism.
 
-Marketing and operator-setup editors require confirmation before discarding
-unsaved changes on section navigation or page Refresh. Section navigation is
-disabled while either editor saves. Collapsing the operator section preserves
-its open draft.
+## Deployment runbook
 
-## Remaining implementation
+### Deploy safely
 
-The following must be completed before announcing hosted subdomains:
+Back up production PostgreSQL. Deploy API, workers and schedulers on the same
+revision/shared database, then the existing Vercel project. Startup creates the
+additive tables. Leave both commercial settings Off. Preserve existing custom
+technical flags, registry and provider credentials.
 
-- Separate portal model, atomic slug reservation, reserved names and revisions.
-- Shared frontend host lookup, unknown-host rejection and exact-origin CORS.
-- Supported shared Clerk flow, JWT/workspace/agency isolation and invitations.
-- Agency branding, login appearance, safe assets and responsive previews.
-- Verified hosted entitlement using existing subscription/webhook infrastructure.
-- Decisionate-owned sender branding and trusted worker/OAuth portal context.
-- Explicit subscription, agency, client-unlink and portal-suspension lifecycles.
-- Agency self-service onboarding and hosted portal administration.
-- Real-domain/provider acceptance tests from the supplied handoff.
+### Vercel
 
-## Deployment and rollback
+Add `*.decisionate.app` to the existing shared project. Complete the exact wildcard
+DNS/TLS instructions Vercel displays (Vercel nameservers or delegated ACME challenge
+records where supported). Keep `.ca` assignments. Verify HTTPS for two candidate
+hosts and rejection of an unknown host. Use a unique deployment ID if your pipeline
+supplies one. No agency project or custom frontend deployment is needed.
 
-Deploy the API first so its additive table and new response fields exist, then
-the web build. No new environment secrets are required for the completed work.
-Do not enable Custom-Domain White Label as part of this deployment. No DNS or
-Clerk changes are required for the commercial controls or admin cleanup.
+Before assigning the wildcard, confirm no existing custom-domain application or
+operator-managed registration uses `decisionate.app` or its subdomains. The new
+offering owns that namespace. Any conflict requires a separately reviewed migration;
+do not overwrite an existing registration or turn on hosted sales over it.
 
-Keep existing `HOSTED_PORTALS_ENABLED` and encryption/provider settings unchanged
-where live custom portals depend on them. Persist the commercial switch in the
-shared production database; do not substitute an ephemeral environment variable.
+Reuse `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and existing server
+`CLERK_SECRET_KEY`. Do not set global satellite/domain overrides: proxy/provider
+configuration is selected per validated request. Do not set the custom product's
+`NEXT_PUBLIC_PORTAL_*` configuration on the shared project.
 
-For rollback, retain the additive table and audit events. Revert frontend changes
-independently if necessary. Rolling the API back to a version without the gate
-would reopen direct custom provisioning when its technical flag is on; preserve
-the gate or restrict new provisioning endpoints during an API rollback. Never
-disable the existing live registry just to stop new sales.
+### Clerk
 
-For the future hosted rollout, assign a shared Vercel wildcard deployment and
-validate DNS/TLS separately from Clerk's satellite DNS. Check the current provider
-requirements before configuration. None of those future settings is claimed as
-deployed or working by this change.
+Keep the existing production instance, primary `app.decisionate.ca`, sign-in/up
+paths and verified JWT issuer/audience. Confirm production satellite support on
+the instance's plan. Give the API its ordinary primary-instance `CLERK_SECRET_KEY`,
+not the custom product's Platform API token. Activation registers the exact
+satellite and `/__clerk` proxy; verify Clerk's proxy checks succeed after deployment.
+Use staging for end-to-end login/signup/invitation/recovery/logout and two-agency
+isolation. Do not add wildcard redirect origins or weaken issuer verification.
 
-## Verification
+### Stripe and Railway variables
 
-Automated coverage includes default-off behavior, full-admin access, explicit
-confirmation, persistent independent flags, stale revisions, audit attribution,
-API provisioning denial, preserved live portals and custom setup with the gate on.
-Browser fixtures exercise desktop/mobile sections, permission-restricted navigation,
-lazy requests, unsaved form preservation, confirmation/cancellation and layout.
-These fixtures do not establish live provider readiness.
+Create Decisionate-owned licensed per-unit recurring prices at the approved amount
+and currency for each Agency interval sold. Reuse the existing Stripe account and
+signed webhook endpoint; no hosted-agency Stripe Connect account is involved.
 
-Completed verification on November 15, 2026:
+```dotenv
+STRIPE_HOSTED_SUBDOMAIN_PRICE_ID=<approved monthly price>
+STRIPE_HOSTED_SUBDOMAIN_ANNUAL_PRICE_ID=<approved annual price>
+HOSTED_SUBDOMAINS_HOSTING_VERIFIED=false
+HOSTED_SUBDOMAINS_AUTH_VERIFIED=false
+HOSTED_SUBDOMAINS_DELIVERY_VERIFIED=false
+HOSTED_SUBDOMAINS_ASSET_HOSTS=app.decisionate.ca
+DECISIONATE_API_URL=https://api.decisionate.ca
+CLERK_SECRET_KEY=<existing primary-instance backend key>
+```
 
-- Full API unittest suite: 2,193 tests run, successful with 32 skipped.
-- Focused availability/custom-domain suite: 30 tests passed.
-- Full frontend suite: 1,049 tests passed, no failures or skips.
-- Next.js production build and TypeScript checks passed.
-- Full frontend lint and final changed-component lint passed.
-- Knowledge repository validation and staged whitespace checks passed.
-- Playwright fixtures passed at 1440px, 768px and 390px widths, including
-  restricted-admin access, selective loading, confirmation/cancellation,
-  unsaved-draft protection and no page-level horizontal overflow.
+The three verification flags accept exactly `true` after operator checks; they
+are attestations, not live provider probes. API/worker/scheduler must share price
+IDs, database, primary application registry and public API URL. Provisioning
+credentials are API-only. Do not add wildcard CORS origins; exact active origins
+come from the database. Never paste secrets into support chat or source control.
 
-API tests used an isolated temporary SQLite database, not the workspace's
-existing database. Provider calls and Clerk sessions in browser fixtures were
-mocked. Production PostgreSQL concurrency and live Clerk, Stripe, Vercel, DNS
-and Resend flows still require deployment-environment verification.
+Test successful/pending payment, authentication-required invoice, retry after
+timeout, cancellation, renewal and delayed webhook. Confirm the base Agency plan,
+client quantities and AI credits remain intact. Use authorized test subscriptions.
 
-## Changed files
+### Email, workers and connectors
 
-Backend implementation:
+Use the existing verified sender/key. Send test invitations, alerts and weekly
+reports to authorized test recipients. Inspect logos, names, reply-to and links
+from agency/client background jobs. Test pause/unlink during queued work and
+primary URL restoration for independent clients. Test OAuth main/hosted/custom
+callbacks and each provider's approvals. Set delivery verification only afterward.
 
-- `apps/api/.env.example`
-- `apps/api/app/db/models.py`
-- `apps/api/app/main.py`
-- `apps/api/app/modules/hosted_portals.py`
-- `apps/api/app/modules/white_label_availability.py`
+### Launch and rollback
 
-Frontend implementation:
+Complete staging checks before production. Enable only Decisionate-Hosted White
+Label through full Platform Admin after all readiness checks pass. Custom-domain
+sales stay Off unless separately approved. Never migrate existing workspaces.
 
-- `apps/web/app/platform-admin/page.tsx`
-- `apps/web/features/platform-admin/sections.ts`
-- `apps/web/features/white-label/availability.tsx`
-- `apps/web/features/white-label/settings-link.tsx`
-- `apps/web/features/white-label/hosted-setup.tsx`
-- `apps/web/features/white-label/setup.tsx`
-- `apps/web/features/marketing/marketing-admin.tsx`
-- `apps/web/app/dashboard/settings/settings-client.tsx`
-- `apps/web/lib/api.ts`
+For rollback, close new sales first, explicitly suspend affected portals if needed,
+and retain tables/audit/drafts. Preserve the commercial gate on any API rollback
+so direct custom provisioning does not reopen. Maintain entitlement webhook
+handling while add-on subscriptions exist. Coordinate shutdown/refunds instead
+of removing routing and stranding paid users.
 
-Regression tests:
+## Verification and limitations
 
-- `apps/api/tests/test_white_label_availability.py`
-- `apps/api/tests/test_hosted_portals.py`
-- `apps/web/tests/platform-admin-sections.test.mjs`
-- `apps/web/tests/white-label-setup.test.mjs`
-- `apps/web/tests/marketing.test.mjs`
+Automated tests cover signed test JWTs, real membership checks, exact origins,
+revision conflicts, reservation, entitlement loss during activation, pause/unlink,
+worker restoration, OAuth binding, bounded assets, add-on purchase/cancellation,
+and primary/custom routing. Browser fixtures use actual components with mocked
+API/Clerk, not live provider sessions.
+Production PostgreSQL concurrency, real Clerk synchronization, provider approvals
+and deliverability require the runbook. No production provider state was changed
+by local tests. Ready flags intentionally keep sales closed.
 
-Documentation and approved support knowledge:
+Local checks completed on November 15, 2026:
 
-- This status document.
-- `docs/white-label-onboarding.md`
-- `docs/knowledge-base/customer/hosted-portals.md`
-- `docs/knowledge-base/source-snapshot.json`
-- `docs/knowledge-base/generated/customer.jsonl`
-- `apps/api/app/modules/support/knowledge/customer.jsonl`
+- API: all 2,215 discovered tests ran in six isolated batches; 2,183 passed and
+  32 PostgreSQL-only tests were skipped because no isolated PostgreSQL server was
+  available locally. No test failures remained. CI supplies PostgreSQL for those
+  existing integration tests; CI results must still be checked after push.
+- Frontend: 1,057 tests passed, lint passed, production build/type checking passed.
+- Hosted backend: 22 focused tests passed, including signed-JWT authorization,
+  subscription changes, publication, worker context, assets and OAuth returns.
+- Marketing: all 80 tests passed; the previously intermittent workspace-change
+  test passed 250 consecutive runs after fixing listener setup/cleanup in its fixture.
+- Actual admin/setup components passed mocked-provider browser checks at 1440,
+  768 and 390 pixel widths, including forms, confirmation, preview and navigation.
+- Approved customer knowledge validation and generated export checks passed.
 
-Existing database files, generated bytecode, sample datasets and earlier handoff
-documents are deliberately excluded from this implementation commit.
+## Files
+
+Backend: `apps/api/.env.example`, `app/db/models.py`, `app/modules/hosted_subdomains/`
+(`context`, `service`, `router`, `billing`, `admin`, `cleanup`),
+`app/modules/white_label_availability.py`, `app/application_context.py`,
+`app/configuration.py`, `app/main.py`, `app/modules/applications.py`,
+`app/modules/auth_context.py`, existing billing router/service, OAuth router,
+organization agency/invitation/branding helpers, email branding, alerts router/
+delivery and platform-admin deletion. Tests include `test_hosted_subdomains.py`
+and billing fixtures.
+
+Frontend: `features/hosted-subdomains/`, `app/dashboard/hosted-portal/page.tsx`,
+`proxy.ts`, root/Clerk/auth layouts, auth redirect, dashboard shell, marketing
+tracker, white-label settings/admin components, `lib/application-routes.ts`,
+`lib/api.ts`; hosted-subdomain, auth-flow, custom-portal, invitation-login,
+marketing-reliability and PWA tests. Earlier admin cleanup is in
+`app/platform-admin/page.tsx` and `features/platform-admin/sections.ts`.
+
+Documentation: this runbook, `docs/white-label-onboarding.md`, approved customer
+portal knowledge, its manifest/source snapshot and generated JSONL exports.
+Unrelated databases, bytecode, sample data and previous handoffs are excluded.
+
+Provider references: [Clerk satellites](https://clerk.com/docs/guides/dashboard/dns-domains/satellite-domains),
+[Clerk proxy](https://clerk.com/docs/guides/dashboard/dns-domains/proxy-fapi),
+[Clerk domains](https://clerk.com/docs/reference/backend/domains/add),
+[Vercel domains](https://vercel.com/docs/domains/working-with-domains/add-a-domain),
+[Stripe pending updates](https://docs.stripe.com/billing/subscriptions/pending-updates).

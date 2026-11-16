@@ -16,11 +16,12 @@ function load(relativePath, dependencies = {}, globals = {}) {
   })
   const loaded = { exports: {} }
   vm.runInNewContext(outputText, {
-    module: loaded, exports: loaded.exports, URL, Event, Map,
+    module: loaded, exports: loaded.exports, URL, Event, Map, Headers, Response,
     require: name => {
       if (name === "./lib/portal-brand") return { portalBrand: { id: "" } }
       if (name === "./lib/decisionate-domains") return domains
       if (name === "./lib/application-routes" || name === "@/lib/application-routes") return routes
+      if (name.endsWith("hosted-subdomains/types")) return hostedTypes
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
     }, ...globals,
@@ -29,6 +30,7 @@ function load(relativePath, dependencies = {}, globals = {}) {
 }
 
 const routes = load("../lib/application-routes.ts")
+const hostedTypes = load("../features/hosted-subdomains/types.ts")
 const redirects = load("../features/auth/lib/auth-redirects.ts")
 const domains = load("../lib/decisionate-domains.ts")
 const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-redirects": redirects })
@@ -187,13 +189,17 @@ test("invitation links choose only their authorized workspace and never fall bac
   assert.match(resolver, /requestedWorkspaceId && !workspace/)
 })
 
-function proxyHarness({ selfRewrite = false, responseObjects = false } = {}) {
+function proxyHarness({ selfRewrite = false, responseObjects = false, hostedPortal = null, hostedReturn = null } = {}) {
   let clerkCalls = 0
+  let clerkOptions, forwardedHeaders
   const proxy = load("../proxy.ts", {
+    "./features/hosted-subdomains/server": { resolveHostedPortal: async () => hostedPortal, safeHostedReturn: async () => hostedReturn },
     "./features/auth/lib/auth-redirects": redirects,
     "@clerk/nextjs/server": {
       createRouteMatcher: patterns => request => patterns.some(pattern => new RegExp(`^${pattern}$`).test(request.nextUrl.pathname)),
-      clerkMiddleware: callback => async request => {
+      clerkMiddleware: (callback, options) => async request => {
+        clerkOptions = options
+        forwardedHeaders = request.headers
         clerkCalls++
         const result = await callback(async () => ({ userId: request.userId }), request)
         return result ?? (selfRewrite ? new Response(null, { headers: {
@@ -203,9 +209,10 @@ function proxyHarness({ selfRewrite = false, responseObjects = false } = {}) {
         } }) : undefined)
       },
     },
-    "next/server": { NextResponse: { next: () => "next", redirect: (url, init = 307) =>
+    "next/server": { NextRequest: class { constructor(request, init) { Object.assign(this, request, init) } },
+      NextResponse: class extends Response { static next(options) { return options ? undefined : "next" } static redirect(url, init = 307) { return (
       responseObjects ? new Response(null, { status: typeof init === "number" ? init : init.status,
-        headers: { ...(typeof init === "number" ? {} : init.headers), location: url.toString() } }) : url.toString() } },
+        headers: { ...(typeof init === "number" ? {} : init.headers), location: url.toString() } }) : url.toString()) } } },
   }).default
   return {
     run: (path, userId = null, forwardingHeaders = {}) => {
@@ -213,6 +220,8 @@ function proxyHarness({ selfRewrite = false, responseObjects = false } = {}) {
       return proxy({ url: url.toString(), nextUrl: url, headers: new Headers({ host: url.host, "x-forwarded-proto": url.protocol.replace(":", ""), ...forwardingHeaders }), userId }, {})
     },
     clerkCalls: () => clerkCalls,
+    options: () => clerkOptions,
+    headers: () => forwardedHeaders,
   }
 }
 
@@ -433,17 +442,18 @@ test("old application links move to app and preserve invitation, checkout and OA
 
 test("password recovery, auth callbacks, API and shared links are not captured by the app-root rule", async () => {
   const proxy = proxyHarness({ responseObjects: true })
-  for (const origin of [domains.DECISIONATE_APPLICATION_ORIGIN, "https://localhost:3000", "https://tenant.decisionate.app"]) {
+  for (const origin of [domains.DECISIONATE_APPLICATION_ORIGIN, "https://localhost:3000"]) {
     for (const path of ["/sign-in", "/sign-in/forgot-password", "/sign-in/reset-password", "/sign-in/sso-callback", "/sign-up/verify-email-address", "/auth/redirect", "/api/portal-health", "/__clerk/handshake", "/share/dashboard?token=opaque"]) {
       assert.equal(await proxy.run(origin + path), undefined, origin + path)
     }
   }
-  for (const origin of ["https://localhost:3000", "https://preview.vercel.app", "https://tenant.decisionate.app", "https://app.decisionate.ca.attacker.test"]) {
+  for (const origin of ["https://localhost:3000", "https://preview.vercel.app", "https://app.decisionate.ca.attacker.test"]) {
     assert.equal(await proxy.run(origin + "/"), "next")
   }
   assert.equal(await proxy.run("https://decisionate.ca/api/portal-health"), undefined)
   const { unstable_doesMiddlewareMatch } = require("next/experimental/testing/server")
   const { config } = load("../proxy.ts", {
+    "./features/hosted-subdomains/server": {},
     "./features/auth/lib/auth-redirects": redirects,
     "@clerk/nextjs/server": { createRouteMatcher: () => () => false, clerkMiddleware: () => () => {} },
     "next/server": {},
@@ -453,6 +463,43 @@ test("password recovery, auth callbacks, API and shared links are not captured b
   }
   assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/connections" }), true)
   assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/portal-health" }), true)
+})
+
+test("registered hosted roots use central Clerk satellites and retain normal workspace protection", async () => {
+  const portal = { id: "north", hostname: "north.decisionate.app", origin: "https://north.decisionate.app", active: true }
+  const h = proxyHarness({ hostedPortal: portal, responseObjects: true })
+  assert.equal((await h.run(portal.origin + "/")).headers.get("location"), portal.origin + "/sign-in")
+  assert.equal((await h.run(portal.origin + "/", "owner")).headers.get("location"), portal.origin + "/auth/redirect")
+  assert.equal((await h.run(portal.origin + "/connections")).headers.get("location"), portal.origin + "/sign-in?redirect_url=%2Fconnections")
+  assert.equal(h.options().domain, portal.hostname)
+  assert.equal(h.options().isSatellite, true)
+  assert.equal(h.options().frontendApiProxy.enabled, true)
+  assert.equal(h.options().signInUrl, "https://app.decisionate.ca/sign-in")
+  for (const path of ["/platform-admin", "/dashboard/white-label", "/dashboard/hosted-portal", "/hosted-portal", "/onboarding", "/demo"]) {
+    assert.equal((await h.run(portal.origin + path, "owner")).status, 404, path)
+  }
+  assert.equal((await h.run(portal.origin + "/privacy")).headers.get("location"), "https://decisionate.ca/privacy")
+})
+
+test("unknown hosted domains never fall back to Decisionate, and inactive domains only bootstrap Clerk", async () => {
+  const h = proxyHarness({ responseObjects: true })
+  for (const path of ["/", "/sign-in", "/dashboard", "/__clerk/v1/client"])
+    assert.equal((await h.run("https://unknown.decisionate.app" + path)).status, 404, path)
+  const inactive = proxyHarness({ responseObjects: true, hostedPortal: { hostname: "north.decisionate.app", active: false } })
+  assert.equal((await inactive.run("https://north.decisionate.app/sign-in")).status, 404)
+  assert.equal(await inactive.run("https://north.decisionate.app/__clerk/v1/client"), undefined)
+})
+
+test("central sign-in only forwards server-validated portal returns and strips spoofed headers", async () => {
+  const rejected = proxyHarness({ responseObjects: true })
+  await rejected.run("https://app.decisionate.ca/sign-in?redirect_url=https://evil.test", null, { "x-decisionate-hosted-return": "https://evil.test" })
+  assert.equal(rejected.headers().get("x-decisionate-hosted-return"), null)
+  const target = "https://north.decisionate.app/auth/redirect?__clerk_synced=false"
+  const accepted = proxyHarness({ hostedReturn: target, responseObjects: true })
+  await accepted.run("https://app.decisionate.ca/sign-in?redirect_url=" + encodeURIComponent(target))
+  assert.equal(accepted.headers().get("x-decisionate-hosted-return"), target)
+  const loggedIn = await accepted.run("https://app.decisionate.ca/sign-in?redirect_url=" + encodeURIComponent(target), "owner")
+  assert.equal(loggedIn.headers.get("location"), target)
 })
 
 function browserStorage(blocked = false) {

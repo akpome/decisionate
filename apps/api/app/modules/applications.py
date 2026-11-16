@@ -24,11 +24,13 @@ def workspace_application_id(db, workspace_id):
 
 
 def workspace_belongs_to_application(db, workspace_id):
-    return workspace_application_id(db, workspace_id) == get_application().id
+    from app.modules.hosted_subdomains.context import workspace_in_portal
+    return workspace_application_id(db, workspace_id) == get_application().id and workspace_in_portal(db, workspace_id)
 
 
-def require_workspace_application(db, workspace_id):
-    if not workspace_belongs_to_application(db, workspace_id):
+def require_workspace_application(db, workspace_id, *, discovery=False):
+    if (workspace_application_id(db, workspace_id) != get_application().id
+            or (not discovery and not workspace_belongs_to_application(db, workspace_id))):
         raise HTTPException(403, "This workspace belongs to another application.")
 
 
@@ -43,14 +45,17 @@ def bind_workspace_application(db, workspace_id):
 
 
 @contextmanager
-def workspace_application_scope(workspace_id, db=None):
+def workspace_application_scope(workspace_id, db=None, *, include_portal=True):
+    from app.modules.hosted_subdomains.context import portal_for_workspace, portal_scope
     if db is None:
         with SessionLocal() as session:
             identity = workspace_application_id(session, workspace_id)
+            portal = portal_for_workspace(session, workspace_id) if include_portal and identity == DEFAULT_APPLICATION_ID else None
     else:
         identity = workspace_application_id(db, workspace_id)
+        portal = portal_for_workspace(db, workspace_id) if include_portal and identity == DEFAULT_APPLICATION_ID else None
     # Missing deployment registration must fail closed, not switch billing providers.
-    with application_scope(identity) as app:
+    with application_scope(identity) as app, portal_scope(portal):
         yield app
 
 
@@ -83,8 +88,18 @@ class ApplicationContextMiddleware:
         registry = applications()
         requested = headers.get("x-application-id")
         origin = headers.get("origin", "").rstrip("/")
+        from app.modules.hosted_subdomains.context import hostname_from_origin, portal_scope, resolve_portal
+        portal_host = hostname_from_origin(origin)
+        portal = None
+        if portal_host:
+            with SessionLocal() as db:
+                portal = resolve_portal(db, portal_host)
         api_origin = os.getenv("DECISIONATE_API_URL", "http://localhost:8000").strip().rstrip("/")
         by_origin = next((app.id for app in registry.values() if origin in app.allowed_origins), None)
+        if portal_host and not portal:
+            by_origin = None
+        if portal:
+            by_origin = DEFAULT_APPLICATION_ID
         path = scope.get("path", "")
         webhook = path == "/billing/webhook" or path.startswith("/billing/webhook/")
         oauth_callback = path in {"/oauth/callback", "/api/v2/hosted-portals/stripe/callback"}
@@ -100,16 +115,21 @@ class ApplicationContextMiddleware:
             return await JSONResponse({"detail": "Unknown or conflicting application."}, status_code=400)(scope, receive, send)
         if origin and origin != api_origin and (not by_origin or identity != by_origin) and not (webhook or oauth_callback):
             return await JSONResponse({"detail": "Origin is not registered for this application."}, status_code=403)(scope, receive, send)
-        with application_scope(identity) as application:
+        with application_scope(identity) as application, portal_scope(portal):
             scope.setdefault("state", {})["application_id"] = application.id
             # Global operator controls and the existing marketing automation belong to .ca.
-            if not application.is_default and path.startswith(("/admin", "/marketing")):
+            if (not application.is_default or portal) and path.startswith(("/admin", "/marketing")):
                 return await JSONResponse({"detail": "This endpoint is not available for this application."}, status_code=404)(scope, receive, send)
             await self.app(scope, receive, send)
 
 
 class ApplicationCORSMiddleware(CORSMiddleware):
     def is_allowed_origin(self, origin):
+        from app.modules.hosted_subdomains.context import hostname_from_origin, resolve_portal
+        hostname = hostname_from_origin(origin)
+        if hostname:
+            with SessionLocal() as db:
+                return resolve_portal(db, hostname) is not None
         if super().is_allowed_origin(origin):
             return True
         from app.modules.hosted_portal_registry import hosted_applications
@@ -131,15 +151,17 @@ class ApplicationConfigurationResponse(BaseModel):
 
 @router.get("", response_model=ApplicationConfigurationResponse)
 def application_configuration(response: Response):
+    from app.modules.hosted_subdomains.context import current_portal
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Origin, X-Application-Id"
     app = get_application()
+    portal = current_portal()
     return {
-        "id": app.id, "name": app.name, "web_url": app.web_url,
+        "id": app.id, "name": portal.branding["name"] if portal else app.name, "web_url": portal.origin if portal else app.web_url,
         "api_contract_version": "2",
         "billing_currency": scoped_setting("BILLING_CURRENCY", "CAD").upper(),
         "branding": application_branding(),
-        "features": {"marketing_preferences": app.is_default, "platform_admin": app.is_default},
+        "features": {"marketing_preferences": app.is_default and not portal, "platform_admin": app.is_default and not portal},
     }
 
 
@@ -155,9 +177,9 @@ def install_api_contract(app):
             "type": "http", "scheme": "bearer", "bearerFormat": "JWT",
             "description": "A session token from the selected application's registered issuer.",
         }
-        public = {"/", "/health", "/ready", "/api/v2/application", "/maintenance/active", "/marketing/consent", "/marketing/unsubscribe"}
+        public = {"/", "/health", "/ready", "/api/v2/application", "/api/v2/hosted-subdomains/resolve", "/maintenance/active", "/marketing/consent", "/marketing/unsubscribe"}
         for path, methods in result["paths"].items():
-            callback = path.startswith(("/public/", "/billing/webhook", "/oauth/callback", "/marketing/webhook"))
+            callback = path.startswith(("/public/", "/billing/webhook", "/oauth/callback", "/marketing/webhook", "/api/v2/hosted-subdomains/assets/"))
             scheduler = path.endswith(("/send-due", "/sync-due", "/reconcile"))
             for method, operation in methods.items():
                 if method not in {"get", "post", "put", "patch", "delete", "options", "head"}:

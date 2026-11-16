@@ -232,6 +232,10 @@ def get_runtime_configuration() -> RuntimeConfiguration:
             auth_jwt_issuer=scoped_setting("AUTH_JWT_ISSUER") or scoped_setting("CLERK_JWT_ISSUER"),
             auth_jwt_audience=scoped_setting("AUTH_JWT_AUDIENCE") or scoped_setting("CLERK_JWT_AUDIENCE"),
         )
+    from app.modules.hosted_subdomains.context import current_portal
+    portal = current_portal()
+    if portal and application.is_default:
+        runtime = replace(runtime, web_url=portal.origin)
     return runtime
 
 

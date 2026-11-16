@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.db.database import SessionLocal
-from app.modules.applications import workspace_application_scope
+from app.modules.hosted_subdomains.context import oauth_application_scope, save_oauth_return
 from app.db.models import DataSourceConnection
 from app.db.models import OAuthConnectionState
 from app.db.models import OAuthCredential
@@ -486,8 +486,7 @@ async def start_oauth_connection(
                 if code_verifier
                 else None,
             )
-        db.add(
-            OAuthConnectionState(
+        state = OAuthConnectionState(
                 state_token=state_token,
                 connection_id=connection.id,
                 workspace_id=auth_context.workspace_id,
@@ -497,7 +496,8 @@ async def start_oauth_connection(
                 expires_at=datetime.now(UTC).replace(tzinfo=None)
                 + timedelta(minutes=STATE_TTL_MINUTES),
             )
-        )
+        db.add(state)
+        save_oauth_return(db, state)
         db.commit()
         return {
             "authorization_url": authorization_url,
@@ -708,7 +708,7 @@ def process_oauth_callback(
             .first()
         )
         if state:
-            application_context.enter_context(workspace_application_scope(state.workspace_id, db))
+            application_context.enter_context(oauth_application_scope(state, db))
         if query.get("error"):
             return oauth_redirect(str(query.get("error"))[:80])
         if not code:
@@ -1099,7 +1099,7 @@ async def process_woocommerce_callback(
             .first()
         )
         if state:
-            application_context.enter_context(workspace_application_scope(state.workspace_id, db))
+            application_context.enter_context(oauth_application_scope(state, db))
         now = datetime.now(UTC).replace(tzinfo=None)
         if not state or state.expires_at < now:
             if state:

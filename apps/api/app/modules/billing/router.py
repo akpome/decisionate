@@ -878,6 +878,7 @@ def apply_stripe_billing_event(
     event_object: dict,
 ):
     from app.modules.billing.service import require_billing_application
+    from app.application_context import get_application
     metadata = event_object.get("metadata") or {}
     if metadata.get("workspace_id"):
         require_billing_application(db, metadata["workspace_id"], metadata)
@@ -1001,7 +1002,10 @@ def apply_stripe_billing_event(
         )
         if value
     }
+    from app.modules.hosted_subdomains.service import price_ids as hosted_price_ids
     supplementary_price_ids = addon_price_ids | {configured.get("ai_credit_pack_price_id")}
+    if get_application().is_default:
+        supplementary_price_ids |= hosted_price_ids()
     base_item = next(
         (
             item
@@ -1066,6 +1070,8 @@ def apply_stripe_billing_event(
         deleted=event_type == "customer.subscription.deleted",
         previous_credit_limit=previous_credit_limit,
     )
+    from app.modules.hosted_subdomains.billing import sync_entitlement
+    sync_entitlement(db, subscription, item_data)
 
 
 def get_or_create_subscription(

@@ -2,6 +2,14 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.db.database import Base
+from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember, WorkspaceApplication
+from app.modules import auth_context, workspace_lifecycle
+from app.modules.identity import service as identity
 
 from app.modules.auth_context import (
     clean_optional_auth_env_value,
@@ -21,6 +29,18 @@ class FakeRequest:
 
 
 class AuthContextTests(unittest.TestCase):
+    def setUp(self):
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        Base.metadata.create_all(engine, tables=[model.__table__ for model in (
+            AppUser, AuthIdentity, Organization, OrganizationMember, WorkspaceApplication,
+        )])
+        self.addCleanup(engine.dispose)
+        sessions = sessionmaker(bind=engine)
+        for module in (auth_context, identity, workspace_lifecycle):
+            patcher = patch.object(module, "SessionLocal", sessions)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def test_clean_auth_value_trims_and_coerces_values(self):
         self.assertEqual(
             clean_auth_value(

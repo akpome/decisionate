@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { getSignInUrl, getSignUpUrl } from "../lib/auth-redirects"
 import { portalBrand } from "@/lib/portal-brand"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 
 export function AuthLayout({ mode, title, description, returnTo, showAccountLink = true, children }: {
   mode: "sign-in" | "sign-up"
@@ -19,6 +20,7 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
   children: ReactNode
 }) {
   const { t } = useDecisionateText()
+  const { returnTo: hostedReturn } = useHostedPortal()
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6">
       <header className="mx-auto flex max-w-5xl items-center justify-between gap-4">
@@ -33,7 +35,7 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
         <div className="mt-6 min-w-0">{children}</div>
         {showAccountLink && <p className="mt-6 text-center text-sm text-gray-600">
           {t(mode === "sign-in" ? (portalBrand.id ? "New here?" : "New to Decisionate?") : "Already have an account?")}{" "}
-          <Link href={mode === "sign-in" ? getSignUpUrl(returnTo) : getSignInUrl(returnTo)} className="font-semibold text-[var(--decisionate-brand-primary-text)] underline underline-offset-4">
+          <Link href={hostedReturn ? `${mode === "sign-in" ? "/sign-up" : "/sign-in"}?redirect_url=${encodeURIComponent(hostedReturn)}` : mode === "sign-in" ? getSignUpUrl(returnTo) : getSignInUrl(returnTo)} className="font-semibold text-[var(--decisionate-brand-primary-text)] underline underline-offset-4">
             {t(mode === "sign-in" ? "Create an account" : "Sign in")}
           </Link>
         </p>}

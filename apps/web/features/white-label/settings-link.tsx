@@ -2,9 +2,30 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { hostedPortalRequest } from "@/lib/api"
+import { hostedPortalRequest, hostedSubdomainRequest } from "@/lib/api"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
+import { useActiveWorkspace } from "@/lib/use-active-workspace"
 
 export function WhiteLabelSettingsLink({ userId }: { userId: string }) {
+  const { portal } = useHostedPortal()
+  const { activeWorkspaceId } = useActiveWorkspace(userId)
+  if (portal) return null
+  return <div className="flex flex-wrap gap-4"><HostedSettingsLink key={activeWorkspaceId} userId={userId} /><CustomSettingsLink userId={userId} /></div>
+}
+
+function HostedSettingsLink({ userId }: { userId: string }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const controller = new AbortController()
+    void hostedSubdomainRequest<{ commercially_available: boolean; portal: unknown }>(userId, "", { signal: controller.signal })
+      .then(value => { if (!controller.signal.aborted) setVisible(value.commercially_available || Boolean(value.portal)) })
+      .catch(() => { if (!controller.signal.aborted) setVisible(false) })
+    return () => controller.abort()
+  }, [userId])
+  return visible ? <Link href="/hosted-portal" className="text-sm font-medium text-blue-700 underline underline-offset-4">Hosted portal</Link> : null
+}
+
+function CustomSettingsLink({ userId }: { userId: string }) {
   const [state, setState] = useState<{ commercially_available: boolean; portal: { status: string } | null } | null>(null)
   useEffect(() => {
     const controller = new AbortController()

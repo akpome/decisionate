@@ -133,6 +133,10 @@ def scoped_setting(name, default=""):
 def application_branding():
     """Public presentation only. Never return arbitrary application settings."""
     app = get_application()
+    from app.modules.hosted_subdomains.context import current_portal
+    portal = current_portal()
+    if portal:
+        return {**portal.branding, "privacy_url": "https://decisionate.ca/privacy", "terms_url": "https://decisionate.ca/terms"}
 
     def url(name, default=""):
         value = scoped_setting(name, default)

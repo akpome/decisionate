@@ -15,6 +15,11 @@ def get_managing_agency(db, organization: Organization) -> Organization | None:
 
 
 def get_client_email_branding(db, organization: Organization) -> dict | None:
+    from app.modules.hosted_subdomains.context import current_portal
+    portal = current_portal()
+    if portal:
+        return {"is_managed_client": True, "agency_name": portal.branding["name"],
+                "brand_name": portal.branding["name"], "brand_logo_url": portal.branding["logo_url"]}
     if not managing_agency_workspace_id(organization):
         return None
     agency = get_managing_agency(db, organization)

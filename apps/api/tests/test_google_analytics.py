@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.models import DataSourceConnection
 from app.db.models import Dataset
-from app.db.models import DataIngestionJob, DatasetAnalysis, OAuthCredential, WorkspaceApplication
+from app.db.models import DataIngestionJob, DatasetAnalysis, OAuthCredential, WorkspaceApplication, Organization
 from fastapi import BackgroundTasks
 from app.modules.datasets.router import run_connector_ingestion_job
 from app.modules.datasets.router import sync_source_connection
@@ -247,6 +247,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
 
     def test_sync_route_persists_google_analytics_dataset(self):
         engine = create_engine("sqlite:///:memory:")
+        Organization.__table__.create(engine)
         WorkspaceApplication.__table__.create(engine)
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
@@ -333,6 +334,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
 
     def test_sync_route_returns_no_data_notification(self):
         engine = create_engine("sqlite:///:memory:")
+        Organization.__table__.create(engine)
         WorkspaceApplication.__table__.create(engine)
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
@@ -401,6 +403,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
 
     def test_sync_route_returns_connector_error_notification(self):
         engine = create_engine("sqlite:///:memory:")
+        Organization.__table__.create(engine)
         WorkspaceApplication.__table__.create(engine)
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)
@@ -473,6 +476,7 @@ class GoogleAnalyticsConnectorTests(unittest.TestCase):
 
     def test_sync_route_returns_unexpected_error_notification(self):
         engine = create_engine("sqlite:///:memory:")
+        Organization.__table__.create(engine)
         WorkspaceApplication.__table__.create(engine)
         DataSourceConnection.__table__.create(engine)
         Dataset.__table__.create(engine)

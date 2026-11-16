@@ -23,6 +23,7 @@ class ApiError extends Error { constructor(message, status) { super(message); th
 async function resolveInvitation({ workspaceList = [], failure, returnTo = destination } = {}) {
   const effects = [], routes = [], errors = [], active = []
   const Page = load("../app/auth/redirect/page.tsx", {
+    "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal: null }) },
     "react/jsx-runtime": jsx, react: { useEffect: callback => effects.push(callback), useState: () => [null, error => errors.push(error)] },
     "@clerk/nextjs": { useUser: () => ({ isLoaded: true, isSignedIn: true, user: { id: "current", primaryEmailAddress: { emailAddress: "current@example.test" }, emailAddresses: [] } }), useClerk: () => ({ signOut() { throw new Error("Unexpected automatic logout") } }) },
     "next/navigation": { useRouter: () => ({ replace: route => routes.push(route) }) },

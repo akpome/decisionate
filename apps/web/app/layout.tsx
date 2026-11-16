@@ -13,6 +13,8 @@ import { WorkspaceFaviconBootstrap } from "./workspace-favicon-bootstrap"
 import { portalBrand } from "@/lib/portal-brand"
 import { getAuthRequestOrigin } from "@/features/auth/lib/auth-redirects"
 import { isDecisionatePwaHost } from "@/lib/decisionate-domains"
+import { requestHostedPortal } from "@/features/hosted-subdomains/server"
+import { HostedPortalProvider } from "@/features/hosted-subdomains/provider"
 
 const baseMetadata: Metadata = {
   title: {
@@ -34,10 +36,14 @@ const baseMetadata: Metadata = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
+  const portal = await requestHostedPortal()
   const hostname = new URL(getAuthRequestOrigin(await headers())).hostname
   const enabled = !portalBrand.id && isDecisionatePwaHost(hostname)
   return {
     ...baseMetadata,
+    ...(portal?.branding ? { title: portal.branding.name, applicationName: portal.branding.name,
+      icons: portal.branding.favicon_url || portal.branding.logo_url || undefined,
+      openGraph: { title: portal.branding.name } } : {}),
     manifest: enabled ? "/manifest.webmanifest" : undefined,
     appleWebApp: enabled || portalBrand.id ? {
       capable: true,
@@ -52,26 +58,29 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: ReactNode
 }) {
+  const portal = await requestHostedPortal()
+  const returnTo = (await headers()).get("x-decisionate-hosted-return")
   return (
     <html
       lang="en-CA"
       suppressHydrationWarning
     >
       <head>
-        {portalBrand.logo && <link
+        {!portal && portalBrand.logo && <link
           rel="icon"
           href={portalBrand.logo}
           type="image/png"
         />}
-        <WorkspaceFaviconBootstrap />
+        {!portal && <WorkspaceFaviconBootstrap />}
       </head>
       <body className="bg-gray-50 text-gray-950 antialiased">
-        <AppClerkProvider>
+        <HostedPortalProvider portal={portal} returnTo={returnTo}>
+        <AppClerkProvider portal={portal} hostedReturn={returnTo}>
           <ThemeBootstrap />
           <LanguageBootstrap />
           <div className="min-h-screen">
@@ -79,6 +88,7 @@ export default function RootLayout({
           </div>
           {!portalBrand.id && <PwaRegistration />}
         </AppClerkProvider>
+        </HostedPortalProvider>
       </body>
     </html>
   )

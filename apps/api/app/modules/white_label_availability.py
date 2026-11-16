@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import update
+from sqlalchemy.orm import load_only
 from sqlalchemy.exc import IntegrityError
 
 from app.db.database import SessionLocal
@@ -32,11 +33,20 @@ def require_custom_domain_sales(db, *, lock=False):
 
 def admin_listing(db):
     from app.modules.hosted_portals import platform_blockers
+    from app.modules.hosted_subdomains.service import launch_blockers
+    from app.db.models import HostedSubdomainPortal
 
     return {
         **availability(db),
         "custom_domain_blockers": platform_blockers(),
-        "hosted_subdomain_blockers": ["Hosted-subdomain authentication approval, implementation and live launch checks are pending."],
+        "hosted_subdomain_blockers": launch_blockers(),
+        "hosted_subdomain_portal_count": db.query(HostedSubdomainPortal).count(),
+        "hosted_subdomain_active_count": db.query(HostedSubdomainPortal).filter_by(status="active").count(),
+        "hosted_subdomain_portals": [
+            {"id": row.id, "hostname": row.hostname, "status": row.status, "revision": row.revision, "last_error": row.last_error}
+            for row in db.query(HostedSubdomainPortal).options(load_only(HostedSubdomainPortal.id, HostedSubdomainPortal.hostname,
+                HostedSubdomainPortal.status, HostedSubdomainPortal.revision, HostedSubdomainPortal.last_error))
+            .order_by(HostedSubdomainPortal.created_at.desc()).limit(200)],
         "custom_domain_portal_count": db.query(HostedPortal).count(),
         "custom_domain_live_count": db.query(HostedPortal).filter_by(status="live").count(),
         "custom_domain_portals": [

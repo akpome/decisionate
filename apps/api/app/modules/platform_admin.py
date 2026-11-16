@@ -3368,6 +3368,8 @@ def delete_workspace_records(
 ) -> dict[str, int]:
     clean_workspace_id = str(workspace_id or "").strip()
     from app.modules.marketing.service import remove_user_marketing, remove_workspace_marketing
+    from app.modules.hosted_subdomains.cleanup import delete_hosted_workspace
+    delete_hosted_workspace(db, clean_workspace_id, organization_id)
     ensure_workspace_jobs_idle(db, [clean_workspace_id])
     delete_workspace_ingestion_jobs(db, [clean_workspace_id])
     summary = {

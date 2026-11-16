@@ -8,6 +8,7 @@ import {
   useRouter,
 } from "next/navigation"
 import { UserButton, useUser } from "@clerk/nextjs"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 import {
   AlertCircle,
   Bell,
@@ -311,6 +312,7 @@ export function DashboardShell({
   const pathname = canonicalWorkspacePathname(usePathname())
   const router = useRouter()
   const { user } = useUser()
+  const { portal } = useHostedPortal()
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
   const [workspaces, setWorkspaces] =
@@ -763,7 +765,8 @@ export function DashboardShell({
     user?.fullName ??
     "Decisionate Workspace"
   const activeBrand =
-    getWorkspaceBrand(
+    portal?.branding ? { name: portal.branding.name, logoUrl: portal.branding.logo_url,
+      primaryColor: portal.branding.primary_color, accentColor: portal.branding.accent_color } : getWorkspaceBrand(
       activeWorkspaceId,
       user?.id,
       visibleOrganization,
@@ -804,6 +807,8 @@ export function DashboardShell({
       keepFaviconStable: true,
       workspaceKey: `${user?.id || ""}:${activeWorkspaceId || ""}`,
       brandReady: activeBrandReady,
+      manageManifest: !portal,
+      manageFavicon: !portal?.branding?.favicon_url,
     }
   )
   const activeSharedWorkspace =

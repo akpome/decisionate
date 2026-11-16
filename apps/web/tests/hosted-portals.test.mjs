@@ -10,7 +10,7 @@ const setup = source("../features/white-label/hosted-setup.tsx")
 function load(text, globals = {}) {
   const loaded = { exports: {} }
   vm.runInNewContext(ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-    { module: loaded, exports: loaded.exports, Error, URL, ...globals })
+    { module: loaded, exports: loaded.exports, Error, URL, Headers, ...globals })
   return loaded.exports
 }
 function extract(text, name, parent) {
@@ -43,6 +43,24 @@ test("hosted requests use the agency owner's workspace and preserve an abort sig
   assert.equal(call[1].signal, signal)
   assert.equal(call[1].cache, "no-store")
   assert.equal(call[2], 120000)
+})
+
+test("shared portal admin requests do not inherit the selected client workspace", async () => {
+  let call, owners
+  const signal = new AbortController().signal
+  const { hostedSubdomainRequest } = load(extract(source("../lib/api.ts"), "hostedSubdomainRequest"), {
+    API_URL: "https://api.example", workspaceJsonHeaders: async (...ids) => { owners = ids; return {} },
+    apiFetch: async (...args) => { call = args; return { ok: true, json: async () => ({ saved: true }) } },
+  })
+  await hostedSubdomainRequest("operator", "/portal/status", { method: "POST", signal }, true)
+  assert.deepEqual(owners, ["operator", "operator"])
+  assert.equal(call[0], "https://api.example/admin/hosted-subdomains/portal/status")
+  assert.equal(call[1].signal, signal)
+  assert.equal(call[1].cache, "no-store")
+  await hostedSubdomainRequest("agency")
+  assert.deepEqual(owners, ["agency", undefined])
+  assert.equal(call[0], "https://api.example/api/v2/hosted-subdomains")
+  assert.match(source("../features/white-label/settings-link.tsx"), /HostedSettingsLink key=\{activeWorkspaceId\}/)
 })
 
 test("preparation stops on DNS waiting, readiness or unmount without launching automatically", async () => {
@@ -96,10 +114,12 @@ test("hosted portal routing keeps default marketing and operator pages off custo
   class NextResponse { constructor(body, init) { this.body = body; this.status = init.status } static redirect(url) { return url.href } static next() { return "next" } }
   let authCalls = 0
   const { default: proxy } = load(source("../proxy.ts"), { require: name => {
+    if (name === "./features/hosted-subdomains/server") return {}
+    if (name === "./features/hosted-subdomains/types") return load(source("../features/hosted-subdomains/types.ts"))
     if (name === "./lib/application-routes") return load(source("../lib/application-routes.ts"))
     if (name === "./lib/portal-brand") return { portalBrand }
     if (name === "./lib/decisionate-domains") return load(source("../lib/decisionate-domains.ts"))
-    if (name === "next/server") return { NextResponse }
+    if (name === "next/server") return { NextResponse, NextRequest: class { constructor(request, init) { Object.assign(this, request, init) } } }
     if (name.includes("auth-redirects")) return {}
     if (name === "@clerk/nextjs/server") return {
       createRouteMatcher: patterns => request => patterns.some(pattern => new RegExp(`^${pattern}$`).test(request.nextUrl.pathname)),

@@ -4,7 +4,7 @@ export const workspaceRoutes = [
   ...[
     "action-needed", "alerts", "billing", "budget-planner", "business-impact",
     "connections", "dashboards", "datasets", "decisions", "entity-matching",
-    "forecasts", "help", "insights", "relationships", "settings", "white-label",
+    "forecasts", "help", "insights", "relationships", "settings", "white-label", "hosted-portal",
   ].map(segment => ({ path: `/${segment}`, internal: `/dashboard/${segment}` })),
 ]
 

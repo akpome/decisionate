@@ -16,12 +16,14 @@ import { writeSignupConsent } from "@/features/auth/lib/signup-consent"
 import { completeSignupMarketing } from "@/features/auth/lib/marketing-consent"
 import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 
 export default function AuthRedirectPage() {
   const router = useRouter()
   const { isLoaded, isSignedIn, user } = useUser()
   const { signOut } = useClerk()
   const { t } = useDecisionateText()
+  const { portal } = useHostedPortal()
   const [attempt, setAttempt] = useState(0)
   const [error, setError] = useState<"session" | "access" | "workspace" | null>(null)
   const userPrimaryEmail =
@@ -54,13 +56,13 @@ export default function AuthRedirectPage() {
     async function routeAuthenticatedUser() {
       setError(null)
       writeSignupConsent(false)
-      void completeSignupMarketing(authenticatedUserId, userCreatedAt)
+      if (!portal) void completeSignupMarketing(authenticatedUserId, userCreatedAt)
       const userEmail =
         userPrimaryEmail ?? userFallbackEmail
 
       const [adminResult, workspaceResult] =
         await Promise.allSettled([
-          getPlatformAdminAccess(authenticatedUserId),
+          portal ? Promise.resolve(false) : getPlatformAdminAccess(authenticatedUserId),
           getOrganizationWorkspaces(authenticatedUserId, userEmail),
         ])
 
@@ -77,6 +79,10 @@ export default function AuthRedirectPage() {
         throw adminResult.reason
       }
       const workspace = chooseAuthWorkspace(workspaceResult.value, authenticatedUserId, getActiveWorkspaceId(authenticatedUserId), requestedWorkspaceId)
+      if (portal && !workspace) {
+        setError("access")
+        return
+      }
       if (requestedWorkspaceId && !workspace) {
         router.replace(getWorkspaceAccountSwitchUrl(returnTo))
         return
@@ -110,12 +116,13 @@ export default function AuthRedirectPage() {
     userPrimaryEmail,
     userCreatedAt,
     attempt,
+    portal,
   ])
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6 py-10">
       <div className="w-full max-w-md text-center">
-        <h1 className="text-xl font-semibold text-gray-950">Decisionate</h1>
+        <h1 className="text-xl font-semibold text-gray-950">{portal?.branding?.name || "Decisionate"}</h1>
         {error ? (
           <div role="alert" className="mt-4 space-y-2">
             <p className="font-medium text-gray-950">{t(error === "session" ? "Your session could not be verified." : error === "access" ? "Workspace access was denied." : "We couldn't open your workspace.")}</p>
