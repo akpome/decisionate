@@ -28,6 +28,9 @@ test("clean workspace URLs rewrite to existing pages without moving their shared
     assert.equal(rewrite.destination, `${internal}/:path*`)
     assert.equal(routes.canonicalWorkspacePathname(internal), path)
     assert.equal(routes.canonicalWorkspacePathname(path), path)
+    assert.equal(routes.internalWorkspacePathname(path), internal)
+    assert.equal(routes.internalWorkspacePathname(path + "/detail"), internal + "/detail")
+    assert.equal(routes.internalWorkspacePathname(path + "-fake"), path + "-fake")
   }
 })
 
@@ -35,6 +38,7 @@ test("public, authentication, API and shared dashboard routes are outside the wo
   for (const path of ["/", "/privacy", "/terms", "/security", "/demo", "/auth/redirect", "/sign-in", "/sign-up", "/api/portal-health", "/share/dashboard", "/public/dashboard/104", "/_next/static/app.js"]) {
     assert.equal(routes.isWorkspacePathname(path), false, path)
     assert.equal(routes.canonicalWorkspacePathname(path), path)
+    assert.equal(routes.internalWorkspacePathname(path), path)
   }
   assert.equal(routes.isWorkspacePathname("/dashboard"), true)
   assert.equal(routes.canonicalWorkspacePathname("/dashboard"), "/dashboard")

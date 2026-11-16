@@ -27,9 +27,14 @@ and `/help`. The main dashboard remains `/dashboard`. Detail URLs keep their
 resource hierarchy, for example `/decisions/6` and `/datasets/104`.
 
 `lib/application-routes.ts` is the shared route map. The existing Clerk proxy
-protects these URLs before Next.js internally rewrites them to the existing
-`app/dashboard/...` pages. This preserves the shared dashboard layout and
-workspace permission checks without duplicating pages. The shell normalizes
+protects these URLs and then explicitly rewrites authorized requests to the
+existing `app/dashboard/...` pages. Document requests and RSC navigation/prefetch
+requests use this same destination; they do not rely on a later configuration
+rewrite resolving the public alias. Clerk decorates the rewrite with its verified
+authentication headers, and Next.js forwards the Flight headers and cache key.
+The configuration rewrites remain consistent with this map. This preserves the
+shared dashboard layout and workspace permission checks without duplicating
+pages. The shell normalizes
 internal and visible paths so active navigation and restricted workspace states
 remain consistent.
 
@@ -161,6 +166,9 @@ signed-in/out app-root routing, legacy links, invitation account switching,
 private dashboard protection, callback/recovery route reachability, static-asset
 exclusions, hosted-portal behavior and rendered marketing links. Authentication
 states in these tests are mocked; they do not prove a live Clerk session works.
+The navigation regression tests also exercise the installed Next.js proxy/Flight
+adapter and Clerk response decoration with fixture session states, including all
+root aliases, nested paths, hosted portals and preservation of query parameters.
 
 After deployment and configuration, verify in an incognito browser:
 

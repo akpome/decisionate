@@ -13,7 +13,7 @@ import {
 } from "./features/auth/lib/auth-redirects"
 import { portalBrand } from "./lib/portal-brand"
 import { DECISIONATE_APPLICATION_ORIGIN, DECISIONATE_MARKETING_ORIGIN } from "./lib/decisionate-domains"
-import { canonicalWorkspacePathname, isWorkspacePathname } from "./lib/application-routes"
+import { canonicalWorkspacePathname, internalWorkspacePathname, isWorkspacePathname } from "./lib/application-routes"
 import { resolveHostedPortal, safeHostedReturn } from "./features/hosted-subdomains/server"
 import { hostedPrimaryOrigin, isHostedHostname, type HostedPortal } from "./features/hosted-subdomains/types"
 
@@ -92,6 +92,14 @@ function clerkProxy(portal: HostedPortal | null, hostedReturn: string | null) {
         getSignInUrl(`${req.nextUrl.pathname}${req.nextUrl.search}`), getAuthRequestOrigin(req.headers, req.url),
       ))
     }
+  }
+  // Resolve clean URLs here, after authentication, so document and RSC
+  // requests reach the same page without relying on a second rewrite pass.
+  const internalPathname = internalWorkspacePathname(req.nextUrl.pathname)
+  if (internalPathname !== req.nextUrl.pathname) {
+    const destination = req.nextUrl.clone()
+    destination.pathname = internalPathname
+    return NextResponse.rewrite(destination, { request: { headers: req.headers } })
   }
   return NextResponse.next({ request: { headers: req.headers } })
  }, portal ? {

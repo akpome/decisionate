@@ -210,13 +210,16 @@ function proxyHarness({ selfRewrite = false, responseObjects = false, hostedPort
       },
     },
     "next/server": { NextRequest: class { constructor(request, init) { Object.assign(this, request, init) } },
-      NextResponse: class extends Response { static next(options) { return options ? undefined : "next" } static redirect(url, init = 307) { return (
+      NextResponse: class extends Response {
+      static rewrite(url) { return new Response(null, { headers: { "x-middleware-rewrite": url.toString() } }) }
+      static next(options) { return options ? undefined : "next" } static redirect(url, init = 307) { return (
       responseObjects ? new Response(null, { status: typeof init === "number" ? init : init.status,
         headers: { ...(typeof init === "number" ? {} : init.headers), location: url.toString() } }) : url.toString()) } } },
   }).default
   return {
     run: (path, userId = null, forwardingHeaders = {}) => {
       const url = new URL(path, "https://decisionate.test")
+      url.clone = () => new URL(url)
       return proxy({ url: url.toString(), nextUrl: url, headers: new Headers({ host: url.host, "x-forwarded-proto": url.protocol.replace(":", ""), ...forwardingHeaders }), userId }, {})
     },
     clerkCalls: () => clerkCalls,
@@ -227,14 +230,14 @@ function proxyHarness({ selfRewrite = false, responseObjects = false, hostedPort
 
 test("every clean workspace route retains Clerk protection, including nested pages", async () => {
   const proxy = proxyHarness({ responseObjects: true })
-  for (const { path } of routes.workspaceRoutes) {
+  for (const { path, internal } of routes.workspaceRoutes) {
     for (const suffix of ["", "/detail?workspace_id=client%3Aone"]) {
       const url = `https://app.decisionate.ca${path}${suffix}`
       const response = await proxy.run(url)
       const login = new URL(response.headers.get("location"))
       assert.equal(login.pathname, "/sign-in")
       assert.equal(login.searchParams.get("redirect_url"), path + suffix)
-      assert.equal(await proxy.run(url, "reviewer"), undefined)
+      assert.equal((await proxy.run(url, "reviewer")).headers.get("x-middleware-rewrite"), `https://app.decisionate.ca${internal}${suffix}`)
     }
   }
 })
@@ -248,7 +251,7 @@ test("legacy workspace links permanently redirect once and keep query parameters
       assert.equal(response.status, 308)
       assert.equal(response.headers.get("location"), `https://app.decisionate.ca${path}${suffix}`)
       const next = await proxy.run(response.headers.get("location"), user)
-      if (user) assert.equal(next, undefined)
+      if (user) assert.equal(next.headers.get("x-middleware-rewrite"), `https://app.decisionate.ca${internal}${suffix}`)
       else assert.equal(new URL(next.headers.get("location")).searchParams.get("redirect_url"), path + suffix)
     }
   }
@@ -267,7 +270,8 @@ test("reports bookmarks and sign-in returns move to Business Analysis without lo
     assert.equal(redirects.getSafeReturnTo(oldPath + query + "#evidence"), expected + query + "#evidence")
     const login = await proxy.run(response.headers.get("location"))
     assert.equal(new URL(login.headers.get("location")).searchParams.get("redirect_url"), expected + query)
-    assert.equal(await proxy.run(response.headers.get("location"), "reviewer"), undefined)
+    assert.equal((await proxy.run(response.headers.get("location"), "reviewer")).headers.get("x-middleware-rewrite"),
+      "https://app.decisionate.ca" + routes.internalWorkspacePathname(expected) + query)
     const apex = await proxy.run("https://decisionate.ca" + oldPath + query)
     assert.equal(apex.headers.get("location"), "https://app.decisionate.ca" + expected + query)
   }
@@ -401,7 +405,10 @@ test("direct app dashboard links remain protected and retain their authorized de
     assert.equal(login.origin, domains.DECISIONATE_APPLICATION_ORIGIN)
     assert.equal(login.pathname, "/sign-in")
     assert.equal(login.searchParams.get("redirect_url"), path)
-    assert.equal(await proxy.run(`https://app.decisionate.ca${path}`, "reviewer"), undefined)
+    const authenticated = await proxy.run(`https://app.decisionate.ca${path}`, "reviewer")
+    if (path.startsWith("/connections")) {
+      assert.equal(authenticated.headers.get("x-middleware-rewrite"), `https://app.decisionate.ca/dashboard${path}`)
+    } else assert.equal(authenticated, undefined)
   }
 })
 

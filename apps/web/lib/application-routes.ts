@@ -16,6 +16,11 @@ export function isWorkspacePathname(pathname: string) {
   return pathname === "/dashboard" || workspaceRoutes.some(route => isPathWithin(pathname, route.path))
 }
 
+export function internalWorkspacePathname(pathname: string) {
+  const route = workspaceRoutes.find(route => isPathWithin(pathname, route.path))
+  return route ? route.internal + pathname.slice(route.path.length) : pathname
+}
+
 export function canonicalWorkspacePathname(pathname: string) {
   const weekly = ["/reports/weekly", "/business-analysis/weekly"].find(path => isPathWithin(pathname, path))
   if (weekly) {
