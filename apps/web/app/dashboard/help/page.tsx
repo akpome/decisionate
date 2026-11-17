@@ -133,7 +133,7 @@ const faqItems = [
   {
     question: "Where have Insights and dashboard Analysis moved?",
     answer:
-      "Business Analysis is the on-demand workspace. Under Compare metrics, Relationships report opens by default; Combined metrics report reviews multiple datasets without correlation, and Single dataset report uses one source. Weekly Reports has a separate page with independent settings. Use the sidebar to move between Business Analysis and Weekly Reports. Old Insights links redirect to Business Analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
+      "Business Analysis is the on-demand workspace. Under Compare metrics, Multi-dataset report opens by default; Enable correlation analysis is checked and can be cleared to review metrics without correlation. Single dataset report uses one source. Weekly Reports has a separate page with independent settings. Use the sidebar to move between Business Analysis and Weekly Reports. Old Insights links redirect to Business Analysis. Dashboard Analysis controls and their panels have been removed; use dashboards for charts and KPIs and Forecasts for forward-looking estimates.",
   },
   {
     question: "Why can a year-long report have insufficient relationship evidence?",
@@ -362,7 +362,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Select a dataset on General Business Overview, or open Dataset in an industry dashboard. Dataset and metric choices are saved for the dashboard where you are working.",
           "Choose the target metric on General Business Overview. Use Edit dashboard to change metric selections, targets, or industry chart mappings where available.",
           "Open Filters beside Edit dashboard, Dataset, or Compare data to choose the Date column and Dimension column. The selectors are aligned horizontally when space permits and stack on narrow screens.",
-          "Set the start date, Period, Group by, and Aggregate in the chart controls or industry Dataset panel. New views and Reset view or Reset range use 1 year; other supported saved periods remain in place.",
+          "End date defaults to today. Set an earlier End date, Period, Group by, and Aggregate in the chart controls or industry Dataset panel to review a historical window. A 1-month period counts backward through the selected end day. Charts, KPI totals and anomaly checks use the same dates. New views and Reset view or Reset range use 1 year ending today; other supported saved periods remain in place.",
           "Use the chart action controls to expand a chart, save a PDF, or share the dashboard when those controls are available.",
         ],
       },
@@ -438,7 +438,7 @@ const referenceChapters: ReferenceChapter[] = [
     id: "reference-analysis",
     title: "7. Business Analysis, reports, and forecasts",
     summary:
-      "Business Analysis brings together metric comparisons, business impact, spending returns, profitability, repeat purchases, sales conversion and cash planning. Choose the tool that matches your question, preview the result, then save. Relationships report opens by default under Compare metrics, alongside Combined metrics report and Single dataset report. Weekly Reports, Budget Planner and Forecasts remain separate; old Insights links redirect to Business Analysis.",
+      "Business Analysis brings together metric comparisons, business impact, spending returns, profitability, repeat purchases, sales conversion and cash planning. Choose the tool that matches your question, preview the result, then save. Multi-dataset report opens by default under Compare metrics, alongside Single dataset report. Correlation can be turned off within Multi-dataset report. Weekly Reports, Budget Planner and Forecasts remain separate; old Insights links redirect to Business Analysis.",
     howTos: [
       {
         title: "Choose the right analysis tool",
@@ -499,11 +499,11 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Analyze metrics and findings",
         steps: [
-          "Open Business Analysis in the sidebar. Under Compare metrics, choose Relationships report for metrics from multiple datasets with correlation, Combined metrics report for multiple datasets without correlation, or Single dataset report for one source. Relationships report opens by default. Use Build analysis and Analysis preview to move between setup and results.",
+          "Open Business Analysis in the sidebar. Under Compare metrics, choose Multi-dataset report for metrics from multiple sources or Single dataset report for one source. Multi-dataset report opens by default with Enable correlation analysis checked under Relationship analysis. Clear it to skip correlation and hide its controls, keeping totals, charts and anomaly checks. Use Build analysis and Analysis preview to move between setup and results.",
           "For Single dataset report, choose one Dataset from the dropdown in Dataset and metrics. Only its metrics, Date column and Dimension column are shown. Choose Unique values to filter that source. Changing the dataset clears the previous metrics, filters and date choices; removing every metric does not clear the chosen dataset.",
           "Select the approved metrics needed to answer your business question. Multi dataset reports require metrics from at least two datasets.",
-          "Joined datasets are excluded from all three report tabs: Relationships report, Combined metrics report and Single dataset report. Choose original datasets instead. Existing snapshots remain readable. If an older setup contains joined sources, Remove joined datasets removes only those sources and their dimension filters before you preview again.",
-          "Combined metrics report keeps totals, trends, previous-period changes and unusual-change checks, but does not calculate correlation or test delays. Saved reports reopen in the correct tab; older multi-dataset reports remain Relationships reports. Copying a combined report to Weekly Reports keeps relationship analysis off.",
+          "Joined datasets are excluded from both report tabs: Multi-dataset report and Single dataset report. Choose original datasets instead. Existing snapshots remain readable. If an older setup contains joined sources, Remove joined datasets removes only those sources and their dimension filters before you preview again.",
+          "With correlation disabled, Multi-dataset report keeps totals, trends, previous-period changes and unusual-change checks, but does not calculate correlation or test delays. Saved reports retain that choice. Older combined reports open in the merged tab with correlation off. Copying one to Weekly Reports keeps correlation off.",
           "Under Datasets and metrics, review each source's preselected Date column. If needed, choose its Dimension column and add Unique values from the dropdown; Search values narrows the available choices.",
           "New multi dataset reports open directly with correlation controls. Relationship analysis is expanded, with the correlation method, Minimum historical observations, delay and metric-pair controls. Business impact is a tool within Business Analysis, alongside Compare metrics and the other analysis tools. Saved reports retain their original type; old links open the appropriate page.",
           "Set Start, End and Group results by. Business has seasonal activity is a separate preference under Business context, above Anomaly detection, and remains selectable when detection is off. Under Anomaly detection, Detect unusual changes is checked by default. Clear it to skip detection without changing metric totals or correlation. The seasonal preference affects anomaly checks when they run; it does not adjust correlations. Missing history cannot be replaced by a wider date selection.",
@@ -528,8 +528,8 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Set relationship timing and historical coverage",
         steps: [
           "Choose Spearman (rank-based) or Pearson (straight-line) in Relationship analysis. Minimum historical observations defaults to 30 and counts usable matched observations after grouping and filtering, not the number of dates entered.",
-          "Business Analysis and Relationships share the same new-analysis defaults: Spearman, daily grouping, sum aggregation where applicable, 30 minimum historical observations, a maximum lag of 12 grouped periods, and same-period comparison. Valid deliberately saved settings are retained, including a saved 24- or 52-observation minimum or weekly grouping.",
-          "Delay to check is always visible above Metric pairs. Relationship direction uses the same choices as Relationships: Same-period comparison only, or either named dataset and metric followed by leads. A selected lead direction is a hypothesis to check. Only directed pairs test positive delays, up to Maximum delay; all pairs include the same-period comparison.",
+          "Business Analysis and Relationships share the same new-analysis defaults: Spearman, daily grouping, sum aggregation where applicable, 30 minimum historical observations, a maximum lag of 12 grouped periods, and automatic direction. Valid deliberately saved settings are retained, including a saved 24- or 52-observation minimum or weekly grouping.",
+          "With correlation enabled, Delay to check appears above Metric pairs. Relationship direction offers Automatic (recommended), or either named dataset and metric followed by leads. Marketing leads and sales follows by default. Other sources need stable predictive timing in earlier and later history; otherwise the preview says Not established and shows the same-period relationship. Direction and its basis appear in the preview, where changing the dropdown recalculates the result. A suggested order is not proof of cause and effect.",
           "Remove relationship pairs you do not want to analyze. Restore them from Removed pairs when needed. These choices are saved with the report and weekly template; removing a pair does not remove its metrics from KPI or anomaly analysis.",
           "Maximum delay names the unit selected in Group results by and is limited to 12. A lag of 2 means two daily, weekly, monthly, or quarterly periods, depending on that setting. A directional timing test also includes lag zero.",
           "With metrics from three or more datasets, configure every relevant pair independently. A metric can follow one source and lead another; there is no single global middle-metric direction.",
@@ -550,7 +550,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Review anomaly findings",
         steps: [
-          "Open Business Analysis in the sidebar and select metrics and dates. Relationships report, Combined metrics report and Single dataset report each have Anomaly detection with Detect unusual changes checked by default. This checks whether each selected metric is unusually high or low compared with its expected range, not just whether it changed from the previous period.",
+          "Open Business Analysis in the sidebar and select metrics and dates. Multi-dataset report and Single dataset report each have Anomaly detection with Detect unusual changes checked by default. This checks whether each selected metric is unusually high or low compared with its expected range, not just whether it changed from the previous period.",
           "Leave Detect unusual changes checked to assess every selected metric, or clear it to skip those checks. Enable Business has seasonal activity under the separate Business context section when appropriate; it remains selectable when detection is off, and its preference is retained. It affects anomaly checks when detection runs, not correlation. Preview again after a change, then save. Saved reports and weekly copies keep both choices; an off report does not mean that no anomalies occurred.",
           "When anomaly detection is enabled, Weekly Reports checks the completed week as a whole and each day separately, with its own settings.",
           "Review any anomaly finding alongside the underlying chart and time periods. Confirm that the finding is not caused by an incomplete connector sync, a date change, a join, or a source-schema change.",
@@ -593,7 +593,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Weekly reports assess the latest completed week with up to a rolling three years of available history, including unusual changes in the selected metrics. Manual Start and End dates are for the generated snapshot and do not fix the weekly reporting window.",
           "The last completed Monday-Sunday is analyzed daily and as a whole week, while earlier relationship history is grouped into complete weeks ending before that report week. Totals cover the full week and compare with the preceding week. Whole-week assessment compares each selected metric with its normal weekly range; Daily changes checks individual dates. These can differ: daily ups and downs may cancel out, or small daily changes may add up to an unusual week. Incomplete weeks are not scored against complete historical weeks. The weekly page has automatic dates, 30 minimum matched weeks by default and a maximum lag of 12 weeks. Analysis settings remain independent.",
           "After previewing and saving the current weekly report, Email workspace owner emails it only to the workspace owner. Sending does not save unsaved changes. This one-time action works while scheduled delivery is paused and does not change scheduled recipients or mark the scheduled email as already sent.",
-          "Copy selection to Weekly Reports copies selected metrics and dimension filters into an editable weekly configuration, not a decision assessment. Non-weekly timing resets to same-period so daily lags are not interpreted as weeks. Preview, then save before using it. Scheduled email manages recipients and the sending switch.",
+          "Copy selection to Weekly Reports copies selected metrics and dimension filters into an editable weekly configuration, not a decision assessment. Non-weekly timing is re-evaluated automatically in weekly periods so daily lags are not interpreted as weeks. Preview, then save before using it. Scheduled email manages recipients and the sending switch.",
           "In Report setup, open Report options and choose Remove weekly report setup to pause delivery and clear its configuration while keeping saved snapshots and linked decisions.",
         ],
       },
@@ -622,8 +622,8 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Analysis -> Relationships.",
           "Choose the left and right datasets, date columns, and metrics. Each side has an independent Dimension column filter with Unique values and Search values; choose at least one value for any selected dimension.",
-          "The defaults match Business Analysis: Spearman, daily Group by, Sum aggregation, 30 Minimum historical observations, Maximum lag 12, and Same-period comparison only. Verify actual overlapping dates after applying filters to each source.",
-          "Choose Relationship direction using the named metric that leads, or keep Same-period comparison only. Maximum lag appears only for a directional timing search and tests zero through that limit. Either metric can lead; labels and dimension filters keep their original dataset identities. The maximum is 12 grouped periods for every grouping.",
+          "The defaults match Business Analysis: Spearman, daily Group by, Sum aggregation, 30 Minimum historical observations, Maximum lag 12, and Automatic (recommended) direction. Verify actual overlapping dates after applying filters to each source.",
+          "Automatic direction puts marketing before sales. Other sources need supporting timing evidence; otherwise no dependable leader is claimed. Choose either named metric to override the suggestion and preview again. Maximum lag tests zero through that limit. Labels and dimension filters keep their original dataset identities. The maximum is 12 grouped periods for every grouping.",
           "The old fixed-lag editor is removed. Existing saved fixed-lag monitors keep their original timing and show it as Saved fixed lag until you explicitly choose a new direction. Saved observation thresholds and grouping are not replaced by the new defaults.",
           "The selected observation minimum is enforced after filtering, grouping and lagging. Too few matched observations produce insufficient data, not a usable correlation. Custom observation and lag settings are saved with the monitor and reused during scheduled evaluation.",
           "Review the strength, direction, matched periods, best observed delay, stability or credibility, and the plain-language explanation.",
@@ -653,7 +653,7 @@ const referenceChapters: ReferenceChapter[] = [
     ],
     notes: [
       "A relationship reports association, not proven causation.",
-      "Relationships saves a two-metric monitor. For relationships between multiple metrics across multiple datasets, use Relationships report in Business Analysis. Combined metrics report reviews the same selected metrics without correlation. The retired advanced relationship explorer has been removed.",
+      "Relationships saves a two-metric monitor. For multiple metrics across multiple datasets, use Multi-dataset report in Business Analysis. Enable correlation analysis can be cleared to review the same selected metrics without correlation. The retired advanced relationship explorer has been removed.",
       "The current KPI target is a digest and AI benchmark; it does not by itself create a separate threshold-triggered alert.",
       "Alerts are workspace-scoped. A workspace must not receive another workspace's datasets, targets, relationships, recipients, or recommendations.",
     ],

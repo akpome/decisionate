@@ -1,7 +1,7 @@
 # Build single and multi dataset reports
 
-Business Analysis is the on-demand analysis workspace. Relationships report opens by
-default; Combined metrics report and Single dataset report are available alongside it. Weekly Reports
+Business Analysis is the on-demand analysis workspace. Multi-dataset report opens by
+default; Single dataset report is available alongside it. Weekly Reports
 has its own page and settings, automatic dates, whole-week and daily checks,
 and earlier relationship history grouped weekly.
 Use the sidebar to move between these separate workflows; neither page has tabs
@@ -13,21 +13,18 @@ dataset metrics, date policies, anomaly detection and report snapshots.
 
 ## Which report should I choose?
 
-Under Business Analysis > Compare metrics, choose one of three tabs:
+Under Business Analysis > Compare metrics, choose one of two tabs:
 
-- Relationships report: select metrics from at least two datasets to review totals,
-  trends, unusual changes and how the metrics move together. Correlation method,
-  Minimum historical observations and Relationship direction apply here.
-- Combined metrics report: select metrics from at least two datasets to review
-  their totals, trends, earlier-period changes and unusual changes together,
-  without calculating correlation or testing delays. There are no relationship
-  controls, coefficients, timing conclusions or relationship-test limits in this tab.
+- Multi-dataset report: select metrics from at least two datasets to review totals,
+  trends and unusual changes. Enable correlation analysis is checked by default
+  under Relationship analysis. Clear it to skip correlation and timing calculations
+  and hide their controls and findings, while keeping summaries, charts and anomaly checks.
 - Single dataset report: choose exactly one dataset, then its metrics, date column
   and optional dimension filter. It does not calculate cross-dataset relationships.
 
-All three use the selected report dates and grouping, support dimension filters,
+Both use the selected report dates and grouping, support dimension filters,
 and require a preview before saving. Anomaly detection has Detect unusual changes
-checked by default in all three tabs; clear it to skip the detection calculations.
+checked by default in both tabs; clear it to skip the detection calculations.
 The seasonal-business choice is under a separate Business context section and
 remains selectable while detection is off.
 Choose the data and dates first. Report details, below the selection area, contains
@@ -37,14 +34,14 @@ or the last completed week's priorities. A custom question is kept, not replaced
 Missing metrics, dates, dimension values or invalid relationship settings are
 explained beside Preview; those inputs must be resolved before running analysis.
 The report name still has a unique default for one-off analysis and can be edited.
-A saved report reopens in its original tab and keeps its detection choice;
-older multi-dataset reports remain Relationships reports. A Combined metrics report
-does not join source rows or infer which metric caused another to change.
-Copying a saved Combined metrics report to Weekly Reports preserves its metric-only
+A saved report keeps its correlation and detection choices. Older relationship and
+combined-metric reports both open under Multi-dataset report. This does not join
+source rows or infer which metric caused another to change.
+Copying a report with correlation disabled to Weekly Reports preserves its metric-only
 setting; automatic weekly dates and weekly history still apply.
 
-Joined datasets are excluded from all three tabs: Relationships report, Combined
-metrics report and Single dataset report. Choose original datasets instead.
+Joined datasets are excluded from both tabs: Multi-dataset report and
+Single dataset report. Choose original datasets instead.
 This rule applies to new single- and multi-dataset report
 calculations and weekly setups, not to reading existing saved snapshots. If an
 older setup contains joined sources, Remove joined datasets clears only those
@@ -54,10 +51,10 @@ a source is joined.
 
 ## Where did correlation settings go? Is Reports a decision review?
 
-New Relationships reports open directly with correlation controls. Combined metrics
-reports deliberately omit these controls and calculations. The correlation
+New Multi-dataset reports open with Enable correlation analysis checked. The correlation
 method, minimum matching periods, timing and metric-pair settings
-are available under the expanded Relationship analysis section. Choose **Business
+are available under the expanded Relationship analysis section. Clear the checkbox
+to review metrics without correlation. Choose **Business
 impact** in Business Analysis to assess an existing decision; there is no Analysis type
 tab in Business Analysis. Saved reports keep their original analysis type, and
 old decision, assessment and running-job links open the appropriate page. Neither workflow replaces
@@ -328,8 +325,8 @@ business change. Existing saved reports keep their original workflow.
 
 ## Build an analysis
 
-1. Open Business Analysis from the sidebar. Under Compare metrics, choose Relationships report,
-   Combined metrics report or Single dataset report, then name the business question.
+1. Open Business Analysis from the sidebar. Under Compare metrics, choose Multi-dataset report
+   or Single dataset report, then name the business question.
 2. Replace the generated report name with a useful description. Its unique
    starting label prevents name collisions; it is not a business conclusion.
 3. In Datasets and metrics, select only relevant approved measures. Multi dataset
@@ -341,28 +338,33 @@ business change. Existing saved reports keep their original workflow.
    seasonal activity is under the separate Business context section, above
    Anomaly detection, and remains selectable when detection is off. It affects
    anomaly checks when they run; it does not adjust correlations or prove matching seasonality.
-6. For Relationships report, configure Relationship analysis. Remove unwanted
+6. For Multi-dataset report, leave Enable correlation analysis checked to configure Relationship analysis. Remove unwanted
    pairs and set each remaining pair's Relationship direction. Delay to check is always
    available above the pairs; Maximum delay names the selected unit (days, weeks,
-   months or quarters). Both pages offer Same-period comparison only or either
-   named dataset and metric followed by leads. A lead direction is a hypothesis
-   to test, not a conclusion. Same-period comparison only does not test positive delays. Single dataset
-   reports and Combined metrics reports omit relationship calculations and controls.
+   months or quarters). Both pages offer Automatic (recommended), or either
+   named dataset and metric followed by leads. Automatic puts marketing before
+   sales. For other sources, it checks predictive timing in earlier and later
+   history, allowing for trend and recurring calendar patterns. If neither direction
+   is dependable, the result says Not established and shows a same-period coefficient.
+   A lead direction is not proof of causation. The preview displays the suggested
+   direction and its basis; change its dropdown to recalculate in a different direction.
+   Clearing Enable correlation analysis skips these calculations. Single dataset
+   reports omit relationship calculations and controls.
 7. Choose Preview analysis and wait for analysis to finish before saving.
 
 ## Limits and evidence
 
-New Relationships reports share their defaults with Relationships: Spearman, daily grouping,
+New Multi-dataset reports share their defaults with Relationships: Spearman, daily grouping,
 Sum aggregation where applicable, 30 minimum historical observations, maximum
-lag 12 grouped periods and same-period comparison. Valid saved choices are
+lag 12 grouped periods and automatic direction. Valid saved choices are
 retained rather than replaced simply because the defaults changed.
 Minimum historical observations counts matched observations in the
 chosen grouping, not just the length of the calendar window. Weekly Reports uses
 weeks for its relationship history regardless of the grouping on Business Analysis.
 
 A report supports at most 25 selected metrics. Compare metrics supports
-a maximum of 12 lag periods and 1,000 cross-dataset pair/lag tests in Relationships report; those timing
-and test-count limits do not apply to Combined metrics report or Business impact analysis, which do not
+a maximum of 12 lag periods and a conservative budget of 1,000 cross-dataset pair/lag checks with correlation enabled; those timing
+and test-count limits do not apply with correlation disabled or in Business impact analysis, which do not
 run those tests. Reduce metrics or timing complexity if the correlation
 analysis exceeds these limits. Removed pairs do not consume relationship tests;
 they can be restored without removing the selected metrics. The default

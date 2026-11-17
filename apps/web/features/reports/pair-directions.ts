@@ -1,10 +1,10 @@
 import type { MetricRef, CorrelationDefinition } from "@/features/relationships/types"
 
-export type PairDirection = "a_leads_b" | "b_leads_a" | "same_period"
+export type PairDirection = "a_leads_b" | "b_leads_a" | "auto"
 export type ReportMetricKey = Pick<MetricRef, "dataset_id" | "metric_key">
 export type ReportMetricPair = { metric_a: ReportMetricKey; metric_b: ReportMetricKey }
 export type ReportPairDirection = ReportMetricPair & { direction: PairDirection }
-type StoredPairDirection = Omit<ReportPairDirection, "direction"> & { direction: PairDirection | "both" }
+type StoredPairDirection = Omit<ReportPairDirection, "direction"> & { direction: PairDirection | "both" | "same_period" }
 
 const matches = (left: ReportMetricKey, right: ReportMetricKey) => left.dataset_id === right.dataset_id && left.metric_key === right.metric_key
 const reverse = (mode: PairDirection): PairDirection => mode === "a_leads_b" ? "b_leads_a" : mode === "b_leads_a" ? "a_leads_b" : mode
@@ -26,9 +26,9 @@ export function reportPairDirections(metrics: MetricRef[], configured: StoredPai
   const sorted = [...metrics].sort((left, right) => left.dataset_id - right.dataset_id || (left.metric_key < right.metric_key ? -1 : left.metric_key > right.metric_key ? 1 : 0))
   return sorted.flatMap((left, index) => sorted.slice(index + 1).filter(right => left.dataset_id !== right.dataset_id).map(right => {
     const existing = configured?.find(pair => matches(pair.metric_a, left) && matches(pair.metric_b, right) || matches(pair.metric_a, right) && matches(pair.metric_b, left))
-    let direction: PairDirection = "same_period"
+    let direction: PairDirection = "auto"
     if (existing) {
-      const mode = existing.direction === "both" ? "same_period" : existing.direction
+      const mode = existing.direction === "both" || existing.direction === "same_period" ? "auto" : existing.direction
       direction = matches(existing.metric_a, left) ? mode : reverse(mode)
     }
     else if (legacyDirection) direction = metrics.indexOf(left) < metrics.indexOf(right) ? legacyDirection : reverse(legacyDirection)
@@ -39,5 +39,5 @@ export function reportPairDirections(metrics: MetricRef[], configured: StoredPai
 export function reportTestCount(metrics: MetricRef[], configured: StoredPairDirection[] | null | undefined, lag: CorrelationDefinition["lag"], excludedPairs: ReportMetricPair[] = []) {
   const positive = lag.enabled ? Math.max(0, lag.maximum - Math.max(1, lag.minimum) + 1) : 0
   const excluded = new Set(excludedPairs.map(unorderedReportPairKey))
-  return reportPairDirections(metrics, configured, configured == null ? lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined).filter(pair => !excluded.has(unorderedReportPairKey(pair))).reduce((total, pair) => total + 1 + (pair.direction === "same_period" ? 0 : positive), 0)
+  return reportPairDirections(metrics, configured, configured == null ? lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined).filter(pair => !excluded.has(unorderedReportPairKey(pair))).reduce((total, pair) => total + 1 + positive * (pair.direction === "auto" ? 2 : 1), 0)
 }

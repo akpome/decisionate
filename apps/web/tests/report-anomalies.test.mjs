@@ -107,7 +107,7 @@ test("business context and anomaly detection are sibling settings with independe
       assert.ok(renderToStaticMarkup(element).includes(label))
     }
   }
-  assert.match(source, /"seasonal_business", "include_anomalies", "impact"/)
+  assert.match(source, /"seasonal_business", "include_anomalies", "include_relationships", "impact"/)
 })
 
 test("whole-week results show the expected range even when the week was not unusual", () => {

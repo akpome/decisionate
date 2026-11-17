@@ -61,13 +61,15 @@ test("single and combined reports never count or render hidden relationship test
       reportTestCount: () => { assert.equal(relationships, true); return 3900 } })
     assert.equal(count, expected ? 3900 : 0)
   }
-  assert.match(source, /\{relationships && <section aria-label="Relationship analysis"/)
+  assert.match(source, /\{!single && <section aria-label="Relationship analysis"/)
+  assert.match(source, /checked=\{relationships\}[^\n]+Enable correlation analysis/)
+  assert.match(source, /\{relationships && <div className="mt-3 space-y-3"/)
   assert.match(source, /\{relationships && <ReportRelationshipFindings/)
 })
 
 test("report defaults share the monitor's method, grouping, observation floor and lag limit", () => {
   const defaultsValue = defaults.exports.RELATIONSHIP_DEFAULTS
-  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 30, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "manual", lagPeriods: 0, lagDirection: "a_leads_b" })
+  assert.deepEqual(JSON.parse(JSON.stringify(defaultsValue)), { method: "spearman", period: "daily", aggregation: "sum", minimumObservations: 30, maximumLag: 12, minimumAbsCoefficient: .3, lagMode: "automatic", lagPeriods: 0, lagDirection: "auto" })
   const value = editableDefinition({})
   assert.equal(value.method, defaultsValue.method)
   assert.equal(value.grain, defaultsValue.period)

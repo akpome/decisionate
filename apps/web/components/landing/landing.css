@@ -66,9 +66,6 @@
 .landing-button-accent:hover {
   background: #dcf8ff;
 }
-.landing-nav {
-  border-bottom: 2px solid var(--landing-brand-accent);
-}
 .landing-nav .landing-desktop-auth {
   display: none;
 }

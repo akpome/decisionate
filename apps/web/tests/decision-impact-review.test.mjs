@@ -122,6 +122,8 @@ test("impact reports link back to the same decision instead of exposing another 
   const scopes = load("../features/decisions/lib/report-metric-scope.ts")
   const titles = load("../features/decisions/lib/decision-title.ts")
   const { ReportDecisions } = load("../features/reports/report-evidence-sections.tsx", {
+    "@/features/relationships/direction-options": load("../features/relationships/direction-options.ts"),
+    "./pair-directions": load("../features/reports/pair-directions.ts"),
     "@/features/decisions/lib/report-metric-scope": scopes, "@/features/decisions/lib/decision-title": titles,
   })
   const html = renderToStaticMarkup(React.createElement(ReportDecisions, { report: {
@@ -142,7 +144,7 @@ test("decision detail and the report builder share the linked review entry and e
   assert.match(workspace, /Save assessment to decision/)
   assert.match(workspace, /params.get\("decision"\)/)
   assert.match(workspace, /<ImpactDecisionPicker/)
-  const calculate = workspace.slice(workspace.indexOf("async function calculate()"), workspace.indexOf("async function saveSnapshot()"))
+  const calculate = workspace.slice(workspace.indexOf("async function calculate("), workspace.indexOf("async function saveSnapshot()"))
   assert.match(calculate, /if \(!weekly && payload.impact\?\.decision_id\)/)
   assert.match(calculate, /\/review-decisions\/\$\{payload.impact.decision_id\}/)
   assert.match(calculate, /Object.assign\(payload, automaticImpactDefinition\(payload, context, datasets\), decisionReviewDetails\(context.decision\)\)/)

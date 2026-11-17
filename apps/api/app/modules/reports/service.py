@@ -16,7 +16,7 @@ from app.modules.datasets.services.dimension_filters import apply_dimension_filt
 from .catalog import prepare_report_source, require_report_sources
 from .anomalies import anomaly_summary, detect_report_metric, historical_start
 from .decision_drafts import is_report_decision_draft
-from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, pair_direction, report_pairs, report_test_count
+from .relationships import compute_report_pair, direction_lookup, normalize_pair_directions, report_pairs, report_test_count
 from .schemas import MINIMUM_REPORT_OBSERVATIONS
 from .impact import evaluate_impact, impact_facts, is_impact_report
 from app.modules.decisions.duplicates import canonical_decisions
@@ -183,7 +183,7 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
             raise ValueError("Choose an available, explicitly selected metric with its approved date and aggregation policy")
         usable.append(reference)
         identity_key = metric_id(reference)
-        metadata[identity_key] = {**reference, **descriptor, "id": identity_key, "dataset_label": dataset.file_name}
+        metadata[identity_key] = {**reference, **descriptor, "id": identity_key, "dataset_label": dataset.file_name, "connector": dataset.source_type}
 
     actual_definition = {**definition, "grain": grain, "metrics": usable, "reporting_timezone": zone}
     prior_series = {}
@@ -269,6 +269,9 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
         left, right = metadata[row["metric_a"]], metadata[row["metric_b"]]
         coefficient = row["coefficient"]
         flags = [flag for flag in row["flags"] if flag != "lag_uses_shared_periods"]
+        direction_established = bool(row.get("direction_suggestion", {}).get("direction"))
+        if not direction_established:
+            flags.append("lead_direction_not_established")
         if row["lag"]:
             flags.append("calendar_aligned_lag")
         if historical[row["metric_a"]].value.isna().any() or historical[row["metric_b"]].value.isna().any():
@@ -292,12 +295,12 @@ def build_report(frames, definition, *, unavailable=None, history_anchor=None, i
                          "lead_metric": row["lead_metric"], "observations": row["observations"], "eligible": row["eligible"],
                          "adjusted_p_value": adjusted_p, "reliability": "passes_adjusted_test" if reliable else "exploratory" if row["eligible"] else "insufficient",
                          "warnings": flags, "interpretation": interpretation, "history_window": history,
-                         "evidence": row["evidence"]})
+                         "evidence": row["evidence"], "direction_suggestion": row.get("direction_suggestion")})
         findings[-1]["business_summary"] = relationship_summary(findings[-1], analysis_grain)
         from .timing_validation import validate_timing
         findings[-1]["timing_validation"] = validate_timing(
-            left, right, historical, relationship_definition, row, pair_direction(left, right, definition, directions)) if reliable else {
-                "status": "unavailable", "message": "The relationship did not pass the report's reliability checks."}
+            left, right, historical, relationship_definition, row, "b_leads_a" if row["lead_metric"] == right["id"] else "a_leads_b") if reliable and direction_established else {
+                "status": "unavailable", "message": "A dependable leader has not been established." if not direction_established else "The relationship did not pass the report's reliability checks."}
     findings.sort(key=lambda item: (item["eligible"], abs(item["coefficient"] or 0)), reverse=True)
     # Older impact snapshots may still contain correlation finding selections.
     requested = definition.get("included_findings") if relationships else None

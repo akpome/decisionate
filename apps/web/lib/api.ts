@@ -492,7 +492,7 @@ export type DatasetRelationshipPayload = {
   method: "pearson" | "spearman"
   minimum_observations?: number
   maximum_lag?: number
-  lag_direction?: "a_leads_b" | "b_leads_a"
+  lag_direction?: "a_leads_b" | "b_leads_a" | "auto"
   lag_mode: "automatic" | "manual"
   lag_periods: number
 }
@@ -509,7 +509,9 @@ export type DatasetRelationship = {
   method: "pearson" | "spearman"
   minimum_observations?: number
   maximum_lag?: number
-  lag_direction?: "a_leads_b" | "b_leads_a"
+  lag_direction?: "a_leads_b" | "b_leads_a" | "auto"
+  direction_setting?: "a_leads_b" | "b_leads_a" | "auto" | null
+  direction_suggestion?: { direction: "a_leads_b" | "b_leads_a" | null; source: string; message: string } | null
   lag_mode?: "automatic" | "manual"
   lag_periods: number
   matched_period_count: number
@@ -970,6 +972,7 @@ export type DashboardPreferencePayload = {
     | "comparison"
   startDate?: string
   metricMappings?: Record<string, DashboardMetricMapping>
+  endDate?: string
   chartTitles?: Record<string, DashboardChartTitles>
   joinedDatasetResult?: DatasetJoinResult
 }
@@ -2844,6 +2847,10 @@ function cleanDashboardPreference(
   ) {
     cleanPreference.startDate =
       preference.startDate
+  }
+
+  if (typeof preference.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(preference.endDate)) {
+    cleanPreference.endDate = preference.endDate
   }
 
   if (
@@ -5585,6 +5592,7 @@ export async function getDatasetAnomalies(
     metric?: string
     dateColumn?: string
     startDate?: string
+    endDate?: string
     periodFilter?: ForecastPeriodFilter
     aggregation?: DashboardAggregation
     aggregationType?: DashboardValueAggregation
@@ -5598,6 +5606,8 @@ export async function getDatasetAnomalies(
       "Dataset id"
     )
   const queryParams = new URLSearchParams()
+
+  if (options?.endDate) queryParams.set("end_date", options.endDate)
 
   if (options?.metric) {
     queryParams.set("metric", options.metric)

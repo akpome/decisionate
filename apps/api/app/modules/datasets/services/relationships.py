@@ -367,7 +367,7 @@ def build_dataset_relationship(
         raise ValueError("Unsupported relationship method")
     if lag_mode not in {"automatic", "manual"}:
         raise ValueError("Unsupported relationship timing mode")
-    if lag_direction not in {"a_leads_b", "b_leads_a"}:
+    if lag_direction not in {"a_leads_b", "b_leads_a", "auto"}:
         raise ValueError("Unsupported relationship direction")
     if requested_lag < 0 or requested_lag > MAXIMUM_LAG:
         raise ValueError("Relationship lag must be between 0 and 12 periods")
@@ -431,15 +431,33 @@ def build_dataset_relationship(
     aligned = left_series.merge(
         right_series,
         on="period",
-        how="inner",
+        how="outer" if lag_direction == "auto" else "inner",
     ).sort_values("period").reset_index(drop=True)
+    direction_setting = lag_direction
+    direction_suggestion = None
+    if lag_direction == "auto":
+        from app.modules.correlation.direction import resolve_direction
+        if not aligned.empty:
+            frequency = {"daily": "D", "weekly": "W-MON", "monthly": "MS", "quarterly": "QS"}[period]
+            aligned = aligned.set_index("period").reindex(pd.date_range(aligned.period.min(), aligned.period.max(), freq=frequency)).rename_axis("period").reset_index()
+        direction_suggestion = resolve_direction(
+            {"connector": getattr(left_dataset, "source_type", ""), "dataset_label": left_dataset.file_name},
+            {"connector": getattr(right_dataset, "source_type", ""), "dataset_label": right_dataset.file_name}, aligned,
+            maximum_lag=maximum_lag, minimum_observations=minimum_observations, grain=period)
+        lag_direction = direction_suggestion["direction"] or "a_leads_b"
+        if direction_suggestion["direction"] is None:
+            maximum_lag_for_run = 0
+        else:
+            maximum_lag_for_run = maximum_lag
+    else:
+        maximum_lag_for_run = maximum_lag
     # Analyze the chosen leader first, then restore the original metric labels for evidence.
     comparison = aligned.rename(columns={"left_value": "right_value", "right_value": "left_value"}) if lag_direction == "b_leads_a" else aligned
 
     if lag_mode == "automatic":
         raw_candidates = [
             _calculate_lag_result(comparison, method, lag, minimum_observations)
-            for lag in range(maximum_lag + 1)
+            for lag in range(maximum_lag_for_run + 1)
         ]
         candidates = _score_lag_candidates(raw_candidates, minimum_observations)
         credible_candidates = [
@@ -533,6 +551,10 @@ def build_dataset_relationship(
         credibility,
         minimum_observations,
     )
+    if direction_suggestion and direction_suggestion["direction"] is None and correlation is not None:
+        association_summary = (f"Observed {strength} {direction} association in the same period. "
+                               f"Historical periods compared: {len(selected_aligned)}. "
+                               f"{direction_suggestion['message']} Association does not establish causation.")
     decision_context = (
         f"{left_label} and {right_label} were compared using {method} "
         f"correlation over {len(selected_aligned)} shared {period} periods "
@@ -562,6 +584,8 @@ def build_dataset_relationship(
         "minimum_observations": minimum_observations,
         "maximum_lag": maximum_lag,
         "lag_direction": lag_direction,
+        "direction_setting": direction_setting,
+        "direction_suggestion": direction_suggestion,
         "lag_mode": lag_mode,
         "lag_periods": lag_periods,
         "matched_period_count": int(len(selected_aligned)),

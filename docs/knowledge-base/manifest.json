@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-15",
+  "reviewed_on": "2026-11-16",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -716,6 +716,7 @@
       "sources": [
         "apps/web/features/dashboards/dashboard-definitions.ts",
         "apps/web/features/dashboard/components/dataset-selector.tsx",
+        "apps/web/features/dashboard/date-window.ts",
         "apps/web/components/searchable-select.tsx",
         "apps/web/app/dashboard/page.tsx",
         "apps/web/app/dashboard/help/page.tsx",
@@ -782,6 +783,7 @@
         "apps/api/tests/test_joined_report_sources.py",
         "apps/web/features/reports/types.ts",
         "apps/web/features/reports/report-pair-directions.tsx",
+        "apps/api/app/modules/correlation/direction.py",
         "apps/web/features/relationships/defaults.ts",
         "apps/web/features/relationships/direction-options.ts",
         "apps/api/app/modules/correlation/defaults.py",
@@ -811,7 +813,7 @@
         "decisions-outcomes"
       ],
       "section_routes": {
-        "Which report should I choose?": "/business-analysis/combined",
+        "Which report should I choose?": "/business-analysis",
         "Where is Business impact and how do I use it?": "/business-analysis/impact",
         "Did my business change help?": "/business-analysis/impact",
         "How does Business impact allow time for results?": "/business-analysis/impact",
@@ -824,6 +826,7 @@
       },
       "section_questions": {
         "Which report should I choose?": [
+          "Which report tab should I choose?",
           "How do I use Combined metrics report?",
           "Can I report on multiple datasets without correlation?",
           "What is the difference between Relationships report and Combined metrics report?"

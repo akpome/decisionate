@@ -60,7 +60,7 @@ class RelationshipAnalysisDefaultTests(unittest.TestCase):
         for period, frequency in (("daily", "D"), ("weekly", "W-MON"), ("monthly", "MS"), ("quarterly", "QS")):
             for maximum in (0, 3, 12):
                 with self.subTest(period=period, maximum=maximum), patch.object(relationships, "_calculate_lag_result", wraps=relationships._calculate_lag_result) as calculate:
-                    result = relationships.build_dataset_relationship(sources(frequency=frequency), definition(period=period, lag_mode="automatic", maximum_lag=maximum))
+                    result = relationships.build_dataset_relationship(sources(frequency=frequency), definition(period=period, lag_mode="automatic", lag_direction="a_leads_b", maximum_lag=maximum))
                     self.assertEqual(calculate.call_count, maximum + 1)
                     self.assertEqual([item["lag_periods"] for item in result["lag_candidates"]], list(range(maximum + 1)))
                     self.assertEqual(result["maximum_lag"], maximum)

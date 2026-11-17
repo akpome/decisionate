@@ -7,10 +7,13 @@ quarterly grouping. It is not automatically a two-day conversion delay.
 
 ## Set direction per pair
 
-Evaluate timing and Maximum lag are always available above Relationship
-directions in multi dataset reports, without an enable checkbox. Choose which
-metric leads for each cross-dataset pair, or leave that pair at Same-period
-comparison only. Only directed pairs run positive-lag tests. A metric can follow
+Enable correlation analysis is checked by default in Multi-dataset report.
+When enabled, Delay to check and Maximum delay appear above Metric pairs.
+Relationship direction defaults to Automatic (recommended): marketing leads,
+sales follows, and other sources need stable historical predictive timing.
+If no dependable leader is found, the preview says Not established and shows
+the same-period relationship. Choose either named metric to override the suggestion.
+A metric can follow
 one metric and lead another; there is no need to assign one global direction to
 the middle source.
 
@@ -22,10 +25,9 @@ anomaly analysis still assess each selected metric. Removing all pairs runs no
 relationship tests. Removing a metric also clears exclusions involving it, so
 reselecting that metric creates its pairs again.
 
-The interface no longer offers Test both directions. Directional timing includes
+The interface no longer offers Test both directions or Same-period comparison only. Directional timing includes
 lag zero and eligible positive lags up to the selected maximum of 12 periods.
-The maximum is not a search of every day from 1 to 365. A pair left at
-Same-period comparison only does not run positive-lag tests. A maximum lag of
+The maximum is not a search of every day from 1 to 365. A maximum lag of
 zero also restricts every retained pair to its same-period test.
 
 ## Why one year can be insufficient

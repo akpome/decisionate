@@ -112,7 +112,7 @@ class DatasetRelationshipRequest(BaseModel):
     ] = DEFAULT_METHOD
     minimum_observations: int = Field(default=DEFAULT_MINIMUM_OBSERVATIONS, ge=MINIMUM_OBSERVATIONS, le=MAXIMUM_OBSERVATIONS)
     maximum_lag: int = Field(default=MAXIMUM_LAG, ge=0, le=MAXIMUM_LAG)
-    lag_direction: Literal["a_leads_b", "b_leads_a"] = DEFAULT_LAG_DIRECTION
+    lag_direction: Literal["a_leads_b", "b_leads_a", "auto"] = DEFAULT_LAG_DIRECTION
     lag_mode: Literal["automatic", "manual"] = DEFAULT_LAG_MODE
     lag_periods: int = Field(
         default=DEFAULT_LAG_PERIODS,
@@ -139,7 +139,9 @@ class DatasetRelationshipResponse(BaseModel):
     method: str
     minimum_observations: int = DEFAULT_MINIMUM_OBSERVATIONS
     maximum_lag: int = MAXIMUM_LAG
-    lag_direction: Literal["a_leads_b", "b_leads_a"] = DEFAULT_LAG_DIRECTION
+    lag_direction: Literal["a_leads_b", "b_leads_a", "auto"] = DEFAULT_LAG_DIRECTION
+    direction_setting: Literal["a_leads_b", "b_leads_a", "auto"] | None = None
+    direction_suggestion: dict | None = None
     lag_periods: int
     lag_mode: str = DEFAULT_LAG_MODE
     matched_period_count: int

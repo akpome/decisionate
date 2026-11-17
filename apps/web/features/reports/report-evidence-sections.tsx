@@ -3,17 +3,31 @@ import { ArrowUpRight, Plus } from "lucide-react"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { decisionEvidenceHref } from "@/features/decisions/lib/report-metric-scope"
 import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
+import { relationshipDirectionOptions } from "@/features/relationships/direction-options"
+import { unorderedReportPairKey, type PairDirection, type ReportMetricPair } from "./pair-directions"
 
 const decisionAction = "inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-md border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 print:hidden"
 
-export function ReportRelationshipFindings({ report }: { report: BusinessReport }) {
+export function ReportRelationshipFindings({ report, busy = false, onDirectionChange }: { report: BusinessReport; busy?: boolean; onDirectionChange?: (pair: ReportMetricPair, direction: PairDirection) => void }) {
   if (report.definition?.impact || report.impact_analysis || report.definition?.include_relationships === false || report.definition?.scope === "single") return null
   const included = new Set(report.included_findings)
   const findings = report.findings.filter(finding => included.has(finding.id))
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings">
     <h3 className="text-lg font-semibold">Relationship findings</h3>
     {findings.length === 0 ? <p className="text-sm text-gray-500">No relationship findings included in this report.</p>
-      : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => <li key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} grain={report.analysis_grain || report.grain || report.definition?.grain} /></li>)}</ul>}
+      : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => {
+        const pair = { metric_a: finding.metric_a, metric_b: finding.metric_b }
+        const stored = report.definition?.pair_directions?.find(item => unorderedReportPairKey(item) === unorderedReportPairKey(pair))
+        const explicit = stored?.direction === "a_leads_b" || stored?.direction === "b_leads_a"
+        const leader = explicit ? stored.direction === "a_leads_b" ? stored.metric_a : stored.metric_b : null
+        const value = leader ? leader.dataset_id === finding.metric_a.dataset_id && leader.metric_key === finding.metric_a.metric_key ? "a_leads_b" : "b_leads_a" : "auto"
+        return <li key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} grain={report.analysis_grain || report.grain || report.definition?.grain} />
+          {onDirectionChange && <label className="mt-3 block max-w-2xl text-xs text-gray-600 print:hidden">Relationship direction<select aria-label={`Relationship direction: ${finding.metric_a.dataset_label} / ${finding.metric_a.label} and ${finding.metric_b.dataset_label} / ${finding.metric_b.label}`} value={value} disabled={busy}
+            onChange={event => onDirectionChange(pair, event.target.value as PairDirection)} className="mt-1 h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-950">
+            {relationshipDirectionOptions(`${finding.metric_a.dataset_label} / ${finding.metric_a.label}`, `${finding.metric_b.dataset_label} / ${finding.metric_b.label}`, text => text).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select></label>}
+        </li>
+      })}</ul>}
   </section>
 }
 
@@ -107,6 +121,10 @@ function Finding({ finding, grain }: { finding: ReportFinding; grain?: string })
         {hasLag && finding.lag > 0 && leader && <p className="mt-1 break-words text-xs text-gray-600">{leader.dataset_label} / {leader.label} precedes {follower.dataset_label} / {follower.label}.</p>}
       </div>
     </dl>
+    {finding.direction_suggestion && <div className="mt-3 space-y-1 text-sm">
+      <p className="break-words font-medium">Relationship direction: {finding.direction_suggestion.direction && leader ? `${leader.dataset_label} / ${leader.label} leads ${follower.dataset_label} / ${follower.label}` : "Not established"}</p>
+      <p className="text-xs leading-5 text-gray-600">{finding.direction_suggestion.message}</p>
+    </div>}
     <p className="mt-2 text-sm leading-6 text-gray-700">{finding.business_summary || <>{pattern} {available && "That can be worth investigating, but does not tell us whether changing one caused the other to change."}</>}</p>
     {available && finding.timing_validation && <p className="mt-1 text-xs leading-5 text-gray-600">{finding.timing_validation.status === "supported" ? "Timing guide available for a later impact assessment. " : "Not yet a dependable timing guide. "}{finding.timing_validation.message}</p>}
     <details className="mt-2 text-xs text-gray-500"><summary className="cursor-pointer">How we checked this relationship</summary><p className="mt-2">{finding.reliability.replaceAll("_", " ")} / {finding.observations} observations</p><p className="mt-2 leading-5">{finding.interpretation}</p>{finding.warnings.length > 0 && <p className="mt-1 break-words text-amber-800">{finding.warnings.map(value => value.replaceAll("_", " ")).join("; ")}</p>}</details></>

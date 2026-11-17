@@ -19,9 +19,9 @@ can prevent a useful joined comparison. A join does not create missing business
 activity or make different currencies equivalent. Use Reports for a broader
 multi-metric review and a frozen analysis snapshot.
 
-Joined datasets are excluded from all three Compare metrics report tabs in
-Business Analysis and from Weekly Reports. Use original datasets for Relationships
-report, Combined metrics report and Single dataset report.
+Joined datasets are excluded from both Compare metrics report tabs in
+Business Analysis and from Weekly Reports. Use original datasets for Multi-dataset
+report and Single dataset report.
 Existing saved report snapshots remain readable. An older report setup
 with joined sources must remove them before running again.
 

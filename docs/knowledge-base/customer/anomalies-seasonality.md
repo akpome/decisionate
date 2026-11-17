@@ -4,7 +4,7 @@ Anomaly detection checks whether a metric is unusually high or low compared with
 its expected range based on earlier history. It is not simply the percentage
 change from the previous period and does not establish why a change happened.
 
-Relationships report, Combined metrics report and Single dataset report each have
+Multi-dataset report and Single dataset report each have
 an Anomaly detection section. Detect unusual changes is checked by default for
 new reports and when editing older reports without an explicit choice. Clear it
 to skip the detection calculations while retaining totals, trends, earlier-period

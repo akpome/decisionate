@@ -5,9 +5,9 @@ export const RELATIONSHIP_DEFAULTS = {
   minimumObservations: 30,
   maximumLag: 12,
   minimumAbsCoefficient: 0.3,
-  lagMode: "manual",
+  lagMode: "automatic",
   lagPeriods: 0,
-  lagDirection: "a_leads_b",
+  lagDirection: "auto",
 } as const
 
 export const MAXIMUM_RELATIONSHIP_OBSERVATIONS = 3653

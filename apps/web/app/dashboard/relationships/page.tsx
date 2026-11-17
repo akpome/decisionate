@@ -128,7 +128,7 @@ function RelationshipsWorkspace() {
   const [method, setMethod] = useState<"pearson" | "spearman">(RELATIONSHIP_DEFAULTS.method)
   const [lagMode, setLagMode] = useState<"automatic" | "manual">(RELATIONSHIP_DEFAULTS.lagMode)
   const [lagPeriods, setLagPeriods] = useState(String(RELATIONSHIP_DEFAULTS.lagPeriods))
-  const [lagDirection, setLagDirection] = useState<"a_leads_b" | "b_leads_a">(RELATIONSHIP_DEFAULTS.lagDirection)
+  const [lagDirection, setLagDirection] = useState<"a_leads_b" | "b_leads_a" | "auto">(RELATIONSHIP_DEFAULTS.lagDirection)
   const [minimumObservations, setMinimumObservations] = useState(String(RELATIONSHIP_DEFAULTS.minimumObservations))
   const [maximumLag, setMaximumLag] = useState(String(RELATIONSHIP_DEFAULTS.maximumLag))
   const [result, setResult] = useState<DatasetRelationship | null>(null)
@@ -414,8 +414,8 @@ function RelationshipsWorkspace() {
   function changeRelationshipDirection(direction: string) {
     if (direction === "legacy_fixed") return
     changeAnalysisSetting(() => {
-      setLagMode(direction === "same_period" ? "manual" : "automatic")
-      setLagDirection(direction === "b_leads_a" ? "b_leads_a" : "a_leads_b")
+      setLagMode("automatic")
+      setLagDirection(direction === "b_leads_a" ? "b_leads_a" : direction === "a_leads_b" ? "a_leads_b" : "auto")
       setLagPeriods("0")
     })
   }
@@ -427,7 +427,7 @@ function RelationshipsWorkspace() {
     setLeftMetric(relationship.left.metric_column); setRightMetric(relationship.right.metric_column)
     setName(relationship.name); setPeriod(relationship.period); setAggregation(relationship.aggregation)
     setMethod(relationship.method); setLagMode(relationship.lag_mode || "manual"); setLagPeriods(String(relationship.lag_periods))
-    setLagDirection(relationship.lag_direction ?? RELATIONSHIP_DEFAULTS.lagDirection)
+    setLagDirection(relationship.direction_setting ?? relationship.lag_direction ?? RELATIONSHIP_DEFAULTS.lagDirection)
     setMinimumObservations(String(relationship.minimum_observations ?? RELATIONSHIP_DEFAULTS.minimumObservations))
     setMaximumLag(String(relationship.maximum_lag ?? RELATIONSHIP_DEFAULTS.maximumLag))
     setDimensionFilters(current => ({ ...current,
@@ -550,7 +550,7 @@ function RelationshipsWorkspace() {
                   <span className="text-sm font-medium text-gray-700">{t("Relationship direction")}</span>
                   <select
                     aria-label={t("Relationship direction")}
-                    value={lagMode === "automatic" ? lagDirection : Number(lagPeriods) > 0 ? "legacy_fixed" : "same_period"}
+                    value={lagMode === "automatic" ? lagDirection : "legacy_fixed"}
                     onChange={event => changeRelationshipDirection(event.target.value)}
                     className="h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
@@ -559,7 +559,7 @@ function RelationshipsWorkspace() {
                       `${datasets.find(item => String(item.id) === rightDatasetId)?.file_name || t("Dataset B")} / ${resolvedRightMetric}`,
                       t,
                     ).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    {lagMode === "manual" && Number(lagPeriods) > 0 && <option value="legacy_fixed">{t("Saved fixed lag")}: {lagPeriods} {t(formatPeriodUnit(period))}{Number(lagPeriods) === 1 ? "" : "s"}</option>}
+                    {lagMode === "manual" && <option value="legacy_fixed">{t("Saved fixed lag")}: {lagPeriods} {t(formatPeriodUnit(period))}{Number(lagPeriods) === 1 ? "" : "s"}</option>}
                   </select>
                 </label>
                 {lagMode === "automatic" && <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Maximum lag")}</span><input type="number" min={0} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={maximumLag} onChange={event => changeAnalysisSetting(() => setMaximumLag(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>}
@@ -587,6 +587,13 @@ function RelationshipsWorkspace() {
       {result && (
         <>
           <RelationshipResult relationship={result} />
+          <label className="block max-w-2xl space-y-2 text-sm">{t("Relationship direction")}
+            <select aria-label={t("Change preview direction")} value={result.lag_mode === "manual" ? "legacy_fixed" : result.direction_setting || lagDirection} disabled={busy}
+              onChange={event => changeRelationshipDirection(event.target.value)} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3">
+              {relationshipDirectionOptions(`${result.left_dataset_name} / ${result.left.metric_column}`, `${result.right_dataset_name} / ${result.right.metric_column}`, t).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {result.lag_mode === "manual" && <option value="legacy_fixed">{t("Saved fixed lag")}: {result.lag_periods}</option>}
+            </select>
+          </label>
           {!result.id && <button type="button" onClick={() => void handleSave()} disabled={busy || Boolean(issue)}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
             <Save size={16} />{t(busy ? "Saving..." : "Save relationship")}
@@ -790,6 +797,10 @@ function RelationshipResult({
           detail={hasLag && relationship.lag_periods > 0 ? relationshipPairLabel(relationship) : undefined}
         />
       </div>
+      {relationship.direction_suggestion && <div className="mt-4 space-y-1 text-sm">
+        <p className="break-words font-medium">{t("Relationship direction")}: {relationship.direction_suggestion.direction ? relationshipPairLabel(relationship) : t("Not established")}</p>
+        <p className="text-gray-600">{t(relationship.direction_suggestion.message)}</p>
+      </div>}
       {hasLag && relationship.lag_mode === "manual" && <p className="mt-3 text-xs text-gray-600">{t("Selected comparison, not an estimated delay.")}</p>}
       {hasLag && relationship.lag_mode !== "manual" && relationship.lag_credibility !== "credible" && <p className="mt-3 text-xs text-amber-800">{t("Tentative lag; the timing evidence is not yet dependable.")}</p>}
 

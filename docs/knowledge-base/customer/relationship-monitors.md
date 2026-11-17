@@ -21,13 +21,18 @@ fail to load, use Retry dataset columns.
 
 New analyses on both pages default to Spearman, daily grouping, Sum aggregation
 where applicable, 30 minimum historical observations, a maximum lag of 12 grouped
-periods, and same-period comparison. Correlation method, Minimum historical
+periods, and automatic direction. Correlation method, Minimum historical
 observations and Maximum lag are visible in Relationship analysis rather than
 hidden in advanced options. Valid deliberately saved settings are retained.
 
-Leave Relationship direction at Same-period comparison only to avoid positive-lag
-tests. Choose either named metric as the leader to evaluate zero through Maximum
-lag. Maximum lag is shown only for a directional search. Dataset labels and each
+Leave Relationship direction at Automatic (recommended) to suggest the leader.
+Marketing sources lead and sales sources follow. When those categories do not
+choose an order, Decisionate checks predictive timing in earlier and later history,
+accounting for trend and recurring calendar patterns where enough history exists.
+If the direction is not dependable, the result says Not established and shows a
+same-period comparison, not an invented leader. The preview explains the suggestion.
+Choose either named metric to override it and preview again before saving. A
+chosen direction evaluates zero through Maximum lag. Dataset labels and each
 source's dimension filter retain their original identities when the second
 metric leads. The 12-period maximum is the same for daily, weekly, monthly and
 quarterly grouping; it is not an automatic conversion into days.

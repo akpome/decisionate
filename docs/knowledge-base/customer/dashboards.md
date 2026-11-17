@@ -26,7 +26,12 @@ New or reset dataset-backed dashboard views default to 1 year. Available period
 choices are 1 month, 1 quarter, 6 months, 1 year, 2 years and 3 years. The former
 5-year and All options were removed; legacy views using them resolve to the
 one-year default. Other valid saved periods are retained. Forecasts and Reports
-have their own date controls.
+have their own date controls. End date defaults to today. Each period counts
+backward from that date: 1 month shows the month leading up to today, including
+today, not a month forward from the earliest record. Charts, KPI totals and anomaly
+checks use that same window. Set an earlier End date to review historical data;
+Reset range returns to a rolling year ending today. An old saved Start date does
+not become an End date. This applies to industry and shared dashboard views too.
 
 ## Targets, PDFs and sharing
 

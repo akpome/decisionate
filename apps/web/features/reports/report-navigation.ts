@@ -1,15 +1,14 @@
 import type { ReportScope } from "./types"
 
 export const reportSourceTabs = [
-  { href: "/business-analysis", label: "Relationships report" },
-  { href: "/business-analysis/combined", label: "Combined metrics report" },
+  { href: "/business-analysis", label: "Multi-dataset report" },
   { href: "/business-analysis/dataset", label: "Single dataset report" },
 ] as const
 
-export function reportPagePath(weekly = false, impact = false, scope: ReportScope = "multi", includeRelationships = true) {
+export function reportPagePath(weekly = false, impact = false, scope: ReportScope = "multi") {
   if (weekly) return "/weekly-reports"
   if (impact) return "/business-analysis/impact"
-  return scope === "single" ? "/business-analysis/dataset" : includeRelationships ? "/business-analysis" : "/business-analysis/combined"
+  return scope === "single" ? "/business-analysis/dataset" : "/business-analysis"
 }
 
 export function reportHistoryQuery(weekly = false, impact = false) {

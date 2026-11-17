@@ -55,11 +55,11 @@ for (const path of ["../app/dashboard/page.tsx", "../app/share/dashboard/page.ts
       && node.attributes.properties.some(attribute => attribute.name?.getText(ast) === "label" && attribute.initializer?.text === "Period")))
     test("resetting the business dashboard restores one year and the existing chart defaults", () => {
       const values = {}
-      const globals = Object.fromEntries(["PeriodFilter", "Aggregation", "AggregationType", "StartDate", "ScaleMode", "ChartType"]
+      const globals = Object.fromEntries(["PeriodFilter", "Aggregation", "AggregationType", "EndDate", "ScaleMode", "ChartType"]
         .map(name => [`set${name}`, value => { values[name] = value }]))
       const { handleResetView } = load(`${declaration("handleResetView")}\nexport { handleResetView }`, globals)
       handleResetView()
-      assert.deepEqual(values, { PeriodFilter: "1y", Aggregation: "monthly", AggregationType: "sum", StartDate: "", ScaleMode: "actual", ChartType: "line" })
+      assert.deepEqual(values, { PeriodFilter: "1y", Aggregation: "monthly", AggregationType: "sum", EndDate: "", ScaleMode: "actual", ChartType: "line" })
     })
   }
   menus.forEach((menu, index) => {

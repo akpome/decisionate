@@ -127,7 +127,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const relationships = !single && !definition.impact && definition.include_relationships !== false
   const singleDatasetId = single ? definition.metrics[0]?.dataset_id ?? selectedDatasetId : null
   const singleDataset = single ? datasets.find(dataset => dataset.dataset_id === singleDatasetId) : undefined
-  const pagePath = reportPagePath(weekly, impactPage, initialScope, includeRelationships)
+  const pagePath = reportPagePath(weekly, impactPage, initialScope)
   const pageTitle = weekly ? "Weekly Reports" : "Business Analysis"
   const setupLabel = weekly ? "Report setup" : impactPage ? "Assessment setup" : "Build analysis"
   const previewLabel = weekly ? "Report preview" : impactPage ? "Assessment preview" : "Analysis preview"
@@ -240,7 +240,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             const value = await waitForAnalysis<BusinessReport | { cross_dataset_report: BusinessReport } | WeeklyReportDeliveryResult>(
               (path, init) => correlationRequest(userId, `/business-reports${path}`, init, workspaceId),
               params.get("job")!, { signal: controller.signal, onUpdate: job => { if (current) {
-                const destination = reportPagePath(job.kind !== "report", Boolean(job.definition?.impact), job.definition?.scope, job.definition?.include_relationships)
+                const destination = reportPagePath(job.kind !== "report", Boolean(job.definition?.impact), job.definition?.scope)
                 if (destination !== pagePath) {
                   controller.abort()
                   router.replace(`${destination}?job=${encodeURIComponent(job.job_id)}`)
@@ -276,7 +276,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         } else if (params.get("report")) {
           const result = await correlationRequest<BusinessReport>(userId, `/business-reports/${encodeURIComponent(params.get("report")!)}`, { signal: controller.signal }, workspaceId)
           if (!current) return
-          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope, result.definition.include_relationships)
+          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope)
           if (destination !== pagePath) {
             router.replace(`${destination}?report=${encodeURIComponent(result.report_id!)}`)
             return
@@ -386,7 +386,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   function edit(patch: Partial<ReportDefinition>) {
     if (weekly && !canManage) return
     if (weekly) setWeeklyDirty(true)
-    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "excluded_pairs", "seasonal_business", "include_anomalies", "impact"].some(key => key in patch)
+    const analysisChanged = ["metrics", "dimension_filters", "date_range", "grain", "method", "filters", "lag", "pair_directions", "excluded_pairs", "seasonal_business", "include_anomalies", "include_relationships", "impact"].some(key => key in patch)
     const nextName = !weekly && report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
@@ -449,12 +449,13 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     } finally { setBusy(false) }
   }
 
-  async function calculate() {
+  async function calculate(override?: ReportDefinition) {
     if (analysisSubmission.current || previewDisabled) return
     analysisSubmission.current = true
     try { await execute(async () => {
       const signal = routeController.current?.signal
-      const payload = { ...(weekly ? weeklyDefinition(definition, weeklySettings?.history_window) : definition), business_question: definition.business_question.trim() || defaultReportQuestion(definition, weekly), dimension_filters: selectedReportDimensionFilters(definition), included_findings: null }
+      const selected = override || definition
+      const payload = { ...(weekly ? weeklyDefinition(selected, weeklySettings?.history_window) : selected), business_question: selected.business_question.trim() || defaultReportQuestion(selected, weekly), dimension_filters: selectedReportDimensionFilters(selected), included_findings: null }
       if (!weekly && payload.impact?.decision_id) {
         const context = await request<DecisionReviewContext>(`/review-decisions/${payload.impact.decision_id}`, { signal })
         Object.assign(payload, automaticImpactDefinition(payload, context, datasets), decisionReviewDetails(context.decision))
@@ -632,7 +633,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }
         void execute(async () => {
           const result = await request<BusinessReport>(`/${id}`)
-          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope, result.definition.include_relationships)
+          const destination = reportPagePath(Boolean(result.weekly_report), Boolean(result.definition.impact), result.definition.scope)
           if (destination !== pagePath) {
             router.push(`${destination}?report=${encodeURIComponent(id)}`)
             return
@@ -709,7 +710,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                   <h3 className="text-sm font-medium">{t("Anomaly detection")}</h3>
                   <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={definition.include_anomalies !== false} onChange={event => edit({ include_anomalies: event.target.checked })} />{t("Detect unusual changes")}</label>
                 </section>
-                {relationships && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3><div className="mt-3 space-y-3">
+                {!single && <section aria-label="Relationship analysis" className="border-y border-gray-100 py-3"><h3 className="text-sm font-medium">{t("Relationship analysis")}</h3>
+                  <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={relationships} onChange={event => edit({ include_relationships: event.target.checked, source_run_id: null, lag: { ...definition.lag, enabled: event.target.checked } })} />{t("Enable correlation analysis")}</label>
+                  {relationships && <div className="mt-3 space-y-3">
                   <label className="block text-xs text-gray-600">Correlation method<select className={input} value={definition.method} onChange={event => edit({ method: event.target.value as ReportDefinition["method"] })}><option value="spearman">Spearman (rank-based)</option><option value="pearson">Pearson (straight-line)</option></select></label>
                   <label className="block text-xs text-gray-600">{t("Minimum historical observations")}<input className={input} type="number" min={MINIMUM_RELATIONSHIP_OBSERVATIONS} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={definition.filters.minimum_observations} onChange={event => edit({ filters: { ...definition.filters, minimum_observations: Number(event.target.value) } })} /></label>
                   <section aria-label={t("Delay to check")} className="space-y-3"><h4 className="text-sm font-medium">{t("Delay to check")}</h4><label className="block text-xs text-gray-600">Maximum delay ({weekly ? "weeks" : { daily: "days", weekly: "weeks", monthly: "months", quarterly: "quarters" }[definition.grain]})<input className={input} type="number" min={definition.lag.minimum} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={definition.lag.maximum} onChange={event => edit({ lag: { ...definition.lag, maximum: Number(event.target.value) } })} /></label></section>
@@ -717,7 +720,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
                     onChange={(pair, direction) => edit({ pair_directions: definition.pair_directions.map(item => reportPairKey(item) === reportPairKey(pair) ? { ...item, direction } : item) })}
                     onRemove={pair => edit({ excluded_pairs: [...definition.excluded_pairs, pair] })}
                     onRestore={pair => edit({ excluded_pairs: definition.excluded_pairs.filter(item => unorderedReportPairKey(item) !== unorderedReportPairKey(pair)) })} />}
-                </div></section>}
+                </div>}</section>}
               </div>
               <p className="shrink-0 text-sm text-gray-600">{definition.metrics.length} metrics / {datasetCount} datasets{relationships && <> / {taskCount} relationship checks</>}</p>
               {previewIssue && <p id="report-preview-issue" role="status" className="shrink-0 text-sm text-amber-800">{t(previewIssue)}</p>}
@@ -748,7 +751,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <ReportAnomalies analysis={report.anomaly_analysis} enabled={report.definition.include_anomalies !== false} title={report.weekly_anomaly_analysis ? "Daily changes" : "Anomaly detection"} />
         {weekly && <WeeklyDecisionUpdate report={report} />}
         <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : relationships ? "Relationships between the selected metrics are checked separately." : report.definition.include_anomalies !== false ? "Anomaly detection results are shown separately." : "Review the available totals above."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
-        {relationships && <ReportRelationshipFindings report={report} />}
+        {relationships && <ReportRelationshipFindings report={report} busy={busy} onDirectionChange={weekly && !canManage ? undefined : (pair, direction) => {
+          const next = { ...definition, included_findings: null, pair_directions: definition.pair_directions.map(item => unorderedReportPairKey(item) === unorderedReportPairKey(pair) ? { ...pair, direction } : item) }
+          setDefinition(next); setReport(null)
+          if (weekly) setWeeklyDirty(true)
+          void calculate(next)
+        }} />}
         <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
         {report.impact_analysis && <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}

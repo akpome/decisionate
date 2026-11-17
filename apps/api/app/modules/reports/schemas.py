@@ -26,7 +26,7 @@ class ReportMetricPair(StrictModel):
 
 
 class ReportPairDirection(ReportMetricPair):
-    direction: Literal["a_leads_b", "b_leads_a", "same_period"]
+    direction: Literal["a_leads_b", "b_leads_a", "same_period", "auto"]
 
     @field_validator("direction", mode="before")
     @classmethod

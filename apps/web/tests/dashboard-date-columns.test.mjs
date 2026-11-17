@@ -69,7 +69,7 @@ test("changing a date keeps other mappings and dashboard scopes, while clearing 
       declaration("getNextDashboardMetricMapping"), declaration("handleDateColumnChange"), "export { handleDateColumnChange }",
     ].join("\n"), { dashboardDateColumns: ["date", "paid_date"], joinedDatasetResult: joined ? {} : null,
       currentMetricMapping: { primary: "spend", category: "region" }, dashboardMappingKey: "retail-performance:1",
-      setDashboardMetricMappings: update => { mappings = update(mappings) }, setStartDate: value => { start = value }, setTemporaryShareStatus() {} })
+      setDashboardMetricMappings: update => { mappings = update(mappings) }, setEndDate: value => { start = value }, setTemporaryShareStatus() {} })
     handleDateColumnChange(column)
     assert.equal(mappings.other.date, "created")
     if (column === "paid_date" && !joined) {

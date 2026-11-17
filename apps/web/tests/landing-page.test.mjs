@@ -10,6 +10,14 @@ const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8")
 
+test("landing navigation uses the same subtle divider as the page sections", () => {
+  assert.match(read("../components/landing/navbar.tsx"), /landing-nav[^\n]+border-b border-neutral-200/)
+  const sheet = require("postcss").parse(read("../components/landing/landing.css"))
+  sheet.walkRules(".landing-nav", rule => rule.walkDecls("border-bottom", declaration => {
+    assert.doesNotMatch(declaration.value, /brand-accent|2px|3px/)
+  }))
+})
+
 function load(path, overrides = {}) {
   const { outputText } = ts.transpileModule(read(path), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },

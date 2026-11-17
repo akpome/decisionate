@@ -86,13 +86,13 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         self.assertEqual(response.json()[0]["evidence"], saved["evidence"])
         self.assertEqual(response.json()[0]["left"], saved["left"])
 
-    def test_public_defaults_are_spearman_daily_same_period_with_52_observations_and_12_maximum_lag(self):
+    def test_public_defaults_are_spearman_daily_automatic_with_30_observations_and_12_maximum_lag(self):
         payload = self.payload()
         for setting in ("period", "method", "lag_mode", "lag_periods", "minimum_observations"):
             payload.pop(setting)
         result = self.save(payload)
         self.assertEqual((result["method"], result["period"], result["aggregation"], result["minimum_observations"], result["maximum_lag"], result["lag_mode"], result["lag_periods"]),
-                         ("spearman", "daily", "sum", 30, 12, "manual", 0))
+                         ("spearman", "daily", "sum", 30, 12, "automatic", 0))
         self.assertEqual(len(result["lag_candidates"]), 1)
         self.assertIsNone(result["correlation"])
         self.assertEqual(result["status"], "insufficient_data")
@@ -113,6 +113,15 @@ class RelationshipDimensionFilterTests(unittest.TestCase):
         self.assertEqual((scheduled[0]["minimum_observations"], scheduled[0]["maximum_lag"]), (30, 0))
         self.assertIsNone(scheduled[0]["correlation"])
         self.assertEqual((reopened["lag_direction"], scheduled[0]["lag_direction"]), ("b_leads_a", "b_leads_a"))
+
+    def test_automatic_direction_stays_automatic_after_saving_and_reopening(self):
+        payload = self.payload()
+        payload.update(lag_mode="automatic", lag_direction="auto")
+        saved = self.save(payload)
+        self.assertEqual(saved["direction_setting"], "auto")
+        response = self.client.get("/datasets/relationships")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()[0]["direction_setting"], "auto")
 
     def test_invalid_history_and_lag_settings_are_rejected_before_loading_sources(self):
         for settings in ({"minimum_observations": 23}, {"minimum_observations": 3654}, {"maximum_lag": -1},

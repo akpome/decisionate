@@ -22,6 +22,8 @@ const title = load("../features/decisions/lib/decision-title.ts")
 const { ReportRelationshipFindings, ReportDecisions } = load("../features/reports/report-evidence-sections.tsx", {
   "next/link": { __esModule: true, default: props => React.createElement("a", props) },
   "@/features/decisions/lib/decision-title": title,
+  "@/features/relationships/direction-options": load("../features/relationships/direction-options.ts"),
+  "./pair-directions": load("../features/reports/pair-directions.ts"),
   "@/features/decisions/lib/report-metric-scope": load("../features/decisions/lib/report-metric-scope.ts"),
 })
 const finding = {

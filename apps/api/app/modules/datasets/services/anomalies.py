@@ -301,6 +301,7 @@ def detect_dataset_anomalies(
     metric: str | None = None,
     date_column: str | None = None,
     start_date: str | None = None,
+    end_date: str | None = None,
     period_filter: str = "all",
     aggregation: str = "monthly",
     aggregation_type: str = "sum",
@@ -378,11 +379,22 @@ def detect_dataset_anomalies(
             f"Metric '{clean_metric}' is not numeric or was not found"
         )
 
+    source = dataframe
+    if end_date:
+        end = pd.to_datetime(end_date, errors="coerce", utc=True)
+        if pd.isna(end):
+            raise ValueError("End date is invalid")
+        dates = pd.to_datetime(dataframe[selected_date_column], errors="coerce", utc=True)
+        keep = dates < end.normalize() + pd.Timedelta(days=1)
+        months = {"1m": 1, "1q": 3, "6m": 6, "1y": 12, "2y": 24, "3y": 36, "5y": 60}.get(period_filter)
+        if months:
+            keep &= dates >= end.normalize() - pd.DateOffset(months=months) + pd.Timedelta(days=1)
+        source = dataframe.loc[keep]
     prepared_dataframe = prepare_forecast_dataframe(
-        dataframe,
+        source,
         selected_date_column,
         start_date,
-        period_filter,
+        "all" if end_date else period_filter,
         clean_aggregation,
         clean_aggregation_type,
     )
@@ -441,6 +453,7 @@ def detect_dataset_anomalies(
         "available_metrics": available_metrics,
         "period_filter": str(period_filter or "all"),
         "start_date": str(start_date) if start_date else None,
+        "end_date": str(end_date) if end_date else None,
         "aggregation": clean_aggregation,
         "aggregation_type": clean_aggregation_type,
         "sensitivity": clean_sensitivity,

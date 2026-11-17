@@ -493,6 +493,10 @@ def clean_dashboard_preferences(
             ):
                 clean_preference["startDate"] = clean_start_date
 
+        end_date = preference.get("endDate")
+        if isinstance(end_date, str) and is_dashboard_start_date(end_date.strip()):
+            clean_preference["endDate"] = end_date.strip()
+
         metric_mappings = preference.get(
             "metricMappings"
         )

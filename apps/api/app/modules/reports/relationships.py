@@ -3,6 +3,7 @@
 from itertools import combinations
 
 from app.modules.correlation.engine import compute_pair
+from app.modules.correlation.direction import resolve_direction
 
 
 def metric_key(reference):
@@ -36,7 +37,7 @@ def pair_direction(left, right, definition, lookup):
     policy = lookup.get(pair_key(left, right))
     if policy is None:
         # Older reports keep their original, selection-ordered direction.
-        return definition["lag"]["direction"] if definition.get("pair_directions") is None else "same_period"
+        return definition["lag"]["direction"] if definition.get("pair_directions") is None else "auto"
     mode = policy["direction"]
     if metric_key(policy["metric_a"]) != metric_key(left):
         mode = {"a_leads_b": "b_leads_a", "b_leads_a": "a_leads_b"}.get(mode, mode)
@@ -49,13 +50,21 @@ def report_test_count(definition):
     count = 0
     for left, right in report_pairs(definition):
         mode = pair_direction(left, right, definition, lookup)
-        count += 1 + (0 if mode == "same_period" else positive)
+        count += 1 + (0 if mode == "same_period" else positive * (2 if mode == "auto" else 1))
     return count
 
 
 def compute_report_pair(left, right, series, definition, lookup):
     mode = pair_direction(left, right, definition, lookup)
     lag = definition["lag"]
+    suggestion = {"direction": mode if mode != "same_period" else None, "source": "user_selected", "message": "Direction selected by you."}
+    if mode == "auto":
+        from app.modules.correlation.engine import metric_id
+        aligned = series[metric_id(left)].rename(columns={"value": "left_value"}).merge(
+            series[metric_id(right)].rename(columns={"value": "right_value"}), on="period", how="inner").sort_values("period").reset_index(drop=True)
+        suggestion = resolve_direction(left, right, aligned, maximum_lag=lag["maximum"] if lag["enabled"] else 0,
+                                       minimum_observations=definition["filters"]["minimum_observations"], grain=definition["grain"])
+        mode = suggestion["direction"] or "same_period"
     policy = {**definition, "lag": {**lag, "enabled": lag["enabled"] and mode != "same_period",
                                    "direction": mode if mode in {"a_leads_b", "b_leads_a"} else "a_leads_b"}}
-    return compute_pair(left, right, series, policy)
+    return [{**row, "direction_suggestion": suggestion} for row in compute_pair(left, right, series, policy)]

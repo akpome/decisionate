@@ -115,7 +115,7 @@ class ReportPairDirectionTests(unittest.TestCase):
     def test_exclusion_identity_uses_both_dataset_and_metric(self):
         payload = definition(excluded_pairs=[excluded(A, B)])
         payload["metrics"].append({**key(1, "orders"), "date_column": "date", "aggregation": "sum"})
-        self.assertEqual(report_test_count(payload), 10)
+        self.assertEqual(report_test_count(payload), 22)
 
     def test_schema_rejects_unknown_same_dataset_and_duplicate_exclusions(self):
         for policies in ([excluded(A, (99, "spend"))], [excluded(A, A)], [excluded(A, B), excluded(B, A)]):
@@ -155,15 +155,16 @@ class ReportPairDirectionTests(unittest.TestCase):
         self.assertEqual(report["definition"]["pair_directions"], [policy(B, C, "same_period")])
         self.assertEqual(payload, original)
 
-    def test_new_pairs_default_to_one_same_period_test_even_when_timing_is_enabled(self):
+    def test_new_pairs_use_automatic_direction_with_a_bounded_search(self):
         payload = definition()
         payload["pair_directions"] = []
         payload["lag"]["maximum"] = 12
         with patch.object(engine, "_calculate_lag_result", wraps=engine._calculate_lag_result) as calculate:
             report = build_report(frames(), payload)
-        self.assertEqual(report_test_count(payload), 3)
-        self.assertEqual(calculate.call_count, 3)
-        self.assertTrue(all(item["lag"] == 0 for item in report["findings"]))
+        self.assertEqual(report_test_count(payload), 75)
+        self.assertGreaterEqual(calculate.call_count, 3)
+        self.assertTrue(all(0 <= item["lag"] <= 12 for item in report["findings"]))
+        self.assertTrue(all(item["direction_suggestion"] for item in report["findings"]))
 
     def test_explicit_leader_tests_zero_through_maximum_in_only_that_direction(self):
         payload = definition()
@@ -259,7 +260,7 @@ class ReportPairDirectionTests(unittest.TestCase):
         payload["pair_directions"] = [policy(B, C, "both")]
         self.assertEqual(ReportDefinition(**payload).model_dump()["pair_directions"], [policy(B, C, "same_period")])
         directions = ReportDefinition.model_json_schema()["$defs"]["ReportPairDirection"]["properties"]["direction"]["enum"]
-        self.assertEqual(set(directions), {"a_leads_b", "b_leads_a", "same_period"})
+        self.assertEqual(set(directions), {"a_leads_b", "b_leads_a", "same_period", "auto"})
 
     def test_weekly_template_reuses_pair_directions_and_drops_only_missing_source_pairs(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
@@ -359,8 +360,9 @@ class ReportPairDirectionRouteTests(unittest.TestCase):
                 response = self.client.post(path, json=payload)
             self.assertIn(response.status_code, (200, 201), response.text)
             self.assertEqual(response.json()["definition"]["pair_directions"], [policy(A, B, "same_period")])
-            self.assertEqual(calculate.call_count, 3)
-            self.assertTrue(all(item["lag"] == 0 for item in response.json()["findings"]))
+            self.assertGreaterEqual(calculate.call_count, 3)
+            same = next(item for item in response.json()["findings"] if {item["metric_a"]["dataset_id"], item["metric_b"]["dataset_id"]} == {1, 2})
+            self.assertEqual(same["lag"], 0)
 
     def test_explicit_direction_resource_budget_is_enforced_before_source_reads(self):
         payload = definition()
@@ -380,7 +382,7 @@ class ReportPairDirectionRouteTests(unittest.TestCase):
         payload = definition()
         payload["metrics"].append({"dataset_id": 1, "metric_key": "orders", "date_column": "date", "aggregation": "sum"})
         payload["pair_directions"] = []
-        self.assertEqual(report_test_count(payload), 5)
+        self.assertEqual(report_test_count(payload), 35)
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ test("new weekly settings have weekly units and independent same-period defaults
   assert.equal(value.grain, "weekly")
   assert.equal(value.filters.minimum_observations, 30)
   assert.equal(value.lag.maximum, 12)
-  assert.equal(value.pair_directions[0].direction, "same_period")
+  assert.equal(value.pair_directions[0].direction, "auto")
   assert.equal(types.editableDefinition({}).grain, "daily")
 })
 
@@ -73,7 +73,7 @@ test("copying nonweekly analysis preserves selected evidence but resets timing",
     assert.equal(value.grain, "weekly")
     assert.equal(value.lag.minimum, 0)
     assert.equal(value.lag.maximum, 12)
-    assert.equal(value.pair_directions[0].direction, "same_period")
+    assert.equal(value.pair_directions[0].direction, "auto")
     assert.deepEqual(value.date_range, history)
     assert.equal(value.metrics, metrics)
     assert.equal(value.dimension_filters, original.dimension_filters)

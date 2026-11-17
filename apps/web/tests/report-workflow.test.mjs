@@ -59,7 +59,7 @@ test("an optional question receives a valid purpose without changing user wordin
   assert.match(reportMetadataIssue({ ...value, name: " " }), /report name/)
   assert.equal(JSON.stringify(value), before)
   const source = read("../features/reports/report-workspace.tsx")
-  assert.match(source, /business_question: definition.business_question.trim\(\) \|\| defaultReportQuestion\(definition, weekly\)/)
+  assert.match(source, /business_question: selected.business_question.trim\(\) \|\| defaultReportQuestion\(selected, weekly\)/)
   assert.match(source, /if \(analysisSubmission.current \|\| previewDisabled\) return/)
   assert.match(source, /aria-describedby=\{!definition.impact && previewIssue \? "report-preview-issue"/)
   assert.ok(source.indexOf("<ReportMetricPicker") < source.indexOf("{reportDetails}"))
