@@ -246,7 +246,7 @@ test("unavailable correlation names the missing score and shows the saved observ
   assert.doesNotMatch(html, /Not available|Undetermined|undetermined|insufficient_data/)
   assert.match(html, /Lag \(observed\)/)
   assert.match(html, /Not established/)
-  assert.doesNotMatch(html, /in the same period|Best observed delay/)
+  assert.doesNotMatch(html, /0 \(same period\)|Best observed delay/)
   assert.match(html, /View timing evidence/)
   assert.match(html, /Not calculated/)
 })
@@ -278,6 +278,16 @@ test("valid positive, negative and zero correlation scores remain visible and ex
   for (const correlation of [null, undefined, NaN, Infinity]) {
     assert.match(relationshipResult({ status: "ready", correlation }), /More history needed/)
   }
+})
+
+test("relationship evidence explains the score and timing without suggesting returns or guaranteed results", () => {
+  const html = relationshipResult({ status: "ready", correlation: -.8, matched_period_count: 52, lag_periods: 2, lag_credibility: "credible" })
+  const visible = html.split("<details")[0]
+  for (const text of ["How closely the metrics move together", "Correlation runs from -1 to +1", "Near +1: rise and fall together",
+    "Near -1: move in opposite directions", "Near 0: no clear pattern in this test", "not a percentage, revenue earned per dollar or proof of cause",
+    "Lead means changes first", "Lag is the time between changes", "not a promise of when a future result will appear", "-0.80", "2 months"]) assert.ok(visible.includes(text), text)
+  assert.match(source, /this page compares relationships and does not run anomaly detection/)
+  assert.match(source, /One period is one day, week, month or quarter, according to Group by/)
 })
 
 test("limited automatic lag stays visible with its warning while manual lag stays explicit", () => {

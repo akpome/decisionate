@@ -484,6 +484,7 @@ function RelationshipsWorkspace() {
             <p className="mt-1 text-sm text-gray-500">
               {t("Decisionate calculates the relationship from aligned data. It does not imply that one metric caused the other.")}
             </p>
+            <p className="mt-2 text-xs leading-5 text-gray-600">{t("Anomaly detection looks for unusually high or low results within a metric. It is available in Business Analysis; this page compares relationships and does not run anomaly detection.")}</p>
           </div>
         </div>
 
@@ -545,6 +546,7 @@ function RelationshipsWorkspace() {
                 <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Minimum historical observations")}</span><input type="number" min={MINIMUM_RELATIONSHIP_OBSERVATIONS} max={MAXIMUM_RELATIONSHIP_OBSERVATIONS} required value={minimumObservations} onChange={event => changeAnalysisSetting(() => setMinimumObservations(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
               </div>
               <h4 className="text-sm font-medium">{t("Evaluate timing")}</h4>
+              <p className="text-xs leading-5 text-gray-600">{t("Lead means changes first. Lag is the time before the other metric changes. For example, spending may change before sales do; this does not prove the spending caused the sales.")}</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-gray-700">{t("Relationship direction")}</span>
@@ -564,6 +566,7 @@ function RelationshipsWorkspace() {
                 </label>
                 {lagMode === "automatic" && <label className="space-y-2"><span className="text-sm font-medium text-gray-700">{t("Maximum lag")}</span><input type="number" min={0} max={RELATIONSHIP_DEFAULTS.maximumLag} required value={maximumLag} onChange={event => changeAnalysisSetting(() => setMaximumLag(event.target.value))} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>}
               </div>
+              <p className="text-xs leading-5 text-gray-600">{t("Maximum lag sets how far apart to compare changes, not how long a result is guaranteed to take. One period is one day, week, month or quarter, according to Group by.")}</p>
             </fieldset>
 
             {issue && <p id="relationship-setup-issue" role="status" className="text-sm text-gray-600">{t(issue)}</p>}
@@ -763,6 +766,7 @@ function RelationshipResult({
         </div>
         <aside aria-label={t("Correlation coefficient")} className={`min-w-0 rounded-lg border px-4 py-3 ${relationshipTone(relationship)}`}>
           <p className="text-xs font-medium">{t("Correlation coefficient")}</p>
+          <p className="mt-1 text-xs leading-5">{t("How closely the metrics move together")}</p>
           <p className={`mt-1 font-semibold ${hasScore ? "text-2xl tabular-nums" : "text-base"}`}>
             {hasScore ? formatCorrelation(relationship.correlation) : t(unavailableCorrelationLabel(relationship))}
           </p>
@@ -782,6 +786,8 @@ function RelationshipResult({
         </aside>
       </div>
 
+      <p className="mt-3 text-xs leading-5 text-gray-600">{t("Correlation runs from -1 to +1. Near +1: rise and fall together. Near -1: move in opposite directions. Near 0: no clear pattern in this test. This is not a percentage, revenue earned per dollar or proof of cause.")}</p>
+
       {[relationship.left, relationship.right].map((side, index) => side.dimension_filter && <p key={index} className="mt-3 break-words text-sm text-gray-600">
         <span className="font-medium">{index === 0 ? relationship.left_dataset_name : relationship.right_dataset_name}</span> / {dimensionFilterLabel(side.dimension_filter)}
       </p>)}
@@ -797,6 +803,7 @@ function RelationshipResult({
           detail={hasLag && relationship.lag_periods > 0 ? relationshipPairLabel(relationship) : undefined}
         />
       </div>
+      <p className="mt-3 text-xs leading-5 text-gray-600">{t("Lead means changes first. Lag is the time between changes, not a promise of when a future result will appear. Zero means both were compared in the same period.")}</p>
       {relationship.direction_suggestion && <div className="mt-4 space-y-1 text-sm">
         <p className="break-words font-medium">{t("Relationship direction")}: {relationship.direction_suggestion.direction ? relationshipPairLabel(relationship) : t("Not established")}</p>
         <p className="text-gray-600">{t(relationship.direction_suggestion.message)}</p>

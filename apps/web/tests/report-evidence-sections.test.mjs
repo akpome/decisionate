@@ -103,6 +103,16 @@ test("coefficient and lag are visible without expanding the report details", () 
   }
 })
 
+test("relationship results explain lead, lag and correlation in business language without hiding the numbers", () => {
+  const html = renderFindings({ findings: [{ ...finding, eligible: true, coefficient: -.61, lag: 2, lead_metric: "visits" }] })
+  const visible = html.split("<details")[0]
+  for (const text of ["Lead means the metric that changes first", "Time between changes", "How closely the metrics move together",
+    "Near +1: rise and fall together", "Near -1: move in opposite directions", "Near 0: no clear pattern in this test",
+    "not a percentage or revenue earned per dollar", "does not prove", "not a promise of when a future result will appear", "-0.61", "2 days"]) {
+    assert.ok(visible.includes(text), text)
+  }
+})
+
 test("same-period results show zero lag but unavailable results do not imply zero", () => {
   const valid = renderFindings({ findings: [{ ...finding, eligible: true, coefficient: 0.7 }] })
   assert.match(valid, /0 \(same period\)/)

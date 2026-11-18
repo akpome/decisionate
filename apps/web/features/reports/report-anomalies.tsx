@@ -20,8 +20,10 @@ function statusLabel(metric: ReportAnomalyMetric) {
 export function ReportAnomalies({ analysis, title = "Anomaly detection", enabled = true }: { analysis?: ReportAnomalyAnalysis; title?: string; enabled?: boolean }) {
   return <section aria-label={title} className="min-w-0 space-y-4 border-t border-gray-200 pt-5">
     <h3 className="text-lg font-semibold">{title}</h3>
+    <p className="text-sm leading-6 text-gray-600">Anomaly detection looks for unusually high or low results compared with a metric&apos;s earlier history. A flag is a reason to check, not proof of a problem.</p>
     {!enabled ? <p className="text-sm text-gray-600">Anomaly detection is off for this report.</p> : !analysis ? <p className="text-sm text-gray-600">Anomaly detection was not recorded in this saved report.</p> : <>
       <p className="text-sm text-gray-600">Rolling history: up to {analysis.lookback_years} years / Seasonal adjustment: {analysis.seasonal_business ? "Enabled when supported" : "Off"}</p>
+      {analysis.seasonal_business && <p className="text-xs leading-5 text-gray-600">Expected busy and quiet seasons are taken into account when there is enough history to support the adjustment.</p>}
       {analysis.metrics.some(metric => metric.assessments) && <p className="text-sm text-gray-600">Whole week: {analysis.window.start} to {analysis.window.end}</p>}
       <ul className="min-w-0 list-none divide-y divide-gray-200" aria-label="Selected metric anomaly results">
         {analysis.metrics.map(metric => <li key={metric.metric_id} className="min-w-0 space-y-3 py-4 first:pt-0">

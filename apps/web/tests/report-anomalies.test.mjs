@@ -38,6 +38,19 @@ test("anomaly findings name the selected metric and disclose actual, expected, r
   assert.doesNotMatch(html, /<input|Create decision|checkbox/)
 })
 
+test("anomaly descriptions explain unusual results and make seasonal adjustment conditional", () => {
+  const html = render(analysis)
+  assert.match(html, /unusually high or low results/)
+  assert.match(html, /earlier history/)
+  assert.match(html, /not proof of a problem/)
+  assert.match(html, /Expected busy and quiet seasons/)
+  assert.match(html, /when there is enough history/)
+  for (const value of [undefined, { ...analysis, seasonal_business: false }]) assert.doesNotMatch(render(value), /Expected busy and quiet seasons/)
+  const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.match(source, /Lead means changes first\. Lag is the time before the other metric changes/)
+  assert.match(source, /Maximum delay sets how far apart to compare the changes/)
+})
+
 test("every selected metric has its own result without claiming insufficient history means no anomalies", () => {
   const html = render({ ...analysis, metrics: [metric, { ...metric, metric_id: "2:orders", label: "Orders", dataset_label: "Shop", status: "insufficient_history", observations: 7, evaluated_observations: 0, anomaly_count: 0, anomalies: [], baselines: [], warnings: ["Annual seasonality could not be validated."] }] })
   assert.match(html, /Shop \/ Orders/)

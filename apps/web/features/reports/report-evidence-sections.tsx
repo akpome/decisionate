@@ -14,6 +14,8 @@ export function ReportRelationshipFindings({ report, busy = false, onDirectionCh
   const findings = report.findings.filter(finding => included.has(finding.id))
   return <section className="space-y-3 border-t border-gray-200 pt-5" aria-label="Relationship findings">
     <h3 className="text-lg font-semibold">Relationship findings</h3>
+    <p className="text-sm leading-6 text-gray-600">Lead means the metric that changes first. Lag is the time between its change and the other metric&apos;s change. For example, spending may change before sales do; this does not prove the spending caused the sales.</p>
+    <p className="text-xs leading-5 text-gray-600">Correlation runs from -1 to +1. Near +1: rise and fall together. Near -1: move in opposite directions. Near 0: no clear pattern in this test. This is not a percentage or revenue earned per dollar.</p>
     {findings.length === 0 ? <p className="text-sm text-gray-500">No relationship findings included in this report.</p>
       : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => {
         const pair = {
@@ -119,9 +121,11 @@ function Finding({ finding, grain }: { finding: ReportFinding; grain?: string })
       : finding.coefficient! >= 0 ? "These results tended to rise and fall together." : "When one result rose, the other tended to fall."
   return <><span className="block break-words text-sm font-semibold">{finding.metric_a.dataset_label} / {finding.metric_a.label} <span className="font-normal text-gray-500">and</span> {finding.metric_b.dataset_label} / {finding.metric_b.label}</span>
     <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-[12rem_minmax(0,1fr)]" aria-label="Correlation statistics">
-      <div className="min-w-0"><dt className="text-xs text-gray-500">Correlation coefficient</dt><dd className="mt-1 font-semibold tabular-nums">{hasCoefficient ? finding.coefficient!.toFixed(2) : "Not calculated"}</dd></div>
-      <div className="min-w-0"><dt className="text-xs text-gray-500">Lag (observed)</dt><dd className="mt-1 font-semibold">{hasLag ? formatFindingLag(finding, grain) : "Not established"}</dd>
+      <div className="min-w-0"><dt className="text-xs text-gray-500">Correlation coefficient<span className="mt-1 block text-gray-600">How closely the metrics move together</span></dt><dd className="mt-1 font-semibold tabular-nums">{hasCoefficient ? finding.coefficient!.toFixed(2) : "Not calculated"}</dd>
+      </div>
+      <div className="min-w-0"><dt className="text-xs text-gray-500">Lag (observed)<span className="mt-1 block text-gray-600">Time between changes</span></dt><dd className="mt-1 font-semibold">{hasLag ? formatFindingLag(finding, grain) : "Not established"}</dd>
         {hasLag && finding.lag > 0 && leader && <p className="mt-1 break-words text-xs text-gray-600">{leader.dataset_label} / {leader.label} precedes {follower.dataset_label} / {follower.label}.</p>}
+        <dd className="mt-1 text-xs leading-5 text-gray-600">Lag is not a promise of when a future result will appear. Zero means both were compared in the same period.</dd>
       </div>
     </dl>
     {finding.direction_suggestion && <div className="mt-3 space-y-1 text-sm">

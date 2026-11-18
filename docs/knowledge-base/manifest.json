@@ -932,12 +932,16 @@
         "What decision can a relationship support?"
       ],
       "routes": [
-        "/business-analysis"
+        "/business-analysis",
+        "/relationships"
       ],
       "sources": [
         "apps/api/app/modules/reports/relationships.py",
         "apps/api/app/modules/reports/service.py",
         "apps/api/app/modules/correlation/engine.py",
+        "apps/web/app/dashboard/relationships/page.tsx",
+        "apps/web/features/reports/report-evidence-sections.tsx",
+        "apps/web/features/reports/report-anomalies.tsx",
         "docs/CROSS_DATASET_REPORTS.md"
       ],
       "related": [
@@ -946,6 +950,12 @@
         "decisions-outcomes"
       ],
       "section_questions": {
+        "Terms in plain language": [
+          "What does lead mean?",
+          "What does lag mean?",
+          "What is the correlation coefficient?",
+          "What does anomaly detection mean?"
+        ],
         "Which spending moves with revenue, and which gives better value?": [
           "Is the strongest ad spend correlation the best return per dollar?",
           "Which ad spending correlates with revenue growth?"

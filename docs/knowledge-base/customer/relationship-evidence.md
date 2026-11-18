@@ -5,6 +5,29 @@ periods. Pearson measures linear association. Spearman measures rank-based
 monotonic association. Neither method proves causation or a complete business
 explanation.
 
+## Terms in plain language
+
+Business Analysis and Relationships include plain-language descriptions beside
+the controls and results. Lead means the metric that changes first; lag is the
+time between its change and the other metric's change. An observed lag is not a
+promise of when a future business result will appear. A maximum lag or delay is
+the furthest timing gap to test, measured in the selected grouping's days, weeks,
+months or quarters, not a promised response time.
+
+The correlation coefficient describes how closely the two metrics move together.
+Near +1 means they tend to rise and fall together; near -1 means they tend to
+move in opposite directions. Near zero means no clear pattern of the kind tested.
+It is not a percentage change, revenue per dollar, or proof that one metric
+caused the other to change. Existing reliability and missing-history warnings
+still apply even when a coefficient is shown.
+
+Anomaly detection is a different check: unusually high or low results within a
+metric compared with its earlier history. A flag is a reason to check, not proof
+of a problem. Expected busy and quiet seasons are considered only when seasonal
+adjustment is enabled and supported by enough history. Business Analysis runs
+these checks when enabled; Relationships explains the distinction but does not
+run anomaly detection.
+
 ## Read the evidence
 
 Business Analysis and Weekly Reports display the Correlation coefficient and Lag
