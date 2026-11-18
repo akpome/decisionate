@@ -14,7 +14,8 @@ import {
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
-import { dashboardCalendarDate, dashboardDateWindow, dashboardToday } from "@/features/dashboard/date-window"
+import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } from "@/features/dashboard/date-window"
+import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { sameDimensionFilter, useDashboardDimensionData } from "@/features/dashboard/lib/use-dimension-data"
 import type { DimensionFilter } from "@/lib/api"
@@ -121,16 +122,6 @@ type ScaleMode = "actual" | "indexed"
 type DashboardTemplate = "executive" | "performance" | "comparison"
 type ShareAction = "share" | "stop"
 
-type PeriodFilter =
-  | "1m"
-  | "1q"
-  | "6m"
-  | "1y"
-  | "2y"
-  | "3y"
-  | "5y"
-  | "all"
-
 type MetricAggregation = DashboardAggregation
 type ValueAggregation = DashboardValueAggregation
 
@@ -186,10 +177,9 @@ type ReportSectionProps = {
   selectedMetrics: string[]
   chartType: ChartType
   scaleMode: ScaleMode
-  periodFilter: PeriodFilter
+  dateRange: DashboardDateRange
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
-  endDate: string
   primaryMetric: string
   selectedTarget: number
   latestValue: number
@@ -197,10 +187,9 @@ type ReportSectionProps = {
   targetMet: boolean
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
-  setPeriodFilter: (value: PeriodFilter) => void
+  setDateRange: (value: DashboardDateRange) => void
   setAggregation: (value: MetricAggregation) => void
   setAggregationType: (value: ValueAggregation) => void
-  setEndDate: (value: string) => void
   onResetView: () => void
   anomalies: DatasetAnomaliesResponse | null
   anomalyLoading: boolean
@@ -227,15 +216,6 @@ const chartTypes: ChartType[] = [
 const scaleModes: ScaleMode[] = [
   "actual",
   "indexed",
-]
-
-const periodFilters: PeriodFilter[] = [
-  "1m",
-  "1q",
-  "6m",
-  "1y",
-  "2y",
-  "3y",
 ]
 
 const dashboardTemplates: DashboardTemplate[] = [
@@ -513,8 +493,7 @@ export default function DashboardPage() {
   const [scaleMode, setScaleMode] =
     useState<ScaleMode>("actual")
 
-  const [periodFilter, setPeriodFilter] =
-    useState<PeriodFilter>("1y")
+  const [dateRange, setDateRange] = useState(() => dashboardDateRange())
 
   const [aggregation, setAggregation] =
     useState<MetricAggregation>("monthly")
@@ -541,10 +520,6 @@ export default function DashboardPage() {
     dashboardSubtitle,
     setDashboardSubtitle,
   ] = useState(defaultDashboardSubtitle)
-
-  const [endDate, setEndDate] =
-    useState("")
-  const rangeEndDate = endDate || dashboardToday()
 
   const [targets, setTargets] =
     useState<Record<string, number>>({})
@@ -1345,10 +1320,6 @@ export default function DashboardPage() {
             availableMetrics
           )
 
-        const safePeriodFilter =
-          getSavedPeriodFilter(
-            savedDashboardPreference.periodFilter
-          )
         const safeAggregation =
           getSavedAggregation(
             savedDashboardPreference.aggregation
@@ -1357,7 +1328,7 @@ export default function DashboardPage() {
           getSavedAggregationType(
             savedDashboardPreference.aggregationType
           )
-        const safeEndDate = getSafeEndDate(savedDashboardPreference.endDate)
+        const savedDateRange = dashboardDateRange(savedDashboardPreference)
 
         setDataset(data)
         setDimensionSelection({
@@ -1410,10 +1381,6 @@ export default function DashboardPage() {
           )
         )
 
-        setPeriodFilter(
-          safePeriodFilter
-        )
-
         setAggregation(safeAggregation)
 
         setAggregationType(safeAggregationType)
@@ -1441,7 +1408,7 @@ export default function DashboardPage() {
           )
         )
 
-        setEndDate(safeEndDate)
+        setDateRange(savedDateRange)
 
         setTargets(
           {
@@ -1987,16 +1954,14 @@ export default function DashboardPage() {
 
   const rows = useMemo(
     () =>
-      filterRowsByPeriod(
+      filterRowsByDateRange(
         allRows,
         xKey,
-        rangeEndDate,
-        periodFilter
+        dateRange
       ),
     [
       allRows,
-      periodFilter,
-      rangeEndDate,
+      dateRange,
       xKey,
     ]
   )
@@ -2005,16 +1970,12 @@ export default function DashboardPage() {
       getDashboardPeriodMetrics(
         metrics,
         rows,
-        endDate,
-        periodFilter,
         aggregationType
       ),
     [
       aggregationType,
       metrics,
-      periodFilter,
       rows,
-      endDate,
     ]
   )
   const aggregatedRows = useMemo(
@@ -2122,8 +2083,9 @@ export default function DashboardPage() {
           activeWorkspaceId,
           {
             dateColumn: analysisDateColumn,
-            endDate: rangeEndDate,
-            periodFilter,
+            startDate: dateRange.start,
+            endDate: dateRange.end,
+            periodFilter: "all",
             aggregation,
             aggregationType,
             sensitivity: "medium",
@@ -2162,10 +2124,9 @@ export default function DashboardPage() {
     dimensionBlocked,
     joinedDatasetResult,
     loading,
-    periodFilter,
+    dateRange,
     selectedDashboard,
     selectedDatasetId,
-    rangeEndDate,
     userId,
     xKey,
   ])
@@ -2318,9 +2279,9 @@ export default function DashboardPage() {
         aggregationType,
         chartType,
         scaleMode,
-        periodFilter,
         dashboardTemplate,
-        endDate,
+        startDate: dateRange.start,
+        endDate: dateRange.end,
         ...(Object.keys(
           savedDashboardMetricMappings
         ).length > 0
@@ -2352,12 +2313,11 @@ export default function DashboardPage() {
         dashboardSubtitle,
         dashboardTemplate,
         dashboardTitle,
-        periodFilter,
+        dateRange,
         scaleMode,
         savedDashboardChartTitles,
         joinedDatasetResult,
         selectedMetrics,
-        endDate,
         savedDashboardMetricMappings,
       ]
     )
@@ -2565,13 +2525,12 @@ export default function DashboardPage() {
     dashboardTemplate,
     dataset,
     loading,
-    periodFilter,
+    dateRange,
     scaleMode,
     selectedDatasetId,
     selectedMetrics,
     joinedDatasetResult,
     saveDashboardViewPreference,
-    endDate,
     selectedDashboard,
     userId,
   ])
@@ -2589,10 +2548,9 @@ export default function DashboardPage() {
     selectedMetrics,
     chartType,
     scaleMode,
-    periodFilter,
+    dateRange,
     aggregation,
     aggregationType,
-    endDate,
     primaryMetric,
     selectedTarget,
     latestValue,
@@ -2600,10 +2558,9 @@ export default function DashboardPage() {
     targetMet,
     setChartType,
     setScaleMode,
-    setPeriodFilter,
+    setDateRange,
     setAggregation,
     setAggregationType,
-    setEndDate,
     onResetView: handleResetView,
     anomalies: scopedAnomalies,
     anomalyLoading: dashboardAnomalyLoading,
@@ -2686,7 +2643,7 @@ export default function DashboardPage() {
       ...current,
       [dashboardMappingKey]: nextMapping,
     }))
-    setEndDate("")
+    setDateRange(dashboardDateRange())
     setTemporaryShareStatus(
       column
         ? "Date column updated."
@@ -2695,10 +2652,9 @@ export default function DashboardPage() {
   }
 
   function handleResetView() {
-    setPeriodFilter("1y")
+    setDateRange(dashboardDateRange())
     setAggregation("monthly")
     setAggregationType("sum")
-    setEndDate("")
     setScaleMode("actual")
     setChartType("line")
   }
@@ -2805,7 +2761,8 @@ export default function DashboardPage() {
               selections,
               start_date:
                 joinedDatasetResult.start_date ??
-                dashboardDateWindow(endDate, periodFilter).start,
+                dateRange.start,
+              end_date: joinedDatasetResult.end_date ?? dateRange.end,
               period_filter:
                 joinedDatasetResult.period_filter,
               aggregation: "monthly",
@@ -3194,8 +3151,8 @@ export default function DashboardPage() {
           dashboardKey={selectedDashboard}
           userId={userId}
           workspaceId={activeWorkspaceId}
-          startDate={dashboardDateWindow(endDate, periodFilter).start}
-          periodFilter={periodFilter}
+          startDate={dateRange.start}
+          endDate={dateRange.end}
           aggregation={aggregation}
           aggregationType={aggregationType}
           onJoinResult={handleJoinedDatasetResult}
@@ -3301,38 +3258,7 @@ export default function DashboardPage() {
             )}
           </div>
         <div className="col-span-full grid min-w-0 gap-2 rounded-lg border border-gray-200 bg-gray-50 px-0 py-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
-          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-            <span className="block">End date</span>
-            <input
-              type="date"
-              value={endDate || dashboardToday()}
-              max={dashboardToday()}
-              onChange={event =>
-                setEndDate(event.target.value)
-              }
-              className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-            />
-          </label>
-
-          <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
-            <span className="block">Period</span>
-            <select
-              value={periodFilter}
-              onChange={event =>
-                setPeriodFilter(
-                  event.target.value as PeriodFilter
-                )
-              }
-              className="h-9 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-[var(--decisionate-brand-primary)] focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-            >
-              <option value="1m">1 month</option>
-              <option value="1q">1 quarter</option>
-              <option value="6m">6 months</option>
-              <option value="1y">1 year</option>
-              <option value="2y">2 years</option>
-              <option value="3y">3 years</option>
-            </select>
-          </label>
+          <DashboardDateInputs range={dateRange} onChange={setDateRange} />
 
           <label className="min-w-0 space-y-1 text-xs font-medium text-gray-500">
             <span className="block">Group by</span>
@@ -3380,7 +3306,7 @@ export default function DashboardPage() {
           </button>
 
           <p className="col-span-full truncate text-xs text-gray-500">
-            Showing {formatPeriodLabel(periodFilter)} through {endDate || dashboardToday()}
+            Showing {dateRange.start} to {dateRange.end}
           </p>
         </div>
       </div>
@@ -3398,7 +3324,7 @@ export default function DashboardPage() {
                 Dataset selection
               </h2>
               <p className="mt-1 text-xs text-gray-500">
-                Choose the dataset, period, grouping, and aggregation used by this dashboard.
+                Choose the dataset, date range, grouping, and aggregation used by this dashboard.
               </p>
             </div>
             {dashboardControls}
@@ -3471,8 +3397,8 @@ export default function DashboardPage() {
             dashboardKey={selectedDashboard}
             userId={userId}
             workspaceId={activeWorkspaceId}
-            startDate={dashboardDateWindow(endDate, periodFilter).start}
-            periodFilter={periodFilter}
+            startDate={dateRange.start}
+            endDate={dateRange.end}
             aggregation={aggregation}
             aggregationType={aggregationType}
             onJoinResult={handleJoinedDatasetResult}
@@ -4198,10 +4124,7 @@ function DashboardPrintPage({
               </h3>
 
               <p className="mt-1 text-xs text-gray-500">
-                {formatPeriodLabel(
-                  props.periodFilter
-                )}{" "}
-                view
+                {props.dateRange.start} to {props.dateRange.end}
                 {props.scaleMode === "indexed"
                   ? " · indexed scale"
                   : ""}
@@ -4438,17 +4361,15 @@ function PerformanceTemplate(
           <DashboardControls
             chartType={props.chartType}
             scaleMode={props.scaleMode}
-            periodFilter={props.periodFilter}
+            dateRange={props.dateRange}
             aggregation={props.aggregation}
             aggregationType={props.aggregationType}
-            endDate={props.endDate}
             selectedMetrics={props.selectedMetrics}
             setChartType={props.setChartType}
             setScaleMode={props.setScaleMode}
-            setPeriodFilter={props.setPeriodFilter}
+            setDateRange={props.setDateRange}
             setAggregation={props.setAggregation}
             setAggregationType={props.setAggregationType}
-            setEndDate={props.setEndDate}
             onResetView={props.onResetView}
           />
 
@@ -4506,18 +4427,16 @@ function ComparisonTemplate({
   selectedMetrics,
   chartType,
   scaleMode,
-  periodFilter,
+  dateRange,
   aggregation,
   aggregationType,
-  endDate,
   primaryMetric,
   selectedTarget,
   setChartType,
   setScaleMode,
-  setPeriodFilter,
+  setDateRange,
   setAggregation,
   setAggregationType,
-  setEndDate,
   onResetView,
   anomalies,
   anomalyLoading,
@@ -4571,17 +4490,15 @@ function ComparisonTemplate({
         <DashboardControls
           chartType={chartType}
           scaleMode={scaleMode}
-          periodFilter={periodFilter}
+          dateRange={dateRange}
           aggregation={aggregation}
           aggregationType={aggregationType}
-          endDate={endDate}
           selectedMetrics={selectedMetrics}
           setChartType={setChartType}
           setScaleMode={setScaleMode}
-          setPeriodFilter={setPeriodFilter}
+          setDateRange={setDateRange}
           setAggregation={setAggregation}
           setAggregationType={setAggregationType}
-          setEndDate={setEndDate}
           onResetView={onResetView}
         />
 
@@ -4637,10 +4554,9 @@ function ReportSection({
   selectedMetrics,
   chartType,
   scaleMode,
-  periodFilter,
+  dateRange,
   aggregation,
   aggregationType,
-  endDate,
   primaryMetric,
   selectedTarget,
   latestValue,
@@ -4648,10 +4564,9 @@ function ReportSection({
   targetMet,
   setChartType,
   setScaleMode,
-  setPeriodFilter,
+  setDateRange,
   setAggregation,
   setAggregationType,
-  setEndDate,
   onResetView,
   anomalies,
   anomalyLoading,
@@ -4712,17 +4627,15 @@ function ReportSection({
           <DashboardControls
             chartType={chartType}
             scaleMode={scaleMode}
-            periodFilter={periodFilter}
+            dateRange={dateRange}
             aggregation={aggregation}
             aggregationType={aggregationType}
-            endDate={endDate}
             selectedMetrics={selectedMetrics}
             setChartType={setChartType}
             setScaleMode={setScaleMode}
-            setPeriodFilter={setPeriodFilter}
+            setDateRange={setDateRange}
             setAggregation={setAggregation}
             setAggregationType={setAggregationType}
-            setEndDate={setEndDate}
             onResetView={onResetView}
           />
 
@@ -4839,32 +4752,28 @@ function ReportSection({
 function DashboardControls({
   chartType,
   scaleMode,
-  periodFilter,
+  dateRange,
   aggregation,
   aggregationType,
-  endDate,
   selectedMetrics,
   setChartType,
   setScaleMode,
-  setPeriodFilter,
+  setDateRange,
   setAggregation,
   setAggregationType,
-  setEndDate,
   onResetView,
 }: {
   chartType: ChartType
   scaleMode: ScaleMode
-  periodFilter: PeriodFilter
+  dateRange: DashboardDateRange
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
-  endDate: string
   selectedMetrics: string[]
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
-  setPeriodFilter: (value: PeriodFilter) => void
+  setDateRange: (value: DashboardDateRange) => void
   setAggregation: (value: MetricAggregation) => void
   setAggregationType: (value: ValueAggregation) => void
-  setEndDate: (value: string) => void
   onResetView: () => void
 }) {
   return (
@@ -4897,21 +4806,7 @@ function DashboardControls({
         ]}
       />
 
-      <CompactSelect
-        label="Period"
-        value={periodFilter}
-        onChange={(value) =>
-          setPeriodFilter(value as PeriodFilter)
-        }
-        options={[
-          ["1m", "1M"],
-          ["1q", "1Q"],
-          ["6m", "6M"],
-          ["1y", "1Y"],
-          ["2y", "2Y"],
-          ["3y", "3Y"],
-        ]}
-      />
+      <DashboardDateInputs range={dateRange} onChange={setDateRange} compact />
 
       <CompactSelect
         label="Group by"
@@ -4942,30 +4837,14 @@ function DashboardControls({
         ]}
       />
 
-      <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs sm:h-9 sm:w-auto sm:px-2">
-        <span className="whitespace-nowrap font-medium text-gray-500">
-          End date
-        </span>
-
-        <input
-          type="date"
-          value={endDate || dashboardToday()}
-          max={dashboardToday()}
-          onChange={(event) =>
-            setEndDate(event.target.value)
-          }
-          className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none sm:flex-none"
-        />
-      </label>
-
       <div className="flex min-h-10 w-full flex-wrap items-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)] sm:min-h-9 sm:w-auto sm:py-0">
         Showing&nbsp;
         <span className="font-semibold">
-          {formatPeriodLabel(periodFilter)}
+          {dateRange.start}
         </span>
-        &nbsp;through&nbsp;
+        &nbsp;to&nbsp;
         <span className="font-semibold">
-          {endDate || dashboardToday()}
+          {dateRange.end}
         </span>
       </div>
 
@@ -6323,14 +6202,6 @@ function getSavedScaleMode(
     : "actual"
 }
 
-function getSavedPeriodFilter(
-  savedPeriodFilter: unknown
-): PeriodFilter {
-  return isSavedPeriodFilter(savedPeriodFilter)
-    ? savedPeriodFilter
-    : "1y"
-}
-
 function getSavedAggregation(
   savedAggregation: unknown
 ): MetricAggregation {
@@ -6402,15 +6273,6 @@ function isSavedScaleMode(
   )
 }
 
-function isSavedPeriodFilter(
-  value: unknown
-): value is PeriodFilter {
-  return (
-    typeof value === "string" &&
-    periodFilters.includes(value as PeriodFilter)
-  )
-}
-
 function isSavedAggregation(
   value: unknown
 ): value is MetricAggregation {
@@ -6443,10 +6305,6 @@ function isSavedDashboardTemplate(
       value as DashboardTemplate
     )
   )
-}
-
-function getSafeEndDate(savedEndDate: unknown) {
-  return typeof savedEndDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(savedEndDate) && savedEndDate <= dashboardToday() ? savedEndDate : ""
 }
 
 function getSharedDashboardConfig(): SharedDashboardConfig {
@@ -6571,11 +6429,10 @@ function buildIndexedRows(
   })
 }
 
-function filterRowsByPeriod(
+function filterRowsByDateRange(
   rows: DashboardRow[],
   xKey: string,
-  endDate: string,
-  period: PeriodFilter
+  range: DashboardDateRange
 ) {
   if (rows.length === 0) return []
 
@@ -6590,14 +6447,13 @@ function filterRowsByPeriod(
         ),
     }))
 
-  const window = dashboardDateWindow(endDate, period)
-  const firstDate = window.start ? new Date(`${window.start}T00:00:00`) : null
-  const periodEnd = new Date(`${window.end}T00:00:00`)
+  const firstDate = new Date(`${range.start}T00:00:00`)
+  const periodEnd = new Date(`${range.end}T00:00:00`)
   periodEnd.setDate(periodEnd.getDate() + 1)
 
   return normalizedRows.filter((row) => {
     return (
-      (!firstDate || row.__periodDate >= firstDate) &&
+      row.__periodDate >= firstDate &&
       row.__periodDate < periodEnd
     )
   })
@@ -6831,8 +6687,6 @@ function getRowPeriodStartDate(
 function getDashboardPeriodMetrics(
   metrics: DashboardMetric[],
   rows: DashboardRow[],
-  endDate: string,
-  periodFilter: PeriodFilter,
   aggregationType: ValueAggregation
 ) {
   return metrics.map(metric => {
@@ -6850,27 +6704,12 @@ function getDashboardPeriodMetrics(
         )
       }
     })
-    const datasetValue =
-      periodFilter === "all" && !endDate
-        ? aggregationType === "sum"
-          ? metric.total
-          : aggregationType === "avg"
-            ? metric.average
-              : aggregationType === "min"
-                ? metric.min ?? metric.minimum
-                : aggregationType === "max"
-                  ? metric.max ?? metric.maximum
-                  : metric.count
-        : undefined
     const total = state
       ? finalizeSummaryAggregation(
         state,
         aggregationType
       )
-      : typeof datasetValue === "number" &&
-        Number.isFinite(datasetValue)
-        ? datasetValue
-        : 0
+      : 0
     const average = state?.policyAggregation && state.policyAggregation !== "SUM"
       ? finalizeSummaryAggregation(state, aggregationType) ?? 0
       : state && state.count > 0
@@ -7659,21 +7498,4 @@ function copyTextWithSelection(text: string) {
   } finally {
     textarea.parentNode?.removeChild(textarea)
   }
-}
-
-function formatPeriodLabel(
-  period: PeriodFilter
-) {
-  const labels: Record<PeriodFilter, string> = {
-    "1m": "1 month",
-    "1q": "1 quarter",
-    "6m": "6 months",
-    "1y": "1 year",
-    "2y": "2 years",
-    "3y": "3 years",
-    "5y": "5 years",
-    all: "all available data",
-  }
-
-  return labels[period]
 }

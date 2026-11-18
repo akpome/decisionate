@@ -52,6 +52,7 @@ class DatasetJoinRequest(BaseModel):
         max_length=5,
     )
     start_date: date | None = None
+    end_date: date | None = None
     period_filter: Literal[
         "1m",
         "1q",
@@ -76,6 +77,12 @@ class DatasetJoinRequest(BaseModel):
         "max",
     ] = "sum"
     dashboard_key: str | None = None
+
+    @model_validator(mode="after")
+    def validate_date_range(self):
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("Start date must be on or before end date")
+        return self
 
 
 class DatasetRelationshipSelection(BaseModel):

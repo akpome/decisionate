@@ -128,7 +128,7 @@ const faqItems = [
   {
     question: "What is the default dashboard period?",
     answer:
-      "New and reset dashboard views use 1 year. Available dashboard periods are 1 month, 1 quarter, 6 months, 1 year, 2 years, and 3 years. The 5-year and All options have been removed; older saved views using either fall back to 1 year. Other valid saved periods are preserved. Reports and Forecasts have their own date controls.",
+      "All dashboards use Start date and End date. New views and Reset use the same calendar date last year through today, with both dates included. Choose exact dates to review another range. Saved custom dates are retained, and older saved periods reopen as equivalent dates. Reports and Forecasts have their own date controls.",
   },
   {
     question: "Where have Insights and dashboard Analysis moved?",
@@ -362,7 +362,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Select a dataset on General Business Overview, or open Dataset in an industry dashboard. Dataset and metric choices are saved for the dashboard where you are working.",
           "Choose the target metric on General Business Overview. Use Edit dashboard to change metric selections, targets, or industry chart mappings where available.",
           "Open Filters beside Edit dashboard, Dataset, or Compare data to choose the Date column and Dimension column. The selectors are aligned horizontally when space permits and stack on narrow screens.",
-          "End date defaults to today. Set an earlier End date, Period, Group by, and Aggregate in the chart controls or industry Dataset panel to review a historical window. A 1-month period counts backward through the selected end day. Charts, KPI totals and anomaly checks use the same dates. New views and Reset view or Reset range use 1 year ending today; other supported saved periods remain in place.",
+          "Start date and End date default to the same calendar date last year through today. Choose either date in the chart controls or industry Dataset panel. Both dates are included, and charts, KPI totals and anomaly checks use the same range. Reset view or Reset range restores the past year through today. Saved custom dates are retained, and older saved periods reopen as equivalent dates.",
           "Use the chart action controls to expand a chart, save a PDF, or share the dashboard when those controls are available.",
         ],
       },
@@ -397,7 +397,7 @@ const referenceChapters: ReferenceChapter[] = [
       },
     ],
     notes: [
-      "Dashboard Period offers 1 month, 1 quarter, 6 months, 1 year, 2 years, and 3 years. The 5-year and All periods are no longer selectable; saved views using them reopen at 1 year.",
+      "All dashboards use Start date and End date instead of a Period selector. The default is the past year through today, not the calendar year starting in January. Group by and Aggregate still control how records within those dates are summarized.",
       "Closing Filters does not clear its settings. Read the active dimension label and chart date labels before comparing dashboards or exports.",
       "Dashboards are not the entire product. Their purpose is to make evidence understandable before a decision is recorded.",
       "The available chart types depend on the dashboard definition, source columns, data cardinality, and selected mappings.",

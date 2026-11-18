@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react"
 
-import { deleteDataset, deleteDatasetJoinCache, getDatasetJoinMetadata, joinDatasets, type DatasetJoinMetadata, type DatasetJoinResult, type DatasetJoinSelection, type DatasetSummary, type DashboardAggregation, type DashboardValueAggregation, type ForecastPeriodFilter } from "@/lib/api";
+import { deleteDataset, deleteDatasetJoinCache, getDatasetJoinMetadata, joinDatasets, type DatasetJoinMetadata, type DatasetJoinResult, type DatasetJoinSelection, type DatasetSummary, type DashboardAggregation, type DashboardValueAggregation } from "@/lib/api";
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
 
@@ -24,7 +24,7 @@ type DatasetJoinPanelProps = {
   userId?: string
   workspaceId?: string
   startDate?: string
-  periodFilter: ForecastPeriodFilter
+  endDate?: string
   aggregation: DashboardAggregation
   aggregationType: DashboardValueAggregation
   onJoinResult?: (
@@ -74,7 +74,7 @@ export function DatasetJoinPanel({
   userId,
   workspaceId,
   startDate,
-  periodFilter,
+  endDate,
   aggregation,
   aggregationType,
   onJoinResult,
@@ -460,7 +460,8 @@ export function DatasetJoinPanel({
               Boolean(item)
           ),
           start_date: startDate || undefined,
-          period_filter: periodFilter,
+          end_date: endDate || undefined,
+          period_filter: "all",
           aggregation: "monthly",
           aggregation_type: aggregationType,
           dashboard_key: dashboardKey,

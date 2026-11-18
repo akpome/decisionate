@@ -372,9 +372,16 @@ def _apply_window(
     dataframe: pd.DataFrame,
     start_date: str | None,
     period_filter: str | None,
+    end_date: str | None = None,
 ) -> pd.DataFrame:
     if dataframe.empty:
         return dataframe
+
+    if end_date:
+        parsed_end = pd.to_datetime(end_date, errors="coerce")
+        if pd.isna(parsed_end):
+            raise ValueError("End date is invalid")
+        dataframe = dataframe.loc[dataframe["join_date"] < parsed_end.normalize() + pd.Timedelta(days=1)]
 
     clean_period = str(period_filter or "all").strip().lower()
     parsed_start = None
@@ -413,6 +420,7 @@ def build_joined_dataset(
     period_filter: str | None = "all",
     aggregation: str = "monthly",
     aggregation_type: str = "sum",
+    end_date: str | None = None,
 ) -> dict:
     clean_aggregation = str(aggregation).strip().lower()
     if clean_aggregation not in JOIN_PERIODS:
@@ -647,6 +655,7 @@ def build_joined_dataset(
             working,
             effective_start_date,
             period_filter,
+            end_date,
         )
         working["period"] = _bucket_dates(
             working["join_date"],
@@ -804,6 +813,7 @@ def build_joined_dataset(
         "period": JOIN_NORMALIZATION_PERIOD,
         "aggregation_type": clean_aggregation_type,
         "start_date": effective_start_date,
+        **({"end_date": end_date} if end_date else {}),
         "period_filter": period_filter or "all",
         "matched_period_count": matched_period_count,
         "available_period_count": available_period_count,

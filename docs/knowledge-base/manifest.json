@@ -706,6 +706,7 @@
       ],
       "questions": [
         "Where are dashboard filters?",
+        "How do dashboard Start date and End date work?",
         "Why did All and 5 years disappear?",
         "Where is the dashboard Analysis tab?"
       ],
@@ -717,6 +718,7 @@
         "apps/web/features/dashboards/dashboard-definitions.ts",
         "apps/web/features/dashboard/components/dataset-selector.tsx",
         "apps/web/features/dashboard/date-window.ts",
+        "apps/web/features/dashboard/components/dashboard-date-inputs.tsx",
         "apps/web/components/searchable-select.tsx",
         "apps/web/app/dashboard/page.tsx",
         "apps/web/app/dashboard/help/page.tsx",

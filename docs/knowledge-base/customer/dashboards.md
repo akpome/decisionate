@@ -20,18 +20,23 @@ values narrow a segment. Date and dimension choices apply to the selected view;
 closing the tab does not clear them. Change grouping and aggregation only when
 appropriate to the actual measurement frequency and metric semantics.
 
-## Default period
+## Date range
 
-New or reset dataset-backed dashboard views default to 1 year. Available period
-choices are 1 month, 1 quarter, 6 months, 1 year, 2 years and 3 years. The former
-5-year and All options were removed; legacy views using them resolve to the
-one-year default. Other valid saved periods are retained. Forecasts and Reports
-have their own date controls. End date defaults to today. Each period counts
-backward from that date: 1 month shows the month leading up to today, including
-today, not a month forward from the earliest record. Charts, KPI totals and anomaly
-checks use that same window. Set an earlier End date to review historical data;
-Reset range returns to a rolling year ending today. An old saved Start date does
-not become an End date. This applies to industry and shared dashboard views too.
+All dashboards use Start date and End date instead of an End date plus a Period
+selector. A new or reset view starts on the same calendar date last year and
+ends today, using the browser's local calendar. This is the past year through
+today, not January 1 through today. On February 29 the previous-year start is
+clamped to February 28. Both boundary dates are included.
+
+Choose exact dates for a historical window. Charts, KPI totals, anomaly checks
+and newly joined data use the same range; records outside it are excluded. An
+empty range does not fall back to all-time totals. Group by and Aggregate still
+control the summary of records inside the range. Reset view or Reset range
+restores one year through today. Saved custom ranges reopen unchanged. Older
+saved period choices become equivalent explicit dates; retired or invalid
+preferences use the one-year default. An obsolete Start-only preference is not
+treated as a new custom range. This applies to industry and shared dashboards.
+Forecasts and Reports have their own date controls.
 
 ## Targets, PDFs and sharing
 

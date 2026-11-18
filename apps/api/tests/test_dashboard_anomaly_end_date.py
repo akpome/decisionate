@@ -7,6 +7,15 @@ from app.modules.datasets.services.anomalies import detect_dataset_anomalies
 
 
 class DashboardAnomalyEndDateTests(unittest.TestCase):
+    def test_explicit_start_and_end_use_exact_inclusive_dates_without_a_period(self):
+        frame = pd.DataFrame({"date": pd.date_range("2025-01-01", "2026-12-31"), "revenue": range(730)})
+        with patch("app.modules.datasets.services.anomalies._metric_result", return_value={"status": "ready", "anomaly_count": 0}) as scan:
+            detect_dataset_anomalies(frame, date_column="date", start_date="2026-02-11", end_date="2026-05-18", period_filter="all", aggregation="daily")
+        selected = scan.call_args.args[0]
+        self.assertEqual(str(selected.date.min().date()), "2026-02-11")
+        self.assertEqual(str(selected.date.max().date()), "2026-05-18")
+        self.assertEqual(len(selected), 97)
+
     def test_calendar_window_matches_chart_including_last_day_and_excluding_future(self):
         frame = pd.DataFrame({"date": pd.date_range("2026-09-01", "2026-12-01", freq="D"), "revenue": range(92)})
         with patch("app.modules.datasets.services.anomalies._metric_result", return_value={"status": "ready", "anomaly_count": 0}) as scan:

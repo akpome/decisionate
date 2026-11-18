@@ -4680,6 +4680,7 @@ def get_dataset_join_cache(
                 definition.get("period_filter", "all"),
                 definition.get("aggregation", "monthly"),
                 definition.get("aggregation_type", "sum"),
+                end_date=definition.get("end_date"),
             )
         else:
             result = cached_result
@@ -4874,6 +4875,7 @@ async def join_datasets(
             payload.period_filter,
             payload.aggregation,
             payload.aggregation_type,
+            end_date=str(payload.end_date) if payload.end_date else None,
         )
 
         if payload.dashboard_key:
@@ -4891,6 +4893,7 @@ async def join_datasets(
                 payload.period_filter,
                 payload.aggregation,
                 payload.aggregation_type,
+                end_date=str(payload.end_date) if payload.end_date else None,
             )
 
             cache = (

@@ -62,19 +62,21 @@ test("the API preference cleaner preserves General Business dates without adding
   assert.deepEqual(JSON.parse(JSON.stringify(cleaned)), { metricMappings: { "general-business": { date: "paid_date" } } })
 })
 
-test("changing a date keeps other mappings and dashboard scopes, while clearing an old date window", () => {
+test("changing a date keeps other mappings and dashboard scopes, while restoring the default date range", () => {
   for (const [column, joined] of [["paid_date", false], ["region", false], ["paid_date", true]]) {
-    let mappings = { other: { date: "created" } }, start = "2026-01-01"
+    let mappings = { other: { date: "created" } }, range = { start: "2026-01-01", end: "2026-01-31" }
+    const defaults = { start: "2025-11-18", end: "2026-11-18" }
     const { handleDateColumnChange } = load([
       declaration("getNextDashboardMetricMapping"), declaration("handleDateColumnChange"), "export { handleDateColumnChange }",
     ].join("\n"), { dashboardDateColumns: ["date", "paid_date"], joinedDatasetResult: joined ? {} : null,
       currentMetricMapping: { primary: "spend", category: "region" }, dashboardMappingKey: "retail-performance:1",
-      setDashboardMetricMappings: update => { mappings = update(mappings) }, setEndDate: value => { start = value }, setTemporaryShareStatus() {} })
+      setDashboardMetricMappings: update => { mappings = update(mappings) }, dashboardDateRange: () => defaults,
+      setDateRange: value => { range = value }, setTemporaryShareStatus() {} })
     handleDateColumnChange(column)
     assert.equal(mappings.other.date, "created")
     if (column === "paid_date" && !joined) {
       assert.deepEqual(JSON.parse(JSON.stringify(mappings["retail-performance:1"])), { primary: "spend", category: "region", date: "paid_date" })
-      assert.equal(start, "")
+      assert.equal(range, defaults)
     } else assert.equal(mappings["retail-performance:1"], undefined)
   }
 })

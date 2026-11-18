@@ -20,6 +20,7 @@ def build_join_definition(
     period_filter: str,
     aggregation: str,
     aggregation_type: str,
+    end_date: str | None = None,
 ):
     return {
         "join_version": JOIN_RESULT_VERSION,
@@ -37,6 +38,7 @@ def build_join_definition(
             )
         ],
         "start_date": start_date,
+        **({"end_date": end_date} if end_date else {}),
         "period_filter": period_filter,
         "aggregation": aggregation,
         "aggregation_type": aggregation_type,

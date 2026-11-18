@@ -454,6 +454,7 @@ export type DatasetJoinResult = {
   period: DashboardAggregation
   aggregation_type: DashboardValueAggregation
   start_date?: string | null
+  end_date?: string | null
   period_filter: ForecastPeriodFilter | "all"
   matched_period_count: number
   available_period_count: number
@@ -3653,6 +3654,7 @@ export async function joinDatasets(
   payload: {
     selections: DatasetJoinSelection[]
     start_date?: string
+    end_date?: string
     period_filter: ForecastPeriodFilter | "all"
     aggregation: DashboardAggregation
     aggregation_type: DashboardValueAggregation

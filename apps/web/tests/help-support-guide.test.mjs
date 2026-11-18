@@ -41,13 +41,13 @@ test("dashboard guidance documents the Filters tab and retained date and dimensi
   assert.match(page, /hidden=\{!showFiltersPanel\}/)
 })
 
-test("dashboard period guidance matches one-year defaults and removed five-year and All options", () => {
+test("dashboard date guidance matches the explicit one-year-to-date range", () => {
   const text = chapter("dashboards"), page = read("../app/dashboard/page.tsx")
-  assert.match(text, /1 month, 1 quarter, 6 months, 1 year, 2 years, and 3 years/)
-  assert.match(text, /saved views using them reopen at 1 year/)
-  assert.match(page, /useState<PeriodFilter>\("1y"\)/)
+  assert.match(text, /Start date and End date default to the same calendar date last year through today/)
+  assert.match(text, /Saved custom dates are retained/)
+  assert.match(page, /useState\(\(\) => dashboardDateRange\(\)\)/)
   assert.doesNotMatch(page, /<option value="5y"|<option value="all"|\["5y", "5Y"\]|\["all", "All"\]/)
-  assert.match(JSON.stringify(faqItems), /Other valid saved periods are preserved/)
+  assert.match(JSON.stringify(faqItems), /Start date and End date/)
 })
 
 test("Business Analysis is the documented analysis entry and date and dimension filtering is explained for each workflow", () => {
