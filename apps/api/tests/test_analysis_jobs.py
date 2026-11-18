@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from app.db.models import Dataset, IngestionWorkerHeartbeat, WeeklyReportDeliveryLog, WeeklyReportPreference, utc_now
+from app.db.models import AppUser, Dataset, IngestionWorkerHeartbeat, Organization, WeeklyReportDeliveryLog, WeeklyReportPreference, utc_now
 from app.infrastructure import analysis_worker as worker
 from app.modules.alerts import router as alerts
 from app.modules.reports import jobs
@@ -447,6 +447,8 @@ class AnalysisJobTests(unittest.TestCase):
 
     def weekly(self):
         with self.Session() as db:
+            db.add(AppUser(id="owner", email="owner@example.test"))
+            db.add(Organization(name="Owner workspace", owner_user_id="owner"))
             preference = WeeklyReportPreference(workspace_id="owner", enabled=1, cadence="weekly", delivery_day="monday",
                 recipient_emails='["owner@example.test"]', metric_focus='["1:spend","2:net_sales"]', include_recommendations=0)
             db.add(preference); db.commit()
@@ -537,7 +539,8 @@ class AnalysisJobTests(unittest.TestCase):
             job = db.get(ReportAnalysisJob, identity)
             job.kind, job.user_id = "weekly_send", "former-manager"
             db.commit()
-        with patch.object(auth_context, "verify_workspace_membership", return_value="viewer"), \
+        with patch.object(auth_context, "SessionLocal", self.Session), \
+             patch.object(auth_context, "verify_workspace_membership", return_value="viewer"), \
              patch.object(alerts, "send_weekly_report_email") as send:
             worker.execute_job(identity)
             with self.Session() as db:

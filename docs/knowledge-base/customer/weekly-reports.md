@@ -32,7 +32,10 @@ the current report is replaced. Sent-report history is recorded automatically
 for new deliveries; old delivery logs cannot reconstruct missing report contents.
 Removed pairs remain excluded
 from weekly relationship analysis, while their selected metrics still receive
-KPI and anomaly analysis. Saving settings does not enable sending or change recipients.
+KPI and anomaly analysis. Saving a weekly report enables automatic email to the
+workspace owner every Monday when the report has sufficient data. No recipient
+configuration is needed. Explicitly paused schedules remain paused when the
+report is edited; saving never sends an immediate email or changes additional addresses.
 
 In the preview, This week at a glance is followed by What deserves attention,
 before the detailed charts. Each priority finding includes its supported next
@@ -49,12 +52,15 @@ editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
 to three weeks. Preview and save the independent weekly setup before use.
 
-Use Scheduled email (also available from Alerts) to check recipients, delivery day,
+Use Scheduled email (also available from Alerts) to add optional additional addresses, change the delivery day,
 timezone, email readiness and delivery history. Save email settings updates only
 delivery preferences, not report selections. The status reflects the saved
-schedule; unsaved changes are labeled separately. Enable delivery only after
-confirming the intended audience. Opening this page does not run another analysis.
-A test email is a delivery check without report results, sent to saved recipients.
+schedule; unsaved changes are labeled separately. The workspace owner is always
+included, including the client owner in a managed client workspace. An owner
+listed among additional addresses receives only one copy. Automatic delivery can
+be paused. Opening this page does not run another analysis.
+A test email is a delivery check without report results or data requirements,
+sent to the workspace owner and any saved additional addresses, even while delivery is paused.
 Save recipient changes before testing. Successful saves clear their notice after
 five seconds; failures remain visible. Earlier metric-email selections and targets
 are preserved; new report content is configured and previewed in Weekly Reports.
@@ -178,17 +184,20 @@ remove its metrics. Weekly delivery still requires usable metrics from at least
 two datasets in the latest completed week.
 
 Preview report, review the results, then Save changes to update the workspace's
-single current weekly report. Saving does not enable delivery or send an email.
+single current weekly report. Owner delivery is enabled by default, but saving
+does not send an immediate email and preserves an explicitly paused schedule.
 For an on-demand report about one dataset or older dates, use Business Analysis.
 For routine delivery, check Scheduled email separately. A seasonal setting
 affects supported unusual-change baselines, not proof that two metrics are related.
 
 ## Why did saving my weekly report not send an email?
 
-Saving updates the current report and future weekly setup, but leaves delivery
-settings unchanged. Weekly report saved / Automatic email off means the report
-is saved and automatic sending is off. Use Scheduled email to review the
-schedule and recipients before enabling it.
+Saving updates the current report and future weekly setup. By default, the
+workspace owner receives it every Monday when the report has sufficient data;
+no email configuration is required. Saving does not send an immediate email.
+Weekly report saved / Automatic email off means an explicitly paused schedule
+remains paused. Use Scheduled email to resume it. This page also manages
+optional additional addresses and test emails; adding an owner address is unnecessary.
 
 An authorized manager can choose Email workspace owner after a successful preview and
 save with usable data for the required week. That one-time send goes to the

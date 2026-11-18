@@ -103,9 +103,11 @@ export default function TermsPage() {
           accounted for. Weekly reports analyze the latest complete week using
           up to three years of available history and the selected template&apos;s
           metrics, source date fields, dimension filters, and seasonal setting.
-          Manual report dates do not set the weekly history window. Choosing a
-          template does not itself enable email delivery or choose recipients;
-          configure those separately in Alerts.
+          Manual report dates do not set the weekly history window. Saving a weekly
+          report enables automatic delivery to the workspace owner by default,
+          when the report has sufficient data; explicitly paused delivery stays
+          paused. Additional recipients, delivery preferences and test emails
+          are managed in Scheduled email. Saving does not send an immediate email.
         </p>
         <p>
           Report analysis runs in background jobs that store submitted settings,

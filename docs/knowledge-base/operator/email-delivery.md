@@ -33,6 +33,18 @@ message and the current effective setting before making a categorical claim.
 
 ## Delivery evidence
 
+Saving a weekly report enables Monday delivery to the workspace owner by default.
+Additional addresses are optional and are stored separately from the resolved
+owner address. Explicitly saved pauses are preserved, including during migration
+of earlier settings. Saving a report does not send an immediate email.
+Scheduled jobs freeze the owner plus deduplicated additional recipients, recheck
+the owner and configuration before sending, and retain one claim per completed
+week. The current-week coverage check still blocks reports with insufficient data.
+Test emails need no report data or saved additional addresses: they go to the
+owner plus any saved additional recipients, even with automatic delivery paused.
+The platform email provider, scheduler and analytics worker must still be running;
+customers do not need to configure those services.
+
 Distinguish job queued, computation completed, sending phase, provider acceptance
 and recipient delivery. The worker commits the sending boundary before external
 side effects. A restart or partial acceptance requires reconciliation with

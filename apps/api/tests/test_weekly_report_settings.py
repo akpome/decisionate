@@ -163,6 +163,16 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertEqual(self.client.post(f"/api/v2/business-reports/jobs/{first}/save-weekly").status_code, 409)
         self.assertFalse(self.client.get(f"/api/v2/business-reports/jobs/{first}").json()["weekly_settings_saved"])
 
+    def test_saving_first_preview_enables_default_owner_schedule_without_sending(self):
+        identity, _ = self.save_preview()
+        self.assertTrue(self.client.get("/api/v2/business-reports/weekly-settings").json()["enabled"])
+        with self.Session() as db:
+            preference = db.query(WeeklyReportPreference).one()
+            self.assertIsNone(preference.recipient_emails)
+            self.assertEqual(preference.delivery_day, "monday")
+            self.assertIsNone(preference.last_sent_at)
+            self.assertEqual(db.query(ReportAnalysisJob).one().id, identity)
+
     def test_concurrent_previews_with_identical_settings_cannot_overwrite_a_newer_save(self):
         self.save_preview()
         first, _ = self.draft_preview()
@@ -287,10 +297,10 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409, response.text)
         self.assertIn("week or timezone changed", response.text)
 
-    def test_settings_have_automatic_dates_fixed_weekly_grouping_and_no_delivery_side_effect(self):
+    def test_settings_have_automatic_dates_and_enable_owner_delivery_without_sending(self):
         value = self.put()
         self.assertEqual(value["definition"]["grain"], "weekly")
-        self.assertFalse(value["enabled"])
+        self.assertTrue(value["enabled"])
         start, end = (date.fromisoformat(value["window"][key]) for key in ("start", "end"))
         self.assertEqual((end - start).days, 6)
         self.assertEqual(start.weekday(), 0)
@@ -474,3 +484,32 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         migrate()
         with engine.begin() as connection:
             self.assertEqual(json.loads(connection.execute(text("SELECT weekly_report_definition FROM weekly_report_preferences WHERE id=1")).scalar()), fixtures.definition())
+
+    def test_startup_migration_enables_untouched_reports_but_preserves_explicit_pauses(self):
+        source = Path(__file__).resolve().parents[1] / "app/main.py"
+        function = next(node for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.FunctionDef) and node.name == "ensure_weekly_report_delivery_columns")
+        engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
+        with engine.begin() as connection:
+            connection.execute(text("""CREATE TABLE weekly_report_preferences (
+                id INTEGER PRIMARY KEY, workspace_id TEXT, enabled INTEGER, delivery_day TEXT,
+                weekly_report_definition TEXT, recipient_emails TEXT, last_send_status TEXT)"""))
+            connection.execute(text("CREATE TABLE business_reports (id TEXT PRIMARY KEY, workspace_id TEXT, definition TEXT)"))
+            connection.execute(text("""INSERT INTO weekly_report_preferences VALUES
+                (1, 'untouched', 0, 'monday', '{}', NULL, NULL),
+                (2, 'paused', 0, 'friday', '{}', NULL, 'disabled'),
+                (3, 'paused_tested', 0, 'monday', '{}', '["team@example.test"]', 'test_sent'),
+                (4, 'enabled', 1, 'friday', '{}', '["team@example.test"]', 'sent'),
+                (5, 'no_report', 0, 'monday', NULL, NULL, NULL)"""))
+        namespace = {"engine": engine, "text": text, "get_table_columns": get_table_columns}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+        migrate = namespace[function.name]
+        migrate()
+        with engine.begin() as connection:
+            rows = connection.execute(text("SELECT enabled, delivery_settings_configured, delivery_day FROM weekly_report_preferences ORDER BY id")).all()
+            self.assertEqual(rows, [(1, 0, "monday"), (0, 1, "friday"), (0, 1, "monday"), (1, 1, "friday"), (0, 0, "monday")])
+            connection.execute(text("UPDATE weekly_report_preferences SET enabled=0, delivery_settings_configured=1 WHERE id=1"))
+        migrate()
+        with engine.begin() as connection:
+            self.assertEqual(connection.execute(text("SELECT enabled FROM weekly_report_preferences WHERE id=1")).scalar(), 0)

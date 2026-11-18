@@ -9,7 +9,7 @@ class WeeklyReportPreferenceUpdate(BaseModel):
     enabled: bool = False
     cadence: str = "weekly"
     delivery_day: str = "monday"
-    recipient_emails: list[str] = []
+    recipient_emails: list[str] = Field(default_factory=list, description="Optional additional recipients; the workspace owner is included automatically.")
     metric_focus: list[str] = []
     metric_targets: dict[str, float | None] = Field(
         default_factory=dict
@@ -23,7 +23,7 @@ class WeeklyReportPreferenceResponse(BaseModel):
     enabled: bool
     cadence: str
     delivery_day: str
-    recipient_emails: list[str]
+    recipient_emails: list[str] = Field(description="Saved additional recipients, excluding the automatically resolved workspace owner unless also entered explicitly.")
     metric_focus: list[str]
     business_report_id: str | None = None
     weekly_settings_configured: bool = False

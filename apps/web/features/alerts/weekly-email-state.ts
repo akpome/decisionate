@@ -7,7 +7,6 @@ export function recipientEmails(value: string): string[] {
 export function deliveryValidation(preference: WeeklyReportPreference, recipients: string): string {
   const emails = recipientEmails(recipients)
   if (emails.some(email => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return "Enter a complete email address for each recipient."
-  if (preference.enabled && !emails.length) return "Add at least one recipient before enabling scheduled email."
   if (preference.enabled && !preference.weekly_settings_configured && !preference.business_report_id && !preference.metric_focus.length && !preference.relationship_focus.length) {
     return "Preview and save a report in Weekly Reports before enabling scheduled email."
   }

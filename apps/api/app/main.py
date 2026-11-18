@@ -1494,6 +1494,8 @@ def ensure_weekly_report_delivery_columns():
         for column_name, column_type in [
             ("business_report_id", "VARCHAR"),
             ("weekly_report_definition", "TEXT"),
+            ("recipient_emails", "TEXT"),
+            ("delivery_settings_configured", "INTEGER NOT NULL DEFAULT 0"),
             (
                 "relationship_focus",
                 "TEXT",
@@ -1572,6 +1574,19 @@ def ensure_weekly_report_delivery_columns():
                       AND business_reports.workspace_id = weekly_report_preferences.workspace_id
                 )
                 WHERE weekly_report_definition IS NULL AND business_report_id IS NOT NULL
+            """))
+
+        if "delivery_settings_configured" not in column_names:
+            # Preserve earlier delivery choices; only untouched saved reports get the new default.
+            connection.execute(text("""
+                UPDATE weekly_report_preferences SET delivery_settings_configured = 1
+                WHERE enabled = 1 OR last_send_status IS NOT NULL
+                   OR (recipient_emails IS NOT NULL AND TRIM(recipient_emails) NOT IN ('', '[]'))
+            """))
+            connection.execute(text("""
+                UPDATE weekly_report_preferences SET enabled = 1
+                WHERE delivery_settings_configured = 0
+                  AND (weekly_report_definition IS NOT NULL OR business_report_id IS NOT NULL)
             """))
 
         connection.execute(

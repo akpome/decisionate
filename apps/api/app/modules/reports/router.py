@@ -702,16 +702,10 @@ def weekly_template(report_id: str, request: Request, db=Depends(database)):
     require_workspace_data_manager(request)
     report = allowed_report(db, report_id, user, workspace, for_update=True)
     definition = json.loads(report.definition)
-    preference = db.query(WeeklyReportPreference).filter_by(workspace_id=workspace).with_for_update().first()
     if definition.get("scope", "multi") != "multi" or len({item["dataset_id"] for item in definition["metrics"]}) < 2:
         raise HTTPException(400, "Weekly reports require a multi dataset report template")
-    if preference is None:
-        preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
-        db.add(preference)
+    from .weekly import apply_weekly_settings, weekly_settings_copy
+    preference = apply_weekly_settings(db, weekly_settings_copy(definition), workspace)
     preference.business_report_id = report.id
-    from .weekly import weekly_settings_copy
-    preference.weekly_report_definition = encode(weekly_settings_copy(definition))
-    preference.metric_focus = encode([metric_id(item) for item in definition["metrics"]])
-    # Selecting a template must not enable sending or change existing recipients.
     db.commit()
     return {"report_id": report.id, "enabled": bool(preference.enabled)}

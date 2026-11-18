@@ -1672,6 +1672,8 @@ async def send_weekly_report_test_email(
                 branding["brand_name"],
                 branding,
             )
+            from app.modules.reports.jobs import weekly_delivery_recipients
+            digest.recipient_emails = weekly_delivery_recipients(db, auth_context.workspace_id, digest.recipient_emails)
             delivery_result = await asyncio.to_thread(
                 send_weekly_report_email,
                 digest,
@@ -1859,6 +1861,12 @@ async def update_weekly_report_preference(
             )
             db.add(preference)
 
+        # Saving test addresses before a report exists must not pause its future default delivery.
+        preference.delivery_settings_configured = int(bool(
+            getattr(preference, "delivery_settings_configured", False) or preference.enabled or payload.enabled
+            or getattr(preference, "weekly_report_definition", None) or getattr(preference, "business_report_id", None)
+            or parse_json_list(preference.metric_focus) or parse_json_int_list(getattr(preference, "relationship_focus", None))
+        ))
         preference.enabled = 1 if payload.enabled else 0
         preference.cadence = "weekly"
         preference.delivery_day = clean_day

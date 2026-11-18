@@ -25,6 +25,8 @@ class WeeklyOwnerSendTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         with self.Session() as db:
             preference = db.query(WeeklyReportPreference).one()
+            preference.enabled = 0
+            preference.delivery_settings_configured = 1
             preference.recipient_emails = '["scheduled-recipient@example.test"]'
             db.commit()
 
@@ -156,7 +158,7 @@ class WeeklyOwnerSendTests(unittest.TestCase):
             self.assertIsNone(preference.last_sent_at)
             scheduled = jobs.enqueue_weekly(db, "owner", "owner", preference, send=True, scheduled=True, include_ai=False)
             self.assertNotEqual(scheduled.id, identity)
-            self.assertNotIn("delivery", json.loads(scheduled.definition))
+            self.assertEqual(json.loads(scheduled.definition)["delivery"]["mode"], "workspace_owner_and_additional")
 
     def test_failure_and_interrupted_delivery_do_not_change_scheduled_delivery_state(self):
         identity = self.enqueue().json()["job_id"]

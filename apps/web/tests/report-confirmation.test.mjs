@@ -25,7 +25,7 @@ function harness(message) {
 }
 
 test("successful report confirmations disappear after five seconds", () => {
-  for (const message of ["Weekly report updated. Delivery settings are unchanged.", "Weekly report updated and assessment attached to the decision. Delivery settings are unchanged.", "Report snapshot saved."]) {
+  for (const message of ["Weekly report updated. The workspace owner will receive weekly emails when the report has sufficient data.", "Weekly report updated and assessment attached to the decision. Automatic delivery remains paused.", "Report snapshot saved."]) {
     const { state, cleanup } = harness(message)
     assert.equal(state.message, message)
     assert.equal(state.timers.length, 1)

@@ -532,8 +532,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         setAnalysisJob(current => current ? { ...current, weekly_settings_saved: true } : current)
         weeklySendRequest.current = null
         window.history.replaceState(null, "", pagePath)
-        setMessage(result.report.decision_review_id ? "Weekly report updated and assessment attached to the decision. Delivery settings are unchanged."
-          : "Weekly report updated. Delivery settings are unchanged.")
+        setMessage(`${result.report.decision_review_id ? "Weekly report updated and assessment attached to the decision." : "Weekly report updated."} ${result.settings.enabled ? "The workspace owner will receive weekly emails when the report has sufficient data." : "Automatic delivery remains paused."}`)
       })
     } finally { managementAction.current = false }
   }

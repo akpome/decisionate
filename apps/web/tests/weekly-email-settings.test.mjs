@@ -21,14 +21,15 @@ test("recipients normalize only at validation/save and support newlines, commas 
   assert.equal(deliveryValidation(preference(), "one@example.com, two@example.com\n"), "")
 })
 
-test("new schedules require saved content and recipients while pausing and existing legacy schedules still work", () => {
+test("owner delivery requires saved content but no additional recipients; pausing and legacy schedules still work", () => {
   const empty = { ...preference(), weekly_settings_configured: false, metric_focus: [], relationship_focus: [], enabled: true }
-  assert.match(deliveryValidation(empty, ""), /recipient/)
+  assert.match(deliveryValidation(empty, ""), /Preview and save/)
   assert.match(deliveryValidation(empty, "owner@example.com"), /Preview and save/)
   assert.equal(deliveryValidation({ ...empty, enabled: false }, ""), "")
   assert.equal(deliveryValidation({ ...empty, metric_focus: ["1:sales"] }, "owner@example.com"), "")
   assert.equal(deliveryValidation({ ...empty, relationship_focus: [1] }, "owner@example.com"), "")
   assert.equal(deliveryValidation({ ...empty, weekly_settings_configured: true }, "owner@example.com"), "")
+  assert.equal(deliveryValidation({ ...empty, weekly_settings_configured: true }, ""), "")
 })
 
 test("dirty state covers all editable delivery values, without changing analysis selections", () => {
@@ -58,6 +59,9 @@ test("email settings do not run analysis, reconcile away saved metrics or silent
   assert.match(source, /if \(!canTest \|\| action.current\) return/)
   assert.match(source, /setRecipients\(event.target.value\)/)
   assert.match(source, /without report results/)
+  assert.match(source, /The workspace owner is always included/)
+  assert.match(source, /Additional email addresses \(optional\)/)
+  assert.doesNotMatch(source, /saved\?\.recipient_emails.length &&/)
   assert.match(source, /getWeeklyReportDeliveryHistory\(userId, workspaceId\)/)
   assert.match(source, /id="delivery-history"/)
   assert.match(source, /setTimeout\(\(\) => setNotice\(""\), 5000\)/)

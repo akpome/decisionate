@@ -1875,6 +1875,8 @@ class WeeklyReportPreference(Base):
         default=0,
     )
 
+    delivery_settings_configured = Column(Integer, nullable=False, default=0)
+
     cadence = Column(
         String,
         nullable=False,

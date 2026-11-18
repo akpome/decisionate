@@ -109,6 +109,12 @@ def weekly_owner_recipient(db, workspace):
     return clean_recipient_emails([email])[0]
 
 
+def weekly_delivery_recipients(db, workspace, additional):
+    from app.modules.alerts.router import clean_recipient_emails
+
+    return clean_recipient_emails([weekly_owner_recipient(db, workspace), *additional])
+
+
 @workspace_scoped("workspace")
 def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=False, include_ai=True, request_key=None, report_only=False, owner_only=False):
     from app.modules.alerts.router import get_alert_datasets
@@ -133,6 +139,9 @@ def enqueue_weekly(db, user, workspace, preference, *, send=False, scheduled=Fal
         existing = db.query(ReportAnalysisJob).filter_by(request_key=digest([workspace, user, "weekly_send", request_key])).first()
         if existing:
             return existing
+    if send and not owner_only:
+        recipients = weekly_delivery_recipients(db, workspace, definition["configuration"]["preference"]["recipient_emails"])
+        definition["delivery"] = {"mode": "workspace_owner_and_additional", "recipient": recipients[0], "recipients": recipients}
     template = definition["configuration"]["template"]
     datasets = (authorize_datasets(db, user, workspace, [item["dataset_id"] for item in template["metrics"]])
                 if template else {item.id: item for item in get_alert_datasets(db, workspace)})

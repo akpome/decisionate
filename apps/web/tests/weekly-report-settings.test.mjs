@@ -199,8 +199,18 @@ test("one post-preview save stores the report and weekly setup together, once", 
   assert.equal(state.saved, undefined, "Updating the current report must not add a historical snapshot")
   assert.equal(state.report.weekly_current, true)
   assert.equal(state.url, "/weekly-reports")
-  assert.match(state.message, /Delivery settings are unchanged/)
+  assert.match(state.message, /Automatic delivery remains paused/)
   assert.equal(managementAction.current, false)
+})
+
+test("saving a new weekly report confirms automatic owner delivery", async () => {
+  const { handler, state } = saveHarness({ request: async () => ({
+    report: { weekly_current: true, analysis_job_id: "preview-id" },
+    settings: { definition: {}, enabled: true },
+  }) })
+  await handler()
+  assert.match(state.message, /The workspace owner will receive weekly emails when the report has sufficient data/)
+  assert.doesNotMatch(state.message, /Delivery settings are unchanged|paused/)
 })
 
 test("missing, failed, edited or already-saved previews cannot save; roles and busy state are checked", async () => {

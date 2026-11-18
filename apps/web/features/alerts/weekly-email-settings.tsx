@@ -95,7 +95,7 @@ export function WeeklyEmailSettings({ userId, workspaceId }: { userId: string; w
 
   const dirty = Boolean(saved && draft && deliveryChanges(saved, draft, recipients))
   const validation = draft ? deliveryValidation(draft, recipients) : ""
-  const canTest = Boolean(saved?.recipient_emails.length && config?.email_delivery_configured && !dirty && !busy)
+  const canTest = Boolean(saved && config?.email_delivery_configured && !dirty && !busy)
 
   async function save() {
     if (!draft || !dirty || action.current) return
@@ -133,7 +133,7 @@ export function WeeklyEmailSettings({ userId, workspaceId }: { userId: string; w
   return <div className="min-w-0 space-y-6">
     <section id="weekly-delivery" aria-label="Saved email schedule" className="flex scroll-mt-24 flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-5">
       <div className="space-y-1"><p className="text-sm font-semibold">{saved.enabled ? "Automatic email is on" : "Automatic email is off"}</p>
-        <p className="text-sm text-gray-600">{saved.enabled ? `Every ${saved.delivery_day} / ${saved.recipient_emails.length} recipient${saved.recipient_emails.length === 1 ? "" : "s"}` : "No scheduled reports will be emailed."}</p>
+        <p className="text-sm text-gray-600">{saved.enabled ? `Every ${saved.delivery_day}, to the workspace owner${saved.recipient_emails.length ? ` and ${saved.recipient_emails.length} additional address${saved.recipient_emails.length === 1 ? "" : "es"}` : ""}, when the report has sufficient data.` : hasReport ? "Automatic delivery is paused. One-time owner emails and tests are still available." : "Save a weekly report to start automatic delivery to the workspace owner."}</p>
       </div>
       <Link href="/weekly-reports" className={button}>Weekly Reports<ArrowRight size={16} /></Link>
     </section>
@@ -145,20 +145,20 @@ export function WeeklyEmailSettings({ userId, workspaceId }: { userId: string; w
       <h2 className="text-base font-semibold">Report content</h2>
       <p className="break-words text-sm">{hasReport ? settings?.definition?.name || "Saved weekly report" : legacy ? "Existing metric email" : "No weekly report saved"}</p>
       {hasReport ? <p className="text-sm text-gray-600">{saved.metric_focus.length} selected metrics{settings && ` / ${settings.reporting_timezone}`}</p>
-        : <p className="text-sm text-gray-600">{legacy ? "Your earlier metric and relationship selections are preserved." : "Preview and save your report in Weekly Reports before turning on automatic email."}</p>}
+        : <p className="text-sm text-gray-600">{legacy ? "Your earlier metric and relationship selections are preserved." : "Preview and save your report in Weekly Reports. Owner delivery starts automatically; no email setup is needed."}</p>}
     </section>
     <form onSubmit={event => { event.preventDefault(); void save() }} className="space-y-5">
       <fieldset disabled={Boolean(busy)} className="min-w-0 space-y-5 disabled:opacity-60">
-        <legend className="mb-4 text-base font-semibold">Email schedule</legend>
+        <legend className="mb-4 text-base font-semibold">Additional recipients and delivery preferences</legend>
         <label className="flex items-center gap-3 text-sm"><input type="checkbox" className="h-4 w-4" checked={draft.enabled} onChange={event => edit({ enabled: event.target.checked })} />Send automatically each week</label>
         <div className="grid min-w-0 items-start gap-5 md:grid-cols-2">
           <div className="min-w-0"><label className="block text-sm" htmlFor="email-day">Delivery day</label>
             <select id="email-day" className={input} value={draft.delivery_day} onChange={event => edit({ delivery_day: event.target.value as WeeklyReportPreference["delivery_day"] })}>{days.map(day => <option key={day} value={day}>{day[0].toUpperCase() + day.slice(1)}</option>)}</select>
             <p className="mt-2 text-xs text-gray-600">{settings ? `Schedule timezone: ${settings.reporting_timezone}` : "Schedule timezone is set in Weekly Reports."}</p>
           </div>
-          <div className="min-w-0"><label className="block text-sm" htmlFor="email-recipients">Recipients</label>
-            <textarea id="email-recipients" aria-describedby="email-recipient-hint" className={`${input} min-h-24`} rows={3} value={recipients} onChange={event => { setRecipients(event.target.value); setNotice(""); setError("") }} placeholder="owner@example.com" />
-            <p id="email-recipient-hint" className="mt-1 text-xs text-gray-600">One address per line, or separated by commas.</p>
+          <div className="min-w-0"><label className="block text-sm" htmlFor="email-recipients">Additional email addresses (optional)</label>
+            <textarea id="email-recipients" aria-describedby="email-recipient-hint" className={`${input} min-h-24`} rows={3} value={recipients} onChange={event => { setRecipients(event.target.value); setNotice(""); setError("") }} placeholder="team@example.com" />
+            <p id="email-recipient-hint" className="mt-1 text-xs text-gray-600">The workspace owner is always included. Add other addresses one per line, or separated by commas.</p>
           </div>
         </div>
         <details className="space-y-4 border-y border-gray-200 py-4"><summary className="cursor-pointer text-sm font-medium">Email content options</summary>
@@ -179,8 +179,8 @@ export function WeeklyEmailSettings({ userId, workspaceId }: { userId: string; w
       <button className={primary} disabled={!dirty || Boolean(busy) || Boolean(validation)} type="submit">{busy === "save" ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{busy === "save" ? "Saving..." : "Save email settings"}</button>
     </form>
     <section aria-label="Test email" className="flex flex-wrap items-center justify-between gap-4 border-y border-gray-200 py-5">
-      <div className="min-w-0 space-y-1"><h2 className="text-base font-semibold">Test email</h2><p className="text-sm text-gray-600">A delivery check sent to the saved recipients, without report results.</p>
-        {dirty ? <p className="text-xs text-amber-800">Save your changes before sending a test.</p> : !saved.recipient_emails.length && <p className="text-xs text-gray-600">Add and save at least one recipient.</p>}
+      <div className="min-w-0 space-y-1"><h2 className="text-base font-semibold">Test email</h2><p className="text-sm text-gray-600">A delivery check sent to the workspace owner and any saved additional addresses, without report results. No report data is needed.</p>
+        {dirty && <p className="text-xs text-amber-800">Save your changes before sending a test.</p>}
       </div>
       <button type="button" className={button} disabled={!canTest} onClick={() => void sendTest()}>{busy === "test" ? <LoaderCircle size={16} className="animate-spin" /> : <Send size={16} />}{busy === "test" ? "Sending test..." : "Send test email"}</button>
     </section>

@@ -111,7 +111,7 @@ test("policies distinguish saved report deletion, weekly template removal and re
 
 test("terms explain filtered, indexed, seasonal and queued analysis with explicit weekly delivery", () => {
   const source = policies[1].source
-  for (const pattern of [/initial syncing requests 90 days/, /checkpointed background chunks/, /matching observations/, /shared baseline of 100, not amounts in the original units/, /do not establish causation, attribution/, /sufficient suitable history/, /latest complete week/, /Choosing a template does not itself enable email delivery/, /reopening one does not automatically recompute it/, /does not itself record a business action/]) {
+  for (const pattern of [/initial syncing requests 90 days/, /checkpointed background chunks/, /matching observations/, /shared baseline of 100, not amounts in the original units/, /do not establish causation, attribution/, /sufficient suitable history/, /latest complete week/, /enables automatic delivery to the workspace owner by default/, /reopening one does not automatically recompute it/, /does not itself record a business action/]) {
     assert.match(source, pattern)
   }
 })

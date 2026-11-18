@@ -66,7 +66,7 @@ def check_inputs(db, job):
         delivery = json.loads(job.definition).get("delivery", {})
         if job.kind == "weekly_owner_send" and delivery.get("mode") != "workspace_owner":
             raise HTTPException(400, "The owner delivery settings are unavailable. Request a new report send.")
-        if delivery.get("mode") == "workspace_owner" and weekly_owner_recipient(db, job.workspace_id) != delivery["recipient"]:
+        if delivery.get("mode") in {"workspace_owner", "workspace_owner_and_additional"} and weekly_owner_recipient(db, job.workspace_id) != delivery["recipient"]:
             raise HTTPException(409, "The workspace owner's email changed. Send a new report after reviewing the current owner.")
         preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
         expected_configuration = frozen_definition.get("base_configuration", frozen_definition["configuration"])
@@ -111,7 +111,8 @@ def fail_job(db, identity, message, status=503):
         preference = db.query(WeeklyReportPreference).filter_by(workspace_id=job.workspace_id).first()
         if delivery.get("mode") != "workspace_owner":
             update_weekly_report_delivery_status(preference, "failed", message)
-        recipients = [delivery["recipient"]] if delivery.get("mode") == "workspace_owner" else configuration.get("recipient_emails", [])
+        recipients = ([delivery["recipient"]] if delivery.get("mode") == "workspace_owner"
+                      else delivery.get("recipients", configuration.get("recipient_emails", [])))
         record_weekly_report_delivery_log(db, job.workspace_id, "failed", recipients, error=message)
     db.commit()
 
@@ -134,6 +135,8 @@ def run_weekly(db, job, definition):
     owner_delivery = definition.get("delivery", {}).get("mode") == "workspace_owner"
     if owner_delivery:
         digest = digest.model_copy(update={"enabled": True, "recipient_emails": [definition["delivery"]["recipient"]]})
+    elif definition.get("delivery", {}).get("mode") == "workspace_owner_and_additional":
+        digest = digest.model_copy(update={"recipient_emails": definition["delivery"]["recipients"]})
     alerts.validate_weekly_report_digest_for_delivery(digest)
     from app.modules.reports.weekly import archive_weekly_delivery, link_weekly_delivery
     archive_weekly_delivery(db, job, digest.cross_dataset_report)

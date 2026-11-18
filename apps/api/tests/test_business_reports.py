@@ -477,7 +477,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         with self.Session() as db:
             preference = db.query(WeeklyReportPreference).one()
             self.assertEqual(preference.business_report_id, original["report_id"])
-            self.assertFalse(preference.enabled)
+            self.assertTrue(preference.enabled)
 
     def test_single_scope_still_authorizes_sources_before_loading_them(self):
         payload = definition(scope="single", metrics=[{**definition()["metrics"][0], "dataset_id": 3}])
@@ -799,7 +799,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
     def test_weekly_template_preserves_disabled_sending_and_existing_recipients(self):
         saved = self.save()
         with self.Session() as db:
-            db.add(WeeklyReportPreference(workspace_id="owner", enabled=0, recipient_emails='["owner@example.test"]'))
+            db.add(WeeklyReportPreference(workspace_id="owner", enabled=0, delivery_settings_configured=1, recipient_emails='["owner@example.test"]'))
             db.commit()
         response = self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly")
         self.assertEqual(response.status_code, 200, response.text)
@@ -815,7 +815,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         with patch.object(router, "require_workspace_data_manager", side_effect=HTTPException(403, "Read only")):
             self.assertEqual(self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly").status_code, 403)
 
-    def test_weekly_preview_uses_the_saved_template_without_enabling_delivery(self):
+    def test_weekly_preview_uses_the_saved_template_without_sending_email(self):
         saved = self.save()
         self.client.post(f"/api/v2/business-reports/{saved['report_id']}/weekly")
         with patch("app.modules.alerts.router.complete_week", return_value=definition()["date_range"]), \
@@ -830,7 +830,7 @@ class BusinessReportWorkflowTests(unittest.TestCase):
         self.assertEqual(response.json()["decision_report_id"], saved["report_id"])
         self.assertNotIn("report_id", response.json())
         with self.Session() as db:
-            self.assertFalse(db.query(WeeklyReportPreference).one().enabled)
+            self.assertTrue(db.query(WeeklyReportPreference).one().enabled)
 
     def test_saved_analysis_grouping_is_immutable_across_weekly_preview_and_new_analysis(self):
         template = definition(grain="monthly")

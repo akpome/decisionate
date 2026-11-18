@@ -46,6 +46,8 @@ def apply_weekly_settings(db, definition, workspace):
     if preference is None:
         preference = WeeklyReportPreference(workspace_id=workspace, enabled=0)
         db.add(preference)
+    if not preference.delivery_settings_configured:
+        preference.enabled = 1
     preference.weekly_report_definition = encode(definition)
     preference.business_report_id = None
     preference.metric_focus = encode([metric_id(item) for item in definition["metrics"]])
