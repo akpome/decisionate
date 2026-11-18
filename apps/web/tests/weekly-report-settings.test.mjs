@@ -151,11 +151,11 @@ test("weekly preview calculates draft edits without persisting settings or snaps
   const calculate = vm.runInNewContext(ts.transpileModule(`${declaration}\ncalculate`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
     weekly: true, canManage: true, weeklyDirty: true, busy: false, previewDisabled: false, definition, weeklySettings: null, weeklyDefinition,
     defaultReportQuestion: () => "What changed last week, and what needs attention next?",
-    selectedReportDimensionFilters: types.selectedReportDimensionFilters, analysisSubmission: { current: false }, routeController: { current: null },
+    selectedReportDimensionFilters: types.selectedReportDimensionFilters, reportPairDirections: pairs.reportPairDirections, analysisSubmission: { current: false }, analysisJob: null, routeController: { current: null },
     execute: async action => action(), crypto: { randomUUID: () => "unique" },
     request: async (path, init) => { calls.push(path); const payload = JSON.parse(init.body); assert.equal(payload.name, "Draft report"); assert.equal(payload.grain, "weekly"); assert.equal(payload.metrics.length, 2); return { job_id: "weekly-job" } },
     setAnalysisJob() {}, encodeURIComponent,
-    window: { location: { pathname: "/weekly-reports" }, history: { replaceState() {} } },
+    window: { location: { pathname: "/weekly-reports", search: "", hash: "" }, history: { replaceState() {} } },
     waitForAnalysis: async () => ({ weekly_report: true }), setReport() {}, setView() {},
     setDefinition: () => { throw new Error("A weekly snapshot must not replace editable weekly settings") },
   })

@@ -141,11 +141,11 @@ test("a fresh preview includes findings automatically and keeps the returned sel
   const calculate = vm.runInNewContext(ts.transpileModule(`${declaration}\ncalculate`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    definition: original, execute: async action => action(), editableDefinition, selectedReportDimensionFilters,
+    definition: original, execute: async action => action(), editableDefinition, selectedReportDimensionFilters, reportPairDirections: pairModule.exports.reportPairDirections,
     crypto: { randomUUID: () => "request-1" }, setAnalysisJob: () => {}, routeController: { current: null },
-    analysisSubmission: { current: false }, busy: false, previewDisabled: false, weekly: false,
+    analysisSubmission: { current: false }, analysisJob: null, busy: false, previewDisabled: false, weekly: false,
     defaultReportQuestion: () => "What changed in the selected metrics, and what needs attention?",
-    window: { location: { pathname: "/business-analysis" }, history: { replaceState() {} } }, encodeURIComponent,
+    window: { location: { pathname: "/business-analysis", search: "", hash: "" }, history: { replaceState() {} } }, encodeURIComponent,
     waitForAnalysis: async (request, identity) => {
       assert.equal(identity, "job-1")
       return { definition: { ...original, included_findings: ["finding-1"] } }

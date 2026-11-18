@@ -16,7 +16,10 @@ export function ReportRelationshipFindings({ report, busy = false, onDirectionCh
     <h3 className="text-lg font-semibold">Relationship findings</h3>
     {findings.length === 0 ? <p className="text-sm text-gray-500">No relationship findings included in this report.</p>
       : <ul aria-label="Relationship results" className="list-none">{findings.map(finding => {
-        const pair = { metric_a: finding.metric_a, metric_b: finding.metric_b }
+        const pair = {
+          metric_a: { dataset_id: finding.metric_a.dataset_id, metric_key: finding.metric_a.metric_key },
+          metric_b: { dataset_id: finding.metric_b.dataset_id, metric_key: finding.metric_b.metric_key },
+        }
         const stored = report.definition?.pair_directions?.find(item => unorderedReportPairKey(item) === unorderedReportPairKey(pair))
         const explicit = stored?.direction === "a_leads_b" || stored?.direction === "b_leads_a"
         const leader = explicit ? stored.direction === "a_leads_b" ? stored.metric_a : stored.metric_b : null

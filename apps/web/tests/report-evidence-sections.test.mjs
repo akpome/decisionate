@@ -61,6 +61,30 @@ test("relationship findings are read-only results with no checkbox or print-only
   assert.doesNotMatch(html, /<input|<label|checkbox|print:hidden/)
 })
 
+test("preview direction changes send metric identities rather than display metadata", () => {
+  const metric_a = { ...finding.metric_a, dataset_id: 2, metric_key: "visits", date_column: "date", aggregation: "sum", unit: "count", connector: "csv" }
+  const metric_b = { ...finding.metric_b, dataset_id: 1, metric_key: "orders", date_column: "date", aggregation: "sum", unit: "count", connector: "shopify" }
+  const record = { ...finding, metric_a, metric_b, eligible: true, coefficient: .8 }
+  const report = { definition: { scope: "multi", pair_directions: [] }, findings: [record], included_findings: [record.id] }
+  const before = JSON.stringify(report), selected = []
+  const tree = ReportRelationshipFindings({ report, onDirectionChange: (...args) => selected.push(args) })
+  const controls = []
+  function visit(node) {
+    if (!node || typeof node !== "object") return
+    if (node.type === "select") controls.push(node)
+    React.Children.forEach(node.props?.children, visit)
+  }
+  visit(tree)
+  assert.equal(controls.length, 1)
+  for (const direction of ["a_leads_b", "b_leads_a", "auto"]) {
+    controls[0].props.onChange({ target: { value: direction } })
+    assert.deepEqual(JSON.parse(JSON.stringify(selected.at(-1))), [{
+      metric_a: { dataset_id: 2, metric_key: "visits" }, metric_b: { dataset_id: 1, metric_key: "orders" },
+    }, direction])
+  }
+  assert.equal(JSON.stringify(report), before)
+})
+
 test("combined and single reports never show relationship findings, including stale selections", () => {
   assert.equal(renderFindings({ definition: { scope: "multi", include_relationships: false } }), "")
   assert.equal(renderFindings({ definition: { scope: "single" } }), "")

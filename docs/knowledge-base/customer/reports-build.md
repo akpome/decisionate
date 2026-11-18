@@ -348,6 +348,10 @@ business change. Existing saved reports keep their original workflow.
    is dependable, the result says Not established and shows a same-period coefficient.
    A lead direction is not proof of causation. The preview displays the suggested
    direction and its basis; change its dropdown to recalculate in a different direction.
+   The previous preview stays visible until the update succeeds. If the request or
+   calculation fails, the previous results and direction remain selected so you
+   can try again without rebuilding the analysis. A failed update does not change
+   a saved report or weekly settings.
    Clearing Enable correlation analysis skips these calculations. Single dataset
    reports omit relationship calculations and controls.
 7. Choose Preview analysis and wait for analysis to finish before saving.

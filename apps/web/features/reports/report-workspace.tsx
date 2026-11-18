@@ -452,10 +452,15 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   async function calculate(override?: ReportDefinition) {
     if (analysisSubmission.current || previewDisabled) return
     analysisSubmission.current = true
+    const signal = routeController.current?.signal
+    const previousUrl = window.location.pathname + window.location.search + window.location.hash
+    const previousJob = analysisJob
+    let completed = false
     try { await execute(async () => {
-      const signal = routeController.current?.signal
       const selected = override || definition
-      const payload = { ...(weekly ? weeklyDefinition(selected, weeklySettings?.history_window) : selected), business_question: selected.business_question.trim() || defaultReportQuestion(selected, weekly), dimension_filters: selectedReportDimensionFilters(selected), included_findings: null }
+      const settings = weekly ? weeklyDefinition(selected, weeklySettings?.history_window) : selected
+      const payload = { ...settings, business_question: selected.business_question.trim() || defaultReportQuestion(selected, weekly), dimension_filters: selectedReportDimensionFilters(selected), included_findings: null,
+        pair_directions: settings.scope === "multi" && settings.include_relationships !== false && !settings.impact ? reportPairDirections(settings.metrics, settings.pair_directions) : [] }
       if (!weekly && payload.impact?.decision_id) {
         const context = await request<DecisionReviewContext>(`/review-decisions/${payload.impact.decision_id}`, { signal })
         Object.assign(payload, automaticImpactDefinition(payload, context, datasets), decisionReviewDetails(context.decision))
@@ -470,9 +475,17 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       const result = await waitForAnalysis<BusinessReport>(request, job.job_id, { signal, onUpdate: setAnalysisJob })
       signal?.throwIfAborted()
       if (!weekly) setDefinition(editableDefinition(result.definition))
+      else if (override) { setDefinition(payload); setWeeklyDirty(true) }
       setReport(result)
       setView("report")
-    }) } finally { analysisSubmission.current = false }
+      completed = true
+    }) } finally {
+      if (override && !completed && !signal?.aborted) {
+        setAnalysisJob(previousJob)
+        window.history.replaceState(null, "", previousUrl)
+      }
+      analysisSubmission.current = false
+    }
   }
 
   async function saveSnapshot() {
@@ -752,9 +765,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         {weekly && <WeeklyDecisionUpdate report={report} />}
         <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : relationships ? "Relationships between the selected metrics are checked separately." : report.definition.include_anomalies !== false ? "Anomaly detection results are shown separately." : "Review the available totals above."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
         {relationships && <ReportRelationshipFindings report={report} busy={busy} onDirectionChange={weekly && !canManage ? undefined : (pair, direction) => {
-          const next = { ...definition, included_findings: null, pair_directions: definition.pair_directions.map(item => unorderedReportPairKey(item) === unorderedReportPairKey(pair) ? { ...pair, direction } : item) }
-          setDefinition(next); setReport(null)
-          if (weekly) setWeeklyDirty(true)
+          const next = { ...definition, included_findings: null, pair_directions: reportPairDirections(definition.metrics,
+            definition.pair_directions.map(item => unorderedReportPairKey(item) === unorderedReportPairKey(pair) ? { ...pair, direction } : item)) }
           void calculate(next)
         }} />}
         <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
