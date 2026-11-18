@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, Plus } from "lucide-react"
+import { ArrowUpRight, LoaderCircle, Plus } from "lucide-react"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
 import { decisionEvidenceHref } from "@/features/decisions/lib/report-metric-scope"
 import type { BusinessReport, ReportDecision, ReportFinding } from "./types"
@@ -8,7 +8,7 @@ import { unorderedReportPairKey, type PairDirection, type ReportMetricPair } fro
 
 const decisionAction = "inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-md border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 print:hidden"
 
-export function ReportRelationshipFindings({ report, busy = false, onDirectionChange }: { report: BusinessReport; busy?: boolean; onDirectionChange?: (pair: ReportMetricPair, direction: PairDirection) => void }) {
+export function ReportRelationshipFindings({ report, busy = false, updatingPair, onDirectionChange }: { report: BusinessReport; busy?: boolean; updatingPair?: string | null; onDirectionChange?: (pair: ReportMetricPair, direction: PairDirection) => void }) {
   if (report.definition?.impact || report.impact_analysis || report.definition?.include_relationships === false || report.definition?.scope === "single") return null
   const included = new Set(report.included_findings)
   const findings = report.findings.filter(finding => included.has(finding.id))
@@ -26,9 +26,10 @@ export function ReportRelationshipFindings({ report, busy = false, onDirectionCh
         const explicit = stored?.direction === "a_leads_b" || stored?.direction === "b_leads_a"
         const leader = explicit ? stored.direction === "a_leads_b" ? stored.metric_a : stored.metric_b : null
         const value = leader ? leader.dataset_id === finding.metric_a.dataset_id && leader.metric_key === finding.metric_a.metric_key ? "a_leads_b" : "b_leads_a" : "auto"
+        const updating = busy && updatingPair === unorderedReportPairKey(pair)
         return <li key={finding.id} className="min-w-0 border-b border-gray-100 py-3"><Finding finding={finding} grain={report.analysis_grain || report.grain || report.definition?.grain} />
-          {onDirectionChange && <label className="mt-3 block max-w-2xl text-xs text-gray-600 print:hidden">Relationship direction<select aria-label={`Relationship direction: ${finding.metric_a.dataset_label} / ${finding.metric_a.label} and ${finding.metric_b.dataset_label} / ${finding.metric_b.label}`} value={value} disabled={busy}
-            onChange={event => onDirectionChange(pair, event.target.value as PairDirection)} className="mt-1 h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-950">
+          {onDirectionChange && <label className="mt-3 block max-w-2xl text-xs text-gray-600 print:hidden"><span className="flex min-h-5 flex-wrap items-center justify-between gap-x-3"><span>Relationship direction</span>{updating && <span role="status" className="inline-flex items-center gap-1.5 text-blue-700"><LoaderCircle size={14} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />Processing...</span>}</span><select aria-label={`Relationship direction: ${finding.metric_a.dataset_label} / ${finding.metric_a.label} and ${finding.metric_b.dataset_label} / ${finding.metric_b.label}`} value={value} disabled={busy} aria-busy={updating}
+            onChange={event => { if (!busy) onDirectionChange(pair, event.target.value as PairDirection) }} className="mt-1 h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-950 disabled:cursor-wait disabled:bg-gray-50">
             {relationshipDirectionOptions(`${finding.metric_a.dataset_label} / ${finding.metric_a.label}`, `${finding.metric_b.dataset_label} / ${finding.metric_b.label}`, text => text).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></label>}
         </li>

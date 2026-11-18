@@ -85,6 +85,25 @@ test("preview direction changes send metric identities rather than display metad
   assert.equal(JSON.stringify(report), before)
 })
 
+test("direction processing stays beside the changed dropdown without hiding the current results", () => {
+  const pair = { metric_a: { dataset_id: 1, metric_key: "spend" }, metric_b: { dataset_id: 2, metric_key: "orders" } }
+  const record = { ...finding, eligible: true, coefficient: .83, lag: 2,
+    metric_a: { ...finding.metric_a, ...pair.metric_a }, metric_b: { ...finding.metric_b, ...pair.metric_b } }
+  const second = { ...record, id: "another-pair", metric_b: { ...record.metric_b, dataset_id: 3 } }
+  const report = { definition: { scope: "multi", pair_directions: [] }, findings: [record, second], included_findings: [record.id, second.id] }
+  const key = load("../features/reports/pair-directions.ts").unorderedReportPairKey(pair)
+  for (const [busy, updatingPair, processing] of [[true, key, true], [false, key, false], [true, null, false]]) {
+    const html = renderToStaticMarkup(React.createElement(ReportRelationshipFindings, { report, busy, updatingPair, onDirectionChange() {} }))
+    assert.equal((html.match(/role="status"/g) || []).length, processing ? 1 : 0)
+    assert.equal((html.match(/aria-busy="true"/g) || []).length, processing ? 1 : 0)
+    assert.equal((html.match(/disabled=""/g) || []).length, busy ? 2 : 0)
+    assert.equal(html.includes("Processing..."), processing)
+    assert.match(html, /0.83/)
+    assert.match(html, /2 days/)
+    if (processing) assert.match(html, /motion-reduce:animate-none/)
+  }
+})
+
 test("combined and single reports never show relationship findings, including stale selections", () => {
   assert.equal(renderFindings({ definition: { scope: "multi", include_relationships: false } }), "")
   assert.equal(renderFindings({ definition: { scope: "single" } }), "")

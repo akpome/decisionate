@@ -121,21 +121,29 @@ test("an interrupted direction change does not restore an old URL after navigati
   assert.equal(current.submission.current, false)
 })
 
-test("the preview handler does not discard existing evidence before recalculation succeeds", () => {
+test("the preview handler keeps existing evidence and marks only the chosen pair while recalculating", async () => {
   let callback
   function find(node) {
     if (ts.isJsxAttribute(node) && node.name.text === "onDirectionChange") callback = node.initializer.expression.whenFalse.getText(tree)
     ts.forEachChild(node, find)
   }
   find(tree)
-  const before = definition(), next = []
+  const before = definition(), next = [], submission = { current: false }
+  let finish, updatingPair
   const { change } = load(`export const change = ${callback}`, {}, {
-    ...pairs, definition: before, calculate: value => next.push(value),
+    ...pairs, definition: before, busy: false, analysisSubmission: submission,
+    calculate: value => { next.push(value); submission.current = true; return new Promise(resolve => { finish = resolve }) },
+    setUpdatingPair: value => { updatingPair = value },
     setDefinition: () => assert.fail("Do not mutate the current preview setup"), setReport: () => assert.fail("Do not discard the current preview"),
   })
   const pair = { metric_a: { ...metrics[1], label: "Sales" }, metric_b: { ...metrics[0], label: "Ads" } }
   change(pair, "a_leads_b")
+  assert.equal(updatingPair, pairs.unorderedReportPairKey(pair))
+  change(pair, "b_leads_a")
   assert.equal(next.length, 1)
   assert.equal(next[0].pair_directions[0].direction, "b_leads_a", "Reversed endpoints retain the actual chosen leader")
   assert.deepEqual(plain(next[0].pair_directions[0].metric_a), { dataset_id: 1, metric_key: "metric_1" })
+  finish()
+  await Promise.resolve()
+  assert.equal(updatingPair, null)
 })

@@ -348,6 +348,9 @@ business change. Existing saved reports keep their original workflow.
    is dependable, the result says Not established and shows a same-period coefficient.
    A lead direction is not proof of causation. The preview displays the suggested
    direction and its basis; change its dropdown to recalculate in a different direction.
+   A spinner and Processing message appear beside the changed dropdown immediately,
+   including while the request is being submitted and the analysis worker is running.
+   Direction selectors are disabled until processing finishes to avoid duplicate work.
    The previous preview stays visible until the update succeeds. If the request or
    calculation fails, the previous results and direction remain selected so you
    can try again without rebuilding the analysis. A failed update does not change

@@ -3,7 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
-import { GitCompare, RefreshCw, Save, Trash2 } from "lucide-react"
+import { GitCompare, LoaderCircle, RefreshCw, Save, Trash2 } from "lucide-react"
 
 import {
   createDatasetRelationship,
@@ -135,6 +135,7 @@ function RelationshipsWorkspace() {
   const [loading, setLoading] = useState(true)
   const [loadingMetadata, setLoadingMetadata] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [updatingDirection, setUpdatingDirection] = useState(false)
   const [deletingRelationshipId, setDeletingRelationshipId] = useState<number | null>(null)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
@@ -411,13 +412,30 @@ function RelationshipsWorkspace() {
     setResult(null); setStatusMessage(""); setError("")
   }
 
-  function changeRelationshipDirection(direction: string) {
-    if (direction === "legacy_fixed") return
-    changeAnalysisSetting(() => {
-      setLagMode("automatic")
-      setLagDirection(direction === "b_leads_a" ? "b_leads_a" : direction === "a_leads_b" ? "a_leads_b" : "auto")
-      setLagPeriods("0")
-    })
+  async function changeRelationshipDirection(direction: string) {
+    if (pending.current || !["auto", "a_leads_b", "b_leads_a"].includes(direction)) return
+    const nextDirection = direction as "auto" | "a_leads_b" | "b_leads_a"
+    if (!result) {
+      changeAnalysisSetting(() => { setLagMode("automatic"); setLagDirection(nextDirection); setLagPeriods("0") })
+      return
+    }
+    if (!user?.id || result.lag_mode !== "manual" && nextDirection === (result.direction_setting || lagDirection)) return
+    const payload = buildPayload()
+    if (!payload) return
+    pending.current = true
+    setBusy(true); setUpdatingDirection(true); setError(""); setStatusMessage("")
+    const scope = setupScope
+    try {
+      const calculated = await previewDatasetRelationship({ ...payload, lag_mode: "automatic", lag_direction: nextDirection, lag_periods: 0 }, user.id, activeWorkspaceId)
+      if (currentSetup.current !== scope) return
+      setLagMode("automatic"); setLagDirection(nextDirection); setLagPeriods("0")
+      setResult(calculated)
+    } catch (directionError) {
+      if (currentSetup.current === scope) setError(getErrorMessage(directionError, "Unable to update relationship direction."))
+    } finally {
+      pending.current = false
+      setBusy(false); setUpdatingDirection(false)
+    }
   }
 
   function openSavedRelationship(relationship: DatasetRelationship) {
@@ -549,9 +567,10 @@ function RelationshipsWorkspace() {
               <p className="text-xs leading-5 text-gray-600">{t("Lead means changes first. Lag is the time before the other metric changes. For example, spending may change before sales do; this does not prove the spending caused the sales.")}</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-gray-700">{t("Relationship direction")}</span>
+                  <span className="flex min-h-5 flex-wrap items-center justify-between gap-x-3 text-sm font-medium text-gray-700"><span>{t("Relationship direction")}</span>{updatingDirection && <span aria-hidden="true" className="inline-flex items-center gap-1.5 text-xs text-blue-700"><LoaderCircle size={14} className="shrink-0 animate-spin motion-reduce:animate-none" />{t("Processing...")}</span>}</span>
                   <select
                     aria-label={t("Relationship direction")}
+                    aria-busy={updatingDirection}
                     value={lagMode === "automatic" ? lagDirection : "legacy_fixed"}
                     onChange={event => changeRelationshipDirection(event.target.value)}
                     className="h-10 w-full min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -580,7 +599,7 @@ function RelationshipsWorkspace() {
                 className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <GitCompare size={16} />
-                {busy ? t("Calculating...") : t("Preview relationship")}
+                {busy ? t(updatingDirection ? "Updating relationship..." : "Calculating...") : t("Preview relationship")}
               </button>
             </div>
           </div>
@@ -590,8 +609,8 @@ function RelationshipsWorkspace() {
       {result && (
         <>
           <RelationshipResult relationship={result} />
-          <label className="block max-w-2xl space-y-2 text-sm">{t("Relationship direction")}
-            <select aria-label={t("Change preview direction")} value={result.lag_mode === "manual" ? "legacy_fixed" : result.direction_setting || lagDirection} disabled={busy}
+          <label className="block max-w-2xl space-y-2 text-sm"><span className="flex min-h-5 flex-wrap items-center justify-between gap-x-3"><span>{t("Relationship direction")}</span>{updatingDirection && <span role="status" className="inline-flex items-center gap-1.5 text-xs text-blue-700"><LoaderCircle size={14} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />{t("Processing...")}</span>}</span>
+            <select aria-label={t("Change preview direction")} aria-busy={updatingDirection} value={result.lag_mode === "manual" ? "legacy_fixed" : result.direction_setting || lagDirection} disabled={busy}
               onChange={event => changeRelationshipDirection(event.target.value)} className="h-10 w-full rounded-md border border-gray-200 bg-white px-3">
               {relationshipDirectionOptions(`${result.left_dataset_name} / ${result.left.metric_column}`, `${result.right_dataset_name} / ${result.right.metric_column}`, t).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               {result.lag_mode === "manual" && <option value="legacy_fixed">{t("Saved fixed lag")}: {result.lag_periods}</option>}
@@ -599,7 +618,7 @@ function RelationshipsWorkspace() {
           </label>
           {!result.id && <button type="button" onClick={() => void handleSave()} disabled={busy || Boolean(issue)}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
-            <Save size={16} />{t(busy ? "Saving..." : "Save relationship")}
+            <Save size={16} />{t(busy && !updatingDirection ? "Saving..." : "Save relationship")}
           </button>}
         </>
       )}

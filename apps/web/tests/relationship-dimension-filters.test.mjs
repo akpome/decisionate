@@ -123,6 +123,87 @@ test("late previews cannot replace evidence after the workspace or filter change
   }
 })
 
+function directionHarness(options = {}) {
+  const original = { id: 7, lag_mode: "automatic", direction_setting: "auto", correlation: .83 }
+  const state = { result: original, busy: false, updating: false, direction: "auto", error: "", writes: [], settings: [] }
+  const pending = { current: false }, currentSetup = { current: "original" }
+  let resolve, reject
+  const payload = payloadHarness({ leftFilter: selection }).buildPayload()
+  const view = functions(["changeRelationshipDirection", "getErrorMessage"], {
+    result: original, user: { id: "owner" }, activeWorkspaceId: "workspace", setupScope: "original", currentSetup, pending, Error,
+    lagDirection: "auto", buildPayload: () => payload,
+    setBusy: value => { state.busy = value }, setUpdatingDirection: value => { state.updating = value },
+    setError: value => { state.error = value }, setStatusMessage() {},
+    setLagMode: value => state.settings.push(["mode", value]), setLagDirection: value => { state.direction = value },
+    setLagPeriods: value => state.settings.push(["periods", value]), setResult: value => { state.result = value },
+    changeAnalysisSetting: update => update(),
+    previewDatasetRelationship: (value, user, workspace) => { state.writes.push({ value: plain(value), user, workspace }); return new Promise((yes, no) => { resolve = yes; reject = no }) },
+    ...options,
+  })
+  return { ...view, state, original, pending, currentSetup, payload, complete: value => resolve(value), fail: error => reject(error) }
+}
+
+test("changing a preview direction shows processing, retains evidence and blocks duplicate requests until success", async () => {
+  const current = directionHarness()
+  const first = current.changeRelationshipDirection("b_leads_a")
+  assert.equal(current.state.busy, true)
+  assert.equal(current.state.updating, true)
+  assert.equal(current.state.result, current.original)
+  assert.equal(current.state.direction, "auto")
+  await current.changeRelationshipDirection("a_leads_b")
+  assert.equal(current.state.writes.length, 1)
+  assert.deepEqual(current.state.writes[0], { value: { ...plain(current.payload), lag_mode: "automatic", lag_direction: "b_leads_a", lag_periods: 0 }, user: "owner", workspace: "workspace" })
+  const updated = { id: null, direction_setting: "b_leads_a", correlation: -.5 }
+  current.complete(updated)
+  await first
+  assert.equal(current.state.result, updated)
+  assert.equal(current.state.direction, "b_leads_a")
+  assert.equal(current.state.busy, false)
+  assert.equal(current.state.updating, false)
+  assert.equal(current.pending.current, false)
+})
+
+test("failed or stale direction updates stop processing without replacing the previous evidence or direction", async () => {
+  for (const stale of [false, true]) {
+    const current = directionHarness()
+    const request = current.changeRelationshipDirection("b_leads_a")
+    if (stale) { current.currentSetup.current = "different-workspace"; current.complete({ id: null }) }
+    else current.fail(new Error("The direction update failed."))
+    await request
+    assert.equal(current.state.result, current.original)
+    assert.equal(current.state.direction, "auto")
+    assert.deepEqual(current.state.settings, [])
+    assert.equal(current.state.busy, false)
+    assert.equal(current.state.updating, false)
+    assert.equal(current.pending.current, false)
+    assert.equal(current.state.error, stale ? "" : "The direction update failed.")
+    if (!stale) {
+      const retry = current.changeRelationshipDirection("b_leads_a")
+      assert.equal(current.state.updating, true)
+      const updated = { id: null, direction_setting: "b_leads_a" }
+      current.complete(updated)
+      await retry
+      assert.equal(current.state.result, updated)
+      assert.equal(current.state.updating, false)
+      assert.equal(current.state.writes.length, 2)
+    }
+  }
+})
+
+test("direction setup without a preview does not pretend to calculate, and unchanged or invalid directions do not submit", async () => {
+  const setup = directionHarness({ result: null })
+  await setup.changeRelationshipDirection("b_leads_a")
+  assert.equal(setup.state.direction, "b_leads_a")
+  assert.equal(setup.state.updating, false)
+  assert.equal(setup.state.writes.length, 0)
+  for (const direction of ["legacy_fixed", "unknown", "auto"]) {
+    const current = directionHarness()
+    await current.changeRelationshipDirection(direction)
+    assert.equal(current.state.updating, false)
+    assert.equal(current.state.writes.length, 0)
+  }
+})
+
 test("saving requires a current unsaved preview and blocks double submissions", async () => {
   for (const result of [null, { id: 4 }, { id: null }]) {
     let calls = 0, complete
@@ -184,15 +265,15 @@ test("preview and save send scope unchanged and reject an API that ignores filte
   }
 })
 
-test("direction selection removes fixed-lag editing and resets stale timing explicitly", () => {
+test("direction selection removes fixed-lag editing and resets stale timing explicitly", async () => {
   let mode = "manual", periods = "3", direction = "a_leads_b"
-  const view = functions(["changeRelationshipDirection"], { changeAnalysisSetting: update => update(),
+  const view = functions(["changeRelationshipDirection"], { result: null, changeAnalysisSetting: update => update(),
     setLagMode: value => { mode = value }, setLagPeriods: value => { periods = value }, setLagDirection: value => { direction = value } })
-  view.changeRelationshipDirection("legacy_fixed")
+  await view.changeRelationshipDirection("legacy_fixed")
   assert.deepEqual([mode, periods], ["manual", "3"])
-  view.changeRelationshipDirection("b_leads_a")
+  await view.changeRelationshipDirection("b_leads_a")
   assert.deepEqual([mode, periods, direction], ["automatic", "0", "b_leads_a"])
-  view.changeRelationshipDirection("auto")
+  await view.changeRelationshipDirection("auto")
   assert.deepEqual([mode, periods, direction], ["automatic", "0", "auto"])
   assert.doesNotMatch(source, /Left metric leads by|Advanced manual/)
   assert.match(source, /lagMode === "automatic" && <label[^\n]+Maximum lag/)

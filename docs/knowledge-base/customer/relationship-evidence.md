@@ -37,6 +37,14 @@ result too. Positive lags include their time unit and metric order. A valid
 same-period result shows 0 (same period); a missing coefficient is not displayed
 as zero, and insufficient evidence does not imply zero lag.
 
+Changing direction on an existing preview in Business Analysis or Relationships
+recalculates it automatically. A spinner and Processing message appear beside
+the dropdown, which is disabled until the calculation finishes. The previous
+evidence remains visible; a failed update keeps the old result and direction so
+you can retry. Updating a preview does not silently save a report or relationship.
+On Relationships, a direction choice before the first preview only configures
+the comparison; Preview relationship starts the calculation.
+
 Lag units follow the relationship analysis grouping, not the chart's detail:
 weekly relationship history produces a lag in weeks even when the report week
 is also shown day by day. A tentative lag is still an observed result, not a

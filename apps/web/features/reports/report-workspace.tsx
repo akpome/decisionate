@@ -115,6 +115,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const periodIssue = reviewDecisionId && !currentImpactContext ? impactContextError ? "The decision's analysis period could not be loaded." : "Loading the decision's analysis period..." : ""
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [updatingPair, setUpdatingPair] = useState<string | null>(null)
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
@@ -765,10 +766,12 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <ReportAnomalies analysis={report.anomaly_analysis} enabled={report.definition.include_anomalies !== false} title={report.weekly_anomaly_analysis ? "Daily changes" : "Anomaly detection"} />
         {weekly && <WeeklyDecisionUpdate report={report} />}
         <section aria-label="Analysis findings" className="space-y-3 border-t border-gray-200 pt-5"><h3 className="text-lg font-semibold">{single ? "Metric findings" : "Changes in selected metrics"}</h3>{report.observations.length + report.contrasts.length === 0 && <p className="text-sm text-gray-500">There is no complete earlier period to compare these totals with. {report.definition.impact || report.impact_analysis ? "The decision assessment uses its own before-and-after checks." : relationships ? "Relationships between the selected metrics are checked separately." : report.definition.include_anomalies !== false ? "Anomaly detection results are shown separately." : "Review the available totals above."}</p>}<Statements statements={report.observations} /><Statements statements={report.contrasts} /></section>
-        {relationships && <ReportRelationshipFindings report={report} busy={busy} onDirectionChange={weekly && !canManage ? undefined : (pair, direction) => {
+        {relationships && <ReportRelationshipFindings report={report} busy={busy} updatingPair={updatingPair} onDirectionChange={weekly && !canManage ? undefined : (pair, direction) => {
+          if (busy || analysisSubmission.current) return
           const next = { ...definition, included_findings: null, pair_directions: reportPairDirections(definition.metrics,
             definition.pair_directions.map(item => unorderedReportPairKey(item) === unorderedReportPairKey(pair) ? { ...pair, direction } : item)) }
-          void calculate(next)
+          setUpdatingPair(unorderedReportPairKey(pair))
+          void calculate(next).finally(() => setUpdatingPair(null))
         }} />}
         <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
