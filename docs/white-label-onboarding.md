@@ -15,6 +15,12 @@ provider accounts or separate Vercel project are required. The branded welcome
 screen uses `app.decisionate.ca` for secure credential entry and returns to the
 authorized portal. It does not change the custom product below.
 
+Invited clients can choose **Create an account** on the branded sign-in page.
+Its sign-up page uses the same central Clerk instance; the **Sign in** link
+preserves the invitation when switching back. Signup creates a login, not a new
+workspace or subscription. Existing agency invitations and verified-email access
+checks still determine which workspace can be opened.
+
 Both commercial switches default Off. Shared portals use the existing Clerk
 credential and register their sign-in domain when published; no manual verification
 flags are required. Hosting, HTTPS, email and connector setup still need to work; see the

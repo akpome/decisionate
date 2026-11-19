@@ -1,13 +1,12 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "ef17e1bfb49bd7fe5863fec307fb639dd2f6d992",
+  "base_git_revision": "ed4ac7295a7e01db1033d0a3379b05a481df8363",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/datasets/router.py",
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/app/dashboard/page.tsx",
-    "apps/web/features/reports/report-workspace.tsx",
-    "apps/web/features/sharing/share-email-modal.tsx"
+    "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
+    "apps/web/app/sign-up/[[...sign-up]]/page.tsx",
+    "apps/web/features/hosted-subdomains/sign-in.tsx",
+    "docs/white-label-onboarding.md"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -131,7 +130,8 @@
     "apps/web/app/platform-admin/page.tsx": "4c4cef4264d3a7e9d01e4097500f3962cae757cf7ab137958655548938095704",
     "apps/web/app/privacy/page.tsx": "e2a13b5e7858ee0d27c723b80d67a5476da07cf8178c32fe5f128fc4172342f6",
     "apps/web/app/share/report/page.tsx": "b7f0a87158499789fd679bb4fc7ad64cfa7c232c20b7308243a3d2d67adf19bc",
-    "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "fbe33a56e9793589728b2255b33a0d7edf7bbe98f5b730484cfc82e81229155c",
+    "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "9ddc87aa5b7456279040da5986906ffd73473f9a449893382722e002834ea10c",
+    "apps/web/app/sign-up/[[...sign-up]]/page.tsx": "e0cff096166ffaf14bbb4d13f684ba2bed2ae2d0dc390b6595e22d0139686407",
     "apps/web/components/searchable-select.tsx": "f58f9c68f6d03978666a19c964c2c7a0a76d9d3870f4026b93b094c7c6c374f9",
     "apps/web/features/auth/components/workspace-invitation-sign-in.tsx": "f1fdc7df443bb8d82375f80c5bccecc0ab13b8e15561fd2946e4941682e65873",
     "apps/web/features/auth/lib/auth-redirects.ts": "1ad5a3b9931bc5d2aa7610d678c61f3f3fdd399a8ec26b232188e014b83c805d",
@@ -150,6 +150,7 @@
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "5d885f0c41f9ef97700554396b7bad4d3d7f6c502bfc31327ae1882730094e1b",
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "1800308a101183a53afa3aa9d539c98de3b231347fee0c7f40455e709688f2dd",
     "apps/web/features/hosted-subdomains/setup.tsx": "ab5be80145a7a29c1f8551b45554df4b8a153c2244b49ce03698e8e8842fec2a",
+    "apps/web/features/hosted-subdomains/sign-in.tsx": "28a56e4f1f9fdd928d220af5f14791dc46570281c6cb13b70882c3a4acca2c90",
     "apps/web/features/hosted-subdomains/unavailable-page.ts": "0acf0d39ad9d8ca2ddc4224a50f839bc71aaed975f30bf4b135b9295b875411b",
     "apps/web/features/performance/amount-source.tsx": "122a9f4c76f165a258ec8bacbd93c81067647dbc83c99168080eff31c61ca8dd",
     "apps/web/features/performance/growth-results.tsx": "70b243acaeb2dc4cba429d9b97261e4da8deec0936f8ebe7b0f0cc4cafa82169",
@@ -212,10 +213,10 @@
     "docs/multi-application-api.md": "fa9697368f42ca6995a0118545b09815c0cd11630357469d72e10bfe11157f74",
     "docs/openai-data-flow.md": "2bcfa4ae96a3d98f4e9b3722d33854e7536f651c9ddea6c926fb23bc720f14fd",
     "docs/railway-scheduling.md": "73781498a08122f0e4987f21286eb375a120cbc5f179757d44af01d6cb7e6305",
-    "docs/white-label-onboarding.md": "c9b4af4958ea8b04eb0d220cf15480d73cc5e47efb2aa3df2bd378013495c020"
+    "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "9f74b27eaca5a91c158cad49eeb8515d021a726a82a11073d3782e8232d530bf",
+    "customer/hosted-portals.md": "8289f79f7ce6db34a8d8349e0e5242c72c0ada277de438246392e27c1989514b",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

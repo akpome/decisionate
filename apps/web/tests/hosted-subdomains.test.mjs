@@ -55,20 +55,67 @@ test("return allowlisting requires a registered active HTTPS portal and a safe a
   assert.equal(await resolution({ active: false }).safeHostedReturn(target), null)
 })
 
-test("hosted login builds central links with Clerk rather than constructing session tokens", () => {
+function renderHostedAuth(signup = false) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server"), calls = []
   const { HostedSignIn } = load("../features/hosted-subdomains/sign-in.tsx", {
     "react/jsx-runtime": require("react/jsx-runtime"), "@clerk/nextjs": { useClerk: () => ({
-      buildSignInUrl: options => { calls.push(options); return "https://app.decisionate.ca/sign-in?sdk-sync=1" },
+      buildSignInUrl: options => { calls.push({ mode: "sign-in", ...options }); return "https://app.decisionate.ca/sign-in?sdk-sync=1" },
+      buildSignUpUrl: options => { calls.push({ mode: "sign-up", ...options }); return "https://app.decisionate.ca/sign-up?sdk-sync=1" },
     }) }, "lucide-react": { ArrowRight: () => null }, "@/lib/workspace-brand": { getBrandSurfaceTextColor: () => "#ffffff" },
   })
-  const html = renderToStaticMarkup(React.createElement(HostedSignIn, { brand: { name: "North Star", welcome_heading: "Hello",
+  const returnTo = "/connections?workspace_id=client"
+  const html = renderToStaticMarkup(React.createElement(HostedSignIn, { signup, brand: { name: "North Star", welcome_heading: "Welcome back",
     support_email: "help@example.test", primary_color: "#2563EB", background_color: "#FFFFFF", welcome_text: "Your business results" },
-    returnTo: "https://north.decisionate.app/auth/redirect" }))
-  assert.equal(calls[0].redirectUrl, "https://north.decisionate.app/auth/redirect")
+    returnTo: "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo),
+    alternateUrl: signup ? redirects.getSignInUrl(returnTo) : redirects.getSignUpUrl(returnTo) }))
+  return { html, calls, returnTo }
+}
+
+test("hosted login builds central links with Clerk and exposes a branded signup entry preserving invitations", () => {
+  const { html, calls, returnTo } = renderHostedAuth()
+  assert.deepEqual(calls, [{ mode: "sign-in", redirectUrl: "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo) }])
   assert.match(html, /sdk-sync=1/)
   assert.match(html, /North Star/)
+  assert.ok(html.includes(`href="${redirects.getSignUpUrl(returnTo)}"`))
+  assert.match(html, /Create an account/)
   assert.match(html, /https:\/\/decisionate.ca\/privacy/)
+})
+
+test("hosted signup has its own heading and central signup action with an invitation-preserving sign-in link", () => {
+  const { html, calls, returnTo } = renderHostedAuth(true)
+  assert.deepEqual(calls, [{ mode: "sign-up", redirectUrl: "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo) }])
+  assert.match(html, /Create your account/)
+  assert.match(html, /Continue to sign up/)
+  assert.match(html, /email address from your agency invitation/)
+  assert.match(html, /Already have an account/)
+  assert.doesNotMatch(html, /Welcome back|Your business results/)
+  assert.ok(html.includes(`href="${redirects.getSignInUrl(returnTo)}"`))
+})
+
+test("hosted auth pages keep safe workspace destinations on the portal when switching modes", async () => {
+  const brand = { name: "North Star" }, origin = "https://north.decisionate.app"
+  for (const signup of [false, true]) {
+    const HostedSignIn = () => null
+    const page = load(`../app/${signup ? "sign-up/[[...sign-up]]" : "sign-in/[[...sign-in]]"}/page.tsx`, {
+      "react/jsx-runtime": require("react/jsx-runtime"),
+      "next/headers": { headers: async () => new Headers({ host: "north.decisionate.app", "x-forwarded-proto": "https" }) },
+      "@/features/auth/lib/auth-redirects": redirects,
+      "@/app/auth-card": { AuthCard: () => null },
+      "@/features/auth/components/auth-layout": { AuthLayout: () => null },
+      "@/features/auth/components/workspace-invitation-sign-in": { WorkspaceInvitationSignIn: () => null },
+      "@/features/hosted-subdomains/server": { requestHostedPortal: async () => ({ branding: brand, origin }) },
+      "@/features/hosted-subdomains/sign-in": { HostedSignIn },
+    }).default
+    for (const destination of ["/connections?workspace_id=client", undefined, "https://evil.test/dashboard", "//evil.test", "/sign-in", "/dashboard/%2f%2fevil.test"]) {
+      const element = await page({ searchParams: Promise.resolve({ redirect_url: destination }) })
+      const safe = redirects.getSafeReturnTo(destination, origin)
+      assert.equal(element.type, HostedSignIn)
+      assert.equal(element.props.returnTo, origin + redirects.getAuthRedirectUrl(safe))
+      assert.equal(element.props.alternateUrl, signup ? redirects.getSignInUrl(safe) : redirects.getSignUpUrl(safe))
+      assert.equal(Boolean(element.props.signup), signup)
+      assert.equal(element.props.brand, brand)
+    }
+  }
 })
 
 test("hosted setup uses a native modal, immutable addresses, explicit publish and separate draft saves", () => {

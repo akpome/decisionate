@@ -87,9 +87,16 @@ needed; the portal still needs working HTTPS, authentication and delivery servic
 
 ## Where do hosted clients sign in and how are they invited?
 
-Continue to sign in securely opens the existing Decisionate sign-in, then returns
-to the branded portal. Password recovery uses that same account. Clients need the
-normal workspace invitation and permission; signup alone does not grant access.
+The branded sign-in page offers Continue to sign in and Create an account.
+Invited clients without a login choose Create an account, then Continue to sign
+up, using the email address from their agency invitation. Clients who already
+have an account choose Sign in instead. Switching between sign-in and sign-up
+preserves the invited workspace destination.
+
+Credential entry, verification and password recovery use the existing secure
+Decisionate account flow, then return to the branded portal. Clients need the
+normal workspace invitation and permission; signup alone does not grant access,
+create another workspace or enroll a client in a subscription.
 Manage invitations in Settings. An invitation to attach an existing independent
 workspace starts on the main application before that workspace joins the agency.
 

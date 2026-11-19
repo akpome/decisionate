@@ -2,7 +2,7 @@ import { AuthCard } from "@/app/auth-card"
 import { headers } from "next/headers"
 import { AuthLayout } from "@/features/auth/components/auth-layout"
 import { WorkspaceInvitationSignIn } from "@/features/auth/components/workspace-invitation-sign-in"
-import { getAuthRequestOrigin, getInvitedWorkspaceId, getSafeReturnTo } from "@/features/auth/lib/auth-redirects"
+import { getAuthRequestOrigin, getInvitedWorkspaceId, getSafeReturnTo, getSignUpUrl } from "@/features/auth/lib/auth-redirects"
 import { requestHostedPortal } from "@/features/hosted-subdomains/server"
 import { HostedSignIn } from "@/features/hosted-subdomains/sign-in"
 import { getAuthRedirectUrl } from "@/features/auth/lib/auth-redirects"
@@ -16,7 +16,7 @@ export default async function SignInPage({ searchParams }: {
   const { redirect_url, switch_account } = await searchParams
   const returnTo = getSafeReturnTo(redirect_url, getAuthRequestOrigin(await headers()))
   const portal = await requestHostedPortal()
-  if (portal?.branding) return <HostedSignIn brand={portal.branding} returnTo={portal.origin + getAuthRedirectUrl(returnTo)} />
+  if (portal?.branding) return <HostedSignIn brand={portal.branding} returnTo={portal.origin + getAuthRedirectUrl(returnTo)} alternateUrl={getSignUpUrl(returnTo)} />
   const accountSwitch = switch_account === "1" && Boolean(getInvitedWorkspaceId(returnTo))
   const card = <AuthCard mode="sign-in" returnTo={returnTo} />
   return (
