@@ -7,12 +7,14 @@ from sqlalchemy import inspect
 from app.db.models import WeeklyReportPreference
 from app.modules.budget_planner.models import BudgetPlan
 from app.modules.performance.models import PerformanceAnalysis
-from .models import BusinessReport, CurrentWeeklyReport, DecisionImpactReview, ReportAnalysisJob
+from .models import BusinessReport, CurrentWeeklyReport, DecisionImpactReview, ReportAnalysisJob, ReportShare
 
 
 def delete_reports(db, identities):
     if not identities:
         return
+    if inspect(db.connection()).has_table(ReportShare.__tablename__):
+        db.query(ReportShare).filter(ReportShare.report_id.in_(identities)).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):
         db.query(DecisionImpactReview).filter(DecisionImpactReview.report_id.in_(identities)).update({"report_id": None}, synchronize_session=False)
     if inspect(db.connection()).has_table(WeeklyReportPreference.__tablename__):
@@ -69,6 +71,9 @@ def cleanup_source(db, dataset_id):
 
 
 def cleanup_workspace(db, workspace_id):
+    from app.modules.share_emails import ShareEmailDelivery
+    if inspect(db.connection()).has_table(ShareEmailDelivery.__tablename__):
+        db.query(ShareEmailDelivery).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):
         db.query(PerformanceAnalysis).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(BudgetPlan.__tablename__):

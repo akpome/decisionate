@@ -17,6 +17,12 @@ class BusinessReport(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now)
 
 
+class ReportShare(Base):
+    __tablename__ = "report_shares"
+    report_id = Column(String, ForeignKey("business_reports.id", ondelete="CASCADE"), primary_key=True)
+    token = Column(String, nullable=False, unique=True, index=True)
+
+
 class CurrentWeeklyReport(Base):
     __tablename__ = "current_weekly_reports"
     workspace_id = Column(String, primary_key=True)

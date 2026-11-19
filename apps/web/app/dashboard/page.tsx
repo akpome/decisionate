@@ -25,7 +25,8 @@ import {
   MetricSelector,
 } from "@/features/dashboard/components/metric-selector"
 
-import { getDatasetJoinCache, joinDatasets, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAnomalies, getDatasetDetails, getDatasetShareLink, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, stopDatasetSharing, updateDatasetPreference } from "@/lib/api";
+import { correlationRequest, getDatasetJoinCache, joinDatasets, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAnomalies, getDatasetDetails, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, stopDatasetSharing, updateDatasetPreference } from "@/lib/api";
+import { ShareEmailModal, type ShareEmailResult } from "@/features/sharing/share-email-modal"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -538,6 +539,7 @@ export default function DashboardPage() {
     useState<ShareAction | null>(null)
   const [shareEnabled, setShareEnabled] =
     useState(false)
+  const [shareModalTarget, setShareModalTarget] = useState("")
   const [shareStatusLoading, setShareStatusLoading] =
     useState(false)
   const shareStatusTimeoutRef =
@@ -2705,23 +2707,23 @@ export default function DashboardPage() {
       }, duration)
   }
 
-  async function handleShareDashboard() {
+  function handleShareDashboard() {
+    if (shareControlsDisabled) return
+    setShareModalTarget(currentShareTarget)
+  }
+
+  async function emailDashboard(recipients: string[], requestKey: string): Promise<ShareEmailResult> {
     if (
       shareAction ||
       dimensionBlocked ||
       !canConfigureWorkspace
     ) {
-      return
+      throw new Error("The dashboard is not ready to share.")
     }
 
     if (!selectedDatasetId || !userId) {
-      setTemporaryShareStatus(
-        "Select a dataset before sharing."
-      )
-      return
+      throw new Error("Select a dataset before sharing.")
     }
-
-    let shareUrl = ""
 
     try {
       setShareAction("share")
@@ -2778,44 +2780,17 @@ export default function DashboardPage() {
 
       await saveDashboardViewPreference()
 
-      const shareLink =
-        await getDatasetShareLink(
-          selectedDatasetId,
-          userId,
-          activeWorkspaceId,
-          selectedDashboard
-        )
-      shareUrl =
-        buildDashboardShareUrl(
-          selectedDatasetId,
-          dashboardTemplate,
-          selectedDashboard,
-          shareLink.share_token
-        )
-
-      const copied =
-        await copyTextToClipboard(shareUrl)
-
-      setTemporaryShareStatus(
-        copied ? "Copied" : shareUrl,
-        copied ? 2500 : 8000
-      )
-      setShareEnabled(
-        shareLink.share_enabled
-      )
+      const result = await correlationRequest<ShareEmailResult>(userId, "/share-emails", {
+        method: "POST", headers: { "Idempotency-Key": requestKey },
+        body: JSON.stringify({ kind: "dashboard", dataset_id: selectedDatasetId, dashboard: selectedDashboard, template: dashboardTemplate, recipients }),
+      }, activeWorkspaceId)
+      setShareEnabled(result.share_enabled)
       window.dispatchEvent(
         new Event(
           "decisionate:dashboard-sharing-changed"
         )
       )
-    } catch (error) {
-      setTemporaryShareStatus(
-        shareUrl ||
-          `Unable to create share link. ${getErrorMessage(
-            error,
-            ""
-          )}`.trim()
-      )
+      return result
     } finally {
       setShareAction(null)
     }
@@ -2903,22 +2878,15 @@ export default function DashboardPage() {
     isCustomSelectedDashboard
       ? selectedDashboardDefinition.name
       : effectiveDashboardTitle
+  const currentShareTarget = JSON.stringify([userId, activeWorkspaceId, selectedDatasetId, selectedDashboard])
+  const shareEmailModal = shareModalTarget === currentShareTarget && userId && <ShareEmailModal
+    key={currentShareTarget} title={dashboardShareTitle} kind="dashboard" onSend={emailDashboard} onClose={() => setShareModalTarget("")} />
   const shareButtonLabel =
     shareAction === "share"
-      ? shareEnabled
-        ? "Copying..."
-        : "Sharing..."
-      : shareEnabled
-        ? "Share link"
-        : "Share"
-  const shareButtonTitle =
-    shareEnabled
-      ? `Copy the current ${dashboardShareTitle.toLowerCase()} link.`
-      : `Create and copy a ${dashboardShareTitle.toLowerCase()} link.`
-  const shareButtonAriaLabel =
-    shareEnabled
-      ? `Copy ${dashboardShareTitle.toLowerCase()} share link`
-      : `Create ${dashboardShareTitle.toLowerCase()} share link`
+      ? "Sending..."
+      : "Share link"
+  const shareButtonTitle = `Email a read-only ${dashboardShareTitle.toLowerCase()} link.`
+  const shareButtonAriaLabel = `Email ${dashboardShareTitle.toLowerCase()} link`
 
   const dashboardIsInitializing =
     !authLoaded ||
@@ -3410,6 +3378,7 @@ export default function DashboardPage() {
 
     return (
       <div className="screen-page space-y-3">
+        {shareEmailModal}
         {pdfExporting && (
           <div
             aria-hidden="true"
@@ -3552,6 +3521,7 @@ export default function DashboardPage() {
 
   return (
     <div className="screen-page space-y-4">
+      {shareEmailModal}
       {dataset && !loading && !dimensionBlocked && pdfExporting && (
         <div
           aria-hidden="true"
@@ -6349,47 +6319,6 @@ function getQueryDatasetId(
     : undefined
 }
 
-function buildDashboardShareUrl(
-  datasetId: number | undefined,
-  dashboardTemplate: DashboardTemplate,
-  selectedDashboard: string,
-  token: string
-) {
-  if (typeof window === "undefined") {
-    return "/share/dashboard"
-  }
-
-  const url =
-    new URL(
-      "/share/dashboard",
-      window.location.origin
-    )
-
-  if (datasetId) {
-    url.searchParams.set(
-      "dataset",
-      String(datasetId)
-    )
-  }
-
-  url.searchParams.set(
-    "template",
-    dashboardTemplate
-  )
-  url.searchParams.set(
-    "dashboard",
-    isDashboardKey(selectedDashboard)
-      ? selectedDashboard
-      : defaultDashboardKey
-  )
-  url.searchParams.set(
-    "token",
-    token
-  )
-
-  return url.toString()
-}
-
 function waitForNextFrame() {
   return new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => {
@@ -7454,48 +7383,4 @@ function isDashboardIdentifierColumn(
       normalizedWord === "key" ||
       normalizedWord === "code"
   })
-}
-
-async function copyTextToClipboard(text: string) {
-  if (
-    navigator.clipboard &&
-    window.isSecureContext
-  ) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch {
-      return copyTextWithSelection(text)
-    }
-  }
-
-  return copyTextWithSelection(text)
-}
-
-function copyTextWithSelection(text: string) {
-  const textarea =
-    document.createElement("textarea")
-
-  textarea.value = text
-  textarea.setAttribute("readonly", "")
-  textarea.style.position = "fixed"
-  textarea.style.left = "-9999px"
-  textarea.style.top = "0"
-
-  const parent = document.body
-
-  if (!parent) {
-    return false
-  }
-
-  parent.appendChild(textarea)
-  textarea.select()
-
-  try {
-    return document.execCommand("copy")
-  } catch {
-    return false
-  } finally {
-    textarea.parentNode?.removeChild(textarea)
-  }
 }

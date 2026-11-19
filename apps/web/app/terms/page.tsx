@@ -45,6 +45,8 @@ export default function TermsPage() {
           A valid public dashboard share link allows its holder to view the shared
           information without signing in. Only share information you are authorized
           to disclose, protect the link, and revoke it when no longer needed.
+          The same applies to emailed saved analysis report links. Choose
+          recipients carefully: forwarding a valid link forwards read-only access.
           The public live demo uses prepared sample data and does not allow uploads,
           dataset deletion, or creation of decisions.
         </p>

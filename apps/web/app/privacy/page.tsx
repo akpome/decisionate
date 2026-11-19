@@ -132,6 +132,15 @@ export default function PrivacyPage() {
           prepared sample data, not customer workspace data. Demo sample files
           are public and may be cached by browsers and hosting infrastructure.
         </p>
+        <p>
+          Dashboard and saved analysis report links can be emailed to recipients
+          you choose. Recipient addresses and delivery status are stored to
+          prevent duplicate sends and record the attempt. Report recipients see
+          read-only saved analysis results, not internal decision records or
+          workspace controls. Anyone holding a valid report link can view it;
+          forwarding the email also forwards access. Stop sharing revokes the
+          link but cannot recall downloaded copies.
+        </p>
       </PolicySection>
 
       <PolicySection title="6. AI processing">

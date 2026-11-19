@@ -741,9 +741,18 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Open Dashboards and select the dashboard you want to share.",
           "Confirm the dataset, metrics, mappings, period, aggregation, chart names, and visual state before sharing.",
-          "Choose Share and copy the generated link only after the share status confirms it is active.",
+          "Choose Share link, enter up to ten email addresses separated by commas or new lines, then Send email. The link is sent to each recipient separately. Opening or canceling the dialog sends nothing.",
           "Open the link in a private browser session to verify that the shared page shows the intended workspace branding, charts, controls, date range, and selected metrics.",
           "Use the dashboard's own Stop sharing control to disable that dashboard link. Use the global stop-sharing action from the dashboards page when all links for the workspace must be stopped.",
+        ],
+      },
+      {
+        title: "Email a single-dataset or multi-dataset report",
+        steps: [
+          "In Business Analysis, preview the report and choose Share link. Enter recipients and Send email. An unsaved preview is saved as a report when you send; the dialog states this before sending.",
+          "Recipients see read-only saved results, charts, anomaly checks and included relationships. Internal decision records and workspace controls are not included. The link does not refresh or rerun the analysis.",
+          "Anyone holding the emailed link can view the results without signing in. Stop sharing on the original report revokes its links; sharing again creates a new link. Deleting the report or its source also removes access.",
+          "If delivery is partial or unconfirmed, check recipients' inboxes before sending again. The app does not automatically repeat uncertain deliveries.",
         ],
       },
       {

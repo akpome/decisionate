@@ -588,6 +588,8 @@ def delete_report(report_id: str, request: Request, db=Depends(database)):
     db.query(ReportAnalysisJob).filter_by(saved_report_id=report.id).delete(synchronize_session=False)
     from .models import DecisionImpactReview
     db.query(DecisionImpactReview).filter_by(report_id=report.id).update({"report_id": None}, synchronize_session=False)
+    from .models import ReportShare
+    db.query(ReportShare).filter_by(report_id=report.id).delete(synchronize_session=False)
     db.delete(report)
     db.commit()
     return {"report_id": report_id, "deleted": True, "weekly_template_removed": removed_template}
@@ -709,3 +711,25 @@ def weekly_template(report_id: str, request: Request, db=Depends(database)):
     preference.business_report_id = report.id
     db.commit()
     return {"report_id": report.id, "enabled": bool(preference.enabled)}
+
+
+@router.get("/{report_id}/share")
+def report_share_status(report_id: str, request: Request, db=Depends(database)):
+    from .models import ReportShare
+    user, workspace = identity(request)
+    require_workspace_data_manager(request)
+    report = allowed_report(db, report_id, user, workspace)
+    return {"share_enabled": db.get(ReportShare, report.id) is not None}
+
+
+@router.delete("/{report_id}/share")
+def stop_report_sharing(report_id: str, request: Request, db=Depends(database)):
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+    from .models import ReportShare
+    user, workspace = identity(request)
+    require_workspace_data_manager(request)
+    report = allowed_report(db, report_id, user, workspace)
+    lock_workspace_queue(db, "share-email:" + workspace)
+    db.query(ReportShare).filter_by(report_id=report.id).delete(synchronize_session=False)
+    db.commit()
+    return {"share_enabled": False}

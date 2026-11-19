@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Square, Trash2, X } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Share2, Square, Trash2, Unlink, X } from "lucide-react"
+import { ShareEmailModal, type ShareEmailResult } from "@/features/sharing/share-email-modal"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces, type WeeklyReportDeliveryResult } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
 import { WorkspaceBrandMark } from "@/app/dashboard/workspace-brand-mark"
@@ -104,6 +105,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [saved, setSaved] = useState<SavedReport[]>([])
   const [draftDefinition, setDefinition] = useState<ReportDefinition>(() => weekly ? weeklyDefinition({}) : editableDefinition({ scope: initialScope, include_relationships: includeRelationships, impact: impactPage ? newImpactStudy() : null }))
   const [report, setReport] = useState<BusinessReport | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [reportSharing, setReportSharing] = useState<{ key: string; enabled: boolean } | null>(null)
+  const reportSharingRequest = useRef(0)
+  const shareContext = JSON.stringify([userId, workspaceId, report?.analysis_job_id || report?.report_id])
+  const [sharingContext, setSharingContext] = useState("")
   const [view, setView] = useState<"explore" | "report">("explore")
   const [impactContext, setImpactContext] = useState<{ key: string; value: DecisionReviewContext | null; error: boolean } | null>(null)
   const [impactContextReload, setImpactContextReload] = useState(0)
@@ -121,6 +127,14 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const [message, setMessage] = useState("")
   const [brand, setBrand] = useState<WorkspaceBrand>(defaultWorkspaceBrand)
   const request = <T,>(path: string, init: RequestInit = {}) => correlationRequest<T>(userId, `/business-reports${path}`, init, workspaceId)
+  useEffect(() => {
+    if (!report?.report_id || !canManage || weekly || impactPage) return
+    let current = true
+    const sequence = ++reportSharingRequest.current
+    correlationRequest<{ share_enabled: boolean }>(userId, `/business-reports/${encodeURIComponent(report.report_id)}/share`, {}, workspaceId)
+      .then(value => { if (current && sequence === reportSharingRequest.current) setReportSharing({ key: shareContext, enabled: value.share_enabled }) }).catch(() => {})
+    return () => { current = false }
+  }, [report?.report_id, canManage, weekly, impactPage, shareContext, userId, workspaceId])
   const datasetCount = new Set(definition.metrics.map(metric => metric.dataset_id)).size
   const single = definition.scope === "single"
   const joinedDatasetIds = new Set(datasets.filter(isJoinedReportDataset).map(dataset => dataset.dataset_id))
@@ -670,6 +684,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           {weekly && weeklyPreviewReady && canManage && !report.weekly_current && !analysisJob?.weekly_settings_saved && <button type="button" className={primaryButton} disabled={busy || !canSave || Boolean(report.definition.impact?.decision_id && !canEditDecisions)} onClick={() => void saveWeeklyReport()}><Save size={16} />Save changes</button>}
           {report.definition.impact?.decision_id && <Link className={button} href={`/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
           {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/weekly-reports?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
+          {!weekly && !impactPage && canManage && canSave && <button type="button" className={button} disabled={busy || sharing} title="Email a read-only report link" onClick={() => setSharingContext(shareContext)}><Share2 size={16} />Share link</button>}
+          {!weekly && !impactPage && canManage && reportSharing?.key === shareContext && reportSharing.enabled && <button type="button" className={button} disabled={busy || sharing} onClick={() => {
+            if (!window.confirm("Stop sharing this report? Previously emailed links will no longer work.")) return
+            void execute(async () => { await request(`/${encodeURIComponent(report.report_id!)}/share`, { method: "DELETE" }); reportSharingRequest.current++; setReportSharing({ key: shareContext, enabled: false }); setMessage("Report sharing stopped.") })
+          }}><Unlink size={16} />Stop sharing</button>}
           <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>
         </>}
         {weekly && canManage && view === "report" && report && (!report.report_id || report.weekly_current) && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Email workspace owner</button>}
@@ -779,6 +798,19 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       </>}
     </section>
     {relationships && !weekly && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
+    {report && sharingContext === shareContext && <ShareEmailModal key={shareContext} title={report.name} kind="report" unsaved={!report.report_id} onClose={() => setSharingContext("")} onSend={async (recipients, requestKey) => {
+      if (!canManage || !canSave || busy || managementAction.current) throw new Error("The report is not ready to share.")
+      managementAction.current = true; setSharing(true)
+      try {
+        const snapshot = await saveSnapshot()
+        const result = await correlationRequest<ShareEmailResult>(userId, "/share-emails", {
+          method: "POST", headers: { "Idempotency-Key": requestKey }, body: JSON.stringify({ kind: "report", report_id: snapshot.report_id, recipients }),
+        }, workspaceId)
+        reportSharingRequest.current++
+        setReportSharing({ key: shareContext, enabled: result.share_enabled })
+        return result
+      } finally { managementAction.current = false; setSharing(false) }
+    }} />}
   </div>
 }
 

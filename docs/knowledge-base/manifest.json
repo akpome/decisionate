@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-18",
+  "reviewed_on": "2026-11-19",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -1333,7 +1333,9 @@
       "questions": [
         "Is a weekly email the dashboard PDF?",
         "Who can open a shared dashboard link?",
-        "Why does my shared dashboard look different?"
+        "Why does my shared dashboard look different?",
+        "How do I email a dashboard or report link?",
+        "Can I share a single-dataset or multi-dataset report?"
       ],
       "routes": [
         "/dashboard",
@@ -1342,6 +1344,11 @@
       ],
       "sources": [
         "apps/api/app/modules/public_dashboard.py",
+        "apps/api/app/modules/share_emails.py",
+        "apps/api/app/modules/reports/public.py",
+        "apps/api/app/modules/reports/models.py",
+        "apps/web/features/sharing/share-email-modal.tsx",
+        "apps/web/app/share/report/page.tsx",
         "apps/api/app/modules/decisions/router.py",
         "apps/web/app/dashboard/help/page.tsx",
         "apps/api/app/modules/alerts/email_delivery.py"
