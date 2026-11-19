@@ -142,6 +142,72 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(db.get(Organization, 1).name, "Original agency")
             self.assertEqual(db.query(HostedSubdomainEvent).count(), 2)
 
+    def test_address_checks_normalize_names_and_do_not_reserve_or_contact_providers(self):
+        with patch.object(service, "clerk_request", side_effect=AssertionError("Availability is a local check")):
+            for slug in ("north-star", " North-Star ", "NORTH-STAR"):
+                response = self.client.get(self.base + "/availability", headers=self.headers(), params={"slug": slug})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.headers["cache-control"], "no-store")
+                self.assertEqual(response.json(), {"available": True, "status": "available",
+                    "message": "This address is available. Save your draft to reserve it."})
+        with self.Session() as db:
+            self.assertEqual(db.query(HostedSubdomainPortal).count(), 0)
+            self.assertEqual(db.query(HostedSubdomainEvent).count(), 0)
+
+    def test_reserved_addresses_are_unique_across_agencies_case_and_portal_statuses(self):
+        self.assertEqual(self.save(" North-Star ").status_code, 200)
+        for status in ("reserved", "active", "suspended", "retired"):
+            with self.Session() as db:
+                db.query(HostedSubdomainPortal).one().status = status
+                db.commit()
+            for slug in ("north-star", "NORTH-STAR", " North-Star "):
+                with self.subTest(status=status, slug=slug):
+                    owner = self.client.get(self.base + "/availability", headers=self.headers(), params={"slug": slug})
+                    self.assertEqual(owner.json()["status"], "reserved")
+                    response = self.client.get(self.base + "/availability", headers=self.headers(user="another"), params={"slug": slug})
+                    self.assertEqual(response.status_code, 200, response.text)
+                    self.assertEqual(response.json(), {"available": False, "status": "taken",
+                        "message": "This address is already taken. Choose another name."})
+                    rejected = self.save(slug, user="another")
+                    self.assertEqual(rejected.status_code, 409, rejected.text)
+            self.assertEqual(self.client.get(self.base + "/availability", headers=self.headers(user="another"),
+                params={"slug": "different-agency"}).json()["available"], True)
+            with self.Session() as db:
+                self.assertEqual(db.query(HostedSubdomainPortal).count(), 1)
+                self.assertEqual(db.query(HostedSubdomainPortal).one().organization_id, 1)
+
+    def test_database_rejects_a_duplicate_even_when_the_availability_result_is_stale(self):
+        available = self.client.get(self.base + "/availability", headers=self.headers(user="another"), params={"slug": "north-star"})
+        self.assertTrue(available.json()["available"])
+        self.assertEqual(self.save().status_code, 200)
+        with patch.object(portals, "reserved_address", return_value=None):
+            rejected = self.save("NORTH-STAR", user="another")
+        self.assertEqual(rejected.status_code, 409, rejected.text)
+        with self.Session() as db:
+            self.assertEqual(db.query(HostedSubdomainPortal).count(), 1)
+            self.assertEqual(db.query(HostedSubdomainPortal).one().organization_id, 1)
+            self.assertEqual(db.query(HostedSubdomainEvent).count(), 1)
+        self.assertEqual(self.save("another-agency", user="another").status_code, 200)
+
+    def test_address_checks_reject_invalid_and_platform_reserved_names(self):
+        for slug in ("App", "billing", "www", "a", "ab--cd", "-hello", "hello-", "a.b", "a" * 41, "north_st\u00e4r"):
+            with self.subTest(slug=slug):
+                response = self.client.get(self.base + "/availability", headers=self.headers(), params={"slug": slug})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertFalse(response.json()["available"])
+                self.assertEqual(response.json()["status"], "invalid")
+                self.assertEqual(self.save(slug).status_code, 422)
+
+    def test_address_checks_require_an_authorized_white_label_agency(self):
+        self.assertEqual(self.client.get(self.base + "/availability", params={"slug": "north-star"}).status_code, 401)
+        for user, workspace in (("client", "agency:client:1"), ("staff", "agency")):
+            response = self.client.get(self.base + "/availability", headers=self.headers(user=user, workspace=workspace), params={"slug": "north-star"})
+            self.assertEqual(response.status_code, 403, response.text)
+        with self.Session() as db:
+            db.get(WorkspaceSubscription, 1).plan = "agency"
+            db.commit()
+        self.assertEqual(self.client.get(self.base + "/availability", headers=self.headers(), params={"slug": "north-star"}).status_code, 403)
+
     def test_same_verified_identity_and_membership_required_on_hosted_origins(self):
         self.publish()
         origin = "https://north-star.decisionate.app"

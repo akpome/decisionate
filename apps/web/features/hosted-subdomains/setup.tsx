@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { Check, Copy, ExternalLink, Eye, Monitor, RefreshCw, Save, Smartphone, X } from "lucide-react"
+import { Check, Copy, ExternalLink, Eye, LoaderCircle, Monitor, RefreshCw, Save, Smartphone, X } from "lucide-react"
 import { hostedSubdomainRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { getBrandSurfaceTextColor } from "@/lib/workspace-brand"
@@ -10,6 +10,7 @@ import { getHostedLogo, isHostedLogoUrl, type HostedBrand } from "./types"
 
 type PortalRecord = { id: string; slug: string; hostname: string; revision: number; status: string; configuration: HostedBrand; url: string; published: boolean; last_error: string | null }
 type Setup = { portal: PortalRecord | null; entitled: boolean; commercially_available: boolean; blockers: string[]; defaults: Partial<HostedBrand> }
+type AddressCheck = { input: string; status: "available" | "reserved" | "taken" | "invalid" | "error"; message: string }
 const emptyBrand: HostedBrand = { name: "", logo_url: "", favicon_url: "", background_url: "", primary_color: "#2563EB", accent_color: "#059669", background_color: "#F8FAFC", support_email: "", welcome_heading: "Welcome back", welcome_text: "" }
 const inputClass = "mt-1 h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm"
 const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm disabled:opacity-50"
@@ -30,11 +31,18 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
   const [mobile, setMobile] = useState(false)
   const [reload, setReload] = useState(0)
   const [failedLogo, setFailedLogo] = useState("")
+  const [addressCheck, setAddressCheck] = useState<AddressCheck | null>(null)
+  const [addressRetry, setAddressRetry] = useState(0)
   const working = useRef(false)
   const previewDialog = useRef<HTMLDialogElement>(null)
   const logo = getHostedLogo(brand)
   const uploadedLogo = logo.startsWith("data:")
   const logoError = logo && failedLogo === logo ? "The logo could not be loaded. Check its URL or upload a PNG, JPEG or WebP file." : ""
+  const canEdit = data?.entitled && (data.commercially_available || data.portal?.published)
+  const checkedAddress = addressCheck?.input === slug ? addressCheck : null
+  const checkingAddress = Boolean(canEdit && !data?.portal && slug.trim() && !checkedAddress)
+  const addressReady = Boolean(data?.portal || checkedAddress?.status === "available")
+  const addressMessage = data?.portal ? "This is your reserved address." : checkingAddress ? "Checking address..." : checkedAddress?.message || ""
   const dirty = Boolean(data && (slug !== (data.portal?.slug || "") || JSON.stringify(brand) !== JSON.stringify(data.portal?.configuration || { ...emptyBrand, ...data.defaults })))
   useEffect(() => {
     if (preview) previewDialog.current?.showModal()
@@ -47,6 +55,18 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
     }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load your portal") })
     return () => controller.abort()
   }, [userId, reload])
+  useEffect(() => {
+    if (!canEdit || data?.portal || !slug.trim()) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      void hostedSubdomainRequest<Omit<AddressCheck, "input">>(userId, `/availability?slug=${encodeURIComponent(slug)}`, { signal: controller.signal }).then(result => {
+        if (!controller.signal.aborted) setAddressCheck({ ...result, input: slug })
+      }).catch(() => {
+        if (!controller.signal.aborted) setAddressCheck({ input: slug, status: "error", message: "Could not check this address. Try again." })
+      })
+    }, 350)
+    return () => { controller.abort(); window.clearTimeout(timer) }
+  }, [userId, slug, canEdit, data?.portal, addressRetry])
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault() }
     window.addEventListener("beforeunload", handler)
@@ -66,6 +86,7 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
     finally { working.current = false; setBusy(false) }
   }
   async function save(openPreview = false) {
+    if (!data?.portal && !addressReady) throw new Error(addressMessage || "Choose an available subdomain.")
     if (logo && !uploadedLogo && !isHostedLogoUrl(logo.trim())) throw new Error("Enter an HTTPS logo URL or upload a logo.")
     const configuration = { ...brand, logo_url: logo.trim(), favicon_url: "" }
     const portal = await hostedSubdomainRequest<PortalRecord>(userId, "", { method: "PUT", body: JSON.stringify({ slug, configuration, revision: data?.portal?.revision || 0 }) })
@@ -109,7 +130,6 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
       {key === "logo_url" && logoError && <p role="alert" className="mt-2 text-sm text-red-700">{logoError}</p>}
     </div>
   }
-  const canEdit = data?.entitled && (data.commercially_available || data.portal?.published)
   return <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
     <header className="flex items-center justify-between gap-4 border-b border-gray-200 pb-5">
       <h1 className="text-2xl font-semibold">Hosted portal</h1>
@@ -139,9 +159,14 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
           <section className="border-b border-gray-200 py-6">
             <h2 className="mb-4 font-semibold">Portal address</h2>
             <label className="block max-w-xl text-sm text-gray-700">Subdomain
-              <div className="mt-1 flex min-w-0 items-center rounded-md border border-gray-300 bg-white"><input aria-label="Subdomain" required disabled={Boolean(data.portal)} pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" maxLength={40}
-                value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} className="h-10 min-w-0 flex-1 rounded-l-md px-3" /><span className="shrink-0 pr-3 text-xs text-gray-500">.decisionate.app</span></div>
+              <div className="mt-1 flex min-w-0 items-center rounded-md border border-gray-300 bg-white"><input aria-label="Subdomain" aria-describedby="hosted-address-status" aria-invalid={!data.portal && Boolean(checkedAddress && checkedAddress.status !== "available")} autoCapitalize="none" spellCheck={false} required disabled={Boolean(data.portal)} pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" maxLength={40}
+                value={slug} onChange={event => { setSlug(event.target.value.toLowerCase()); setAddressCheck(null) }} className="h-10 min-w-0 flex-1 rounded-l-md px-3" /><span className="shrink-0 pr-3 text-xs text-gray-500">.decisionate.app</span></div>
             </label>
+            <div id="hosted-address-status" role="status" className={`mt-2 flex min-h-5 max-w-xl items-center gap-2 text-sm ${!data.portal && checkedAddress && checkedAddress.status !== "available" ? "text-red-700" : "text-gray-600"}`}>
+              {checkingAddress && <LoaderCircle aria-hidden="true" size={16} className="shrink-0 animate-spin" />}
+              <span>{addressMessage}</span>
+              {!data.portal && checkedAddress?.status === "error" && <button type="button" className="shrink-0 underline" onClick={() => { setAddressCheck(null); setAddressRetry(value => value + 1) }}>Try again</button>}
+            </div>
           </section>
           <section className="border-b border-gray-200 py-6">
             <h2 className="mb-4 font-semibold">Brand identity</h2>
@@ -160,7 +185,7 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
             <div className="grid gap-4 sm:grid-cols-2">{field("welcome_heading", "Welcome heading")}{imageField("background_url", "Background image")}</div>
             <label className="mt-4 block text-sm text-gray-700">Welcome message<textarea value={brand.welcome_text} maxLength={400} onChange={event => setBrand(value => ({ ...value, welcome_text: event.target.value }))} className="mt-1 min-h-24 w-full rounded-md border border-gray-300 bg-white p-3" /></label>
           </section>
-          <div className="flex flex-wrap justify-end gap-3 py-5"><button type="button" className={buttonClass} onClick={() => void perform(() => save())}><Save size={16} />Save draft</button><button type="submit" className={buttonClass}><Eye size={16} />Preview portal</button></div>
+          <div className="flex flex-wrap justify-end gap-3 py-5"><button type="button" className={buttonClass} disabled={!addressReady} onClick={() => void perform(() => save())}><Save size={16} />Save draft</button><button type="submit" className={buttonClass} disabled={!addressReady}><Eye size={16} />Preview portal</button></div>
         </fieldset>
       </form>}
       {data.blockers.length > 0 && canEdit && <p className="text-sm text-amber-800">Publishing is awaiting platform launch checks. Your draft can be saved.</p>}

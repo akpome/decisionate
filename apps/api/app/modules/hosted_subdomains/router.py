@@ -4,9 +4,9 @@ import base64
 import json
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import update
+from sqlalchemy import or_, update
 from sqlalchemy.exc import IntegrityError
 
 from app.application_context import get_application
@@ -58,6 +58,31 @@ def require_sales(db):
 def require_entitlement(db, agency):
     if not entitled(db, agency):
         raise HTTPException(403, "A White Label Subdomain Agency subscription is required for your hosted portal.")
+
+
+def reserved_address(db, slug):
+    return db.query(HostedSubdomainPortal).filter(or_(
+        HostedSubdomainPortal.slug == slug,
+        HostedSubdomainPortal.hostname == slug + "." + ROOT_DOMAIN,
+    )).first()
+
+
+@router.get("/availability")
+def check_availability(request: Request, response: Response, slug: str = Query(min_length=1, max_length=80)):
+    response.headers["Cache-Control"] = "no-store"
+    with SessionLocal() as db:
+        _, agency, _ = require_agency(request, db)
+        require_entitlement(db, agency)
+        try:
+            slug = normalize_slug(slug)
+        except ValueError as error:
+            return {"available": False, "status": "invalid", "message": str(error)}
+        row = reserved_address(db, slug)
+        if row:
+            owned = row.organization_id == agency.id
+            return {"available": False, "status": "reserved" if owned else "taken",
+                    "message": "This is your reserved address." if owned else "This address is already taken. Choose another name."}
+        return {"available": True, "status": "available", "message": "This address is available. Save your draft to reserve it."}
 
 
 @router.get("/resolve")
@@ -124,6 +149,8 @@ def save(request: Request, payload: SavePortal):
         else:
             if payload.revision:
                 raise HTTPException(409, "This portal changed. Refresh before saving.")
+            if reserved_address(db, payload.slug):
+                raise HTTPException(409, "This address is already taken. Choose another name.")
             row = HostedSubdomainPortal(id=uuid4().hex, organization_id=agency.id, slug=payload.slug,
                 hostname=payload.slug + "." + ROOT_DOMAIN, configuration=payload.configuration.model_dump_json())
             db.add(row)
@@ -133,7 +160,7 @@ def save(request: Request, payload: SavePortal):
             db.commit()
         except IntegrityError:
             db.rollback()
-            raise HTTPException(409, "This address is already reserved. Choose another.") from None
+            raise HTTPException(409, "The portal or address was reserved while you were editing. Refresh or choose another name.") from None
         return portal_record(row)
 
 

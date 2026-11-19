@@ -82,8 +82,14 @@ choosing Upload logo. Uploads must be PNG, JPEG or WebP and can be up to 1 MB.
 That same logo appears in the portal preview, sign-in screen and browser tab;
 there is no separate browser-icon upload. Existing icon-only images are kept as
 the logo when no logo was previously selected. Removing the logo clears that
-image too. An optional background image can be up to 128 KB. Save draft
-reserves the address; it cannot then be renamed in this screen.
+image too. An optional background image can be up to 128 KB.
+The subdomain field checks whether your chosen address is available. Names are
+case-insensitive, and each address belongs to only one agency. Use 3-40 letters,
+numbers or single hyphens; platform names such as app and support cannot be used.
+Save draft reserves the address; checking availability alone does not reserve it.
+If someone else reserves it first, choose another name. An address already reserved
+by an agency stays unavailable to others, including while its portal is paused or
+retired. Your saved address cannot then be renamed in this screen.
 Preview desktop or mobile, then explicitly activate or publish. Draft changes are
 not live until published. Reopen setup to continue. Publishing registers the portal's
 sign-in domain with Clerk. If shared sign-in setup is unavailable, save the draft

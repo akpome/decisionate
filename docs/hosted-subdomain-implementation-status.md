@@ -42,7 +42,8 @@ Audit findings and differences from the original handoff:
 2. Choose White Label Subdomain Agency through Billing when available. If it is
    inactive, restore it through Billing; portal setup does not add another charge.
 3. Enter the subdomain, name, support address, colors, optional images and welcome
-   message. Save draft atomically reserves the address; it cannot then be renamed.
+   message. A debounced, authenticated availability check shows whether the name
+   can be used. Save draft atomically reserves the address; it cannot then be renamed.
 4. Preview desktop/mobile appearance, then explicitly activate/publish. Draft
    editing does not provision Clerk resources or change live branding.
 5. Open/copy the URL and manage client invitations using existing Settings.
@@ -71,6 +72,7 @@ No existing records are rewritten. New routes:
 | `GET /api/v2/hosted-subdomains/resolve?hostname=...` | Exact public config, no secrets, no-store |
 | `GET /api/v2/hosted-subdomains/assets/{hostname}/{field}` | Active published raster images |
 | `GET/PUT /api/v2/hosted-subdomains` | Agency owner/admin setup and versioned drafts |
+| `GET /api/v2/hosted-subdomains/availability?slug=...` | Eligible agency-only name check; no reservation or owner disclosure |
 | `POST /api/v2/hosted-subdomains/activate` | Entitlement/readiness/revision-checked publication |
 | `POST /admin/hosted-subdomains/{id}/status` | Full-admin suspend/resume/retire, reason and revision |
 | `GET /admin/hosted-subdomains/{id}/events` | Full-admin history |
@@ -80,6 +82,13 @@ Unknown/retired hosts fail closed. Inactive/reserved hosts expose no branding;
 only Clerk proxy bootstrap is available on the frontend. Active exact origins
 enter CORS dynamically. No wildcard authentication/CORS/redirect permission is
 added. Hosted origins cannot access platform or marketing administration.
+
+Subdomains are normalized to lowercase and checked against platform-reserved names.
+Draft, active, suspended and retired reservations all prevent reuse by another
+agency. Availability checks do not reserve a name; saves recheck ownership and the
+existing unique slug/hostname constraints reject a conflicting concurrent save.
+The setup screen ignores canceled or outdated checks and blocks a new draft until
+its current name has passed the check. Existing reserved addresses remain locked.
 
 One logo is configured through an HTTPS URL or a PNG/JPEG/WebP upload up to 1 MB.
 It is reused for preview, sign-in and the browser icon. Legacy icon-only records

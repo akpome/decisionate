@@ -185,12 +185,12 @@ test("hosted logo picker accepts exactly 1 MB while other images retain their 12
   assert.match(svg.state.error, /PNG, JPEG or WebP/)
 })
 
-function renderSetup({ entitled = true, available = true } = {}) {
+function renderSetup({ entitled = true, available = true, slug = "", addressCheck = null, portal = null } = {}) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
   const brand = { name: "North Star", support_email: "help@northstar.test", logo_url: "", favicon_url: "", background_url: "",
     primary_color: "#2563EB", accent_color: "#059669", background_color: "#FFFFFF", welcome_heading: "Welcome", welcome_text: "" }
-  const states = [{ portal: null, entitled, commercially_available: available, blockers: [], defaults: brand },
-    brand, "", "", "", false, false, false, 0]
+  const states = [{ portal, entitled, commercially_available: available, blockers: [], defaults: brand },
+    brand, slug, "", "", false, false, false, 0, "", addressCheck, 0]
   let index = 0
   const { HostedSubdomainSetup } = load("../features/hosted-subdomains/setup.tsx", {
     "./types": types,
@@ -264,4 +264,95 @@ test("inactive Agency access and closed availability keep setup blocked without 
   const closed = renderSetup({ available: false })
   assert.match(closed, /New hosted portals are not available yet/)
   assert.doesNotMatch(closed, /<form|Preview portal|Add hosted white label/)
+})
+
+test("new portal saves wait for an available name, while existing reserved addresses remain editable", () => {
+  const buttons = html => [...html.matchAll(/<button[^>]*>[\s\S]*?<\/button>/g)]
+    .map(match => match[0]).filter(button => /Save draft|Preview portal/.test(button))
+  for (const [status, message] of [[null, "Checking address..."], ["taken", "This address is already taken. Choose another name."],
+    ["invalid", "Use 3-40 letters"], ["error", "Could not check this address. Try again."]]) {
+    const html = renderSetup({ slug: "north-star", addressCheck: status && { input: "north-star", status, message } })
+    assert.ok(html.includes(message), html)
+    assert.equal(buttons(html).length, 2)
+    assert.ok(buttons(html).every(button => /disabled=""/.test(button)), status)
+    if (status) assert.match(html, /aria-invalid="true"/)
+    if (status === "error") assert.match(html, />Try again<\/button>/)
+  }
+  const ready = renderSetup({ slug: "north-star", addressCheck: { input: "north-star", status: "available", message: "This address is available." } })
+  assert.ok(buttons(ready).every(button => !/disabled=""/.test(button)))
+  const stale = renderSetup({ slug: "another-name", addressCheck: { input: "north-star", status: "available", message: "Available" } })
+  assert.match(stale, /Checking address/)
+  assert.ok(buttons(stale).every(button => /disabled=""/.test(button)))
+  const existing = renderSetup({ slug: "north-star", portal: { slug: "north-star", configuration: {}, revision: 1 } })
+  assert.match(existing, /This is your reserved address/)
+  assert.ok(buttons(existing).every(button => !/disabled=""/.test(button)))
+})
+
+function addressAvailability({ slug = "north-star", portal = null, canEdit = true, failure = false } = {}) {
+  const source = read("../features/hosted-subdomains/setup.tsx")
+  const ast = ts.createSourceFile("setup.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const editor = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "HostedSubdomainEditor")
+  const effect = editor.body.statements.find(node => ts.isExpressionStatement(node) && ts.isCallExpression(node.expression)
+    && node.expression.expression.getText(ast) === "useEffect" && node.getText(ast).includes("/availability?slug="))
+  const state = { calls: [], checks: [], timer: null, cleared: [], wait: 0 }
+  let settle, reject
+  const pending = new Promise((resolve, fail) => { settle = resolve; reject = fail })
+  const context = { userId: "agency", slug, data: { portal }, canEdit, AbortController, encodeURIComponent,
+    window: { setTimeout(fn, wait) { state.timer = fn; state.wait = wait; return 7 }, clearTimeout: id => state.cleared.push(id) },
+    setAddressCheck: check => state.checks.push(check),
+    hostedSubdomainRequest: (...args) => { state.calls.push(args); return pending },
+  }
+  const effectFunction = vm.runInNewContext(ts.transpileModule(`(${effect.expression.arguments[0].getText(ast)})`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText, context)
+  const cleanup = effectFunction()
+  return { state, cleanup, async finish(status = "available") {
+    if (failure) reject(new Error("Offline"))
+    else settle({ status, available: status === "available", message: status })
+    await new Promise(resolve => setImmediate(resolve))
+  } }
+}
+
+test("address checks are debounced, encoded, abortable and ignore old responses after typing another name", async () => {
+  const h = addressAvailability({ slug: "North & Star" })
+  assert.equal(h.state.calls.length, 0)
+  assert.equal(h.state.wait, 350)
+  h.state.timer()
+  assert.equal(h.state.calls[0][1], "/availability?slug=North%20%26%20Star")
+  const signal = h.state.calls[0][2].signal
+  assert.equal(signal.aborted, false)
+  h.cleanup()
+  assert.equal(signal.aborted, true)
+  assert.deepEqual(h.state.cleared, [7])
+  await h.finish()
+  assert.equal(h.state.checks.length, 0)
+  for (const options of [{ portal: { id: "existing" } }, { slug: "   " }, { canEdit: false }]) {
+    const skipped = addressAvailability(options)
+    assert.equal(skipped.state.timer, null)
+    assert.equal(skipped.cleanup, undefined)
+  }
+  for (const status of ["available", "taken", "invalid"]) {
+    const current = addressAvailability()
+    current.state.timer(); await current.finish(status)
+    assert.equal(current.state.checks[0].input, "north-star")
+    assert.equal(current.state.checks[0].status, status)
+    current.cleanup()
+  }
+  const failed = addressAvailability({ failure: true })
+  failed.state.timer(); await failed.finish()
+  assert.equal(failed.state.checks[0].status, "error")
+  assert.match(failed.state.checks[0].message, /Try again/)
+  failed.cleanup()
+})
+
+test("programmatic saves cannot bypass an unavailable or unchecked new address", async () => {
+  const source = read("../features/hosted-subdomains/setup.tsx")
+  const ast = ts.createSourceFile("setup.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const editor = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "HostedSubdomainEditor")
+  const save = editor.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "save")
+  const run = vm.runInNewContext(ts.transpileModule(`${save.getText(ast)}\nsave`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText, { data: { portal: null }, addressReady: false, addressMessage: "This address is already taken.", Error,
+    hostedSubdomainRequest: () => assert.fail("An unchecked address must not be saved") })
+  await assert.rejects(run(), /already taken/)
 })
