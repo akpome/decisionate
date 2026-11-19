@@ -159,7 +159,7 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
           <section className="border-b border-gray-200 py-6">
             <h2 className="mb-4 font-semibold">Portal address</h2>
             <label className="block max-w-xl text-sm text-gray-700">Subdomain
-              <div className="mt-1 flex min-w-0 items-center rounded-md border border-gray-300 bg-white"><input aria-label="Subdomain" aria-describedby="hosted-address-status" aria-invalid={!data.portal && Boolean(checkedAddress && checkedAddress.status !== "available")} autoCapitalize="none" spellCheck={false} required disabled={Boolean(data.portal)} pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" maxLength={40}
+              <div className="mt-1 flex min-w-0 items-center rounded-md border border-gray-300 bg-white"><input aria-label="Subdomain" aria-describedby="hosted-address-status" aria-invalid={!data.portal && Boolean(checkedAddress && checkedAddress.status !== "available")} autoCapitalize="none" spellCheck={false} required disabled={Boolean(data.portal)} pattern={"[a-z0-9][a-z0-9\\-]{1,38}[a-z0-9]"} maxLength={40}
                 value={slug} onChange={event => { setSlug(event.target.value.toLowerCase()); setAddressCheck(null) }} className="h-10 min-w-0 flex-1 rounded-l-md px-3" /><span className="shrink-0 pr-3 text-xs text-gray-500">.decisionate.app</span></div>
             </label>
             <div id="hosted-address-status" role="status" className={`mt-2 flex min-h-5 max-w-xl items-center gap-2 text-sm ${!data.portal && checkedAddress && checkedAddress.status !== "available" ? "text-red-700" : "text-gray-600"}`}>

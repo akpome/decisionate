@@ -156,7 +156,7 @@ function SetupWizard({ userId, onNavigationChange }: { userId: string; onNavigat
             setForm(current => ({ ...current, name, id: !saved && !customId ? suggestApplicationId(name) : current.id, confirmed_checks: [] }))
             setMessage("")
           }} className={fieldClass} /></label>
-          <label className="min-w-0 text-sm">Application ID<input required disabled={!!saved} pattern="[a-z][a-z0-9-]{1,62}" placeholder="decisionate-ai" value={form.id} onChange={event => { setCustomId(true); change("id", event.target.value) }} className={fieldClass} /></label>
+          <label className="min-w-0 text-sm">Application ID<input required disabled={!!saved} pattern={"[a-z][a-z0-9\\-]{1,62}"} placeholder="decisionate-ai" value={form.id} onChange={event => { setCustomId(true); change("id", event.target.value) }} className={fieldClass} /></label>
           <label className="min-w-0 text-sm">Frontend URL<input required disabled={saved?.readiness.registered} type="url" placeholder="https://www.decisionate.ai" value={form.web_url} onChange={event => change("web_url", event.target.value)} className={fieldClass} /></label>
           <label className="min-w-0 text-sm">Additional frontend origins<input disabled={saved?.readiness.registered} placeholder="https://decisionate.ai" value={form.allowed_origins.join(",")} onChange={event => change("allowed_origins", event.target.value.split(","))} className={fieldClass} /></label>
           <label className="min-w-0 text-sm">Support email<input type="email" value={form.support_email} onChange={event => change("support_email", event.target.value)} className={fieldClass} /></label>

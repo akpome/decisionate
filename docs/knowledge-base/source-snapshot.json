@@ -1,11 +1,10 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "dd4de2437305d9a86dc52a80ca2b9a7045e6cd43",
+  "base_git_revision": "f4b196a4e051ba052b39833ca25f34f9a046fbb8",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/hosted_subdomains/service.py",
-    "apps/api/tests/test_hosted_subdomains.py",
-    "apps/web/app/dashboard/settings/settings-client.tsx"
+    "apps/web/features/hosted-subdomains/setup.tsx",
+    "apps/web/features/white-label/setup.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -159,7 +158,7 @@
     "apps/web/features/datasets/lib/metric-selection-save.ts": "f5e26dc649de82e84e657e8a6e8ecc0bd635a6a07bd43426f1a263d23777b1ec",
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "5d885f0c41f9ef97700554396b7bad4d3d7f6c502bfc31327ae1882730094e1b",
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "1800308a101183a53afa3aa9d539c98de3b231347fee0c7f40455e709688f2dd",
-    "apps/web/features/hosted-subdomains/setup.tsx": "8cd725d56d7d4a88b8a40fc53cc17cbcc0f5cbbc3e3a534fdb03d4f68d848f72",
+    "apps/web/features/hosted-subdomains/setup.tsx": "a76c60b0cc7e1a49a3d3ad406689bf8003d5a4cb30e3ed68caa49cf212672662",
     "apps/web/features/hosted-subdomains/sign-in.tsx": "7cb81af4f1868470ff6bb034061191a42ac4113c9a0fcc7bc835433955180647",
     "apps/web/features/hosted-subdomains/types.ts": "442010905c8ee062de0a1fe2f0b328db7fab9c65fd6ed6a756dfd41f564c1009",
     "apps/web/features/hosted-subdomains/unavailable-page.ts": "0acf0d39ad9d8ca2ddc4224a50f839bc71aaed975f30bf4b135b9295b875411b",
@@ -213,7 +212,7 @@
     "apps/web/features/sharing/shared-links.tsx": "6092c574a880d051e179b38a45580b7d16a9967f681bb3c8fb344a8d0965e114",
     "apps/web/features/support/product-guidance.tsx": "922b24599f02f4569a7bd16b1d5207a808778b94aff454987c0375855f809c53",
     "apps/web/features/white-label/hosted-setup.tsx": "7a433c8702d617df6b29626cbc08f891a91b67b327ef63afbfacc57abdd5da1b",
-    "apps/web/features/white-label/setup.tsx": "2df6c9ac128ca80ed6a30847a9e4898374f38657028eca0343a7f5b7dd6af685",
+    "apps/web/features/white-label/setup.tsx": "1b6b851ebb2e159208aa2ff806d78990602e97775d3b25fa567e301ee516e8b9",
     "apps/web/features/white-label/state.ts": "1335aa31b14a723f8c0b05d0a73f403ecce090fb0054c2b890a20f89017c2d4b",
     "apps/web/lib/api.ts": "7e94b64a8c00579186b26c42811e1e09262317588def3da981ee73b08d4c68e3",
     "apps/web/lib/application-routes.ts": "f2303cd164bdc993495c73ca8ac1eb85817d36dbde77d3af257a8061674fd634",
