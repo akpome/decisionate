@@ -133,6 +133,56 @@ test("hosted setup uses a native modal, immutable addresses, explicit publish an
   assert.doesNotMatch(source, /HOSTED_PORTALS_|Stripe Connect|Clerk API key|subscription-offer|Add hosted white label|Cancel hosted white label|View subscription price|\/subscription["']/)
 })
 
+function imageUpload(field) {
+  const source = read("../features/hosted-subdomains/setup.tsx")
+  const ast = ts.createSourceFile("setup.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const editor = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "HostedSubdomainEditor")
+  const imageField = editor.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "imageField")
+  const state = { reads: 0, error: "", brand: { logo_url: "", favicon_url: "", background_url: "" } }
+  const context = { require, exports: {}, brand: state.brand, buttonClass: "", Error,
+    setBrand: update => { state.brand = update(state.brand) },
+    perform: action => { state.pending = action().catch(reason => { state.error = reason.message }) },
+    FileReader: class {
+      readAsDataURL(file) { state.reads++; this.result = `data:${file.type};base64,cG5n`; this.onload() }
+    },
+  }
+  const render = vm.runInNewContext(ts.transpileModule(`${imageField.getText(ast)}\nimageField`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText, context)
+  function findInput(node) {
+    if (!node || typeof node !== "object") return null
+    if (node.type === "input") return node
+    return [].concat(node.props?.children || []).map(findInput).find(Boolean)
+  }
+  const input = findInput(render(field, field))
+  return { state, async choose(size, type = "image/png") {
+    const target = { files: [{ size, type }], value: "selected-file" }
+    input.props.onChange({ target }); await state.pending
+    assert.equal(target.value, "")
+  } }
+}
+
+test("hosted logo picker accepts exactly 1 MB while other images retain their 128 KB limit", async () => {
+  for (const [field, limit, label] of [["logo_url", 1024 * 1024, "1 MB"], ["favicon_url", 128 * 1024, "128 KB"], ["background_url", 128 * 1024, "128 KB"]]) {
+    for (const type of ["image/png", "image/jpeg", "image/webp"]) {
+      const accepted = imageUpload(field)
+      await accepted.choose(limit, type)
+      assert.equal(accepted.state.error, "")
+      assert.equal(accepted.state.reads, 1)
+      assert.ok(accepted.state.brand[field].startsWith(`data:${type};base64,`))
+    }
+    const oversized = imageUpload(field)
+    await oversized.choose(limit + 1)
+    assert.match(oversized.state.error, new RegExp(`no larger than ${label}`))
+    assert.equal(oversized.state.reads, 0)
+    assert.equal(oversized.state.brand[field], "")
+  }
+  const svg = imageUpload("logo_url")
+  await svg.choose(100, "image/svg+xml")
+  assert.equal(svg.state.reads, 0)
+  assert.match(svg.state.error, /PNG, JPEG or WebP/)
+})
+
 function renderSetup({ entitled = true, available = true } = {}) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
   const brand = { name: "North Star", support_email: "help@northstar.test", logo_url: "", favicon_url: "", background_url: "",

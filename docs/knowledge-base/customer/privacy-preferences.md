@@ -44,6 +44,27 @@ or disables a workspace's weekly delivery schedule.
 
 ## Requests and assurance
 
+### Delete a workspace you own
+
+The primary owner of a Professional or Agency workspace can open Settings and
+use Delete workspace at the bottom. Choose Delete workspace, read the warning,
+type the workspace name and choose Permanently delete. Opening or cancelling the
+confirmation does not delete anything. Other workspace members cannot use this
+action.
+
+Any active workspace subscription must finish cancellation in Billing first;
+scheduling cancellation for a future date is not enough. Agency owners must
+remove or unlink their client workspaces before deleting their agency workspace.
+Accepted clients retain their own workspaces and data. Linked client owners must
+unlink their agency first, then use their existing Delete workspace option.
+Running imports, analysis or AI requests must finish before deletion can proceed.
+
+Deletion permanently removes the selected workspace's datasets, connections,
+reports, decisions, access and shared links. Other workspaces are not deleted.
+After success you are signed out; an internal app account with no other workspaces
+is removed. Your external sign-in provider account is not deleted by this action.
+This does not make a separate assurance about provider records or backup policies.
+
 Use authorized support for an export, deletion or privacy request that is not
 covered by self-service controls. Do not send credentials or unnecessary customer
 records to prove an issue. This knowledge repository does not certify a security

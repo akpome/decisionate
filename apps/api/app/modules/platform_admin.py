@@ -3719,7 +3719,7 @@ def delete_workspace_records(
     db.query(UserPreference).filter(
         or_(
             UserPreference.workspace_id == clean_workspace_id,
-            UserPreference.clerk_user_id == clean_workspace_id,
+            and_(UserPreference.workspace_id.is_(None), UserPreference.clerk_user_id == clean_workspace_id),
         )
     ).delete(synchronize_session=False)
 

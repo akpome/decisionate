@@ -1419,13 +1419,16 @@
       "questions": [
         "Does marketing unsubscribe stop weekly reports?",
         "Are all data types deleted after three years?",
-        "Does the chatbot need secrets?"
+        "Does the chatbot need secrets?",
+        "How do I delete my workspace?"
       ],
       "routes": [
         "/privacy",
         "/terms",
         "/security",
-        "/help"
+        "/help",
+        "/settings",
+        "/billing"
       ],
       "sources": [
         "apps/api/app/modules/marketing/config.py",
@@ -1433,6 +1436,8 @@
         "apps/api/app/modules/datasets/services/retention.py",
         "docs/openai-data-flow.md",
         "apps/web/app/privacy/page.tsx",
+        "apps/web/features/settings/workspace-deletion.tsx",
+        "apps/api/app/modules/organizations/agency_accounts.py",
         "apps/web/app/dashboard/help/page.tsx"
       ],
       "related": [

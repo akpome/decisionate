@@ -92,6 +92,21 @@ test("Agency, Professional and converted Professional owners retain full Setting
   }
 })
 
+test("primary Professional and Agency owners have a dedicated deletion section, not visiting owners or members", () => {
+  for (const owner of ["professional", "agency"]) {
+    const workspace = { id: 1, name: "My workspace", owner_user_id: owner, role: "owner", is_managed_client: false }
+    const html = render(components(workspace).Settings, { userId: owner, fullName: "Owner", emailAddress: "owner@example.test" })
+    assert.match(html, /workspace-deletion-title/)
+    assert.match(html, />Delete workspace<\/button>/)
+    assert.match(html, /This cannot be undone/)
+    assert.doesNotMatch(html, /<dialog/)
+    const visiting = render(components(workspace).Settings, { userId: "someone-else", fullName: "Other owner", emailAddress: "other@example.test" })
+    assert.doesNotMatch(visiting, /workspace-deletion-title/)
+    const member = { ...workspace, role: "member" }
+    assert.doesNotMatch(render(components(member).Settings, { userId: owner, fullName: "Member", emailAddress: "member@example.test" }), /workspace-deletion-title/)
+  }
+})
+
 test("loading access never flashes client settings or configuration forms", () => {
   const html = settingsMarkup(unlinked, { loadingWorkspaceAccess: true })
   assert.match(html, /Checking workspace access/)

@@ -77,8 +77,9 @@ enable one before the platform is ready.
 ## How do I brand and publish my hosted portal?
 
 Choose the subdomain, portal name, support email, logo, browser icon, colors and
-welcome message. Optional images must be PNG, JPEG or WebP, no larger than 128 KB
-each. Save draft reserves the address; it cannot then be renamed in this screen.
+welcome message. Optional images must be PNG, JPEG or WebP. Logos can be up to
+1 MB; browser icons and background images can be up to 128 KB each. Save draft
+reserves the address; it cannot then be renamed in this screen.
 Preview desktop or mobile, then explicitly activate or publish. Draft changes are
 not live until published. Reopen setup to continue. Publishing registers the portal's
 sign-in domain with Clerk. If shared sign-in setup is unavailable, save the draft

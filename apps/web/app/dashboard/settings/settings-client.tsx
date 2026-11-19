@@ -56,6 +56,7 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { EmailPreferences } from "@/features/marketing/email-preferences"
 import { ClientWorkspaceOwnership, ExistingClientInvitation } from "@/features/settings/client-workspace-ownership"
+import { WorkspaceDeletion } from "@/features/settings/workspace-deletion"
 import { isAgencyManagedWorkspace } from "@/lib/workspace-ownership"
 import {
   useWorkspaceAccess,
@@ -2374,6 +2375,10 @@ export function SettingsClient({
           )}
         </div>
       </div>
+      )}
+
+      {activeWorkspace && workspaceRole === "owner" && activeWorkspace.owner_user_id === userId && !ownershipPanel && (
+        <WorkspaceDeletion key={activeWorkspace.owner_user_id} userId={userId} workspace={activeWorkspace} agency={canManageClientWorkspaces} />
       )}
 
       {clientWorkspaceDeleteTarget && (

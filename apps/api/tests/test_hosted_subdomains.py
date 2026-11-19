@@ -415,9 +415,35 @@ class HostedSubdomainTests(unittest.TestCase):
 
     def test_inline_images_reject_html_svg_invalid_base64_and_excessive_sizes(self):
         for value in ["data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=", "data:image/png;base64,PHNjcmlwdD4=",
-                      "data:image/png;base64,!!!!", "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * (128 * 1024)).decode()]:
+                      "data:image/png;base64,!!!!", "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * (1024 * 1024)).decode()]:
             with self.assertRaises(ValueError):
                 service.Branding(**{**self.brand, "logo_url": value})
+
+    def test_logo_accepts_one_mb_and_other_images_keep_their_128_kb_limits(self):
+        for field, limit in (("logo_url", 1024 * 1024), ("favicon_url", 128 * 1024), ("background_url", 128 * 1024)):
+            for media, signature in (("png", b"\x89PNG\r\n\x1a\n"), ("jpeg", b"\xff\xd8\xff"), ("webp", b"RIFF\x00\x00\x00\x00WEBP")):
+                with self.subTest(field=field, media=media):
+                    image = signature + b"0" * (limit - len(signature))
+                    value = f"data:image/{media};base64," + base64.b64encode(image).decode()
+                    self.assertEqual(getattr(service.Branding(**{**self.brand, field: value}), field), value)
+                    too_large = f"data:image/{media};base64," + base64.b64encode(image + b"0").decode()
+                    with self.assertRaises(ValueError):
+                        service.Branding(**{**self.brand, field: too_large})
+
+    def test_one_mb_logo_can_be_saved_published_and_fetched_through_request_limits(self):
+        from app.security.request_limits import RequestBodyLimitMiddleware
+        png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6jXAAAAAASUVORK5CYII=")
+        image = png + b"\x00" * (1024 * 1024 - len(png))
+        self.brand["logo_url"] = "data:image/png;base64," + base64.b64encode(image).decode()
+        self.client = TestClient(RequestBodyLimitMiddleware(self.client.app))
+        self.addCleanup(self.client.close)
+        self.publish()
+        config = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()
+        self.assertNotIn("data:image", config["branding"]["logo_url"])
+        result = self.client.get(self.base + "/assets/north-star.decisionate.app/logo_url")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.content, image)
+        self.assertEqual(result.headers["content-type"], "image/png")
 
     def test_workspace_cleanup_removes_only_its_hosted_references(self):
         from app.modules.hosted_subdomains.cleanup import delete_hosted_workspace

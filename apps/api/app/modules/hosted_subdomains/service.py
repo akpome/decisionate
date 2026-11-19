@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.db.models import HostedSubdomainEvent
 from app.modules.hosted_subdomains.context import PRIMARY_ORIGIN
@@ -18,6 +18,8 @@ from app.modules.hosted_subdomains.context import PRIMARY_ORIGIN
 RESERVED = frozenset({"www", "app", "api", "admin", "mail", "support", "billing", "auth", "status",
     "clerk", "accounts", "account", "login", "signin", "signup", "cdn", "assets", "static", "dev",
     "staging", "test", "preview", "demo", "decisionate", "security", "help", "docs", "system", "root"})
+MAX_LOGO_BYTES = 1024 * 1024
+MAX_OTHER_IMAGE_BYTES = 128 * 1024
 
 
 def normalize_slug(value):
@@ -30,7 +32,7 @@ def normalize_slug(value):
 class Branding(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: str = Field(min_length=1, max_length=100, pattern=r"^[^\x00-\x1f<>]+$")
-    logo_url: str = Field(default="", max_length=180000)
+    logo_url: str = Field(default="", max_length=4 * ((MAX_LOGO_BYTES + 2) // 3) + 32)
     favicon_url: str = Field(default="", max_length=180000)
     background_url: str = Field(default="", max_length=180000)
     primary_color: str = Field(default="#2563EB", pattern=r"^#[0-9a-fA-F]{6}$")
@@ -42,21 +44,23 @@ class Branding(BaseModel):
 
     @field_validator("logo_url", "favicon_url", "background_url")
     @classmethod
-    def approved_asset(cls, value):
+    def approved_asset(cls, value, info: ValidationInfo):
         if not value:
             return value
         if value.startswith("data:"):
+            limit = MAX_LOGO_BYTES if info.field_name == "logo_url" else MAX_OTHER_IMAGE_BYTES
             try:
                 header, encoded = value.split(",", 1)
                 image = base64.b64decode(encoded, validate=True)
                 valid = ((header == "data:image/png;base64" and image.startswith(b"\x89PNG\r\n\x1a\n"))
                          or (header == "data:image/jpeg;base64" and image.startswith(b"\xff\xd8\xff"))
                          or (header == "data:image/webp;base64" and image.startswith(b"RIFF") and image[8:12] == b"WEBP"))
-                if valid and 16 <= len(image) <= 128 * 1024:
+                if valid and 16 <= len(image) <= limit:
                     return value
             except (ValueError, binascii.Error):
                 pass
-            raise ValueError("Upload a PNG, JPEG or WebP image no larger than 128 KB.")
+            size = "1 MB" if info.field_name == "logo_url" else "128 KB"
+            raise ValueError(f"Upload a PNG, JPEG or WebP image no larger than {size}.")
         parsed = urlsplit(value)
         allowed = {item.strip().lower() for item in os.getenv("HOSTED_SUBDOMAINS_ASSET_HOSTS", "app.decisionate.ca").split(",") if item.strip()}
         if (parsed.scheme != "https" or parsed.hostname not in allowed or parsed.username or parsed.password

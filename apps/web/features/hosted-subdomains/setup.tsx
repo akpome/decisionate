@@ -71,14 +71,17 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
       onChange={event => setBrand(value => ({ ...value, [key]: event.target.value }))} className={inputClass} /></label>
   }
   function imageField(key: "logo_url" | "favicon_url" | "background_url", label: string) {
+    const maxBytes = key === "logo_url" ? 1024 * 1024 : 128 * 1024
+    const maxSize = key === "logo_url" ? "1 MB" : "128 KB"
+    const hintId = `hosted-${key}-hint`
     return <div className="min-w-0 text-sm text-gray-700"><label className="block">{label}
-      <input type="file" accept="image/png,image/jpeg,image/webp" className="mt-1 block min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white p-2 text-xs"
+      <input type="file" accept="image/png,image/jpeg,image/webp" aria-describedby={hintId} className="mt-1 block min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white p-2 text-xs"
         onChange={event => {
           const file = event.target.files?.[0]
           event.target.value = ""
           if (!file) return
           void perform(async () => {
-            if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 128 * 1024) throw new Error("Choose a PNG, JPEG or WebP image no larger than 128 KB.")
+            if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > maxBytes) throw new Error(`Choose a PNG, JPEG or WebP image no larger than ${maxSize}.`)
             const value = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader()
               reader.onload = () => resolve(String(reader.result))
@@ -88,6 +91,7 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
             setBrand(current => ({ ...current, [key]: value }))
           })
         }} /></label>
+      <p id={hintId} className="mt-1 text-xs text-gray-500">PNG, JPEG or WebP. Up to {maxSize}.</p>
       {brand[key] && <div className="mt-2 flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={brand[key]} alt={`${label} preview`} className="h-10 w-20 rounded object-contain" />

@@ -103,6 +103,10 @@ def delete_owned_workspace(payload: WorkspaceDeleteConfirmation, request: Reques
             raise HTTPException(409, "Unlink this workspace from its agency before deleting it.")
         if payload.confirmation.strip() != organization.name:
             raise HTTPException(400, "Type the workspace name to confirm deletion.")
+        if db.query(Organization.id).filter(
+            managed_client_filter(auth.workspace_id), Organization.id != organization.id,
+        ).first():
+            raise HTTPException(409, "Remove or unlink client workspaces in Settings before deleting this agency workspace. Accepted clients keep their workspaces and data.")
         subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=auth.workspace_id).first()
         if subscription and subscription.provider_subscription_id and subscription.status not in {"canceled", "incomplete_expired"}:
             raise HTTPException(409, "Cancel the workspace subscription in Billing before deleting the workspace.")

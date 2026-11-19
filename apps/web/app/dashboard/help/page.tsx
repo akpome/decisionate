@@ -798,6 +798,16 @@ const referenceChapters: ReferenceChapter[] = [
         ],
       },
       {
+        title: "Delete your workspace",
+        steps: [
+          "Open Settings in the workspace you own and find Delete workspace at the bottom. Other owners' workspaces and ordinary member access do not provide this control.",
+          "Complete cancellation of any active workspace subscription in Billing first. An agency owner must remove or unlink its client workspaces before deleting the agency; accepted clients keep their own workspaces and data. A linked client owner must unlink their agency first.",
+          "Choose Delete workspace, read the permanent-deletion warning, type the workspace name, then choose Permanently delete. Cancel or close the confirmation to keep the workspace.",
+          "Deletion removes that workspace's datasets, reports, connections, decisions and shared links. Other workspaces are unchanged. Your internal app account is removed if it has no other workspaces; your sign-in provider account is not deleted.",
+          "If a running task blocks deletion, wait for it to finish and try again. You are signed out only after deletion succeeds.",
+        ],
+      },
+      {
         title: "Review billing and subscription status",
         steps: [
           "Open Manage -> Billing as the workspace owner.",
