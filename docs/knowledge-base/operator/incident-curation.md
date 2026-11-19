@@ -51,6 +51,30 @@ Tests cover startup repetition, unchanged billing fields and continuation of
 other workspace migrations, with separate PostgreSQL coverage. Do not mark the
 incident deployed or production-verified based only on those source tests.
 
+Email-less `usr_...` rows need identity review, not blanket workspace deletion.
+Platform Admin > People & access > Users offers **Repair user records** to a
+full-access administrator. Confirm to recover stored identity emails or verified
+primary emails from the correct application's Clerk account. Each request checks
+up to 25 profiles and makes at most five Clerk calls; the page continues through
+remaining batches and can stop after the current batch. A provider error stops
+further work without treating the failure as a missing or deleted account.
+
+Only unused, email-less records with no application-data references and no known
+active provider account are removed. Protected accounts, workspace owners,
+memberships, billing, historical actors and unsupported provider identities stay
+intact. The result names preserved accounts requiring review; do not invent
+email addresses or merge accounts solely because their addresses match. Batch
+changes and removed IDs are audited. Retrying checks remaining records rather
+than repeating completed deletions. This does not delete external Clerk users.
+
+Client workspace namespaces are not user accounts and are no longer synthesized
+as people in the Users table. Real client owners are listed from their membership.
+Sign-in obtains a verified email from Clerk when JWT claims omit it, using the
+existing API-side `CLERK_SECRET_KEY` scoped to the application. Lookup failures
+fail closed; the code never trusts an email header to link accounts. Verification
+results are briefly cached with application and credential isolation. Unknown
+member references now require an invitation instead of creating empty profiles.
+
 ## Publication gate
 
 Customer articles should contain safe observable symptoms, non-destructive

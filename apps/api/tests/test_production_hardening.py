@@ -46,13 +46,13 @@ class ProductionIdentityTests(unittest.TestCase):
             auth_context, "verify_clerk_bearer_token_identity", return_value=("attacker", None)
         ), patch.object(auth_context, "resolve_external_identity", return_value="usr_attacker") as resolve, patch.object(
             auth_context, "get_verified_workspace_access", return_value=("usr_attacker", "owner")
-        ):
-            context = auth_context.get_auth_context(SimpleNamespace(headers={
-                "Authorization": "Bearer valid", "X-User-Email": "victim@example.test",
-            }))
-        self.assertIsNone(context.email)
-        self.assertFalse(context.email_verified)
-        self.assertIsNone(resolve.call_args.kwargs["email"])
+        ), patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value=None):
+            with self.assertRaises(HTTPException) as failure:
+                auth_context.get_auth_context(SimpleNamespace(headers={
+                    "Authorization": "Bearer valid", "X-User-Email": "victim@example.test",
+                }))
+        self.assertEqual(failure.exception.status_code, 403)
+        resolve.assert_not_called()
 
     def test_signed_but_unverified_email_is_not_eligible_for_linking(self):
         client = Mock()

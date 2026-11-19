@@ -177,6 +177,11 @@ def get_verified_user_identity(
         user_id, user_email = verify_clerk_bearer_token_identity(
             authorization,
         )
+        if not user_email and get_runtime_configuration().auth_provider == "clerk":
+            from app.modules.identity.clerk import cached_verified_clerk_email
+            user_email = cached_verified_clerk_email(user_id)
+        if not user_email:
+            raise HTTPException(403, "Verify your primary email address before continuing.")
         return user_id, user_email, bool(user_email)
 
     if clerk_jwks_url:

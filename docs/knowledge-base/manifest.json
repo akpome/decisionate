@@ -372,6 +372,8 @@
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
         "apps/api/app/modules/auth_context.py",
+        "apps/api/app/modules/identity/clerk.py",
+        "apps/api/app/modules/identity/service.py",
         "apps/api/app/modules/organizations/router.py"
       ],
       "related": [
@@ -1631,6 +1633,11 @@
         "apps/api/app/modules/billing/service.py",
         "apps/api/tests/test_billing_settings_transactions.py",
         "apps/api/app/modules/identity/service.py",
+        "apps/api/app/modules/identity/clerk.py",
+        "apps/api/app/modules/identity/repair.py",
+        "apps/api/app/modules/platform_admin.py",
+        "apps/web/features/platform-admin/user-email-repair.tsx",
+        "apps/api/tests/test_user_email_repair.py",
         "apps/api/tests/test_internal_identity_backfill.py",
         "apps/api/app/modules/decisions/duplicates.py",
         "apps/api/app/modules/reports/decision_drafts.py"

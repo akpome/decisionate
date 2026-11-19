@@ -123,6 +123,42 @@ class ClerkEmailTests(unittest.TestCase):
     def test_lookup_does_not_redirect_credentials_to_another_host(self):
         self.assertIsNone(clerk._NoRedirects().redirect_request(None, None, 302, "redirect", {}, "https://other.example.test"))
 
+    def test_repair_lookup_distinguishes_a_deleted_account_from_an_unverified_email(self):
+        self.profile["email_addresses"][1]["verification"]["status"] = "unverified"
+        self.assertEqual(clerk.lookup_clerk_email("user_owner"), (True, None))
+        self.get.side_effect = HTTPError("https://api.clerk.com", 404, "not found", {}, None)
+        self.assertEqual(clerk.lookup_clerk_email("user_owner"), (False, None))
+        self.get.side_effect = HTTPError("https://api.clerk.com", 429, "retry later", {}, None)
+        with self.assertRaises(HTTPException):
+            clerk.lookup_clerk_email("user_owner")
+
+    def test_verified_email_cache_is_bounded_expiring_and_key_scoped(self):
+        clerk._email_cache.clear()
+        self.addCleanup(clerk._email_cache.clear)
+        clock = [100]
+        with patch.object(clerk, "monotonic", side_effect=lambda: clock[0]):
+            self.assertEqual(clerk.cached_verified_clerk_email("user_owner"), "owner@example.test")
+            clerk.cached_verified_clerk_email("user_owner")
+            self.assertEqual(self.get.call_count, 1)
+            clock[0] = 401
+            clerk.cached_verified_clerk_email("user_owner")
+            self.assertEqual(self.get.call_count, 2)
+            with patch.dict("os.environ", {"CLERK_SECRET_KEY": "replacement-key"}):
+                clerk.cached_verified_clerk_email("user_owner")
+            self.assertEqual(self.get.call_count, 3)
+            with patch.object(clerk, "get_verified_clerk_primary_email", return_value="verified@example.test"):
+                for index in range(1030):
+                    clerk.cached_verified_clerk_email(f"user_{index}")
+            self.assertLessEqual(len(clerk._email_cache), 1024)
+
+    def test_provider_errors_are_not_cached_as_missing_emails(self):
+        clerk._email_cache.clear()
+        self.addCleanup(clerk._email_cache.clear)
+        with patch.object(clerk, "get_verified_clerk_primary_email", side_effect=[HTTPException(503, "Unavailable"), "verified@example.test"]):
+            with self.assertRaises(HTTPException):
+                clerk.cached_verified_clerk_email("user_owner")
+            self.assertEqual(clerk.cached_verified_clerk_email("user_owner"), "verified@example.test")
+
 
 if __name__ == "__main__":
     unittest.main()

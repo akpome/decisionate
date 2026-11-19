@@ -51,10 +51,13 @@ def lock_connection_for_enqueue(db, connection):
         raise HTTPException(404, "Data source connection no longer exists.")
 
 
-def lock_workspace_queue(db, workspace_id):
+def lock_workspace_queue(db, workspace_id, *, wait=True):
     if db.get_bind().dialect.name == "postgresql":
         key = int.from_bytes(hashlib.sha256(str(workspace_id).encode()).digest()[:8], "big", signed=True)
-        db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+        function = "pg_advisory_xact_lock" if wait else "pg_try_advisory_xact_lock"
+        result = db.execute(text(f"SELECT {function}(:key)"), {"key": key})
+        if not wait and not result.scalar():
+            raise HTTPException(409, "Another operation is already in progress. Please try again shortly.")
 
 
 def ensure_workspace_queue_capacity(db, workspace_id: str):

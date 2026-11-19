@@ -31,6 +31,7 @@ import { Fragment, useEffect, useRef, useState } from "react"
 import { MarketingAdmin } from "@/features/marketing/marketing-admin"
 import { WhiteLabelSetup } from "@/features/white-label/setup"
 import { WhiteLabelAvailabilityPanel } from "@/features/white-label/availability"
+import { UserEmailRepair } from "@/features/platform-admin/user-email-repair"
 import { adminSections, sectionNeedsPermission, visibleAdminSections, type AdminSection } from "@/features/platform-admin/sections"
 import { AUTH_REDIRECTS } from "@/features/auth/lib/auth-redirects"
 
@@ -3897,6 +3898,11 @@ export default function PlatformAdminPage() {
                     Workspace memberships across the application.
                   </p>
                 </div>
+                <div className="flex min-w-0 flex-wrap items-end gap-3">
+                {adminAccess?.full_access && user?.id && <UserEmailRepair userId={user.id} onRepaired={async () => {
+                  setPlatformUsers(await getPlatformAdminUsers(user.id, undefined, 100, currentUserEmail))
+                  await refreshAuditEvents()
+                }} />}
                 <label className="text-xs font-medium text-gray-600">
                   Search
                   <input
@@ -3906,6 +3912,7 @@ export default function PlatformAdminPage() {
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 sm:w-64"
                   />
                 </label>
+                </div>
               </div>
 
               {adminAccess?.full_access && (
@@ -4083,7 +4090,7 @@ export default function PlatformAdminPage() {
                             <AdminReference value={platformUser.clerk_user_id} label="user ID" />
                           </td>
                           <td className="px-5 py-3 text-gray-500">
-                            <span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "-"}</span>
+                            <span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "Email needs review"}</span>
                           </td>
                           <td className="px-5 py-3 text-gray-700">
                             {(platformUser.account_profiles || []).length > 0 ? (

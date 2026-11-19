@@ -584,13 +584,15 @@ def resolve_user_reference(
             clean_value,
             provider,
         )
+        if not internal_user_id and "@" in clean_value:
+            existing = _find_unique_user_by_email(db, clean_value)
+            internal_user_id = existing.id if existing else None
     finally:
         db.close()
 
-    return internal_user_id or resolve_external_identity(
-        clean_value,
-        provider=provider,
-    )
+    if not internal_user_id:
+        raise ValueError("No registered account matches this reference. Send an email invitation instead.")
+    return internal_user_id
 
 
 def resolve_workspace_reference(

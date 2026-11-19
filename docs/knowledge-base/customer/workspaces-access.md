@@ -4,12 +4,22 @@ A workspace is the boundary for datasets, connections, report evidence,
 decisions, alert settings and AI context. Always check the workspace name before
 analyzing data, changing settings or sharing a link.
 
+Your email address is for signing in, invitations and notifications. A `usr_...`
+value is the internal account reference, not a second login. Client workspace
+references may also contain `:client:`; those identify workspaces, not people.
+Production sign-in requires a verified email. When a Clerk login token omits it,
+the API checks the account with Clerk rather than trusting a browser-supplied
+email. Complete email verification before continuing if prompted.
+
 ## Roles and visibility
 
 Workspace owners manage configuration such as members, connections and billing
 where permitted. Members can analyze authorized data and work with decisions,
 but do not receive owner configuration access merely by joining a workspace.
 Client-workspace access and agency access have their own controls.
+
+An owner adding someone who is not yet registered should send an email invitation.
+Typing an unknown user reference does not create another account or grant access.
 
 The API enforces access; showing a navigation item or knowing an object URL is
 not sufficient authorization. A workspace owner is not automatically a platform

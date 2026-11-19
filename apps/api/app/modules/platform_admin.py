@@ -94,7 +94,6 @@ from app.modules.identity.service import (
     find_internal_user_id,
     link_external_identity,
     new_internal_user_id,
-    resolve_external_identity,
     resolve_user_reference,
 )
 from app.modules.datasets.services.analytics_engine import (
@@ -572,9 +571,8 @@ def ensure_platform_admin_roles() -> None:
                 configured_id,
             )
             if not internal_user_id:
-                internal_user_id = resolve_external_identity(
-                    configured_id,
-                )
+                # The first verified login resolves this configured reference.
+                continue
 
             existing_role = (
                 db.query(PlatformAdminRole)
@@ -2802,6 +2800,31 @@ async def delete_platform_admin_organization(
         db.close()
 
 
+class RepairUserEmailsRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    confirmation: str
+    after_user_id: str | None = Field(default=None, max_length=100, pattern=r"^usr_[A-Za-z0-9_:-]+$")
+    limit: int = Field(default=25, ge=1, le=25)
+
+
+@router.post("/users/repair-emails")
+def repair_platform_user_emails(request: Request, payload: RepairUserEmailsRequest):
+    auth = require_platform_admin(request)
+    if payload.confirmation != "REPAIR USERS":
+        raise HTTPException(400, "Confirm user profile repair before continuing.")
+    from app.modules.identity.repair import repair_user_emails
+    with SessionLocal() as db:
+        if not platform_admin_is_full_access(db, auth.user_id):
+            raise HTTPException(403, "Full platform administrator access is required.")
+        from app.infrastructure.ingestion_jobs import lock_workspace_queue
+        lock_workspace_queue(db, "user-email-repair", wait=False)
+        result = repair_user_emails(db, after=payload.after_user_id, limit=payload.limit,
+                                    protected_ids=platform_owner_user_ids(db, auth.user_id))
+        record_platform_admin_audit(db, admin_user_id=auth.user_id, action="user_emails_repaired", details=json.dumps(result))
+        db.commit()
+        return result
+
+
 @router.get(
     "/users",
     response_model=list[PlatformAdminUserResponse],
@@ -2864,6 +2887,8 @@ async def get_platform_admin_users(
         users: dict[str, dict] = {}
 
         for app_user in db.query(AppUser).all():
+            if ":client:" in app_user.id:
+                continue
             users[app_user.id] = {
                 "email": app_user.email or identity_emails.get(app_user.id),
                 "organization_names": set(),
@@ -2875,6 +2900,9 @@ async def get_platform_admin_users(
             }
 
         for organization in organizations:
+            # A client namespace is a workspace reference, not a login account.
+            if ":client:" in organization.owner_user_id:
+                continue
             owner_record = users.setdefault(
                 organization.owner_user_id,
                 {
@@ -2938,7 +2966,9 @@ async def get_platform_admin_users(
                 if member.clerk_user_id == organization.owner_user_id
                 else member.role
             )
-            if member.clerk_user_id == organization.owner_user_id:
+            if member.clerk_user_id == organization.owner_user_id or (
+                ":client:" in organization.owner_user_id and member.role in {"client", "client_owner"}
+            ):
                 user_record["owner"] = True
 
         for admin_role in db.query(PlatformAdminRole).all():

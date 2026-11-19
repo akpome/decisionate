@@ -61,6 +61,41 @@ class AuthContextTests(unittest.TestCase):
             "",
         )
 
+    def test_missing_jwt_email_is_verified_with_clerk_before_creating_a_profile(self):
+        with patch.object(auth_context, "get_auth_jwks_url", return_value="https://clerk.example/.well-known/jwks.json"), \
+             patch.object(auth_context, "verify_clerk_bearer_token_identity", return_value=("user_new", None)), \
+             patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value="verified@example.test") as lookup:
+            self.assertEqual(auth_context.get_verified_user_identity(FakeRequest({"Authorization": "Bearer token"})),
+                             ("user_new", "verified@example.test", True))
+            lookup.assert_called_once_with("user_new")
+
+    def test_unverified_provider_email_cannot_create_an_empty_user_record(self):
+        with patch.object(auth_context, "get_auth_jwks_url", return_value="https://clerk.example/.well-known/jwks.json"), \
+             patch.object(auth_context, "verify_clerk_bearer_token_identity", return_value=("user_new", None)), \
+             patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value=None):
+            with self.assertRaises(HTTPException) as failure:
+                get_auth_context(FakeRequest({"Authorization": "Bearer token", "X-User-Email": "untrusted@example.test"}))
+            self.assertEqual(failure.exception.status_code, 403)
+        with identity.SessionLocal() as db:
+            self.assertEqual(db.query(AppUser).count(), 0)
+
+    def test_verified_jwt_email_does_not_need_an_external_profile_lookup(self):
+        with patch.object(auth_context, "get_auth_jwks_url", return_value="https://clerk.example/.well-known/jwks.json"), \
+             patch.object(auth_context, "verify_clerk_bearer_token_identity", return_value=("user_new", "verified@example.test")), \
+             patch("app.modules.identity.clerk.cached_verified_clerk_email") as lookup:
+            self.assertEqual(auth_context.get_verified_user_identity(FakeRequest({"Authorization": "Bearer token"}))[1], "verified@example.test")
+            lookup.assert_not_called()
+
+    def test_verified_provider_profile_is_saved_on_first_authenticated_request(self):
+        with patch.object(auth_context, "get_auth_jwks_url", return_value="https://clerk.example/.well-known/jwks.json"), \
+             patch.object(auth_context, "verify_clerk_bearer_token_identity", return_value=("user_new", None)), \
+             patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value="verified@example.test"), \
+             patch.object(identity, "capture_identity"):
+            context = get_auth_context(FakeRequest({"Authorization": "Bearer token"}))
+        with identity.SessionLocal() as db:
+            self.assertEqual(db.get(AppUser, context.user_id).email, "verified@example.test")
+            self.assertEqual(db.query(AuthIdentity).one().email, "verified@example.test")
+
     def test_clean_optional_auth_env_value_trims_and_clears_blank_values(self):
         with patch.dict(
             "os.environ",

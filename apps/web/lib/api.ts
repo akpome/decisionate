@@ -4541,6 +4541,21 @@ export async function getPlatformAdminUsers(
   return response.json()
 }
 
+export type UserEmailRepairResult = {
+  checked: number; emails_updated: number; users_deleted: number
+  unresolved: { user_id: string; reason: string }[]
+  provider_unavailable: boolean; next_user_id: string | null
+}
+
+export async function repairPlatformUserEmails(userId: string, afterUserId: string | null): Promise<UserEmailRepairResult> {
+  const response = await apiFetch(`${API_URL}/admin/users/repair-emails`, {
+    method: "POST", headers: await workspaceJsonHeaders(userId, userId),
+    body: JSON.stringify({ confirmation: "REPAIR USERS", after_user_id: afterUserId }),
+  }, 45000)
+  if (!response.ok) await throwApiError(response, "User records could not be repaired")
+  return response.json()
+}
+
 export async function linkPlatformAdminIdentity(
   userId: string,
   targetUserId: string
