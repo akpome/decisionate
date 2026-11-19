@@ -41,6 +41,24 @@ test("join membership never substitutes joined rows for either original source o
   }
 })
 
+test("shared dashboards reject source-level and unrelated joins, including the top-level API cache", () => {
+  const sharedSource = readFileSync(new URL("../app/share/dashboard/page.tsx", import.meta.url), "utf8")
+  const sharedAst = ts.createSourceFile("shared-page.tsx", sharedSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const functions = sharedAst.statements.filter(node => ts.isFunctionDeclaration(node) &&
+    ["isCurrentJoinedDatasetResult", "getSharedJoinedDatasetResult"].includes(node.name?.text)).map(node => node.getText(sharedAst)).join("\n")
+  const version = Number(sharedSource.match(/const joinedDatasetResultVersion = (\d+)/)[1])
+  const backend = readFileSync(new URL("../../api/app/modules/datasets/services/joins.py", import.meta.url), "utf8")
+  assert.equal(version, Number(backend.match(/JOIN_RESULT_VERSION = (\d+)/)[1]), "shared join format stays aligned with the API")
+  const resolve = compile(`${functions}\ngetSharedJoinedDatasetResult`, { joinedDatasetResultVersion: version })
+  for (const sourceId of [1, 2, 3, undefined]) assert.equal(resolve(sourceId, joined, joined), null)
+  assert.equal(resolve(30, joined), joined)
+  assert.equal(resolve(30, null, joined), joined)
+  assert.equal(resolve(30, { ...joined, derived_dataset_id: 40 }, joined), joined)
+  assert.equal(resolve(30, { ...joined, join_version: version - 1 }), null)
+  assert.equal(resolve(30, { ...joined, derived_dataset_id: undefined }).derived_dataset.id, 30)
+  assert.match(sharedSource, /getSharedJoinedDatasetResult\(\s*effectDatasetId,\s*preference.joined_dataset_result,\s*dashboardPreference.joinedDatasetResult/)
+})
+
 test("older saved source-level copies can restore the joined dataset itself, never its sources", () => {
   const resolve = compile(`${helpers}\nfindPersistedJoinedDatasetResult`, defaults)
   const preferences = { 1: { joinedDatasetResult: joined } }

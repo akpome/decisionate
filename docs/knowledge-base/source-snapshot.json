@@ -1,20 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "fa6ae09f76e02e284f30872808e9c359ed4a50c9",
+  "base_git_revision": "9295027cb8dc759bb60d46b386b3ef8ddcb23db1",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/datasets/router.py",
-    "apps/api/app/modules/public_dashboard.py",
-    "apps/api/app/modules/reports/cleanup.py",
-    "apps/api/app/modules/reports/public.py",
-    "apps/api/app/modules/reports/router.py",
-    "apps/api/app/modules/share_emails.py",
-    "apps/api/app/modules/sharing_links.py",
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/app/dashboard/page.tsx",
-    "apps/web/features/reports/report-workspace.tsx",
-    "apps/web/features/sharing/share-email-modal.tsx",
-    "apps/web/features/sharing/shared-links.tsx"
+    "apps/api/app/modules/public_dashboard.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -91,7 +80,7 @@
     "apps/api/app/modules/performance/schemas.py": "b47dcb9904d528e38f8cbe1f4c34fe4a59d12594985d66f5f47c82217c6a9c47",
     "apps/api/app/modules/performance/service.py": "84c89c802e989c9e3ac9ad0a4c0e2015002808f26bfb59eb48fff1ce2571d310",
     "apps/api/app/modules/platform_admin.py": "70ba515d28b192db4e221b47deb8d1acbac5e0b1a6e85f7dc3f1f0b316831b7e",
-    "apps/api/app/modules/public_dashboard.py": "20733767fed2e7ac9fecdb073fdb0282dd45b537f0c23e16056bef7086c44bca",
+    "apps/api/app/modules/public_dashboard.py": "4093f712b6945ed3cdde3b7bb234a1cf5e6f77b890b36984fbc0dcb406178fed",
     "apps/api/app/modules/reports/anomalies.py": "72599a42cc57b51a4ecc4326b841da7ad5b3c31c89c11275f22e48910660c324",
     "apps/api/app/modules/reports/catalog.py": "01d7bd8cc09e43e5757dbf943b7e16dd3c01749d8c618e5420c5394a44cc8051",
     "apps/api/app/modules/reports/cleanup.py": "87c9b20b7c321b6082a39db073923cd2d73574b243ed45726e56b13252b4e38a",

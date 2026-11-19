@@ -12,6 +12,7 @@ from app.modules.public_dashboard import (
     get_dashboard_preference,
     get_public_shared_dashboard,
     is_valid_share_token,
+    is_public_join_result_for_dataset,
     normalize_share_token,
     parse_json_object_preference,
     parse_json_preference,
@@ -25,6 +26,18 @@ import pandas as pd
 
 
 class PublicDashboardTests(unittest.TestCase):
+    def test_shared_joins_require_the_current_derived_dataset_not_source_membership(self):
+        from app.modules.datasets.services.joins import JOIN_RESULT_VERSION
+        result = {"join_version": JOIN_RESULT_VERSION, "derived_dataset_id": 30, "dataset_ids": [1, 2]}
+        for identity, source_type, expected in ((1, "csv", False), (2, "csv", False), (30, "csv", False),
+                                                (31, "joined", False), (30, "joined", True)):
+            with self.subTest(identity=identity, source_type=source_type):
+                self.assertEqual(is_public_join_result_for_dataset(result, SimpleNamespace(id=identity, source_type=source_type)), expected)
+        dataset = SimpleNamespace(id=30, source_type="joined")
+        for value in (None, [], {}, {**result, "join_version": JOIN_RESULT_VERSION - 1}):
+            self.assertFalse(is_public_join_result_for_dataset(value, dataset))
+        self.assertTrue(is_public_join_result_for_dataset({"join_version": JOIN_RESULT_VERSION, "derived_dataset": {"id": 30}}, dataset))
+
     def test_public_brand_uses_report_name_and_saved_colors(self):
         organization = SimpleNamespace(
             name="Northstar Agency",

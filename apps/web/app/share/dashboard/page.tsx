@@ -176,12 +176,22 @@ const maxDashboardTitleLength = 120
 const maxDashboardSubtitleLength = 220
 const sharedBrandStoragePrefix =
   "decisionate:shared-dashboard-brand:"
-const joinedDatasetResultVersion = 6
+const joinedDatasetResultVersion = 8
 
 function isCurrentJoinedDatasetResult(
   result: DatasetJoinResult | null | undefined
 ): result is DatasetJoinResult {
   return result?.join_version === joinedDatasetResultVersion
+}
+
+function getSharedJoinedDatasetResult(
+  datasetId: number | undefined,
+  ...candidates: Array<DatasetJoinResult | null | undefined>
+): DatasetJoinResult | null {
+  return candidates.find(result =>
+    isCurrentJoinedDatasetResult(result) && datasetId !== undefined &&
+    (result.derived_dataset_id ?? result.derived_dataset?.id) === datasetId
+  ) ?? null
 }
 
 function getSharedBrandStorageKey(
@@ -567,12 +577,11 @@ function SharedDashboardContent({
                   joinedResponse.dataset
                 )
               : null
-            : preference.joined_dataset_result ??
-              (isCurrentJoinedDatasetResult(
+            : getSharedJoinedDatasetResult(
+                effectDatasetId,
+                preference.joined_dataset_result,
                 dashboardPreference.joinedDatasetResult
               )
-                ? dashboardPreference.joinedDatasetResult
-                : null)
         const availableMetrics =
           (nextJoinedDatasetResult
             ? nextJoinedDatasetResult.datasets

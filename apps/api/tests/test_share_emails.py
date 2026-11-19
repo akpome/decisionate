@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from fastapi import HTTPException, Response
 
-from app.db.models import DashboardShare, Dataset, Organization, UserPreference, WorkspaceApplication
+from app.db.models import DashboardShare, Dataset, DatasetJoinCache, Organization, UserPreference, WorkspaceApplication
 from app.application_context import application_scope, get_application
 from app.modules import share_emails as sharing
 from app.modules import sharing_links
@@ -397,3 +397,45 @@ class ShareEmailTests(unittest.TestCase):
         self.assertEqual([item["spend"] for item in result["dataset"]["chart"]["data"]], [100, 120])
         self.assertNotIn("private_amount", result["dataset"]["chart"]["data"][0])
         self.assertEqual([item["column"] for item in result["dataset"]["metrics"]], ["spend"])
+
+    def saved_join(self, derived_id):
+        from app.modules.datasets.services.joins import JOIN_RESULT_VERSION
+        return {"join_version": JOIN_RESULT_VERSION, "primary_dataset_id": 1, "derived_dataset_id": derived_id,
+                "dataset_ids": [1, 2], "datasets": [{"dataset_id": 1, "file_name": "sales.csv", "date_column": "date",
+                    "metric_column": "spend", "label": "sales.csv · spend", "column_type": "numeric"}],
+                "rows": [{"period": "2024-01-01", "sales.csv · spend": 999}], "dimension_filters": []}
+
+    def test_shared_source_does_not_restore_an_unrelated_join_from_cache_or_preferences(self):
+        import pandas as pd
+        self.frames[1] = (self.frames[1][0], pd.DataFrame({"date": ["2026-11-01", "2026-11-02"], "spend": [100, 120]}))
+        joined = self.saved_join(4)
+        view = {"joinedDatasetResult": joined, "selectedMetrics": ["spend"], "startDate": "2025-11-19", "endDate": "2026-11-19"}
+        with self.Session() as db:
+            db.add(DatasetJoinCache(user_id="owner", workspace_id="owner", dashboard_key="general-business",
+                dataset_ids="[1, 2]", definition="{}", result=json.dumps(joined), source_fingerprint="fixture"))
+            db.add(UserPreference(clerk_user_id="owner", workspace_id="owner",
+                dashboard_preferences=json.dumps({"1": view}), dashboard_views=json.dumps({"1": {"general-business": view}})))
+            db.commit()
+        self.send()
+        result = self.public_dashboard(self.emailed_token(), "general-business")
+        self.assertIsNone(result["preference"]["joined_dataset_result"])
+        self.assertNotIn("joinedDatasetResult", result["preference"]["dashboard_preferences"]["1"])
+        self.assertNotIn("joinedDatasetResult", result["preference"]["dashboard_views"]["1"]["general-business"])
+        self.assertEqual(result["dataset"]["chart"]["x_key"], "date")
+        self.assertEqual([row["spend"] for row in result["dataset"]["chart"]["data"]], [100, 120])
+        self.assertEqual([metric["column"] for metric in result["dataset"]["metrics"]], ["spend"])
+
+    def test_shared_joined_dataset_restores_only_its_own_cache_without_source_membership(self):
+        joined = self.saved_join(1)
+        joined["dataset_ids"] = [2, 3]
+        with self.Session() as db:
+            db.get(Dataset, 1).source_type = "joined"
+            db.add(DatasetJoinCache(user_id="owner", workspace_id="owner", dashboard_key="general-business",
+                dataset_ids="[2, 3]", definition="{}", result=json.dumps(joined), source_fingerprint="fixture"))
+            db.commit()
+        self.send()
+        result = self.public_dashboard(self.emailed_token(), "general-business")
+        self.assertEqual(result["preference"]["joined_dataset_result"], joined)
+        self.assertEqual(result["dataset"]["chart"]["x_key"], "period")
+        self.assertEqual(result["dataset"]["chart"]["data"], joined["rows"])
+        self.assertEqual([metric["column"] for metric in result["dataset"]["metrics"]], ["sales.csv · spend"])

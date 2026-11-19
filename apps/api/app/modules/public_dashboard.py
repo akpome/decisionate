@@ -125,11 +125,24 @@ def get_clean_dataset_preference_entry(
     )
 
 
+def is_public_join_result_for_dataset(result, dataset):
+    if getattr(dataset, "source_type", None) != "joined" or not isinstance(result, dict):
+        return False
+    derived = result.get("derived_dataset")
+    derived_id = result.get("derived_dataset_id")
+    if derived_id is None and isinstance(derived, dict):
+        derived_id = derived.get("id")
+    return result.get("join_version") == JOIN_RESULT_VERSION and derived_id == dataset.id
+
+
 def get_public_join_cache_result(
     db,
     dataset,
     dashboard_key: str,
 ):
+    if getattr(dataset, "source_type", None) != "joined":
+        return None
+
     caches = (
         db.query(DatasetJoinCache)
         .filter(
@@ -142,19 +155,11 @@ def get_public_join_cache_result(
 
     for cache in caches:
         try:
-            dataset_ids = {
-                int(dataset_id)
-                for dataset_id in json.loads(cache.dataset_ids)
-            }
             result = json.loads(cache.result)
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
 
-        if (
-            dataset.id in dataset_ids
-            and isinstance(result, dict)
-            and result.get("join_version") == JOIN_RESULT_VERSION
-        ):
+        if is_public_join_result_for_dataset(result, dataset):
             return result
 
     return None
@@ -650,13 +655,17 @@ def get_public_shared_dashboard(
                     "joinedDatasetResult"
                 ),
             ):
-                if (
-                    isinstance(candidate, dict)
-                    and candidate.get("join_version")
-                    == JOIN_RESULT_VERSION
-                ):
+                if is_public_join_result_for_dataset(candidate, dataset):
                     joined_dataset_result = candidate
                     break
+        # Old source-level preferences must not expose or restore another dataset's join.
+        saved_preferences = [
+            (dashboard_preferences or {}).get(str(dataset.id), {}),
+            *((dashboard_views or {}).get(str(dataset.id), {}).values()),
+        ]
+        for saved in saved_preferences:
+            if not is_public_join_result_for_dataset(saved.get("joinedDatasetResult"), dataset):
+                saved.pop("joinedDatasetResult", None)
         decision_summary = (
             build_public_decision_summary(
                 db,
@@ -683,18 +692,17 @@ def get_public_shared_dashboard(
                 raise HTTPException(422, "The shared dashboard dimension filter is unavailable. Ask the owner to update the saved view.") from error
 
         joined_filters = (joined_dataset_result or {}).get("dimension_filters", [])
-        if joined_filters:
+        if joined_dataset_result is not None:
             dataframe = pd.DataFrame(joined_dataset_result["rows"])
+            date_column = "period"
         if joined_dataset_result is None:
             dataframe = filter_dataframe_to_selected_metrics(dataset, dataframe)
-        elif joined_filters:
-            date_column = "period"
         if dimension_filter is not None or joined_filters:
             dashboard_preferences = {str(dataset.id): {**legacy, "joinedDatasetResult": joined_dataset_result}}
             dashboard_views = {str(dataset.id): {dashboard_key: {**view, "joinedDatasetResult": joined_dataset_result}}}
         public_dataset = build_public_dashboard_dataset_response(dataset, dataframe, date_column=date_column)
         public_dataset.update(dimension_filter=dimension_filter, dimension_filters=joined_filters)
-        if dimension_filter is not None or joined_filters:
+        if dimension_filter is not None or joined_dataset_result is not None:
             public_dataset["row_count"] = len(dataframe)
 
         return {
