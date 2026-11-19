@@ -20,6 +20,7 @@ from app.modules.alerts.router import clean_recipient_emails, get_weekly_report_
 from app.modules.auth_context import get_auth_context
 from app.modules.applications import workspace_scoped
 from app.modules.datasets.services.auth import require_workspace_data_manager
+from app.modules.sharing_links import SharedLink, active_link_count, router as shared_links_router
 
 
 class ShareEmailDelivery(Base):
@@ -59,6 +60,7 @@ class ShareEmailRequest(BaseModel):
 
 
 router = APIRouter(prefix="/api/v2/share-emails", tags=["sharing"])
+router.include_router(shared_links_router)
 
 
 def database():
@@ -121,7 +123,9 @@ def send_share_email(db, auth, payload, key, request):
         if previous.payload_hash != fingerprint:
             raise HTTPException(409, "This email request was already used with different recipients or content.")
         result = delivery_result(previous)
-        if payload.kind == "report":
+        if db.query(SharedLink.id).filter_by(delivery_id=previous.id).first():
+            active = active_link_count(db, delivery_id=previous.id) > 0
+        elif payload.kind == "report":
             from app.modules.reports.models import ReportShare
             active = db.get(ReportShare, target.id) is not None
         else:
@@ -135,33 +139,34 @@ def send_share_email(db, auth, payload, key, request):
     if recent >= 10:
         raise HTTPException(429, "Too many sharing emails. Please try again in ten minutes.", headers={"Retry-After": "600"})
     require_email_delivery_configured()
-    if payload.kind == "dashboard":
-        from app.db.models import DashboardShare
-        share = db.query(DashboardShare).filter_by(dataset_id=target.id, dashboard_key=dashboard).first()
-        if share is None:
-            share = DashboardShare(dataset_id=target.id, dashboard_key=dashboard, share_token=token_urlsafe(32))
-            db.add(share)
-        url = shared_url("/share/dashboard", {"dataset": target.id, "dashboard": dashboard,
-                                             "template": payload.template, "token": share.share_token})
-    else:
-        from app.modules.reports.models import ReportShare
-        share = db.get(ReportShare, target.id)
-        if share is None:
-            share = ReportShare(report_id=target.id, token=token_urlsafe(32))
-            db.add(share)
-        url = shared_url("/share/report", {"token": share.token})
     branding = get_weekly_report_branding(db, auth.workspace_id)
     organization = db.query(Organization).filter_by(owner_user_id=auth.workspace_id).first()
     workspace_name = " ".join(str(organization.name if organization else branding["brand_name"]).split())
     title = " ".join(title.split())[:150]
-    delivery = ShareEmailDelivery(workspace_id=auth.workspace_id, user_id=auth.user_id, request_key=request_key,
+    delivery = ShareEmailDelivery(id=str(uuid4()), workspace_id=auth.workspace_id, user_id=auth.user_id, request_key=request_key,
                                   payload_hash=fingerprint, target=f"{payload.kind}:{target.id}",
                                   recipients=json.dumps(payload.recipients), accepted="[]", status="sending")
     db.add(delivery)
+    links = []
+    for recipient in payload.recipients:
+        token = token_urlsafe(32)
+        link = SharedLink(workspace_id=auth.workspace_id, user_id=auth.user_id, delivery_id=delivery.id,
+                          kind=payload.kind, dataset_id=target.id if payload.kind == "dashboard" else None,
+                          report_id=target.id if payload.kind == "report" else None,
+                          dashboard_key=dashboard if payload.kind == "dashboard" else None,
+                          recipient=recipient, token_hash=sha256(token.encode()).hexdigest())
+        db.add(link)
+        url = shared_url("/share/dashboard", {"dataset": target.id, "dashboard": dashboard,
+                                             "template": payload.template, "token": token}) if payload.kind == "dashboard" else shared_url("/share/report", {"token": token})
+        links.append((link, url))
     # Persist before contacting the provider. Unknown outcomes are never automatically replayed.
     db.commit()
     accepted = []
-    for recipient in payload.recipients:
+    for link, url in links:
+        db.refresh(link)
+        if link.revoked_at is not None:
+            continue
+        recipient = link.recipient
         try:
             send_platform_system_email(recipient, f"{workspace_name} shared a {payload.kind} with you",
                                        f"{workspace_name} shared {title} with you.\n\nView the {payload.kind}: {url}\n\n"
@@ -176,6 +181,8 @@ def send_share_email(db, auth, payload, key, request):
         accepted.append(recipient)
         delivery.accepted = json.dumps(accepted)
         db.commit()
-    delivery.status = "sent"
+    delivery.status = "sent" if len(accepted) == len(payload.recipients) else "partial"
     db.commit()
-    return delivery_result(delivery)
+    result = delivery_result(delivery)
+    result["share_enabled"] = active_link_count(db, delivery_id=delivery.id) > 0
+    return result

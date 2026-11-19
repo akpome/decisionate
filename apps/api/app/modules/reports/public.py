@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Response
 from app.db.database import SessionLocal
 from app.modules.applications import workspace_belongs_to_application
 from app.modules.workspace_lifecycle import workspace_is_paused
+from app.modules.sharing_links import find_shared_link
 from .models import BusinessReport, ReportShare
 
 
@@ -33,7 +34,13 @@ def get_shared_report(token: str, response: Response):
     if not 32 <= len(token) <= 100:
         raise missing
     with SessionLocal() as db:
-        record = db.query(BusinessReport).join(ReportShare, ReportShare.report_id == BusinessReport.id).filter(ReportShare.token == token).first()
+        email_link = find_shared_link(db, token)
+        if email_link is not None:
+            if email_link.revoked_at is not None or email_link.kind != "report":
+                raise missing
+            record = db.query(BusinessReport).filter_by(id=email_link.report_id, workspace_id=email_link.workspace_id).first()
+        else:
+            record = db.query(BusinessReport).join(ReportShare, ReportShare.report_id == BusinessReport.id).filter(ReportShare.token == token).first()
         if (record is None or not workspace_belongs_to_application(db, record.workspace_id)
                 or workspace_is_paused(db, record.workspace_id)):
             raise missing

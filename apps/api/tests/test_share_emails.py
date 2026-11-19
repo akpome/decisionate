@@ -7,9 +7,11 @@ from unittest.mock import patch
 
 from fastapi import HTTPException, Response
 
-from app.db.models import DashboardShare, Dataset, Organization, WorkspaceApplication
+from app.db.models import DashboardShare, Dataset, Organization, UserPreference, WorkspaceApplication
 from app.application_context import application_scope, get_application
 from app.modules import share_emails as sharing
+from app.modules import sharing_links
+from app.modules.sharing_links import SharedLink
 from app.modules.reports import public
 from app.modules.reports.cleanup import cleanup_source, cleanup_workspace
 from app.modules.reports.models import BusinessReport, ReportShare
@@ -21,7 +23,7 @@ class ShareEmailTests(unittest.TestCase):
         fixtures.BusinessReportWorkflowTests.setUp(self)
         self.client.app.include_router(sharing.router)
         self.client.app.include_router(public.router)
-        for module in (sharing, public):
+        for module in (sharing, sharing_links, public):
             patcher = patch.object(module, "SessionLocal", self.Session)
             patcher.start(); self.addCleanup(patcher.stop)
         replacements = (("get_auth_context", lambda request: SimpleNamespace(user_id="owner", workspace_id=request.headers.get("X-Workspace-Id", "owner"))),
@@ -30,6 +32,8 @@ class ShareEmailTests(unittest.TestCase):
         for name, value in replacements:
             patcher = patch.object(sharing, name, value)
             patcher.start(); self.addCleanup(patcher.stop)
+            if hasattr(sharing_links, name):
+                self.enterContext(patch.object(sharing_links, name, value))
         self.email = self.enterContext(patch.object(sharing, "send_platform_system_email"))
         with self.Session() as db:
             db.add(Organization(name="Example Business", owner_user_id="owner"))
@@ -48,6 +52,12 @@ class ShareEmailTests(unittest.TestCase):
     def send(self, payload=None, key="share-request-1", **headers):
         return self.client.post("/api/v2/share-emails", json=payload or self.dashboard(), headers={"Idempotency-Key": key, **headers})
 
+    def emailed_url(self, index=-1):
+        return next(word for word in self.email.call_args_list[index].args[2].split() if "/share/" in word)
+
+    def emailed_token(self, index=-1):
+        return parse_qs(urlsplit(self.emailed_url(index)).query)["token"][0]
+
     def test_dashboard_email_uses_server_owned_url_and_private_individual_messages(self):
         result = self.send()
         self.assertEqual(result.status_code, 200, result.text)
@@ -61,7 +71,9 @@ class ShareEmailTests(unittest.TestCase):
         self.assertEqual(parameters["dashboard"], ["general-business"])
         self.assertEqual(parameters["template"], ["executive"])
         with self.Session() as db:
-            self.assertEqual(parameters["token"], [db.query(DashboardShare).one().share_token])
+            self.assertEqual(db.query(SharedLink).count(), 2)
+            self.assertEqual(db.query(DashboardShare).count(), 0)
+            self.assertNotEqual(self.emailed_token(0), self.emailed_token(1))
             self.assertEqual(db.query(sharing.ShareEmailDelivery).one().status, "sent")
 
     def test_replayed_request_does_not_resend_or_accept_different_recipients(self):
@@ -135,8 +147,7 @@ class ShareEmailTests(unittest.TestCase):
                     db.commit()
                 result = self.send(payload, key=f"report-email-{single}")
                 self.assertEqual(result.status_code, 200, result.text)
-                with self.Session() as db:
-                    token = db.get(ReportShare, payload["report_id"]).token
+                token = self.emailed_token()
                 public_result = self.client.get(f"/public/reports/{token}")
                 self.assertEqual(public_result.status_code, 200, public_result.text)
                 self.assertEqual(public_result.headers["cache-control"], "no-store")
@@ -150,8 +161,7 @@ class ShareEmailTests(unittest.TestCase):
     def test_revoking_and_resharing_report_invalidates_previous_token(self):
         payload = self.report()
         self.send(payload)
-        with self.Session() as db:
-            token = db.get(ReportShare, payload["report_id"]).token
+        token = self.emailed_token()
         status_url = f"/api/v2/business-reports/{payload['report_id']}/share"
         self.assertTrue(self.client.get(status_url).json()["share_enabled"])
         self.assertEqual(self.client.delete(status_url).status_code, 200)
@@ -166,8 +176,7 @@ class ShareEmailTests(unittest.TestCase):
             with self.subTest(delete_source=delete_source):
                 payload = self.report()
                 self.send(payload, key=f"deletion-{delete_source}")
-                with self.Session() as db:
-                    token = db.get(ReportShare, payload["report_id"]).token
+                token = self.emailed_token()
                 if delete_source:
                     with self.Session() as db:
                         cleanup_source(db, 1); db.commit()
@@ -180,8 +189,7 @@ class ShareEmailTests(unittest.TestCase):
     def test_wrong_application_and_paused_workspace_have_no_public_access(self):
         payload = self.report()
         self.send(payload)
-        with self.Session() as db:
-            token = db.get(ReportShare, payload["report_id"]).token
+        token = self.emailed_token()
         with patch.object(public, "workspace_belongs_to_application", return_value=False):
             self.assertEqual(self.client.get(f"/public/reports/{token}").status_code, 404)
         with patch.object(public, "workspace_is_paused", return_value=True):
@@ -208,8 +216,7 @@ class ShareEmailTests(unittest.TestCase):
             self.assertEqual(result.status_code, 200, result.text)
             self.assertEqual(observed, ["decisionate-ai"])
             self.assertIn("https://decisionate.ai/share/report?", self.email.call_args.args[2])
-            with self.Session() as db:
-                token = db.get(ReportShare, payload["report_id"]).token
+            token = self.emailed_token()
             self.assertEqual(self.client.get(f"/public/reports/{token}").status_code, 404)
             with application_scope("decisionate-ai"):
                 self.assertEqual(self.client.get(f"/public/reports/{token}").status_code, 200)
@@ -237,8 +244,8 @@ class ShareEmailTests(unittest.TestCase):
 
     def test_dashboard_revocation_disables_emailed_and_legacy_links_without_deleting_data(self):
         self.send()
+        token = self.emailed_token()
         with self.Session() as db:
-            token = db.query(DashboardShare).one().share_token
             dataset = db.get(Dataset, 1)
             dataset.share_token = "l" * 43
             db.add(DashboardShare(dataset_id=1, dashboard_key="retail-performance", share_token="r" * 43))
@@ -258,8 +265,7 @@ class ShareEmailTests(unittest.TestCase):
         self.send(key="dashboard-share-again")
         with self.assertRaises(HTTPException):
             self.public_dashboard(token, "general-business")
-        with self.Session() as db:
-            self.assertNotEqual(db.query(DashboardShare).filter_by(dashboard_key="general-business").one().share_token, token)
+        self.assertNotEqual(self.emailed_token(), token)
 
     def test_legacy_dashboard_status_is_visible_and_industry_revocation_keeps_other_links(self):
         from app.modules.datasets.router import build_dashboard_share_status
@@ -281,4 +287,113 @@ class ShareEmailTests(unittest.TestCase):
             self.stop_dashboard(allowed=False)
         self.assertEqual(failure.exception.status_code, 403)
         with self.Session() as db:
-            self.assertEqual(db.query(DashboardShare).count(), 1)
+            self.assertEqual(db.query(SharedLink).filter_by(revoked_at=None).count(), 2)
+
+    def listed_links(self, **query):
+        return self.client.get("/api/v2/share-emails/links", params={"kind": "dashboard", "dataset_id": 1, "dashboard": "general-business", **query})
+
+    def test_each_recipient_has_an_independent_link_and_revoking_one_preserves_the_other(self):
+        self.assertEqual(self.send().status_code, 200)
+        tokens = [self.emailed_token(index) for index in (0, 1)]
+        listed = self.listed_links()
+        self.assertEqual(listed.status_code, 200, listed.text)
+        self.assertEqual(listed.headers["cache-control"], "no-store")
+        items = listed.json()["items"]
+        self.assertEqual({item["recipient"] for item in items}, {"first@example.test", "second@example.test"})
+        self.assertNotIn("token", listed.text)
+        first = next(item for item in items if item["recipient"] == "first@example.test")
+        stopped = self.client.delete(f"/api/v2/share-emails/links/{first['id']}")
+        self.assertEqual(stopped.status_code, 200, stopped.text)
+        with self.assertRaises(HTTPException) as unavailable:
+            self.public_dashboard(tokens[0], "general-business")
+        self.assertEqual(unavailable.exception.status_code, 404)
+        self.assertIn("dataset", self.public_dashboard(tokens[1], "general-business"))
+        self.assertEqual(len(self.listed_links().json()["items"]), 1)
+        self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{first['id']}").status_code, 200)
+
+    def test_a_later_send_to_the_same_email_is_a_separate_revocable_link(self):
+        self.send(self.dashboard(recipients=["reader@example.test"]))
+        original = self.emailed_token()
+        self.send(self.dashboard(recipients=["reader@example.test"]), key="second-email-link")
+        second = self.emailed_token()
+        self.assertNotEqual(original, second)
+        links = self.listed_links().json()["items"]
+        with self.Session() as db:
+            original_id = sharing_links.find_shared_link(db, original).id
+        self.assertEqual(len(links), 2)
+        self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{original_id}").status_code, 200)
+        self.assertIn("dataset", self.public_dashboard(second, "general-business"))
+
+    def test_single_and_multi_report_links_are_independent_for_each_recipient(self):
+        for single in (True, False):
+            payload = {**self.report(single), "recipients": ["first@example.test", "second@example.test"]}
+            self.send(payload, key=f"individual-report-{single}")
+            first, second = self.emailed_token(-2), self.emailed_token(-1)
+            links = self.client.get("/api/v2/share-emails/links", params={"kind": "report", "report_id": payload["report_id"]})
+            self.assertEqual(links.status_code, 200, links.text)
+            item = next(item for item in links.json()["items"] if item["recipient"] == "first@example.test")
+            self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{item['id']}").status_code, 200)
+            self.assertEqual(self.client.get(f"/public/reports/{first}").status_code, 404)
+            self.assertEqual(self.client.get(f"/public/reports/{second}").status_code, 200)
+
+    def test_legacy_links_are_labeled_and_only_the_chosen_legacy_token_is_removed(self):
+        self.send()
+        with self.Session() as db:
+            dataset = db.get(Dataset, 1)
+            dataset.share_token = "l" * 43
+            db.add(DashboardShare(dataset_id=1, dashboard_key="general-business", share_token="d" * 43))
+            db.commit()
+        items = self.listed_links().json()["items"]
+        self.assertEqual(len(items), 4)
+        original = next(item for item in items if item["id"].startswith("legacy-dataset:"))
+        self.assertTrue(original["legacy"])
+        self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{original['id']}").status_code, 200)
+        with self.assertRaises(HTTPException):
+            self.public_dashboard("l" * 43)
+        self.assertIn("dataset", self.public_dashboard("d" * 43, "general-business"))
+        self.assertIn("dataset", self.public_dashboard(self.emailed_token(), "general-business"))
+
+    def test_readers_other_workspaces_and_wrong_applications_cannot_list_or_remove_links(self):
+        self.send()
+        item = self.listed_links().json()["items"][0]
+        with patch.object(sharing_links, "require_workspace_data_manager", side_effect=HTTPException(403, "Read only")):
+            self.assertEqual(self.listed_links().status_code, 403)
+            self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{item['id']}").status_code, 403)
+        wrong = self.client.delete(f"/api/v2/share-emails/links/{item['id']}", headers={"X-Workspace-Id": "someone-else"})
+        self.assertEqual(wrong.status_code, 404)
+        with self.Session() as db:
+            self.assertIsNone(db.get(SharedLink, item["id"]).revoked_at)
+
+    def test_link_listing_is_paginated_and_does_not_mix_dashboard_and_report_targets(self):
+        from hashlib import sha256
+        with self.Session() as db:
+            for index in range(57):
+                db.add(SharedLink(workspace_id="owner", user_id="owner", delivery_id="fixture", kind="dashboard", dataset_id=1,
+                    dashboard_key="general-business", recipient=f"reader{index}@example.test", token_hash=sha256(str(index).encode()).hexdigest()))
+            db.commit()
+        first = self.listed_links().json()
+        self.assertEqual(len(first["items"]), 50)
+        self.assertEqual(first["next_offset"], 50)
+        second = self.listed_links(offset=50).json()
+        self.assertEqual(len(second["items"]), 7)
+        self.assertIsNone(second["next_offset"])
+        self.assertFalse({item["id"] for item in first["items"]} & {item["id"] for item in second["items"]})
+
+    def test_public_chart_uses_the_saved_date_column_and_metric_selection(self):
+        import pandas as pd
+        frame = pd.DataFrame({"date": ["2023-01-01", "2023-01-02"], "sale_day": ["2026-11-01", "2026-11-02"],
+                              "spend": [100, 120], "private_amount": [999, 888]})
+        self.frames[1] = (self.frames[1][0], frame)
+        with self.Session() as db:
+            dataset = db.get(Dataset, 1)
+            dataset.source_config = json.dumps({"selected_metric_columns": ["spend"]})
+            db.add(UserPreference(clerk_user_id="owner", workspace_id="owner", dashboard_views=json.dumps({"1": {
+                "general-business": {"selectedMetrics": ["spend"], "startDate": "2026-11-01", "endDate": "2026-11-02",
+                                     "metricMappings": {"general-business": {"date": "sale_day"}}}}})))
+            db.commit()
+        self.send(self.dashboard(recipients=["reader@example.test"]))
+        result = self.public_dashboard(self.emailed_token(), "general-business")
+        self.assertEqual(result["dataset"]["chart"]["x_key"], "sale_day")
+        self.assertEqual([item["spend"] for item in result["dataset"]["chart"]["data"]], [100, 120])
+        self.assertNotIn("private_amount", result["dataset"]["chart"]["data"][0])
+        self.assertEqual([item["column"] for item in result["dataset"]["metrics"]], ["spend"])

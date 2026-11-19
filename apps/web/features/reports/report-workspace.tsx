@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { CalendarDays, ChartNoAxesCombined, FileText, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Share2, Square, Trash2, Unlink, X } from "lucide-react"
+import { CalendarDays, ChartNoAxesCombined, FileText, Link2, LoaderCircle, Play, Printer, RefreshCw, Save, Send, Share2, Square, Trash2, X } from "lucide-react"
 import { ShareEmailModal, type ShareEmailResult } from "@/features/sharing/share-email-modal"
 import { correlationRequest, getMyOrganization, getOrganizationWorkspaces, type WeeklyReportDeliveryResult } from "@/lib/api"
 import { defaultWorkspaceBrand, getWorkspaceBrand, type WorkspaceBrand } from "@/lib/workspace-brand"
@@ -514,17 +514,6 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     return result
   }
 
-  async function revokeReportShare() {
-    if (!canManage || !report?.report_id || managementAction.current) throw new Error("The saved report is not available to stop sharing.")
-    managementAction.current = true; setSharing(true)
-    try {
-      await request(`/${encodeURIComponent(report.report_id)}/share`, { method: "DELETE" })
-      reportSharingRequest.current++
-      setReportSharing({ key: shareContext, enabled: false })
-      setMessage("Report sharing stopped. Previously emailed links no longer work.")
-    } finally { managementAction.current = false; setSharing(false) }
-  }
-
   async function openDecisionDraft(decisionId?: number, findingId?: string) {
     if (!canEditDecisions || !canSave || busy || openingDraft.current) return
     openingDraft.current = true
@@ -696,10 +685,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           {report.definition.impact?.decision_id && <Link className={button} href={`/decisions/${report.definition.impact.decision_id}#business-impact-review`}>Return to decision</Link>}
           {!single && !weekly && !impactPage && canManage && report.report_id && <Link href={`/weekly-reports?copy=${encodeURIComponent(report.report_id)}`} className={button}><CalendarDays size={16} />{t("Copy selection to Weekly Reports")}</Link>}
           {!weekly && !impactPage && canManage && canSave && <button type="button" className={button} disabled={busy || sharing} title="Email a read-only report link" onClick={() => setSharingContext(shareContext)}><Share2 size={16} />Share link</button>}
-          {!weekly && !impactPage && canManage && reportSharing?.key === shareContext && reportSharing.enabled && <button type="button" className={button} disabled={busy || sharing} onClick={() => {
-            if (!window.confirm("Stop sharing this report? Previously emailed links will no longer work.")) return
-            void execute(revokeReportShare)
-          }}>{sharing ? <LoaderCircle size={16} className="animate-spin" /> : <Unlink size={16} />}{sharing ? "Stopping..." : "Stop sharing"}</button>}
+          {!weekly && !impactPage && canManage && reportSharing?.key === shareContext && reportSharing.enabled && <button type="button" className={button} disabled={busy || sharing} onClick={() => setSharingContext(shareContext)}><Link2 size={16} />Manage shared links</button>}
           <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>
         </>}
         {weekly && canManage && view === "report" && report && (!report.report_id || report.weekly_current) && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Email workspace owner</button>}
@@ -810,7 +796,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     </section>
     {relationships && !weekly && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
     {report && sharingContext === shareContext && <ShareEmailModal key={shareContext} title={report.name} kind="report" unsaved={!report.report_id}
-      sharingEnabled={reportSharing?.key === shareContext && reportSharing.enabled} onStopSharing={canManage && report.report_id ? revokeReportShare : undefined}
+      userId={userId} workspaceId={workspaceId} target={{ kind: "report", report_id: report.report_id || undefined }}
+      onChanged={active => { reportSharingRequest.current++; setReportSharing({ key: shareContext, enabled: active }) }}
       onClose={() => setSharingContext("")} onSend={async (recipients, requestKey) => {
       if (!canManage || !canSave || busy || managementAction.current) throw new Error("The report is not ready to share.")
       managementAction.current = true; setSharing(true)

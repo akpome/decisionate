@@ -25,7 +25,7 @@ import {
   MetricSelector,
 } from "@/features/dashboard/components/metric-selector"
 
-import { correlationRequest, getDatasetJoinCache, joinDatasets, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAnomalies, getDatasetDetails, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, stopDatasetSharing, updateDatasetPreference } from "@/lib/api";
+import { correlationRequest, getDatasetJoinCache, joinDatasets, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAnomalies, getDatasetDetails, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, updateDatasetPreference } from "@/lib/api";
 import { ShareEmailModal, type ShareEmailResult } from "@/features/sharing/share-email-modal"
 import {
   useActiveWorkspace,
@@ -89,7 +89,7 @@ import {
   Settings2,
   Share2,
   SlidersHorizontal,
-  Unlink,
+  Link2,
   X,
 } from "lucide-react"
 
@@ -121,7 +121,7 @@ const DatasetJoinPanel = dynamic(() =>
 type ChartType = "line" | "bar" | "area"
 type ScaleMode = "actual" | "indexed"
 type DashboardTemplate = "executive" | "performance" | "comparison"
-type ShareAction = "share" | "stop"
+type ShareAction = "share"
 
 type MetricAggregation = DashboardAggregation
 type ValueAggregation = DashboardValueAggregation
@@ -2800,71 +2800,8 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleStopSharing() {
-    if (
-      shareAction ||
-      !canConfigureWorkspace
-    ) {
-      return
-    }
-
-    if (!selectedDatasetId || !userId) {
-      setTemporaryShareStatus(
-        "Select a dataset before stopping sharing."
-      )
-      return
-    }
-
-    const confirmed =
-      window.confirm(
-        `Stopping sharing will make all existing ${dashboardShareTitle.toLowerCase()} links stop working. Continue?`
-      )
-
-    if (!confirmed) {
-      return
-    }
-
-    try {
-      await revokeDashboardShare()
-    } catch (error) {
-      setTemporaryShareStatus(
-        `Unable to stop sharing. ${getErrorMessage(error, "")}`.trim(),
-        3500
-      )
-    }
-  }
-
-  async function revokeDashboardShare() {
-    if (shareAction || !canConfigureWorkspace || !selectedDatasetId || !userId) {
-      throw new Error("The dashboard is not available to stop sharing.")
-    }
-    try {
-      setShareAction("stop")
-
-      const shareState =
-        await stopDatasetSharing(
-          selectedDatasetId,
-          userId,
-          activeWorkspaceId,
-          selectedDashboard
-        )
-
-      setTemporaryShareStatus(
-        "SharingStopped",
-        3500
-      )
-      sharingStatusRequest.current++
-      setShareEnabled(
-        shareState.share_enabled
-      )
-      window.dispatchEvent(
-        new Event(
-          "decisionate:dashboard-sharing-changed"
-        )
-      )
-    } finally {
-      setShareAction(null)
-    }
+  function handleManageSharing() {
+    if (!stopSharingDisabled) setShareModalTarget(currentShareTarget)
   }
 
   const shareControlsDisabled =
@@ -2890,9 +2827,10 @@ export default function DashboardPage() {
       ? selectedDashboardDefinition.name
       : effectiveDashboardTitle
   const currentShareTarget = JSON.stringify([userId, activeWorkspaceId, selectedDatasetId, selectedDashboard])
-  const shareEmailModal = shareModalTarget === currentShareTarget && userId && <ShareEmailModal
-    key={currentShareTarget} title={dashboardShareTitle} kind="dashboard" onSend={emailDashboard} sharingEnabled={shareEnabled}
-    onStopSharing={revokeDashboardShare} onClose={() => setShareModalTarget("")} />
+  const shareEmailModal = shareModalTarget === currentShareTarget && userId && selectedDatasetId && <ShareEmailModal
+    key={currentShareTarget} title={dashboardShareTitle} kind="dashboard" onSend={emailDashboard} userId={userId} workspaceId={activeWorkspaceId}
+    target={{ kind: "dashboard", dataset_id: selectedDatasetId, dashboard: selectedDashboard }}
+    onChanged={active => { sharingStatusRequest.current++; setShareEnabled(active) }} onClose={() => setShareModalTarget("")} />
   const shareButtonLabel =
     shareAction === "share"
       ? "Sending..."
@@ -2990,18 +2928,12 @@ export default function DashboardPage() {
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
         {canConfigureWorkspace && shareEnabled && (
         <DashboardActionButton
-          icon={<Unlink size={14} />}
-          label={
-            shareAction === "stop"
-              ? "Stopping..."
-              : "Stop sharing"
-          }
-          onClick={handleStopSharing}
-          busy={shareAction === "stop"}
+          icon={<Link2 size={14} />}
+          label="Manage shared links"
+          onClick={handleManageSharing}
           disabled={stopSharingDisabled}
-          title={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
-          ariaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
-          tone="danger"
+          title={`Manage individual ${dashboardShareTitle.toLowerCase()} links.`}
+          ariaLabel={`Manage shared ${dashboardShareTitle.toLowerCase()} links`}
           className="h-9 rounded-lg px-3 text-xs shadow-none"
         />
         )}
@@ -3473,7 +3405,7 @@ export default function DashboardPage() {
           onShare={handleShareDashboard}
           onStopSharing={
             canConfigureWorkspace
-              ? handleStopSharing
+              ? handleManageSharing
               : undefined
           }
           pdfDisabled={
@@ -3492,15 +3424,11 @@ export default function DashboardPage() {
               : "Save PDF"
           }
           shareLabel={shareButtonLabel}
-          stopSharingLabel={
-            shareAction === "stop"
-              ? "Stopping..."
-              : "Stop sharing"
-          }
+          stopSharingLabel="Manage shared links"
           shareTitle={shareButtonTitle}
           shareAriaLabel={shareButtonAriaLabel}
-          stopSharingTitle={`Turn off public access for this ${dashboardShareTitle.toLowerCase()}.`}
-          stopSharingAriaLabel={`Stop sharing ${dashboardShareTitle.toLowerCase()}`}
+          stopSharingTitle={`Manage individual ${dashboardShareTitle.toLowerCase()} links.`}
+          stopSharingAriaLabel={`Manage shared ${dashboardShareTitle.toLowerCase()} links`}
           shareEnabled={shareEnabled}
         />
 
@@ -3652,10 +3580,10 @@ export default function DashboardPage() {
                   className="shadow-none"
                 />
                 {shareEnabled && <DashboardActionButton
-                  icon={<Unlink size={15} />} label={shareAction === "stop" ? "Stopping..." : "Stop sharing"}
-                  onClick={handleStopSharing} busy={shareAction === "stop"} disabled={stopSharingDisabled}
-                  title="Disable all previously shared dashboard links" ariaLabel="Stop sharing dashboard"
-                  tone="danger" className="shadow-none"
+                  icon={<Link2 size={15} />} label="Manage shared links"
+                  onClick={handleManageSharing} disabled={stopSharingDisabled}
+                  title="Manage individual dashboard links" ariaLabel="Manage shared dashboard links"
+                  className="shadow-none"
                 />}
               </>
             )}

@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from "react"
 import { useUser } from "@clerk/nextjs"
@@ -13,13 +12,12 @@ import {
   ClipboardCheck,
   Database,
   LayoutDashboard,
-  Unlink,
+  Link2,
 } from "lucide-react"
 
 import {
   getDashboardPreference,
   getAllDatasetSharingStatus,
-  stopAllDatasetSharing,
   updateDashboardPreference,
 } from "@/lib/api"
 import {
@@ -32,6 +30,7 @@ import {
   WorkspaceAccessNotice,
 } from "@/features/dashboard/components/workspace-access-notice"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
+import { SharedLinksDialog } from "@/features/sharing/shared-links"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import {
   dashboardGroups,
@@ -76,8 +75,7 @@ export default function DashboardsPage() {
     useState(true)
   const [savingDashboard, setSavingDashboard] =
     useState("")
-  const [stoppingAllSharing, setStoppingAllSharing] =
-    useState(false)
+  const [managingSharedLinks, setManagingSharedLinks] = useState(false)
   const [
     dashboardSharingEnabled,
     setDashboardSharingEnabled,
@@ -86,10 +84,6 @@ export default function DashboardsPage() {
     activeSharingCount,
     setActiveSharingCount,
   ] = useState(0)
-  const [shareStatus, setShareStatus] =
-    useState("")
-  const shareStatusTimeoutRef =
-    useRef<number | null>(null)
   const [error, setError] = useState("")
   const [preferenceError, setPreferenceError] =
     useState("")
@@ -101,35 +95,6 @@ export default function DashboardsPage() {
     useState(0)
   const dashboardPreferenceLoading =
     Boolean(userId) && loadingPreference
-
-  function setTemporaryShareStatus(
-    status: string,
-    duration = 3500
-  ) {
-    if (shareStatusTimeoutRef.current) {
-      window.clearTimeout(
-        shareStatusTimeoutRef.current
-      )
-    }
-
-    setShareStatus(status)
-
-    shareStatusTimeoutRef.current =
-      window.setTimeout(() => {
-        setShareStatus("")
-        shareStatusTimeoutRef.current = null
-      }, duration)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (shareStatusTimeoutRef.current) {
-        window.clearTimeout(
-          shareStatusTimeoutRef.current
-        )
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (!userId) {
@@ -196,7 +161,6 @@ export default function DashboardsPage() {
           setDashboardSharingEnabled(false)
           setActiveSharingCount(0)
           setSharingStatusError("")
-          setShareStatus("")
           return
         }
 
@@ -217,9 +181,6 @@ export default function DashboardsPage() {
           setActiveSharingCount(status.count)
           setSharingStatusError("")
 
-          if (status.enabled) {
-            setShareStatus("")
-          }
         } catch (statusError) {
           if (!isCurrent()) {
             return
@@ -344,81 +305,6 @@ export default function DashboardsPage() {
     }
   }
 
-  async function handleStopAllSharing() {
-    if (
-      !userId ||
-      !canConfigureWorkspace ||
-      stoppingAllSharing
-    ) {
-      return
-    }
-
-    const confirmed =
-      window.confirm(
-        activeSharingCount > 0
-          ? `Stop ${activeSharingCount} active dashboard share link${activeSharingCount === 1 ? "" : "s"} for this workspace? Existing links will no longer work.`
-          : "Stop sharing for every dataset in this workspace? Existing dashboard share links will no longer work."
-      )
-
-    if (!confirmed) {
-      return
-    }
-
-    setStoppingAllSharing(true)
-    setError("")
-    setShareStatus("")
-
-    try {
-      const result =
-        await stopAllDatasetSharing(
-          userId,
-          activeWorkspaceId
-        )
-
-      setTemporaryShareStatus(
-        result.datasets_updated === 0
-          ? "No datasets are available to stop sharing."
-          : result.shares_stopped
-            ? `Stopped ${result.shares_stopped} shared dashboard link${result.shares_stopped === 1 ? "" : "s"} for this workspace.`
-            : "No active dashboard share links were found."
-      )
-      setDashboardSharingEnabled(
-        result.share_enabled
-      )
-      setActiveSharingCount(0)
-      window.dispatchEvent(
-        new CustomEvent(
-          "decisionate:dashboard-sharing-changed",
-          {
-            detail: {
-              scope: "workspace",
-              action: "stop-all",
-            },
-          }
-        )
-      )
-    } catch (stopError) {
-      setError(
-        stopError instanceof Error
-          ? stopError.message
-          : t("Unable to stop all dashboard sharing.")
-      )
-    } finally {
-      setStoppingAllSharing(false)
-    }
-  }
-
-  const stopAllSharingLabel =
-    stoppingAllSharing
-      ? t("Stopping...")
-      : activeSharingCount > 0
-        ? `${t("Stop all sharing")} (${activeSharingCount})`
-        : t("Stop all sharing")
-  const stopAllSharingDescription =
-    activeSharingCount > 0
-      ? `${t("Stop all sharing for")} ${activeSharingCount} ${t("active dashboard share links.")}`
-      : t("Stop all dashboard sharing.")
-
   return (
     <div className="space-y-6">
       <DashboardPageHeader
@@ -431,14 +317,13 @@ export default function DashboardsPage() {
           activeSharingCount > 0 ? (
           <button
             type="button"
-            onClick={handleStopAllSharing}
-            disabled={stoppingAllSharing}
-            title={stopAllSharingDescription}
-            aria-label={stopAllSharingDescription}
-            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => setManagingSharedLinks(true)}
+            title="Manage individual dashboard links"
+            aria-label="Manage shared dashboard links"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
-            <Unlink size={16} />
-            {stopAllSharingLabel}
+            <Link2 size={16} />
+            Shared links ({activeSharingCount})
           </button>
           ) : undefined
         }
@@ -502,16 +387,6 @@ export default function DashboardsPage() {
         className="print:hidden"
       />
 
-      {canConfigureWorkspace && shareStatus && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-sm text-[var(--decisionate-brand-primary-text)]"
-        >
-          {shareStatus}
-        </div>
-      )}
-
       <div className="space-y-5">
         {dashboardGroups.map(group => {
           return (
@@ -557,6 +432,7 @@ export default function DashboardsPage() {
           )
         })}
       </div>
+      {managingSharedLinks && userId && canConfigureWorkspace && <SharedLinksDialog key={`${userId}:${activeWorkspaceId}`} userId={userId} workspaceId={activeWorkspaceId} target={{ kind: "dashboard" }} onClose={() => setManagingSharedLinks(false)} />}
     </div>
   )
 }

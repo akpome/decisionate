@@ -12,7 +12,7 @@ import {
   LoaderCircle,
   Maximize2,
   Share2,
-  Unlink,
+  Link2,
   X,
 } from "lucide-react"
 import {
@@ -2731,7 +2731,7 @@ function DashboardHeader({
   stopSharingDisabled,
   pdfLabel = "Save PDF",
   shareLabel = "Share",
-  stopSharingLabel = "Stop sharing",
+  stopSharingLabel = "Manage shared links",
   shareTitle,
   shareAriaLabel,
   stopSharingTitle,
@@ -2847,13 +2847,12 @@ function DashboardHeader({
                 />
                 {showStopSharing && shareEnabled && onStopSharing && (
                   <DashboardActionButton
-                    icon={<Unlink size={16} />}
+                    icon={<Link2 size={16} />}
                     label={stopSharingLabel}
                     onClick={onStopSharing}
                     disabled={stopSharingDisabled}
                     title={stopSharingTitle}
                     ariaLabel={stopSharingAriaLabel}
-                    tone="danger"
                   />
                 )}
                 {controls}

@@ -14,16 +14,22 @@ or assume a public link has the same boundary as an authenticated workspace page
 Choose Share link to open the email dialog. Add up to ten email addresses,
 separated by commas or new lines, then choose Send email. Opening the dialog or
 canceling it does not send anything. Sending saves the selected dashboard view
-and emails a read-only link to each recipient separately; their addresses are
+and emails a different read-only link to each recipient; their addresses are
 not disclosed to other recipients. No email application needs to be installed
 on your computer.
 
-Choose Stop sharing beside Share link, or inside its email dialog, then confirm
-to disable all previously emailed links for that dashboard. The dashboard and
-its data are not deleted. Sharing again creates a new link; previously revoked
-links stay disabled. Stopping one dashboard does not stop other dashboards.
-The dashboards page also has a global action to stop all workspace dashboard
-links. Copies already viewed or downloaded cannot be recalled.
+Choose Manage shared links beside Share link, or use the Shared links list inside
+the email dialog. Find the recipient and creation date, select the trash icon,
+then confirm Stop this link. Only that link stops working; other recipients'
+links and other sends to the same address remain active. The dashboard and its
+data are not deleted. Sending again creates new links and never restores a
+stopped link. The Dashboards page's Shared links button lists workspace dashboard
+links with the same individual controls. Copies already viewed or downloaded
+cannot be recalled.
+
+Older emails may have used one shared token. These appear as Legacy shared link.
+Their individual copies cannot be separated retroactively: stopping that legacy
+link stops all copies of that one token, but does not stop newly created links.
 
 If a shared view looks different, compare the dataset, selected metrics, time
 window, grouping, mapping and dimension filter before attributing the difference
@@ -43,9 +49,10 @@ This control is separate from scheduled weekly emails and business-impact assess
 
 Anyone holding the emailed link can view the shared results without signing in;
 an email address is a delivery destination, not an access restriction. Forwarding
-the email also forwards access. Choose Stop sharing on the original report or
-inside its email dialog, then confirm to revoke all its links without deleting
-the report. Sharing it again creates a new link; old revoked links remain
+the email also forwards access. Each recipient gets a separate link. Use Manage
+shared links or the email dialog's Shared links list to stop one recipient's
+link, identified by creation date, without deleting the report or stopping other
+links. Sharing it again creates new links; old revoked links remain
 unavailable. Copies already viewed or downloaded cannot be recalled. Deleting
 the report or a source also removes access.
 

@@ -1353,9 +1353,11 @@
       "sources": [
         "apps/api/app/modules/public_dashboard.py",
         "apps/api/app/modules/share_emails.py",
+        "apps/api/app/modules/sharing_links.py",
         "apps/api/app/modules/reports/public.py",
         "apps/api/app/modules/reports/models.py",
         "apps/web/features/sharing/share-email-modal.tsx",
+        "apps/web/features/sharing/shared-links.tsx",
         "apps/web/app/share/report/page.tsx",
         "apps/api/app/modules/decisions/router.py",
         "apps/web/app/dashboard/help/page.tsx",

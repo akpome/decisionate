@@ -3546,6 +3546,8 @@ def get_workspace_share_counts(
             )
             .count()
         )
+        from app.modules.sharing_links import active_link_count
+        dashboard_shares += active_link_count(db, dataset_ids=dataset_ids)
 
     return {
         "dataset_ids": dataset_ids,
@@ -11381,6 +11383,8 @@ async def stop_all_dataset_sharing(
                     synchronize_session=False
                 )
             )
+            from app.modules.sharing_links import revoke_links
+            deleted_dashboard_shares += revoke_links(db, dataset_ids=dataset_ids)
 
         db.commit()
 
@@ -11544,7 +11548,10 @@ async def get_dataset_share_status(
         )
 
         if dashboard is None:
-            return build_dataset_share_status(dataset)
+            from app.modules.sharing_links import active_link_count
+            result = build_dataset_share_status(dataset)
+            result["share_enabled"] = result["share_enabled"] or active_link_count(db, dataset_id=dataset.id) > 0
+            return result
 
         dashboard_key = clean_dashboard_share_key(dashboard)
         dashboard_share = find_dashboard_share(
@@ -11553,11 +11560,14 @@ async def get_dataset_share_status(
             dashboard_key,
         )
 
-        return build_dashboard_share_status(
+        result = build_dashboard_share_status(
             dataset,
             dashboard_key,
             dashboard_share,
         )
+        from app.modules.sharing_links import active_link_count
+        result["share_enabled"] = result["share_enabled"] or active_link_count(db, dataset_id=dataset.id, dashboard=dashboard_key) > 0
+        return result
 
     finally:
         db.close()
@@ -11599,6 +11609,8 @@ async def stop_dataset_sharing(
         lock_workspace_queue(db, "share-email:" + workspace_id)
 
         if dashboard is None:
+            from app.modules.sharing_links import revoke_links
+            revoke_links(db, dataset_id=dataset.id)
             dataset.share_token = None
             db.commit()
             db.refresh(dataset)
@@ -11606,6 +11618,8 @@ async def stop_dataset_sharing(
             return build_dataset_share_result(dataset)
 
         dashboard_key = clean_dashboard_share_key(dashboard)
+        from app.modules.sharing_links import revoke_links
+        revoke_links(db, dataset_id=dataset.id, dashboard=dashboard_key)
         if dashboard_key == DEFAULT_SELECTED_DASHBOARD:
             dataset.share_token = None
         dashboard_share = find_dashboard_share(

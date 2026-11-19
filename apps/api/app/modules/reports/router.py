@@ -590,6 +590,9 @@ def delete_report(report_id: str, request: Request, db=Depends(database)):
     db.query(DecisionImpactReview).filter_by(report_id=report.id).update({"report_id": None}, synchronize_session=False)
     from .models import ReportShare
     db.query(ReportShare).filter_by(report_id=report.id).delete(synchronize_session=False)
+    from app.modules.sharing_links import SharedLink, link_table_exists
+    if link_table_exists(db):
+        db.query(SharedLink).filter_by(report_id=report.id).delete(synchronize_session=False)
     db.delete(report)
     db.commit()
     return {"report_id": report_id, "deleted": True, "weekly_template_removed": removed_template}
@@ -719,7 +722,8 @@ def report_share_status(report_id: str, request: Request, db=Depends(database)):
     user, workspace = identity(request)
     require_workspace_data_manager(request)
     report = allowed_report(db, report_id, user, workspace)
-    return {"share_enabled": db.get(ReportShare, report.id) is not None}
+    from app.modules.sharing_links import active_link_count
+    return {"share_enabled": db.get(ReportShare, report.id) is not None or active_link_count(db, report_id=report.id) > 0}
 
 
 @router.delete("/{report_id}/share")
@@ -730,6 +734,8 @@ def stop_report_sharing(report_id: str, request: Request, db=Depends(database)):
     require_workspace_data_manager(request)
     report = allowed_report(db, report_id, user, workspace)
     lock_workspace_queue(db, "share-email:" + workspace)
+    from app.modules.sharing_links import revoke_links
+    revoke_links(db, report_id=report.id)
     db.query(ReportShare).filter_by(report_id=report.id).delete(synchronize_session=False)
     db.commit()
     return {"share_enabled": False}

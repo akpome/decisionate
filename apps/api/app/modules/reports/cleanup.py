@@ -13,6 +13,9 @@ from .models import BusinessReport, CurrentWeeklyReport, DecisionImpactReview, R
 def delete_reports(db, identities):
     if not identities:
         return
+    from app.modules.sharing_links import SharedLink
+    if inspect(db.connection()).has_table(SharedLink.__tablename__):
+        db.query(SharedLink).filter(SharedLink.report_id.in_(identities)).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(ReportShare.__tablename__):
         db.query(ReportShare).filter(ReportShare.report_id.in_(identities)).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(DecisionImpactReview.__tablename__):
@@ -25,6 +28,9 @@ def delete_reports(db, identities):
 
 
 def cleanup_source(db, dataset_id):
+    from app.modules.sharing_links import SharedLink
+    if inspect(db.connection()).has_table(SharedLink.__tablename__):
+        db.query(SharedLink).filter_by(dataset_id=dataset_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):
         for analysis in db.query(PerformanceAnalysis):
             definition = json.loads(analysis.definition)
@@ -72,6 +78,9 @@ def cleanup_source(db, dataset_id):
 
 def cleanup_workspace(db, workspace_id):
     from app.modules.share_emails import ShareEmailDelivery
+    from app.modules.sharing_links import SharedLink
+    if inspect(db.connection()).has_table(SharedLink.__tablename__):
+        db.query(SharedLink).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(ShareEmailDelivery.__tablename__):
         db.query(ShareEmailDelivery).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):

@@ -24,6 +24,8 @@ from app.modules.datasets.services.dataset_loader import (
 from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
+from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
+from app.modules.sharing_links import find_shared_link
 from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter
 from app.modules.datasets.services.joins import (
     JOIN_RESULT_VERSION,
@@ -441,6 +443,7 @@ def get_dashboard_preference(
 def build_public_dashboard_dataset_response(
     dataset,
     dataframe,
+    date_column=None,
 ):
     return {
         "file_name": connector_dataset_display_name(dataset),
@@ -453,6 +456,7 @@ def build_public_dashboard_dataset_response(
         "chart": generate_chart_data(
             dataframe,
             limit=None,
+            date_column=date_column,
         ),
     }
 
@@ -538,7 +542,14 @@ def get_public_shared_dashboard(
             dashboard
         )
 
-        if dashboard is None:
+        email_link = find_shared_link(db, token)
+        if email_link is not None:
+            if (email_link.revoked_at is not None or email_link.kind != "dashboard"
+                    or email_link.dataset_id != dataset.id or email_link.dashboard_key != dashboard_key
+                    or email_link.workspace_id != (dataset.workspace_id or dataset.user_id)):
+                raise_shared_dashboard_not_found()
+            saved_share_token = token
+        elif dashboard is None:
             saved_share_token = dataset.share_token
         else:
             dashboard_share = find_dashboard_share(
@@ -657,10 +668,13 @@ def get_public_shared_dashboard(
 
         view = (dashboard_views or {}).get(str(dataset.id), {}).get(dashboard_key, {})
         legacy = (dashboard_preferences or {}).get(str(dataset.id), {}) if dashboard_key == DEFAULT_SELECTED_DASHBOARD else {}
+        saved_view = {**legacy, **view}
+        date_column = saved_view.get("metricMappings", {}).get(dashboard_key, {}).get("date")
+        from app.modules.datasets.router import normalize_dataset_details_dataframe
+        dataframe = normalize_dataset_details_dataframe(dataframe)
         dimension_filter = view.get("dimensionFilter", legacy.get("dimensionFilter"))
         if dimension_filter is not None and dashboard_key != "decision-performance":
             try:
-                from app.modules.datasets.router import normalize_dataset_details_dataframe
                 dimension_filter = DimensionFilter.model_validate(dimension_filter).model_dump()
                 if joined_dataset_result is not None:
                     raise DimensionFilterError("This shared view has incompatible saved joined data.")
@@ -671,10 +685,14 @@ def get_public_shared_dashboard(
         joined_filters = (joined_dataset_result or {}).get("dimension_filters", [])
         if joined_filters:
             dataframe = pd.DataFrame(joined_dataset_result["rows"])
+        if joined_dataset_result is None:
+            dataframe = filter_dataframe_to_selected_metrics(dataset, dataframe)
+        elif joined_filters:
+            date_column = "period"
         if dimension_filter is not None or joined_filters:
             dashboard_preferences = {str(dataset.id): {**legacy, "joinedDatasetResult": joined_dataset_result}}
             dashboard_views = {str(dataset.id): {dashboard_key: {**view, "joinedDatasetResult": joined_dataset_result}}}
-        public_dataset = build_public_dashboard_dataset_response(dataset, dataframe)
+        public_dataset = build_public_dashboard_dataset_response(dataset, dataframe, date_column=date_column)
         public_dataset.update(dimension_filter=dimension_filter, dimension_filters=joined_filters)
         if dimension_filter is not None or joined_filters:
             public_dataset["row_count"] = len(dataframe)
