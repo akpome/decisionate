@@ -54,9 +54,10 @@ class HostedSubdomainTests(unittest.TestCase):
         self.patched(patch("app.db.database.SessionLocal", self.Session))
         self.patched(patch.object(auth_context, "get_jwks_client", return_value=SimpleNamespace(
             get_signing_key_from_jwt=lambda _: SimpleNamespace(key=self.key.public_key()))))
+        self.patched(patch("app.modules.identity.clerk.cached_verified_clerk_email", side_effect=AssertionError("Mock the Clerk profile lookup explicitly")))
         with self.Session() as db:
             for user in ("agency", "another", "client", "staff"):
-                db.add(AppUser(id=user))
+                db.add(AppUser(id=user, email=user + "@example.test"))
                 db.add(AuthIdentity(user_id=user, provider="clerk", subject=user))
             db.add_all([Organization(id=1, owner_user_id="agency", name="Original agency"),
                         Organization(id=2, owner_user_id="another", name="Other agency"),
@@ -87,9 +88,11 @@ class HostedSubdomainTests(unittest.TestCase):
         self.brand = service.Branding(name="North Star", support_email="help@northstar.test").model_dump()
         self.base = "/api/v2/hosted-subdomains"
 
-    def headers(self, user="agency", workspace=None, origin="https://app.decisionate.ca", issuer="https://shared.clerk.test"):
-        token = jwt.encode({"sub": user, "iss": issuer, "aud": "decisionate",
-            "exp": datetime.now(UTC) + timedelta(minutes=10)}, self.key, algorithm="RS256")
+    def headers(self, user="agency", workspace=None, origin="https://app.decisionate.ca", issuer="https://shared.clerk.test", include_email=True):
+        claims = {"sub": user, "iss": issuer, "aud": "decisionate", "exp": datetime.now(UTC) + timedelta(minutes=10)}
+        if include_email:
+            claims.update(email=user + "@example.test", email_verified=True)
+        token = jwt.encode(claims, self.key, algorithm="RS256")
         result = {"Authorization": "Bearer " + token, "Origin": origin, "X-User-Id": user}
         if workspace:
             result["X-Workspace-Id"] = workspace
@@ -97,6 +100,21 @@ class HostedSubdomainTests(unittest.TestCase):
 
     def save(self, slug="north-star", revision=0, **headers):
         return self.client.put(self.base, headers=self.headers(**headers), json={"slug": slug, "configuration": self.brand, "revision": revision})
+
+    def test_missing_token_email_requires_a_verified_provider_profile(self):
+        with patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value="agency@example.test") as lookup:
+            result = self.client.get("/identity", headers=self.headers(include_email=False))
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()["user"], "agency")
+        lookup.assert_called_once_with("agency")
+
+    def test_missing_verified_email_cannot_bypass_identity_checks(self):
+        with patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value=None):
+            result = self.client.get("/identity", headers=self.headers(include_email=False))
+        self.assertEqual(result.status_code, 403, result.text)
+        with self.Session() as db:
+            self.assertEqual(db.query(AppUser).count(), 4)
+            self.assertEqual(db.get(AppUser, "agency").email, "agency@example.test")
 
     def publish(self):
         result = self.save()

@@ -10,6 +10,10 @@ references may also contain `:client:`; those identify workspaces, not people.
 Production sign-in requires a verified email. When a Clerk login token omits it,
 the API checks the account with Clerk rather than trusting a browser-supplied
 email. Complete email verification before continuing if prompted.
+Every production user account needs an email address. If an older account is
+shown without an email, contact support to have an authorized administrator
+recover its mapping. The same account ID and workspace data are preserved;
+do not create a replacement account to work around the missing address.
 
 ## Roles and visibility
 

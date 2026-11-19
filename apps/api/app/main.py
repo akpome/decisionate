@@ -598,6 +598,9 @@ ensure_workspace_column(
 # =========================
 
 ensure_internal_identity_backfill()
+if engine.dialect.name == "postgresql":
+    from app.modules.identity.service import ensure_user_email_constraint
+    ensure_user_email_constraint()
 ensure_platform_admin_roles()
 
 

@@ -2807,6 +2807,35 @@ class RepairUserEmailsRequest(BaseModel):
     limit: int = Field(default=25, ge=1, le=25)
 
 
+class MapUserEmailRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    user_id: str = Field(min_length=5, max_length=100, pattern=r"^usr_[A-Za-z0-9_-]+$")
+    email: str = Field(min_length=3, max_length=254)
+    confirmation: str
+
+
+@router.post("/users/map-email")
+def map_platform_user_email(request: Request, payload: MapUserEmailRequest):
+    auth = require_platform_admin(request)
+    if payload.confirmation != "MAP USER EMAIL":
+        raise HTTPException(400, "Confirm that this email belongs to the account owner.")
+    from app.modules.identity.repair import map_user_email
+    with SessionLocal() as db:
+        if not platform_admin_is_full_access(db, auth.user_id):
+            raise HTTPException(403, "Full platform administrator access is required.")
+        from app.infrastructure.ingestion_jobs import lock_workspace_queue
+        lock_workspace_queue(db, "user-email-repair", wait=False)
+        try:
+            result = map_user_email(db, payload.user_id, payload.email)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+        if result["changed"]:
+            record_platform_admin_audit(db, admin_user_id=auth.user_id, target_user_id=payload.user_id,
+                target_email=result["email"], action="user_email_mapped", details="Explicit recovery of an unmapped internal account; workspace ownership unchanged.")
+        db.commit()
+        return result
+
+
 @router.post("/users/repair-emails")
 def repair_platform_user_emails(request: Request, payload: RepairUserEmailsRequest):
     auth = require_platform_admin(request)
@@ -2890,7 +2919,7 @@ async def get_platform_admin_users(
             if ":client:" in app_user.id:
                 continue
             users[app_user.id] = {
-                "email": app_user.email or identity_emails.get(app_user.id),
+                "email": str(app_user.email or "").strip() or identity_emails.get(app_user.id),
                 "organization_names": set(),
                 "account_types": set(),
                 "account_profiles": set(),
@@ -2911,7 +2940,7 @@ async def get_platform_admin_users(
                     "account_profiles": set(),
                     "roles": set(),
                     "owner": False,
-                    "email": None,
+                    "email": identity_emails.get(organization.owner_user_id),
                     "protected": organization.owner_user_id
                     in protected_user_ids,
                 },
@@ -2944,7 +2973,7 @@ async def get_platform_admin_users(
                     "account_profiles": set(),
                     "roles": set(),
                     "owner": False,
-                    "email": None,
+                    "email": identity_emails.get(member.clerk_user_id),
                     "protected": member.clerk_user_id
                     in protected_user_ids,
                 },

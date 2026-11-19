@@ -59,6 +59,23 @@ up to 25 profiles and makes at most five Clerk calls; the page continues through
 remaining batches and can stop after the current batch. A provider error stops
 further work without treating the failure as a missing or deleted account.
 
+For an account that automatic repair cannot resolve, select **Map email** beside
+its **Email required** entry in Users or in the repair results. Enter the real
+account owner's email and confirm ownership. This action requires full platform
+administrator access. It preserves the account ID, workspaces and data, and logs
+the mapping in the audit trail. It does not create a Clerk user, send an email,
+change workspace ownership or merge accounts. Subsequent sign-in still requires
+email verification. An existing active Clerk sign-in must have a matching
+verified primary email; provider failures cannot be bypassed by manual entry.
+An address already assigned to another account in the same application is
+rejected and needs explicit identity review. An already mapped email cannot be
+replaced through this recovery action.
+
+The repair result reports the number of unmapped accounts still requiring an
+email. It is not complete while this count is nonzero. Unused records can be
+removed automatically; linked accounts whose real address cannot be recovered
+need an administrator to supply that address. Never fabricate a placeholder.
+
 Only unused, email-less records with no application-data references and no known
 active provider account are removed. Protected accounts, workspace owners,
 memberships, billing, historical actors and unsupported provider identities stay
@@ -74,6 +91,14 @@ existing API-side `CLERK_SECRET_KEY` scoped to the application. Lookup failures
 fail closed; the code never trusts an email header to link accounts. Verification
 results are briefly cached with application and credential isolation. Unknown
 member references now require an invitation instead of creating empty profiles.
+Production user creation and identity linking require an email. A PostgreSQL
+check constraint also blocks new blank-email user rows or clearing a mapped
+email. It initially leaves historical incomplete rows recoverable; it is fully
+validated when repair or manual mapping resolves the final row. Startup backfill
+no longer creates blank users from raw legacy references. Verified first sign-in
+can migrate those older workspace references without changing billing records
+when a conflicting subscription already exists. Client workspace namespace IDs
+are not login accounts and are excluded from this user-email requirement.
 
 ## Publication gate
 

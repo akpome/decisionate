@@ -32,6 +32,7 @@ import { MarketingAdmin } from "@/features/marketing/marketing-admin"
 import { WhiteLabelSetup } from "@/features/white-label/setup"
 import { WhiteLabelAvailabilityPanel } from "@/features/white-label/availability"
 import { UserEmailRepair } from "@/features/platform-admin/user-email-repair"
+import { UserEmailMapping } from "@/features/platform-admin/user-email-mapping"
 import { adminSections, sectionNeedsPermission, visibleAdminSections, type AdminSection } from "@/features/platform-admin/sections"
 import { AUTH_REDIRECTS } from "@/features/auth/lib/auth-redirects"
 
@@ -4090,7 +4091,12 @@ export default function PlatformAdminPage() {
                             <AdminReference value={platformUser.clerk_user_id} label="user ID" />
                           </td>
                           <td className="px-5 py-3 text-gray-500">
-                            <span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "Email needs review"}</span>
+                            <div className="space-y-2"><span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "Email required"}</span>
+                            {adminAccess?.full_access && user?.id && platformUser.clerk_user_id.startsWith("usr_") && !platformUser.clerk_user_id.includes(":client:") && <UserEmailMapping
+                              userId={user.id} targetUserId={platformUser.clerk_user_id} unmapped={!platformUser.email} onMapped={async email => {
+                                setPlatformUsers(current => current.map(item => item.clerk_user_id === platformUser.clerk_user_id ? { ...item, email } : item))
+                                await refreshAuditEvents()
+                              }} />}</div>
                           </td>
                           <td className="px-5 py-3 text-gray-700">
                             {(platformUser.account_profiles || []).length > 0 ? (

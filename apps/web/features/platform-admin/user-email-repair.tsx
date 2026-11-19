@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react"
 import { LoaderCircle, Square, Wrench } from "lucide-react"
 import { repairPlatformUserEmails, type UserEmailRepairResult } from "@/lib/api"
+import { UserEmailMapping } from "./user-email-mapping"
 
-type Summary = Pick<UserEmailRepairResult, "checked" | "emails_updated" | "users_deleted" | "unresolved">
+type Summary = Pick<UserEmailRepairResult, "checked" | "emails_updated" | "users_deleted" | "unresolved" | "remaining_unmapped">
 const empty = (): Summary => ({ checked: 0, emails_updated: 0, users_deleted: 0, unresolved: [] })
 
 export function UserEmailRepair({ userId, onRepaired }: { userId: string; onRepaired: () => Promise<void> }) {
@@ -16,6 +17,18 @@ export function UserEmailRepair({ userId, onRepaired }: { userId: string; onRepa
   const [error, setError] = useState("")
   const [paused, setPaused] = useState(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; cancelled.current = true } }, [])
+  useEffect(() => {
+    const mapped = (event: Event) => {
+      const detail = (event as CustomEvent).detail
+      if (!detail?.mapped || !detail.user_id) return
+      setSummary(current => current?.unresolved.some(item => item.user_id === detail.user_id) ? { ...current,
+        unresolved: current.unresolved.filter(item => item.user_id !== detail.user_id), emails_updated: current.emails_updated + 1,
+        remaining_unmapped: current.remaining_unmapped === undefined ? undefined : Math.max(0, current.remaining_unmapped - 1),
+      } : current)
+    }
+    window.addEventListener("decisionate:user-email-mapped", mapped)
+    return () => window.removeEventListener("decisionate:user-email-mapped", mapped)
+  }, [])
 
   async function repair() {
     if (running.current || !window.confirm("Sync missing emails and remove unused user records? Accounts with workspace data, permissions or an active login will be preserved.")) return
@@ -28,6 +41,7 @@ export function UserEmailRepair({ userId, onRepaired }: { userId: string; onRepa
         const result = await repairPlatformUserEmails(userId, cursor)
         total.checked += result.checked; total.emails_updated += result.emails_updated; total.users_deleted += result.users_deleted
         total.unresolved = [...total.unresolved, ...result.unresolved]
+        total.remaining_unmapped = result.remaining_unmapped
         if (!mounted.current) return
         setSummary({ ...total })
         if (result.provider_unavailable) throw new Error("The email provider could not be checked. Remaining records were preserved. Try again later.")
@@ -52,10 +66,12 @@ export function UserEmailRepair({ userId, onRepaired }: { userId: string; onRepa
       </button>
       {busy && <button type="button" title="Stop after the current batch" onClick={() => { cancelled.current = true }} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm"><Square size={14} />Stop</button>}
     </div>
-    {summary && <p role="status" className="text-xs text-gray-600">{busy ? "Checking accounts." : error ? "Repair incomplete." : paused ? "Repair stopped." : "Repair finished."} Checked: {summary.checked}. Emails recovered: {summary.emails_updated}. Unused records removed: {summary.users_deleted}.</p>}
+    {summary && <p role="status" className="text-xs text-gray-600">{busy ? "Checking accounts." : error ? "Repair incomplete." : paused ? "Repair stopped." : summary.unresolved.length || summary.remaining_unmapped ? "Email mapping required." : "Repair finished."} Checked: {summary.checked}. Emails recovered: {summary.emails_updated}. Unused records removed: {summary.users_deleted}.{summary.remaining_unmapped !== undefined && <> Unmapped accounts: {summary.remaining_unmapped}.</>}</p>}
     {error && <p role="alert" className="max-w-lg text-sm text-red-700">{error}</p>}
     {!!summary?.unresolved.length && <details className="max-w-lg text-xs text-amber-800"><summary className="cursor-pointer">{summary.unresolved.length} {summary.unresolved.length === 1 ? "account" : "accounts"} preserved for review</summary>
-      <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">{summary.unresolved.map(item => <li key={item.user_id} className="break-words"><span className="font-mono">{item.user_id}</span>: {item.reason}</li>)}</ul>
+      <ul className="mt-2 max-h-48 space-y-3 overflow-y-auto">{summary.unresolved.map(item => <li key={item.user_id} className="space-y-2 break-words"><p><span className="font-mono">{item.user_id}</span>: {item.reason}</p>
+        {!item.user_id.includes(":client:") && <UserEmailMapping userId={userId} targetUserId={item.user_id} disabled={busy} onMapped={onRepaired} />}
+      </li>)}</ul>
     </details>}
   </div>
 }

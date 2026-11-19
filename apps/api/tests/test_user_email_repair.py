@@ -140,7 +140,7 @@ class UserEmailRepairTests(unittest.TestCase):
     def test_batches_and_provider_calls_are_bounded_and_can_continue(self):
         for index in range(7):
             self.add_user(f"usr_{index:02}", provider="clerk", subject=f"user_{index}")
-        self.lookup.return_value = (True, "verified@example.test")
+        self.lookup.side_effect = lambda subject: (True, subject + "@example.test")
         first = self.run_repair()
         self.assertEqual(first["checked"], 5)
         self.assertEqual(self.lookup.call_count, 5)

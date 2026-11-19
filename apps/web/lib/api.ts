@@ -4544,7 +4544,16 @@ export async function getPlatformAdminUsers(
 export type UserEmailRepairResult = {
   checked: number; emails_updated: number; users_deleted: number
   unresolved: { user_id: string; reason: string }[]
-  provider_unavailable: boolean; next_user_id: string | null
+  provider_unavailable: boolean; next_user_id: string | null; remaining_unmapped?: number
+}
+
+export async function mapPlatformUserEmail(userId: string, targetUserId: string, email: string): Promise<{ user_id: string; email: string; mapped: boolean }> {
+  const response = await apiFetch(`${API_URL}/admin/users/map-email`, {
+    method: "POST", headers: await workspaceJsonHeaders(userId, userId),
+    body: JSON.stringify({ user_id: targetUserId, email, confirmation: "MAP USER EMAIL" }),
+  }, 45000)
+  if (!response.ok) await throwApiError(response, "The account email could not be mapped")
+  return response.json()
 }
 
 export async function repairPlatformUserEmails(userId: string, afterUserId: string | null): Promise<UserEmailRepairResult> {

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from uuid import uuid4
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import column, func, inspect, or_, select, table, text, update
 from sqlalchemy.exc import IntegrityError
 
 from app.configuration import get_runtime_configuration
@@ -46,6 +47,7 @@ LEGACY_IDENTITY_COLUMNS = (
 )
 
 WORKSPACE_COLUMNS = (
+    ("organizations", "owner_user_id"),
     ("organizations", "managing_agency_workspace_id"),
     ("agency_client_invitations", "agency_workspace_id"),
     ("datasets", "workspace_id"),
@@ -70,6 +72,44 @@ def is_internal_user_id(value: str | None) -> bool:
 
 def new_internal_user_id() -> str:
     return f"{INTERNAL_USER_PREFIX}{uuid4().hex}"
+
+
+def normalize_user_email(value: str | None) -> str:
+    email = str(value or "").strip().lower()
+    if len(email) > 254 or not re.fullmatch(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", email):
+        raise ValueError("A complete email address is required for this user account.")
+    return email
+
+
+def lock_user_email(db, email):
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+    lock_workspace_queue(db, "user-email:" + get_application().id + ":" + email.strip().lower())
+
+
+def _email_mapping_enforced() -> bool:
+    runtime = get_runtime_configuration()
+    return bool(runtime.auth_jwks_url or runtime.app_env in {"staging", "production"} or engine.dialect.name == "postgresql")
+
+
+def ensure_user_email_constraint(bind=engine):
+    with bind.begin() as connection:
+        if connection.dialect.name == "postgresql":
+            exists = connection.execute(text("SELECT 1 FROM pg_constraint WHERE conrelid = 'app_users'::regclass AND conname = 'ck_app_users_email_required'")).first()
+            if not exists:
+                # Existing incomplete profiles remain recoverable; new writes cannot add more.
+                connection.execute(text("ALTER TABLE app_users ADD CONSTRAINT ck_app_users_email_required CHECK (left(id, 4) <> 'usr_' OR position(':client:' in id) > 0 OR (email IS NOT NULL AND btrim(email) <> '')) NOT VALID"))
+        elif connection.dialect.name == "sqlite":
+            for operation in ("INSERT", "UPDATE"):
+                connection.execute(text(f"CREATE TRIGGER IF NOT EXISTS app_users_email_required_{operation.lower()} BEFORE {operation} ON app_users WHEN substr(NEW.id, 1, 4) = 'usr_' AND instr(NEW.id, ':client:') = 0 AND trim(coalesce(NEW.email, '')) = '' BEGIN SELECT RAISE(ABORT, 'User email is required'); END"))
+
+
+def validate_user_email_constraint(db):
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    remaining = db.query(AppUser.id).filter(AppUser.id.startswith("usr_", autoescape=True),
+        ~AppUser.id.contains(":client:"), func.trim(func.coalesce(AppUser.email, "")) == "").first()
+    if not remaining:
+        db.execute(text("ALTER TABLE app_users VALIDATE CONSTRAINT ck_app_users_email_required"))
 
 
 def _existing_table_columns(connection, table_name: str) -> set[str]:
@@ -108,7 +148,7 @@ def _collect_legacy_subjects() -> set[str]:
 def _ensure_legacy_user_mapping(
     db,
     subject: str,
-) -> str:
+) -> str | None:
     identity = (
         db.query(AuthIdentity)
         .filter(
@@ -120,19 +160,20 @@ def _ensure_legacy_user_mapping(
     if identity:
         return identity.user_id
 
-    user = AppUser(
-        id=new_internal_user_id(),
-    )
-    db.add(user)
-    db.flush()
+    existing = db.query(AuthIdentity).join(AppUser, AppUser.id == AuthIdentity.user_id).filter(
+        AuthIdentity.provider == identity_provider(), AuthIdentity.subject == subject,
+        AppUser.email.isnot(None), func.trim(AppUser.email) != "",
+    ).first()
+    if existing is None or ":client:" in subject:
+        return None
     db.add(
         AuthIdentity(
-            user_id=user.id,
+            user_id=existing.user_id,
             provider=LEGACY_AUTH_PROVIDER,
             subject=subject,
         )
     )
-    return user.id
+    return existing.user_id
 
 
 def _load_legacy_mapping(db) -> dict[str, str]:
@@ -200,8 +241,32 @@ def _migrate_subscription_workspace(connection, current_value: str, mapped_value
         )
 
 
+def _migrate_verified_legacy_identity(db, subject, user_id):
+    connection = db.connection()
+    existing_tables = set(inspect(connection).get_table_names())
+    mapping = {subject: user_id}
+    migrated = False
+    for table_name, column_name in dict.fromkeys((*LEGACY_IDENTITY_COLUMNS, *WORKSPACE_COLUMNS)):
+        if table_name not in existing_tables or column_name not in _existing_table_columns(connection, table_name):
+            continue
+        source = table(table_name, column(column_name))
+        value = source.c[column_name]
+        rows = connection.execute(select(value).distinct().where(or_(
+            value == subject, value.startswith(subject + ":client:", autoescape=True),
+        ))).scalars().all()
+        for current in rows:
+            migrated = True
+            mapped = _map_workspace_value(current, mapping)
+            if table_name == "workspace_subscriptions":
+                _migrate_subscription_workspace(connection, current, mapped)
+            else:
+                connection.execute(source.update().where(value == current).values({column_name: mapped}))
+    if migrated and not db.query(AuthIdentity.id).filter_by(provider=LEGACY_AUTH_PROVIDER, subject=subject).first():
+        db.add(AuthIdentity(user_id=user_id, provider=LEGACY_AUTH_PROVIDER, subject=subject))
+
+
 def ensure_internal_identity_backfill() -> None:
-    """Create internal users and migrate legacy identity values once safely."""
+    """Migrate known legacy identities without inventing email-less users."""
 
     subjects = _collect_legacy_subjects()
     db = SessionLocal()
@@ -419,6 +484,10 @@ def resolve_external_identity(
 
     db = SessionLocal()
     try:
+        if email:
+            if _email_mapping_enforced():
+                email = normalize_user_email(email)
+            lock_user_email(db, email)
         identity = (
             db.query(AuthIdentity)
             .filter(
@@ -427,6 +496,7 @@ def resolve_external_identity(
             )
             .first()
         )
+        first_signin = identity is None
 
         if identity is None:
             existing_user = _find_unique_user_by_email(
@@ -464,6 +534,8 @@ def resolve_external_identity(
             else:
                 user = existing_user
                 if user is None:
+                    if _email_mapping_enforced():
+                        email = normalize_user_email(email)
                     user = AppUser(
                         id=new_internal_user_id(),
                         email=str(email or "").strip() or None,
@@ -495,10 +567,20 @@ def resolve_external_identity(
                     .filter(AppUser.id == identity.user_id)
                     .first()
                 )
-                if user and not user.email:
+                if user and not str(user.email or "").strip():
                     user.email = clean_email
 
+        if _email_mapping_enforced():
+            user = db.get(AppUser, identity.user_id)
+            if user is None:
+                db.add(AppUser(id=identity.user_id, email=normalize_user_email(email)))
+            elif not str(user.email or "").strip():
+                user.email = normalize_user_email(email)
+
         identity.last_seen_at = utc_now()
+        if first_signin and email_verified and get_application().is_default and not is_internal_user_id(clean_subject):
+            db.flush()
+            _migrate_verified_legacy_identity(db, clean_subject, identity.user_id)
         from app.modules.applications import bind_workspace_application
         bind_workspace_application(db, identity.user_id)
         if get_application().is_default:
@@ -530,6 +612,8 @@ def link_external_identity(
 
     db = SessionLocal()
     try:
+        if email:
+            lock_user_email(db, email)
         from app.modules.applications import require_workspace_application
         require_workspace_application(db, clean_target_user_id)
         target_user = (
@@ -557,6 +641,8 @@ def link_external_identity(
 
         identity.user_id = target_user.id
         identity.email = str(email or "").strip() or identity.email
+        if not target_user.email and _email_mapping_enforced():
+            target_user.email = normalize_user_email(identity.email)
         if not target_user.email and identity.email:
             target_user.email = identity.email
         identity.last_seen_at = utc_now()
