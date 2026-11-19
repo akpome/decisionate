@@ -221,6 +221,8 @@ class AuthIdentity(Base):
         nullable=True,
     )
 
+    revoked_at = Column(DateTime, nullable=True)
+
     created_at = Column(
         DateTime,
         default=utc_now,

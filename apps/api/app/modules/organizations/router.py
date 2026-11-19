@@ -1048,6 +1048,7 @@ def serialize_organization_member(
             db.query(AuthIdentity)
             .filter(
                 AuthIdentity.user_id == member.clerk_user_id,
+                AuthIdentity.revoked_at.is_(None),
                 AuthIdentity.email.isnot(None),
             )
             .order_by(AuthIdentity.id.asc())

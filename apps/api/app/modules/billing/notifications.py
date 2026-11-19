@@ -71,6 +71,7 @@ def get_workspace_owner_email(db, organization: Organization) -> str | None:
         db.query(AuthIdentity)
         .filter(
             AuthIdentity.user_id == owner_id,
+            AuthIdentity.revoked_at.is_(None),
             AuthIdentity.email.isnot(None),
         )
         .order_by(AuthIdentity.id.asc())
@@ -92,6 +93,7 @@ def get_workspace_owner_email(db, organization: Organization) -> str | None:
             db.query(AuthIdentity)
             .filter(
                 AuthIdentity.user_id == member.clerk_user_id,
+                AuthIdentity.revoked_at.is_(None),
                 AuthIdentity.email.isnot(None),
             )
             .order_by(AuthIdentity.id.asc())

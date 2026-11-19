@@ -363,7 +363,8 @@
       ],
       "questions": [
         "Why is access restricted?",
-        "Why can I not see another workspace's datasets?"
+        "Why can I not see another workspace's datasets?",
+        "How can an account be reassigned when an employee leaves?"
       ],
       "routes": [
         "/settings",
@@ -374,6 +375,8 @@
         "apps/api/app/modules/auth_context.py",
         "apps/api/app/modules/identity/clerk.py",
         "apps/api/app/modules/identity/service.py",
+        "apps/api/app/modules/identity/repair.py",
+        "apps/api/app/modules/platform_admin.py",
         "apps/api/app/modules/organizations/router.py"
       ],
       "related": [
@@ -1640,6 +1643,10 @@
         "apps/web/features/platform-admin/user-email-mapping.tsx",
         "apps/web/tests/user-email-mapping.test.mjs",
         "apps/api/tests/test_user_email_mapping.py",
+        "apps/api/tests/test_user_email_reassignment.py",
+        "apps/api/app/db/models.py",
+        "apps/api/app/modules/marketing/service.py",
+        "apps/api/app/modules/billing/notifications.py",
         "apps/api/tests/test_hosted_subdomains.py",
         "apps/api/tests/test_user_email_repair.py",
         "apps/api/tests/test_internal_identity_backfill.py",

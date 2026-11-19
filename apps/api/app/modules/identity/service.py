@@ -4,6 +4,7 @@ import logging
 import re
 from uuid import uuid4
 
+from fastapi import HTTPException
 from sqlalchemy import column, func, inspect, or_, select, table, text, update
 from sqlalchemy.exc import IntegrityError
 
@@ -86,6 +87,25 @@ def lock_user_email(db, email):
     lock_workspace_queue(db, "user-email:" + get_application().id + ":" + email.strip().lower())
 
 
+def lock_user_identity(db, user_id):
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+    lock_workspace_queue(db, "user-identity:" + user_id)
+
+
+def ensure_identity_revocation_column(bind=engine):
+    with bind.begin() as connection:
+        if "revoked_at" not in _existing_table_columns(connection, "auth_identities"):
+            connection.execute(text("ALTER TABLE auth_identities ADD COLUMN revoked_at TIMESTAMP"))
+
+
+def _require_active_identity(db, identity):
+    if identity is not None:
+        lock_user_identity(db, identity.user_id)
+        db.refresh(identity)
+        if identity.revoked_at is not None:
+            raise HTTPException(403, "This sign-in no longer has access to the reassigned account. Contact your administrator.")
+
+
 def _email_mapping_enforced() -> bool:
     runtime = get_runtime_configuration()
     return bool(runtime.auth_jwks_url or runtime.app_env in {"staging", "production"} or engine.dialect.name == "postgresql")
@@ -158,10 +178,10 @@ def _ensure_legacy_user_mapping(
         .first()
     )
     if identity:
-        return identity.user_id
+        return identity.user_id if identity.revoked_at is None else None
 
     existing = db.query(AuthIdentity).join(AppUser, AppUser.id == AuthIdentity.user_id).filter(
-        AuthIdentity.provider == identity_provider(), AuthIdentity.subject == subject,
+        AuthIdentity.provider == identity_provider(), AuthIdentity.subject == subject, AuthIdentity.revoked_at.is_(None),
         AppUser.email.isnot(None), func.trim(AppUser.email) != "",
     ).first()
     if existing is None or ":client:" in subject:
@@ -180,7 +200,7 @@ def _load_legacy_mapping(db) -> dict[str, str]:
     return {
         identity.subject: identity.user_id
         for identity in db.query(AuthIdentity)
-        .filter(AuthIdentity.provider == LEGACY_AUTH_PROVIDER)
+        .filter(AuthIdentity.provider == LEGACY_AUTH_PROVIDER, AuthIdentity.revoked_at.is_(None))
         .all()
     }
 
@@ -371,7 +391,7 @@ def find_internal_user_id(
         .first()
     )
     if identity:
-        return identity.user_id
+        return identity.user_id if identity.revoked_at is None else None
 
     if not get_application().is_default:
         return None
@@ -384,7 +404,7 @@ def find_internal_user_id(
         )
         .first()
     )
-    return legacy_identity.user_id if legacy_identity else None
+    return legacy_identity.user_id if legacy_identity and legacy_identity.revoked_at is None else None
 
 
 def _find_unique_user_by_email(
@@ -453,6 +473,7 @@ def _reconcile_legacy_email_identity(
             AuthIdentity.provider == identity_provider(),
             func.lower(AuthIdentity.subject) == clean_email,
             AuthIdentity.user_id != current_user_id,
+            AuthIdentity.revoked_at.is_(None),
         )
         .first()
     )
@@ -497,6 +518,7 @@ def resolve_external_identity(
             .first()
         )
         first_signin = identity is None
+        _require_active_identity(db, identity)
 
         if identity is None:
             existing_user = _find_unique_user_by_email(
@@ -525,6 +547,7 @@ def resolve_external_identity(
                 .first()
             ) if get_application().is_default else None
             if legacy_identity:
+                _require_active_identity(db, legacy_identity)
                 identity = AuthIdentity(
                     user_id=legacy_identity.user_id,
                     provider=provider,
@@ -543,6 +566,11 @@ def resolve_external_identity(
                     db.add(user)
                     db.flush()
 
+                lock_user_identity(db, user.id)
+                db.refresh(user)
+                if email and str(user.email or "").strip().lower() != str(email).strip().lower():
+                    raise HTTPException(409, "This account's email changed. Sign in again with the assigned email.")
+
                 identity = AuthIdentity(
                     user_id=user.id,
                     provider=provider,
@@ -556,6 +584,7 @@ def resolve_external_identity(
                 email,
             )
             if reconciled_user_id:
+                lock_user_identity(db, reconciled_user_id)
                 identity.user_id = reconciled_user_id
 
         if email:
@@ -632,6 +661,9 @@ def link_external_identity(
             )
             .first()
         )
+        for user_id in sorted({target_user.id, *([identity.user_id] if identity else [])}):
+            lock_user_identity(db, user_id)
+        _require_active_identity(db, identity)
         if identity is None:
             identity = AuthIdentity(
                 provider=provider,

@@ -15,6 +15,18 @@ shown without an email, contact support to have an authorized administrator
 recover its mapping. The same account ID and workspace data are preserved;
 do not create a replacement account to work around the missing address.
 
+## When someone leaves
+
+Ask a full platform administrator to use **Platform Admin > People & access >
+Users > Reassign email**. They enter the replacement's email, a reason and a
+confirmation. The same account ID, workspaces, datasets, decisions and subscription
+are retained. Previous sign-ins lose access; the replacement must use their own
+sign-in and verify the new email. This transfers all access attached to that
+account, not just one workspace. It does not merge an existing separate account
+or transfer marketing consent. Protected and administrator accounts need
+separate access review. Extra email recipients and public share links should
+also be reviewed when an employee leaves.
+
 ## Roles and visibility
 
 Workspace owners manage configuration such as members, connections and billing

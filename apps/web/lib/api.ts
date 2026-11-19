@@ -4547,12 +4547,12 @@ export type UserEmailRepairResult = {
   provider_unavailable: boolean; next_user_id: string | null; remaining_unmapped?: number
 }
 
-export async function mapPlatformUserEmail(userId: string, targetUserId: string, email: string): Promise<{ user_id: string; email: string; mapped: boolean }> {
-  const response = await apiFetch(`${API_URL}/admin/users/map-email`, {
+export async function reassignPlatformUserEmail(userId: string, targetUserId: string, email: string, previousEmail: string | null, reason: string): Promise<{ user_id: string; email: string; mapped: boolean }> {
+  const response = await apiFetch(`${API_URL}/admin/users/reassign-email`, {
     method: "POST", headers: await workspaceJsonHeaders(userId, userId),
-    body: JSON.stringify({ user_id: targetUserId, email, confirmation: "MAP USER EMAIL" }),
+    body: JSON.stringify({ user_id: targetUserId, email, previous_email: previousEmail, reason, confirmation: "REASSIGN USER EMAIL" }),
   }, 45000)
-  if (!response.ok) await throwApiError(response, "The account email could not be mapped")
+  if (!response.ok) await throwApiError(response, "The account could not be reassigned")
   return response.json()
 }
 

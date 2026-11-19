@@ -110,6 +110,15 @@ def capture_identity(db, user_id, email, *, verified=False):
     return contact
 
 
+def retire_account_identity(db, user_id, *, actor_user_id):
+    """A replacement inherits workspace access, not the former person's consent."""
+    for contact in db.query(MarketingContact).filter_by(user_id=user_id, deleted_at=None).with_for_update().all():
+        withdraw(db, contact, "account_reassigned", actor=actor_user_id)
+        contact.deleted_at = utc_now()
+        touch_contact(db, contact)
+        db.query(MarketingMembership).filter_by(contact_id=contact.id).update({"eligible": False}, synchronize_session=False)
+
+
 def eligible(contact):
     return bool(contact and not contact.deleted_at and not contact.suppression_reason
                 and contact.marketing_status == "subscribed" and contact.consent_at

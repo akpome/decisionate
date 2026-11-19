@@ -6,16 +6,16 @@ from fastapi import HTTPException
 from sqlalchemy import String, column, func, inspect, or_, select, table
 
 from app.application_context import get_application, identity_provider
-from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember, PlatformAdminRole, WorkspaceApplication
+from app.db.models import AppUser, AuthIdentity, Organization, OrganizationMember, PlatformAdminRole, WorkspaceApplication, utc_now
 from app.modules.applications import workspace_application_scope
 from app.modules.identity.clerk import lookup_clerk_email
-from app.modules.identity.service import lock_user_email, normalize_user_email, validate_user_email_constraint
+from app.modules.identity.service import lock_user_email, lock_user_identity, normalize_user_email, validate_user_email_constraint
 
 
 def _email_in_use(db, user_id, email):
     from app.modules.applications import workspace_application_id
     profiles = db.query(AppUser.id).filter(AppUser.id != user_id, func.lower(func.trim(AppUser.email)) == email).all()
-    aliases = db.query(AuthIdentity.user_id).filter(AuthIdentity.user_id != user_id, func.lower(func.trim(AuthIdentity.email)) == email).all()
+    aliases = db.query(AuthIdentity.user_id).filter(AuthIdentity.user_id != user_id, AuthIdentity.revoked_at.is_(None), func.lower(func.trim(AuthIdentity.email)) == email).all()
     return any(workspace_application_id(db, other_id) == get_application().id for other_id, in [*profiles, *aliases])
 
 
@@ -24,13 +24,14 @@ def map_user_email(db, user_id, requested_email):
         raise HTTPException(400, "Choose an internal user account, not a workspace reference.")
     email = normalize_user_email(requested_email)
     user = db.get(AppUser, user_id)
-    identities = db.query(AuthIdentity).filter_by(user_id=user_id).order_by(AuthIdentity.last_seen_at.desc()).all()
+    identities = db.query(AuthIdentity).filter_by(user_id=user_id, revoked_at=None).order_by(AuthIdentity.last_seen_at.desc()).all()
     if user is None and not (identities or db.query(Organization.id).filter_by(owner_user_id=user_id).first()
             or db.query(OrganizationMember.id).filter_by(clerk_user_id=user_id).first()
             or db.query(PlatformAdminRole.id).filter_by(user_id=user_id).first()):
         raise HTTPException(404, "User account not found.")
     with workspace_application_scope(user_id, db, include_portal=False) as application:
         lock_user_email(db, email)
+        lock_user_identity(db, user_id)
         user = db.query(AppUser).filter_by(id=user_id).populate_existing().with_for_update().first()
         if user and str(user.email or "").strip():
             if user.email.strip().lower() == email:
@@ -61,6 +62,50 @@ def map_user_email(db, user_id, requested_email):
     db.flush()
     validate_user_email_constraint(db)
     return {"user_id": user_id, "email": email, "mapped": True, "changed": True}
+
+
+def reassign_user_email(db, user_id, requested_email, previous_email, *, actor_user_id, protected_ids=()):
+    if not re.fullmatch(r"usr_[A-Za-z0-9_-]+", user_id):
+        raise HTTPException(400, "Choose a user account, not a workspace reference.")
+    email = normalize_user_email(requested_email)
+    previous = str(previous_email or "").strip().lower() or None
+    if user_id == actor_user_id or user_id in protected_ids or db.query(PlatformAdminRole.id).filter_by(user_id=user_id).first():
+        raise HTTPException(409, "Protected and administrator accounts cannot be reassigned. Remove administrator access first, or ask another platform owner to review the account.")
+    with workspace_application_scope(user_id, db, include_portal=False) as application:
+        for address in sorted({email, *([previous] if previous else [])}):
+            lock_user_email(db, address)
+        lock_user_identity(db, user_id)
+        user = db.query(AppUser).filter_by(id=user_id).populate_existing().with_for_update().first()
+        identities = db.query(AuthIdentity).filter_by(user_id=user_id, revoked_at=None).order_by(AuthIdentity.last_seen_at.desc(), AuthIdentity.id.desc()).with_for_update().all()
+        if user is None and not (identities or db.query(Organization.id).filter_by(owner_user_id=user_id).first()
+                or db.query(OrganizationMember.id).filter_by(clerk_user_id=user_id).first()):
+            raise HTTPException(404, "User account not found.")
+        if db.query(PlatformAdminRole.id).filter_by(user_id=user_id).first():
+            raise HTTPException(409, "Remove administrator access before reassigning this account.")
+        current = str(user.email or "").strip().lower() if user else ""
+        current = current or next((item.email.strip().lower() for item in identities if item.email and item.email.strip()), None)
+        if current == email:
+            return {"user_id": user_id, "email": email, "mapped": True, "changed": False, "revoked_sign_ins": 0}
+        if current != previous:
+            raise HTTPException(409, "This account's email changed since the page was opened. Reload the user list before reassigning it.")
+        if _email_in_use(db, user_id, email):
+            raise HTTPException(409, "This email already belongs to another account in this application. Accounts cannot be merged through reassignment.")
+        now = utc_now()
+        for identity in identities:
+            identity.revoked_at = now
+        if user is None:
+            user = AppUser(id=user_id, email=email)
+            db.add(user)
+        else:
+            user.email = email
+        user.first_name = user.last_name = user.display_name = None
+        if application.is_default:
+            from app.modules.marketing.service import retire_account_identity
+            retire_account_identity(db, user_id, actor_user_id=actor_user_id)
+        db.flush()
+        validate_user_email_constraint(db)
+    return {"user_id": user_id, "email": email, "previous_email": current, "mapped": True,
+            "changed": True, "revoked_sign_ins": len(identities)}
 
 
 def _reference_columns(db):
@@ -103,16 +148,17 @@ def repair_user_emails(db, *, after=None, limit=25, protected_ids=()):
     last = after
     for user in candidates:
         identities = db.query(AuthIdentity).filter_by(user_id=user.id).order_by(AuthIdentity.last_seen_at.desc()).all()
-        email = next((item.email.strip() for item in identities
+        active_identities = [item for item in identities if item.revoked_at is None]
+        email = next((item.email.strip() for item in active_identities
                       if item.email and re.fullmatch(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", item.email.strip())), None)
         external_exists = False
         unknown_provider = False
         try:
             with workspace_application_scope(user.id, db, include_portal=False) as application:
-                subjects = {item.subject for item in identities if item.provider == identity_provider("clerk")
+                subjects = {item.subject for item in active_identities if item.provider == identity_provider("clerk")
                             or application.is_default and item.provider == "legacy" and item.subject.startswith("user_")}
                 known_providers = {identity_provider("clerk")} | ({"legacy"} if application.is_default else set())
-                unknown_provider = any(item.provider not in known_providers for item in identities)
+                unknown_provider = any(item.provider not in known_providers for item in active_identities)
                 if not email and subjects and not network_left:
                     break
                 to_check = sorted(subjects)[:network_left] if not email else []
@@ -131,6 +177,7 @@ def repair_user_emails(db, *, after=None, limit=25, protected_ids=()):
         if email:
             with workspace_application_scope(user.id, db, include_portal=False):
                 lock_user_email(db, email)
+                lock_user_identity(db, user.id)
                 if _email_in_use(db, user.id, email.strip().lower()):
                     result["unresolved"].append({"user_id": user.id, "reason": "Email already belongs to another account. Explicit identity review is required."})
                     result["checked"] += 1

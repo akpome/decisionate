@@ -3900,10 +3900,6 @@ export default function PlatformAdminPage() {
                   </p>
                 </div>
                 <div className="flex min-w-0 flex-wrap items-end gap-3">
-                {adminAccess?.full_access && user?.id && <UserEmailRepair userId={user.id} onRepaired={async () => {
-                  setPlatformUsers(await getPlatformAdminUsers(user.id, undefined, 100, currentUserEmail))
-                  await refreshAuditEvents()
-                }} />}
                 <label className="text-xs font-medium text-gray-600">
                   Search
                   <input
@@ -4006,7 +4002,12 @@ export default function PlatformAdminPage() {
                 </div>
               )}
 
-              <div className="border-b border-gray-200 bg-blue-50 px-5 py-4">
+              {adminAccess?.full_access && <details className="border-b border-gray-200 px-5 py-4">
+                <summary className="cursor-pointer text-sm text-gray-600">Sign-in recovery</summary>
+                <div className="py-4">{adminAccess?.full_access && user?.id && <UserEmailRepair userId={user.id} onRepaired={async () => {
+                  setPlatformUsers(await getPlatformAdminUsers(user.id, undefined, 100, currentUserEmail))
+                  await refreshAuditEvents()
+                }} />}</div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <label className="flex-1 text-xs font-medium text-gray-700">
                     Link current sign-in to an internal account
@@ -4039,7 +4040,7 @@ export default function PlatformAdminPage() {
                     {identityLinkError}
                   </p>
                 )}
-              </div>
+              </details>}
 
               {platformUsersLoading && (
                 <p className="px-5 py-4 text-sm text-gray-600">
@@ -4091,9 +4092,9 @@ export default function PlatformAdminPage() {
                             <AdminReference value={platformUser.clerk_user_id} label="user ID" />
                           </td>
                           <td className="px-5 py-3 text-gray-500">
-                            <div className="space-y-2"><span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "Email required"}</span>
+                            <div className="space-y-2"><span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "Legacy account recovery"}</span>
                             {adminAccess?.full_access && user?.id && platformUser.clerk_user_id.startsWith("usr_") && !platformUser.clerk_user_id.includes(":client:") && <UserEmailMapping
-                              userId={user.id} targetUserId={platformUser.clerk_user_id} unmapped={!platformUser.email} onMapped={async email => {
+                              userId={user.id} targetUserId={platformUser.clerk_user_id} currentEmail={platformUser.email || null} disabled={platformUser.protected || platformUser.platform_admin} onMapped={async email => {
                                 setPlatformUsers(current => current.map(item => item.clerk_user_id === platformUser.clerk_user_id ? { ...item, email } : item))
                                 await refreshAuditEvents()
                               }} />}</div>

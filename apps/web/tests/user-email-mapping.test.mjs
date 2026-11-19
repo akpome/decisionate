@@ -13,11 +13,12 @@ const handler = name => dialog.body.statements.find(node => ts.isFunctionDeclara
 
 function harness(send, options = {}) {
   const state = { saved: false, busy: false, error: "", calls: [], events: [], refreshed: 0, closed: 0 }
-  const context = { Error, userId: "operator", targetUserId: "usr_recover", email: " Owner@example.test ", confirmed: true,
+  const context = { Error, userId: "operator", targetUserId: "usr_recover", email: " Owner@example.test ", previousEmail: "former@example.test", reason: "Employee replacement", confirmed: true,
     running: { current: false }, mappedResult: { current: null }, saved: false, busy: false,
     setBusy: value => { state.busy = value; context.busy = value }, setSaved: value => { state.saved = value; context.saved = value },
+    setSavedEmail: value => { state.savedEmail = value },
     setError: value => { state.error = value }, onMapped: async email => { state.refreshed++; state.mappedEmail = email; if (options.refreshFails) throw new Error("Unavailable") },
-    onClose: () => { state.closed++ }, mapPlatformUserEmail: async (...args) => { state.calls.push(args); return send(...args) },
+    onClose: () => { state.closed++ }, reassignPlatformUserEmail: async (...args) => { state.calls.push(args); return send(...args) },
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail } },
     window: { dispatchEvent: value => state.events.push(value) }, ...options,
   }
@@ -28,7 +29,7 @@ function harness(send, options = {}) {
 }
 
 const mapped = { user_id: "usr_recover", email: "owner@example.test", mapped: true }
-test("email mapping waits for confirmation, preserves the target ID and locks duplicate submissions", async () => {
+test("reassignment waits for confirmation, preserves the target ID and locks duplicate submissions", async () => {
   const unconfirmed = harness(() => mapped, { confirmed: false })
   await unconfirmed.save(); assert.equal(unconfirmed.state.calls.length, 0)
   let finish
@@ -40,7 +41,7 @@ test("email mapping waits for confirmation, preserves the target ID and locks du
   assert.equal(h.state.busy, true)
   assert.equal(h.state.saved, false)
   finish(mapped); await pending
-  assert.deepEqual(h.state.calls, [["operator", "usr_recover", "Owner@example.test"]])
+  assert.deepEqual(h.state.calls, [["operator", "usr_recover", "Owner@example.test", "former@example.test", "Employee replacement"]])
   assert.equal(h.state.saved, true)
   assert.equal(h.state.refreshed, 1)
   assert.equal(h.state.mappedEmail, "owner@example.test")
@@ -66,24 +67,39 @@ test("a failed list refresh does not retry or lose a confirmed mapping", async (
   const h = harness(() => mapped, { refreshFails: true })
   await h.save()
   assert.equal(h.state.saved, true)
-  assert.match(h.state.error, /mapping is saved/)
+  assert.match(h.state.error, /reassignment is saved/)
   assert.equal(h.state.calls.length, 1)
   h.close(); assert.equal(h.state.events.length, 1)
 })
 
-test("mapping dialogs trap focus and clearly distinguish identity mapping from account merging", () => {
+test("reassignment requires a reason and a new address", async () => {
+  for (const options of [{ reason: " " }, { email: "FORMER@example.test" }, { confirmed: false }]) {
+    const h = harness(() => mapped, options)
+    await h.save()
+    assert.equal(h.state.calls.length, 0)
+  }
+})
+
+test("reassignment stays available for mapped accounts, traps focus and explains removal of old access", () => {
   assert.match(source, /\.showModal\(\)/)
   assert.match(source, /opener\?\.focus\(\)/)
   assert.match(source, /if \(busy\) event.preventDefault\(\)/)
   assert.match(source, /type="email"/)
-  assert.match(source, /I confirm this email belongs/)
-  assert.match(source, /other accounts will not be merged/)
-  assert.match(source, /unmapped && <button/)
+  assert.match(source, /I authorize transferring/)
+  assert.match(source, /Existing accounts will not be merged/)
+  assert.match(source, /blocks its previous sign-ins/)
+  assert.match(source, /\[previousEmail\] = useState\(currentEmail\)/)
+  assert.doesNotMatch(source, /unmapped &&/)
   const page = read("../app/platform-admin/page.tsx")
   assert.match(page, /adminAccess\?\.full_access && user\?\.id && platformUser.clerk_user_id/)
-  assert.match(page, /unmapped=\{!platformUser.email\}/)
+  assert.match(page, /currentEmail=\{platformUser.email \|\| null\}/)
+  assert.doesNotMatch(page, /Email required/)
+  assert.match(page, /disabled=\{platformUser.protected \|\| platformUser.platform_admin\}/)
   assert.match(page, /setPlatformUsers\(current => current.map\(item => item.clerk_user_id === platformUser.clerk_user_id \? \{ \.\.\.item, email \} : item\)\)/)
   const repair = read("../features/platform-admin/user-email-repair.tsx")
   assert.match(repair, /Email mapping required/)
   assert.match(repair, /<UserEmailMapping userId=\{userId\} targetUserId=\{item.user_id\}/)
+  const api = read("../lib/api.ts")
+  assert.match(api, /\/admin\/users\/reassign-email/)
+  assert.match(api, /previous_email: previousEmail, reason, confirmation: "REASSIGN USER EMAIL"/)
 })

@@ -52,24 +52,40 @@ other workspace migrations, with separate PostgreSQL coverage. Do not mark the
 incident deployed or production-verified based only on those source tests.
 
 Email-less `usr_...` rows need identity review, not blanket workspace deletion.
-Platform Admin > People & access > Users offers **Repair user records** to a
-full-access administrator. Confirm to recover stored identity emails or verified
+Platform Admin > People & access > Users > **Sign-in recovery** offers
+**Repair user records** to a full-access administrator. Confirm to recover stored identity emails or verified
 primary emails from the correct application's Clerk account. Each request checks
 up to 25 profiles and makes at most five Clerk calls; the page continues through
 remaining batches and can stop after the current batch. A provider error stops
 further work without treating the failure as a missing or deleted account.
 
-For an account that automatic repair cannot resolve, select **Map email** beside
-its **Email required** entry in Users or in the repair results. Enter the real
-account owner's email and confirm ownership. This action requires full platform
-administrator access. It preserves the account ID, workspaces and data, and logs
-the mapping in the audit trail. It does not create a Clerk user, send an email,
-change workspace ownership or merge accounts. Subsequent sign-in still requires
-email verification. An existing active Clerk sign-in must have a matching
-verified primary email; provider failures cannot be bypassed by manual entry.
-An address already assigned to another account in the same application is
-rejected and needs explicit identity review. An already mapped email cannot be
-replaced through this recovery action.
+For employee handover, select **Reassign email** beside the account in Users.
+The action remains visible when an email is already recorded; it is not limited
+to missing-email repair. Review the current email, enter the replacement's email,
+provide a reason and explicitly authorize the transfer. Only full platform
+administrators may reassign an account. Protected accounts, the acting account
+and platform-admin accounts cannot be reassigned. Remove a limited administrator's
+grant first when appropriate; platform-owner recovery needs separate review.
+
+Reassignment retains the `usr_...` ID, datasets, decisions, subscriptions and
+workspace memberships. The replacement receives every workspace and permission
+attached to that ID. Existing login aliases are marked revoked rather than
+deleted, so previous signed tokens are denied on subsequent API requests and
+startup backfills cannot restore their access. The replacement must use a
+separate sign-in and verify the assigned email before accessing the account.
+The operation does not create a Clerk user, send an invitation, modify the
+external Clerk account or merge another application's accounts. An address
+already assigned to another account in the same application is rejected.
+Concurrent changes to the displayed old email require refreshing before retry.
+The audit records the previous email, new email, reason and revoked login count.
+
+Former personal names are cleared. Marketing contacts and pending marketing
+messages for the former identity are retired; the replacement does not inherit
+marketing consent. Review any explicitly configured extra report recipients and
+public shared links separately, since those do not depend on the former login.
+Historical unmapped records remain recoverable through the same reassignment
+action without fabricating an email or destroying workspace data. The original
+missing-email API remains for compatibility, not as the normal user-management UI.
 
 The repair result reports the number of unmapped accounts still requiring an
 email. It is not complete while this count is nonzero. Unused records can be

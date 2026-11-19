@@ -93,7 +93,9 @@ from app.modules.billing.service import (
 from app.modules.identity.service import (
     find_internal_user_id,
     link_external_identity,
+    lock_user_email,
     new_internal_user_id,
+    normalize_user_email,
     resolve_user_reference,
 )
 from app.modules.datasets.services.analytics_engine import (
@@ -628,6 +630,7 @@ def get_platform_admin_user_ids() -> set[str]:
                 for identity in (
                     db.query(AuthIdentity)
                     .filter(
+                        AuthIdentity.revoked_at.is_(None),
                         func.lower(AuthIdentity.email).in_(
                             configured_emails
                         )
@@ -1522,6 +1525,7 @@ def build_platform_admin_organization_context(
                 db.query(AuthIdentity)
                 .filter(
                     AuthIdentity.user_id.in_(missing_email_ids),
+                    AuthIdentity.revoked_at.is_(None),
                     AuthIdentity.email.isnot(None),
                 )
                 .order_by(AuthIdentity.id.asc())
@@ -1884,15 +1888,14 @@ async def add_platform_admin_administrators(
             target_user_id: str | None = None
             target_email: str | None = None
             if "@" in reference:
-                target_email = reference.lower()
-                if not re.fullmatch(
-                    r"[^@\s]+@[^@\s]+\.[^@\s]+",
-                    target_email,
-                ):
+                try:
+                    target_email = normalize_user_email(reference)
+                except ValueError:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Enter a valid user email address: {reference}",
-                    )
+                    ) from None
+                lock_user_email(db, target_email)
                 target_user = (
                     db.query(AppUser)
                     .filter(func.lower(AppUser.email) == target_email)
@@ -2025,6 +2028,7 @@ def platform_admin_user_email(db, user_id: str) -> str | None:
         db.query(AuthIdentity)
         .filter(
             AuthIdentity.user_id == user_id,
+            AuthIdentity.revoked_at.is_(None),
             AuthIdentity.email.isnot(None),
         )
         .order_by(AuthIdentity.id.asc())
@@ -2081,6 +2085,11 @@ def get_or_create_platform_admin_owner(
     db,
     email: str,
 ) -> AppUser:
+    try:
+        email = normalize_user_email(email)
+    except ValueError:
+        raise HTTPException(400, "Enter a complete owner email address.") from None
+    lock_user_email(db, email)
     matches = (
         db.query(AppUser)
         .filter(func.lower(AppUser.email) == email)
@@ -2814,6 +2823,36 @@ class MapUserEmailRequest(BaseModel):
     confirmation: str
 
 
+class ReassignUserEmailRequest(MapUserEmailRequest):
+    previous_email: str | None = Field(default=None, max_length=254)
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/users/reassign-email")
+def reassign_platform_user_email(request: Request, payload: ReassignUserEmailRequest):
+    auth = require_platform_admin_full_access(request)
+    if payload.confirmation != "REASSIGN USER EMAIL" or len(payload.reason.strip()) < 3:
+        raise HTTPException(400, "Confirm the reassignment and provide a reason.")
+    from app.infrastructure.ingestion_jobs import lock_workspace_queue
+    from app.modules.identity.repair import reassign_user_email
+    with SessionLocal() as db:
+        lock_workspace_queue(db, "user-email-repair", wait=False)
+        try:
+            result = reassign_user_email(db, payload.user_id, payload.email, payload.previous_email,
+                actor_user_id=auth.user_id, protected_ids=platform_owner_user_ids(db, auth.user_id))
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+        if result["changed"]:
+            record_platform_admin_audit(db, admin_user_id=auth.user_id, target_user_id=payload.user_id,
+                target_email=result["email"], action="user_email_reassigned", details=json.dumps({
+                    "previous_email": result["previous_email"], "new_email": result["email"],
+                    "reason": payload.reason.strip(), "revoked_sign_ins": result["revoked_sign_ins"],
+                    "workspace_data_preserved": True,
+                }))
+        db.commit()
+        return result
+
+
 @router.post("/users/map-email")
 def map_platform_user_email(request: Request, payload: MapUserEmailRequest):
     auth = require_platform_admin(request)
@@ -2904,6 +2943,7 @@ async def get_platform_admin_users(
         identity_emails: dict[str, str] = {}
         for identity in (
             db.query(AuthIdentity)
+            .filter(AuthIdentity.revoked_at.is_(None))
             .order_by(
                 AuthIdentity.last_seen_at.desc(),
                 AuthIdentity.id.desc(),
@@ -3173,7 +3213,7 @@ async def link_platform_admin_identity(
     payload: PlatformAdminIdentityLinkRequest,
     request: Request,
 ):
-    auth_context = require_platform_admin(request)
+    auth_context = require_platform_admin_full_access(request)
     external_user_id = str(
         auth_context.external_user_id or ""
     ).strip()
