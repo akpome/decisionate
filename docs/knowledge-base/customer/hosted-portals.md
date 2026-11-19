@@ -76,9 +76,13 @@ enable one before the platform is ready.
 
 ## How do I brand and publish my hosted portal?
 
-Choose the subdomain, portal name, support email, logo, browser icon, colors and
-welcome message. Optional images must be PNG, JPEG or WebP. Logos can be up to
-1 MB; browser icons and background images can be up to 128 KB each. Save draft
+Choose the subdomain, portal name, support email, logo, colors and welcome
+message. Set one logo by entering its public HTTPS image URL in Logo URL or
+choosing Upload logo. Uploads must be PNG, JPEG or WebP and can be up to 1 MB.
+That same logo appears in the portal preview, sign-in screen and browser tab;
+there is no separate browser-icon upload. Existing icon-only images are kept as
+the logo when no logo was previously selected. Removing the logo clears that
+image too. An optional background image can be up to 128 KB. Save draft
 reserves the address; it cannot then be renamed in this screen.
 Preview desktop or mobile, then explicitly activate or publish. Draft changes are
 not live until published. Reopen setup to continue. Publishing registers the portal's

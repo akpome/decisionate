@@ -1,16 +1,14 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "00b74997d45b65ae5d0451f4187bc4949a0df97e",
+  "base_git_revision": "4a329bf4b27427974fffc57568b0b80f5b85242c",
   "referenced_sources_modified_in_worktree": [
+    "apps/api/app/modules/hosted_subdomains/router.py",
     "apps/api/app/modules/hosted_subdomains/service.py",
-    "apps/api/app/modules/organizations/agency_accounts.py",
-    "apps/api/app/modules/platform_admin.py",
     "apps/api/tests/test_hosted_subdomains.py",
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/app/dashboard/settings/settings-client.tsx",
     "apps/web/features/hosted-subdomains/setup.tsx",
-    "apps/web/features/settings/workspace-deletion.tsx"
+    "apps/web/features/hosted-subdomains/sign-in.tsx",
+    "apps/web/features/hosted-subdomains/types.ts"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -70,8 +68,8 @@
     "apps/api/app/modules/hosted_portal_registry.py": "c7363c812e365cc89b3a02ff67273273ef012d589237907098fa9289d1845620",
     "apps/api/app/modules/hosted_portals.py": "fb480b9fab13bd448ff7f86c6827059219c7f9f07512e47424d3b585535730f2",
     "apps/api/app/modules/hosted_subdomains/context.py": "78d002147f66374c14b061ffe92f1befd29311de13ed77b242b06ea7a13be13d",
-    "apps/api/app/modules/hosted_subdomains/router.py": "ed242503306c98ddd9698e82190e7324b0c39493a378c36da986b528834feb19",
-    "apps/api/app/modules/hosted_subdomains/service.py": "8322c85396e66eb494876c78f7e0070210b5a8e3605519938e845f24031f0ccd",
+    "apps/api/app/modules/hosted_subdomains/router.py": "80bfa648ab61d2d2b430952bd996f7c4c8ffd543a135cbd8011fdbe8144a33c5",
+    "apps/api/app/modules/hosted_subdomains/service.py": "07bca39a1e8a137fd9fafbcd0567bd1657e07f230c2a53b55fec274e68b96fa8",
     "apps/api/app/modules/identity/clerk.py": "f8b9a3b7d9e4d87e7c301aa6d5275074db28126fe264346189ebcd3a727034a7",
     "apps/api/app/modules/identity/repair.py": "579c79cc0744b8b50ee49a36b32757dff846bcbda9aa46edcdf289ef98c07967",
     "apps/api/app/modules/identity/service.py": "c372a5872f6203bc46e032835fcb86947895ebbcd269fdc233c93314a3cbb67f",
@@ -120,7 +118,7 @@
     "apps/api/tests/test_admin_pricing_settings.py": "f54aad2513a588f00fb0048896ba85d1bfd058bd16f63a71d1a0d5b006e63942",
     "apps/api/tests/test_ai_service.py": "e0c73768885debbe6ad81e28371c3f11579b63b1f81b2a93df8de6cb0b8ebec0",
     "apps/api/tests/test_billing_settings_transactions.py": "712bf366b251c9a537916320e6870c347f2ea250d8e7cb31d8e9712cd9aa0f83",
-    "apps/api/tests/test_hosted_subdomains.py": "59348f134f6c54a58dc71ef5a72010dd7725231c1719aa7e0e5fcc2489980ab0",
+    "apps/api/tests/test_hosted_subdomains.py": "3551864b080f0da8b33ce5c1da8ab7eef984dbff7e3d0e3183591fd9afe2ae5e",
     "apps/api/tests/test_internal_identity_backfill.py": "0836b6e26ab2a5ec760c6ad86e1469b1630134ee4b5aa76ad511253787b99329",
     "apps/api/tests/test_joined_report_sources.py": "ff24ed5a4cd91a1d7e07ceac1ef9c8a4881e865a1c3528dc3aac0f81ddc0e57b",
     "apps/api/tests/test_user_email_mapping.py": "5aa40dea89d85e5902fef4bcc1e9f4af6b43b94d028096688e1c5b4083fbfe89",
@@ -164,8 +162,9 @@
     "apps/web/features/datasets/lib/metric-selection-save.ts": "f5e26dc649de82e84e657e8a6e8ecc0bd635a6a07bd43426f1a263d23777b1ec",
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "5d885f0c41f9ef97700554396b7bad4d3d7f6c502bfc31327ae1882730094e1b",
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "1800308a101183a53afa3aa9d539c98de3b231347fee0c7f40455e709688f2dd",
-    "apps/web/features/hosted-subdomains/setup.tsx": "bda361e0cd6e964beeb366b3bf8acd0aa49917aaac7d06273bd2d7ec10857878",
-    "apps/web/features/hosted-subdomains/sign-in.tsx": "28a56e4f1f9fdd928d220af5f14791dc46570281c6cb13b70882c3a4acca2c90",
+    "apps/web/features/hosted-subdomains/setup.tsx": "6f7ba3f6bb512beaa7b493bfd0e8f0dd71b01cdd8f756d02051edbc043fb7528",
+    "apps/web/features/hosted-subdomains/sign-in.tsx": "7cb81af4f1868470ff6bb034061191a42ac4113c9a0fcc7bc835433955180647",
+    "apps/web/features/hosted-subdomains/types.ts": "442010905c8ee062de0a1fe2f0b328db7fab9c65fd6ed6a756dfd41f564c1009",
     "apps/web/features/hosted-subdomains/unavailable-page.ts": "0acf0d39ad9d8ca2ddc4224a50f839bc71aaed975f30bf4b135b9295b875411b",
     "apps/web/features/performance/amount-source.tsx": "122a9f4c76f165a258ec8bacbd93c81067647dbc83c99168080eff31c61ca8dd",
     "apps/web/features/performance/growth-results.tsx": "70b243acaeb2dc4cba429d9b97261e4da8deec0936f8ebe7b0f0cc4cafa82169",
@@ -237,7 +236,7 @@
     "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "00d60b208f546fc36801590f5fe38bab2c439cdb2b8e3b53deb0ab676e452786",
+    "customer/hosted-portals.md": "dde91768779c2fd699b9df58ff8ac8547c354d020d36dbdab21d8c6d72b9ff29",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

@@ -425,7 +425,9 @@ class HostedSubdomainTests(unittest.TestCase):
                 with self.subTest(field=field, media=media):
                     image = signature + b"0" * (limit - len(signature))
                     value = f"data:image/{media};base64," + base64.b64encode(image).decode()
-                    self.assertEqual(getattr(service.Branding(**{**self.brand, field: value}), field), value)
+                    result = service.Branding(**{**self.brand, field: value})
+                    self.assertEqual(getattr(result, "logo_url" if field == "favicon_url" else field), value)
+                    self.assertEqual(result.favicon_url, "")
                     too_large = f"data:image/{media};base64," + base64.b64encode(image + b"0").decode()
                     with self.assertRaises(ValueError):
                         service.Branding(**{**self.brand, field: too_large})
@@ -444,6 +446,53 @@ class HostedSubdomainTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.content, image)
         self.assertEqual(result.headers["content-type"], "image/png")
+
+    def test_external_https_logo_url_is_supported_without_server_fetches(self):
+        self.brand["logo_url"] = "https://cdn.agency.test/brand/logo?version=2"
+        with patch.object(service, "urlopen", side_effect=AssertionError("Logo URLs must not be fetched by the server")):
+            self.publish()
+            response = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app")
+            self.assertEqual(response.json()["branding"]["logo_url"], self.brand["logo_url"])
+            self.assertEqual(response.json()["branding"]["favicon_url"], self.brand["logo_url"])
+            self.assertEqual(self.client.get(self.base + "/assets/north-star.decisionate.app/logo_url").status_code, 404)
+        for url in ("http://agency.test/logo.png", "https://user:secret@agency.test/logo.png", "https://agency.test:444/logo.png",
+                    "https://agency.test/a b.png", "https://agency.test/\\bad.png", "https://agency.test/" + "a" * 2048):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                service.Branding(**{**self.brand, "logo_url": url})
+
+    def test_icon_only_saved_portal_is_restored_as_the_logo_in_preview_and_public_assets(self):
+        self.publish()
+        image = b"\x89PNG\r\n\x1a\n" + b"0" * 16
+        legacy = {**self.brand, "logo_url": "", "favicon_url": "data:image/png;base64," + base64.b64encode(image).decode()}
+        with self.Session() as db:
+            row = db.get(HostedSubdomainPortal, self.portal_id)
+            row.configuration = row.published_configuration = json.dumps(legacy)
+            db.commit()
+        draft = self.client.get(self.base, headers=self.headers()).json()["portal"]["configuration"]
+        self.assertEqual(draft["logo_url"], legacy["favicon_url"])
+        self.assertEqual(draft["favicon_url"], "")
+        published = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]
+        self.assertEqual(published["logo_url"], published["favicon_url"])
+        self.assertTrue(published["logo_url"].endswith("/logo_url"))
+        for field in ("logo_url", "favicon_url"):
+            result = self.client.get(self.base + "/assets/north-star.decisionate.app/" + field)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.content, image)
+        self.brand = {**draft, "logo_url": "", "favicon_url": ""}
+        self.assertEqual(self.save(revision=2).status_code, 200)
+        with patch.object(portals, "ensure_satellite", return_value="domain_north"):
+            result = self.client.post(self.base + "/activate", headers=self.headers(), json={"revision": 3, "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(result.status_code, 200, result.text)
+        cleared = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]
+        self.assertEqual((cleared["logo_url"], cleared["favicon_url"]), ("", ""))
+        self.assertEqual(self.client.get(self.base + "/assets/north-star.decisionate.app/favicon_url").status_code, 404)
+
+    def test_explicit_logo_takes_precedence_over_a_different_legacy_icon(self):
+        logo = "https://cdn.agency.test/logo.png"
+        icon = "https://app.decisionate.ca/old-icon.png"
+        result = service.Branding(**{**self.brand, "logo_url": logo, "favicon_url": icon})
+        self.assertEqual((result.logo_url, result.favicon_url), (logo, ""))
+        self.assertEqual(service.canonical_branding({"logo_url": logo, "favicon_url": icon})["logo_url"], logo)
 
     def test_workspace_cleanup_removes_only_its_hosted_references(self):
         from app.modules.hosted_subdomains.cleanup import delete_hosted_workspace

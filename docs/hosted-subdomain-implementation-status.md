@@ -81,10 +81,15 @@ only Clerk proxy bootstrap is available on the frontend. Active exact origins
 enter CORS dynamically. No wildcard authentication/CORS/redirect permission is
 added. Hosted origins cannot access platform or marketing administration.
 
-Uploads allow PNG/JPEG/WebP logos up to 1 MB and other images up to 128 KB each, validated base64 and signatures;
-SVG/HTML/scripts are rejected. Bounded image data is stored with the configuration
-and served through fixed raster URLs. Optional HTTPS raster URLs require an
-operator-approved asset hostname. Arbitrary CSS/HTML is not accepted.
+One logo is configured through an HTTPS URL or a PNG/JPEG/WebP upload up to 1 MB.
+It is reused for preview, sign-in and the browser icon. Legacy icon-only records
+fall back to that image as the logo; new saves clear the separate icon field.
+Background uploads remain capped at 128 KB. Uploaded SVG/HTML/scripts are rejected.
+Bounded uploaded image data is stored with the configuration and served through
+fixed raster URLs. Logo URLs load directly in the browser without server fetching
+or per-host configuration; credentials, non-HTTPS URLs and unsafe URL syntax are
+rejected. Background and legacy icon URLs retain the approved-host restriction.
+Arbitrary CSS/HTML is not accepted.
 
 ## Authentication and routing
 

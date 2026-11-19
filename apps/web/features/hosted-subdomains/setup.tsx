@@ -6,7 +6,7 @@ import { Check, Copy, ExternalLink, Eye, Monitor, RefreshCw, Save, Smartphone, X
 import { hostedSubdomainRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { getBrandSurfaceTextColor } from "@/lib/workspace-brand"
-import { type HostedBrand } from "./types"
+import { getHostedLogo, isHostedLogoUrl, type HostedBrand } from "./types"
 
 type PortalRecord = { id: string; slug: string; hostname: string; revision: number; status: string; configuration: HostedBrand; url: string; published: boolean; last_error: string | null }
 type Setup = { portal: PortalRecord | null; entitled: boolean; commercially_available: boolean; blockers: string[]; defaults: Partial<HostedBrand> }
@@ -29,8 +29,12 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
   const [preview, setPreview] = useState(false)
   const [mobile, setMobile] = useState(false)
   const [reload, setReload] = useState(0)
+  const [failedLogo, setFailedLogo] = useState("")
   const working = useRef(false)
   const previewDialog = useRef<HTMLDialogElement>(null)
+  const logo = getHostedLogo(brand)
+  const uploadedLogo = logo.startsWith("data:")
+  const logoError = logo && failedLogo === logo ? "The logo could not be loaded. Check its URL or upload a PNG, JPEG or WebP file." : ""
   const dirty = Boolean(data && (slug !== (data.portal?.slug || "") || JSON.stringify(brand) !== JSON.stringify(data.portal?.configuration || { ...emptyBrand, ...data.defaults })))
   useEffect(() => {
     if (preview) previewDialog.current?.showModal()
@@ -62,7 +66,9 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
     finally { working.current = false; setBusy(false) }
   }
   async function save(openPreview = false) {
-    const portal = await hostedSubdomainRequest<PortalRecord>(userId, "", { method: "PUT", body: JSON.stringify({ slug, configuration: brand, revision: data?.portal?.revision || 0 }) })
+    if (logo && !uploadedLogo && !isHostedLogoUrl(logo.trim())) throw new Error("Enter an HTTPS logo URL or upload a logo.")
+    const configuration = { ...brand, logo_url: logo.trim(), favicon_url: "" }
+    const portal = await hostedSubdomainRequest<PortalRecord>(userId, "", { method: "PUT", body: JSON.stringify({ slug, configuration, revision: data?.portal?.revision || 0 }) })
     setData(value => value ? { ...value, portal } : value); setBrand(portal.configuration); setSlug(portal.slug)
     setNotice("Draft saved."); setPreview(openPreview)
   }
@@ -70,10 +76,12 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
     return <label className="block min-w-0 text-sm text-gray-700">{label}<input type={type} required={key === "name" || key === "support_email"} value={brand[key]} maxLength={key === "name" ? 100 : key === "support_email" ? 254 : 120}
       onChange={event => setBrand(value => ({ ...value, [key]: event.target.value }))} className={inputClass} /></label>
   }
-  function imageField(key: "logo_url" | "favicon_url" | "background_url", label: string) {
+  function imageField(key: "logo_url" | "background_url", label: string) {
     const maxBytes = key === "logo_url" ? 1024 * 1024 : 128 * 1024
     const maxSize = key === "logo_url" ? "1 MB" : "128 KB"
     const hintId = `hosted-${key}-hint`
+    const source = key === "logo_url" ? getHostedLogo(brand) : brand[key]
+    const image = key === "logo_url" && source && !source.startsWith("data:") && !isHostedLogoUrl(source.trim()) ? "" : source
     return <div className="min-w-0 text-sm text-gray-700"><label className="block">{label}
       <input type="file" accept="image/png,image/jpeg,image/webp" aria-describedby={hintId} className="mt-1 block min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white p-2 text-xs"
         onChange={event => {
@@ -88,15 +96,17 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
               reader.onerror = () => reject(new Error("The image could not be read."))
               reader.readAsDataURL(file)
             })
-            setBrand(current => ({ ...current, [key]: value }))
+            setBrand(current => ({ ...current, [key]: value, ...(key === "logo_url" ? { favicon_url: "" } : {}) }))
+            if (key === "logo_url") setFailedLogo("")
           })
         }} /></label>
       <p id={hintId} className="mt-1 text-xs text-gray-500">PNG, JPEG or WebP. Up to {maxSize}.</p>
-      {brand[key] && <div className="mt-2 flex items-center gap-2">
+      {image && <div className="mt-2 flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={brand[key]} alt={`${label} preview`} className="h-10 w-20 rounded object-contain" />
-        <button type="button" className={buttonClass} title={`Remove ${label.toLowerCase()}`} aria-label={`Remove ${label.toLowerCase()}`} onClick={() => setBrand(current => ({ ...current, [key]: "" }))}><X size={16} /></button>
+        <img src={image} alt={key === "logo_url" ? "Logo preview" : `${label} preview`} referrerPolicy="no-referrer" onError={() => { if (key === "logo_url") setFailedLogo(image) }} className="h-10 w-20 rounded object-contain" />
+        <button type="button" className={buttonClass} title={key === "logo_url" ? "Remove logo" : `Remove ${label.toLowerCase()}`} aria-label={key === "logo_url" ? "Remove logo" : `Remove ${label.toLowerCase()}`} onClick={() => setBrand(current => ({ ...current, [key]: "", ...(key === "logo_url" ? { favicon_url: "" } : {}) }))}><X size={16} /></button>
       </div>}
+      {key === "logo_url" && logoError && <p role="alert" className="mt-2 text-sm text-red-700">{logoError}</p>}
     </div>
   }
   const canEdit = data?.entitled && (data.commercially_available || data.portal?.published)
@@ -135,7 +145,14 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
           </section>
           <section className="border-b border-gray-200 py-6">
             <h2 className="mb-4 font-semibold">Brand identity</h2>
-            <div className="grid gap-4 sm:grid-cols-2">{field("name", "Portal name")}{field("support_email", "Support email", "email")}{imageField("logo_url", "Logo")}{imageField("favicon_url", "Browser icon")}</div>
+            <div className="grid gap-4 sm:grid-cols-2">{field("name", "Portal name")}{field("support_email", "Support email", "email")}
+              <label className="min-w-0 text-sm text-gray-700" htmlFor="hosted-logo-url">Logo URL
+                <input id="hosted-logo-url" type="url" inputMode="url" pattern="https://.*" title="Enter an HTTPS logo URL" maxLength={2048}
+                  value={uploadedLogo ? "" : logo} placeholder={uploadedLogo ? "Uploaded logo selected. Paste a URL to replace it." : "https://example.com/logo.png"}
+                  onChange={event => { setBrand(current => ({ ...current, logo_url: event.target.value, favicon_url: "" })); setFailedLogo(""); setError("") }} className={inputClass} />
+              </label>
+              {imageField("logo_url", "Upload logo")}
+            </div>
             <div className="mt-5 flex flex-wrap gap-6">{([['primary_color', 'Primary colour'], ['accent_color', 'Accent colour'], ['background_color', 'Background colour']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><input aria-label={label} type="color" value={brand[key]} onChange={event => setBrand(value => ({ ...value, [key]: event.target.value }))} className="h-9 w-10 cursor-pointer" />{label}</label>)}</div>
           </section>
           <section className="border-b border-gray-200 py-6">
@@ -157,8 +174,9 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
           <button title="Close preview" aria-label="Close preview" onClick={() => setPreview(false)} disabled={busy} className={buttonClass}><X size={18} /></button></div></div>
         <div className={`mx-auto my-6 flex min-h-96 items-center justify-center rounded-md border border-gray-200 p-5 ${mobile ? "max-w-sm" : "w-full"}`} style={{ backgroundColor: brand.background_color, ...(brand.background_url ? { backgroundImage: `url(${JSON.stringify(brand.background_url)})`, backgroundSize: "cover" } : {}) }}>
           <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-sm">
-            {brand.logo_url && /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={brand.logo_url} alt={brand.name} className="mb-4 h-12 max-w-full object-contain" />}
+            {logo && /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={logo} alt={brand.name} referrerPolicy="no-referrer" onError={() => setFailedLogo(logo)} className="mb-4 h-12 max-w-full object-contain" />}
+            {logoError && <p role="alert" className="mb-3 text-sm text-red-700">{logoError}</p>}
             <p className="break-words text-sm font-semibold text-gray-600">{brand.name}</p><h3 className="mt-3 break-words text-xl font-semibold">{brand.welcome_heading}</h3><p className="mt-3 break-words text-sm text-gray-600">{brand.welcome_text}</p>
             <div className="mt-5 rounded-md px-3 py-2 text-center text-sm" style={{ backgroundColor: brand.primary_color, color: getBrandSurfaceTextColor(brand.primary_color) }}>Continue to sign in</div>
           </div>

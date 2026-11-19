@@ -39,7 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     ...baseMetadata,
     ...(portal?.branding ? { title: portal.branding.name, applicationName: portal.branding.name,
-      icons: portal.branding.favicon_url || portal.branding.logo_url || undefined,
+      icons: portal.branding.logo_url || portal.branding.favicon_url || undefined,
       openGraph: { title: portal.branding.name } } : {}),
   }
 }

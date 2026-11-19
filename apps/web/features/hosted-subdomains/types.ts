@@ -7,5 +7,14 @@ export type HostedPortal = {
   id: string; hostname: string; origin: string; active: boolean
   primary_origin: string; branding: HostedBrand | null
 }
+export const getHostedLogo = (brand: Partial<HostedBrand>) => brand.logo_url || brand.favicon_url || ""
+export function isHostedLogoUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password &&
+      (!url.port || url.port === "443") && !/[\\\s<>]/.test(value) &&
+      !Array.from(value).some(character => character.charCodeAt(0) < 32)
+  } catch { return false }
+}
 export const hostedPrimaryOrigin = "https://app.decisionate.ca"
 export const isHostedHostname = (hostname: string) => /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?\.decisionate\.app$/.test(hostname)

@@ -2,18 +2,19 @@
 
 import { useClerk } from "@clerk/nextjs"
 import { ArrowRight } from "lucide-react"
-import { type HostedBrand } from "./types"
+import { getHostedLogo, type HostedBrand } from "./types"
 import { getBrandSurfaceTextColor } from "@/lib/workspace-brand"
 
 export function HostedSignIn({ brand, returnTo, alternateUrl, signup = false }: {
   brand: HostedBrand; returnTo: string; alternateUrl: string; signup?: boolean
 }) {
   const clerk = useClerk()
+  const logo = getHostedLogo(brand)
   return <main className="flex min-h-screen items-center justify-center px-5 py-12" style={{ backgroundColor: brand.background_color,
     ...(brand.background_url ? { backgroundImage: `url(${JSON.stringify(brand.background_url)})`, backgroundSize: "cover" } : {}) }}>
     <section className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-7">
-      {brand.logo_url && /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={brand.logo_url} alt={brand.name} className="mb-5 h-12 max-w-full object-contain object-left" />}
+      {logo && /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={logo} alt={brand.name} referrerPolicy="no-referrer" className="mb-5 h-12 max-w-full object-contain object-left" />}
       <p className="break-words text-sm font-semibold text-gray-600">{brand.name}</p>
       <h1 className="mt-3 break-words text-2xl font-semibold text-gray-950">{signup ? "Create your account" : brand.welcome_heading || "Welcome back"}</h1>
       {signup ? <p className="mt-3 text-sm leading-6 text-gray-600">Use the email address from your agency invitation.</p>

@@ -14,7 +14,7 @@ from app.db.database import SessionLocal
 from app.db.models import HostedSubdomainPortal, Organization, WorkspaceSubscription, utc_now
 from app.modules.auth_context import get_auth_context
 from app.modules.hosted_subdomains.context import ROOT_DOMAIN, current_portal, entitled, resolve_portal, hosted_hostname
-from app.modules.hosted_subdomains.service import Branding, audit, ensure_satellite, launch_blockers, normalize_slug, portal_record, public_configuration
+from app.modules.hosted_subdomains.service import Branding, audit, canonical_branding, ensure_satellite, launch_blockers, normalize_slug, portal_record, public_configuration
 from app.modules.white_label_availability import availability
 
 router = APIRouter(prefix="/api/v2/hosted-subdomains", tags=["hosted-subdomains"])
@@ -80,7 +80,8 @@ def published_asset(hostname: str, field: str):
     with SessionLocal() as db:
         portal = resolve_portal(db, hostname)
         row = db.get(HostedSubdomainPortal, portal.id) if portal else None
-        value = json.loads(row.published_configuration).get(field, "") if row else ""
+        brand = canonical_branding(json.loads(row.published_configuration)) if row else {}
+        value = brand.get("logo_url" if field == "favicon_url" else field, "")
         if not value.startswith("data:image/"):
             raise HTTPException(404, "Image unavailable.")
         header, encoded = value.split(",", 1)

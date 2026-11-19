@@ -26,10 +26,12 @@
         "Can my customers pay into my Stripe account?",
         "Why is my branded portal waiting for DNS?",
         "How do I get a hosted agency portal?",
+        "How do I add a logo to my hosted portal?",
         "Why does my portal show Portal unavailable?"
       ],
       "routes": [
         "/white-label",
+        "/hosted-portal",
         "/settings"
       ],
       "sources": [
@@ -38,6 +40,7 @@
         "apps/web/features/white-label/hosted-setup.tsx",
         "apps/web/features/hosted-subdomains/setup.tsx",
         "apps/web/features/hosted-subdomains/sign-in.tsx",
+        "apps/web/features/hosted-subdomains/types.ts",
         "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
         "apps/web/app/sign-up/[[...sign-up]]/page.tsx",
         "apps/web/features/hosted-subdomains/unavailable-page.ts",
@@ -65,6 +68,11 @@
         ],
         "Where do hosted clients sign in and how are they invited?": [
           "Where do my hosted portal clients log in?"
+        ],
+        "How do I brand and publish my hosted portal?": [
+          "How do I add a logo to my hosted portal?",
+          "Can I use a logo URL instead of uploading a file?",
+          "Why is my logo missing from the portal preview?"
         ],
         "Why does my portal show Portal unavailable?": [
           "Why is my portal unavailable?"

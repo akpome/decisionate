@@ -58,6 +58,7 @@ test("return allowlisting requires a registered active HTTPS portal and a safe a
 function renderHostedAuth(signup = false) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server"), calls = []
   const { HostedSignIn } = load("../features/hosted-subdomains/sign-in.tsx", {
+    "./types": types,
     "react/jsx-runtime": require("react/jsx-runtime"), "@clerk/nextjs": { useClerk: () => ({
       buildSignInUrl: options => { calls.push({ mode: "sign-in", ...options }); return "https://app.decisionate.ca/sign-in?sdk-sync=1" },
       buildSignUpUrl: options => { calls.push({ mode: "sign-up", ...options }); return "https://app.decisionate.ca/sign-up?sdk-sync=1" },
@@ -139,7 +140,8 @@ function imageUpload(field) {
   const editor = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "HostedSubdomainEditor")
   const imageField = editor.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "imageField")
   const state = { reads: 0, error: "", brand: { logo_url: "", favicon_url: "", background_url: "" } }
-  const context = { require, exports: {}, brand: state.brand, buttonClass: "", Error,
+  const context = { require, exports: {}, brand: state.brand, buttonClass: "", Error, logoError: "", getHostedLogo: types.getHostedLogo,
+    setFailedLogo: () => {},
     setBrand: update => { state.brand = update(state.brand) },
     perform: action => { state.pending = action().catch(reason => { state.error = reason.message }) },
     FileReader: class {
@@ -163,7 +165,7 @@ function imageUpload(field) {
 }
 
 test("hosted logo picker accepts exactly 1 MB while other images retain their 128 KB limit", async () => {
-  for (const [field, limit, label] of [["logo_url", 1024 * 1024, "1 MB"], ["favicon_url", 128 * 1024, "128 KB"], ["background_url", 128 * 1024, "128 KB"]]) {
+  for (const [field, limit, label] of [["logo_url", 1024 * 1024, "1 MB"], ["background_url", 128 * 1024, "128 KB"]]) {
     for (const type of ["image/png", "image/jpeg", "image/webp"]) {
       const accepted = imageUpload(field)
       await accepted.choose(limit, type)
@@ -191,6 +193,7 @@ function renderSetup({ entitled = true, available = true } = {}) {
     brand, "", "", "", false, false, false, 0]
   let index = 0
   const { HostedSubdomainSetup } = load("../features/hosted-subdomains/setup.tsx", {
+    "./types": types,
     "react/jsx-runtime": require("react/jsx-runtime"),
     react: { ...React, useState: initial => [index < states.length ? states[index++] : initial, () => {}], useEffect() {}, useRef: value => ({ current: value }) },
     "next/link": { default: props => React.createElement("a", props) }, "lucide-react": require("lucide-react"),
@@ -206,7 +209,51 @@ test("eligible agencies go directly to portal setup without a price, purchase or
   assert.match(html, /Hosted portal included/)
   assert.match(html, /Portal address/)
   assert.match(html, /Preview portal/)
+  assert.match(html, /Logo URL/)
+  assert.match(html, /Upload logo/)
+  assert.doesNotMatch(html, /Browser icon/)
   assert.doesNotMatch(html, /View subscription price|Cancel hosted white label|Subscription options|Add hosted white label/)
+})
+
+test("one hosted logo is used consistently, preserving older icon-only branding", () => {
+  assert.equal(types.getHostedLogo({ logo_url: "logo.png", favicon_url: "old-icon.png" }), "logo.png")
+  assert.equal(types.getHostedLogo({ logo_url: "", favicon_url: "old-icon.png" }), "old-icon.png")
+  assert.equal(types.getHostedLogo({ logo_url: "", favicon_url: "" }), "")
+  assert.equal(types.isHostedLogoUrl("https://cdn.agency.test/images/logo?version=2"), true)
+  for (const value of ["http://agency.test/logo.png", "javascript:alert(1)", "data:image/svg+xml;base64,abc",
+    "https://user:secret@agency.test/logo.png", "https://agency.test:444/logo.png", "https://agency.test/a b.png", "https://agency.test/\\bad"]) {
+    assert.equal(types.isHostedLogoUrl(value), false, value)
+  }
+  const editor = read("../features/hosted-subdomains/setup.tsx")
+  assert.match(editor, /const logo = getHostedLogo\(brand\)/)
+  assert.match(editor, /logo_url: logo.trim\(\), favicon_url: ""/)
+  assert.match(editor, /uploadedLogo \? "" : logo/)
+  assert.doesNotMatch(editor, /imageField\("favicon_url"/)
+  assert.match(editor, /<img src=\{logo\}/)
+  assert.match(editor, /The logo could not be loaded/)
+  assert.match(read("../features/hosted-subdomains/sign-in.tsx"), /const logo = getHostedLogo\(brand\)/)
+  assert.match(read("../app/layout.tsx"), /icons: portal.branding.logo_url \|\| portal.branding.favicon_url/)
+})
+
+test("saved hosted logo URLs and uploads replace legacy icons without exposing encoded images in the URL field", async () => {
+  const source = read("../features/hosted-subdomains/setup.tsx")
+  const ast = ts.createSourceFile("setup.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const editor = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "HostedSubdomainEditor")
+  const save = editor.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "save")
+  for (const logo of ["https://cdn.agency.test/logo.png", "data:image/png;base64,cG5n", ""]) {
+    const calls = []
+    const context = { logo, uploadedLogo: logo.startsWith("data:"), isHostedLogoUrl: types.isHostedLogoUrl, Error, JSON,
+      userId: "owner", slug: "north-star", brand: { logo_url: logo, favicon_url: "old.png" }, data: { portal: { revision: 2 } },
+      hostedSubdomainRequest: async (...args) => { calls.push(args); return { configuration: JSON.parse(args[2].body).configuration, slug: "north-star" } },
+      setData() {}, setBrand() {}, setSlug() {}, setNotice() {}, setPreview() {},
+    }
+    const run = vm.runInNewContext(ts.transpileModule(`${save.getText(ast)}\nsave`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+    await run(true)
+    const payload = JSON.parse(calls[0][2].body)
+    assert.equal(payload.configuration.logo_url, logo)
+    assert.equal(payload.configuration.favicon_url, "")
+    assert.equal(payload.revision, 2)
+  }
 })
 
 test("inactive Agency access and closed availability keep setup blocked without offering an add-on", () => {

@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from app.db.models import HostedSubdomainEvent
 from app.modules.hosted_subdomains.context import PRIMARY_ORIGIN
@@ -20,6 +20,10 @@ RESERVED = frozenset({"www", "app", "api", "admin", "mail", "support", "billing"
     "staging", "test", "preview", "demo", "decisionate", "security", "help", "docs", "system", "root"})
 MAX_LOGO_BYTES = 1024 * 1024
 MAX_OTHER_IMAGE_BYTES = 128 * 1024
+
+
+def canonical_branding(brand):
+    return {**brand, "logo_url": brand.get("logo_url") or brand.get("favicon_url") or "", "favicon_url": ""}
 
 
 def normalize_slug(value):
@@ -62,12 +66,23 @@ class Branding(BaseModel):
             size = "1 MB" if info.field_name == "logo_url" else "128 KB"
             raise ValueError(f"Upload a PNG, JPEG or WebP image no larger than {size}.")
         parsed = urlsplit(value)
+        if info.field_name == "logo_url":
+            if (len(value) > 2048 or parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+                    or parsed.port not in {None, 443} or "\\" in value or re.search(r"[\x00-\x1f\s<>]", value)):
+                raise ValueError("Enter an HTTPS logo URL or upload a logo.")
+            return value
         allowed = {item.strip().lower() for item in os.getenv("HOSTED_SUBDOMAINS_ASSET_HOSTS", "app.decisionate.ca").split(",") if item.strip()}
         if (parsed.scheme != "https" or parsed.hostname not in allowed or parsed.username or parsed.password
                 or parsed.port not in {None, 443} or "\\" in value or re.search(r"[\s<>]", value)
                 or not parsed.path.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".ico"))):
             raise ValueError("Use a PNG, JPEG, WebP or ICO image from an approved asset host.")
         return value
+
+    @model_validator(mode="after")
+    def single_logo(self):
+        self.logo_url = self.logo_url or self.favicon_url
+        self.favicon_url = ""
+        return self
 
 
 def launch_blockers():
@@ -112,17 +127,18 @@ def public_configuration(row, *, active):
 
 
 def public_branding(row):
-    brand = json.loads(row.published_configuration)
+    brand = canonical_branding(json.loads(row.published_configuration))
     base = os.getenv("DECISIONATE_API_URL", "https://api.decisionate.ca").rstrip("/")
-    for field in ("logo_url", "favicon_url", "background_url"):
+    for field in ("logo_url", "background_url"):
         if brand[field].startswith("data:"):
             brand[field] = f"{base}/api/v2/hosted-subdomains/assets/{row.hostname}/{field}"
+    brand["favicon_url"] = brand["logo_url"]
     return brand
 
 
 def portal_record(row):
     return {"id": row.id, "slug": row.slug, "hostname": row.hostname, "status": row.status,
-            "revision": row.revision, "configuration": json.loads(row.configuration),
+            "revision": row.revision, "configuration": canonical_branding(json.loads(row.configuration)),
             "published": bool(row.published_configuration), "last_error": row.last_error,
             "url": "https://" + row.hostname}
 
