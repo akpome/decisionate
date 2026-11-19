@@ -119,6 +119,18 @@ routes. Spoofed request headers cannot supply a trusted return. Satellites reuse
 the same issuer with a Frontend API proxy at `/__clerk`. Publication reconciles the
 exact Clerk hostname, satellite status and proxy URL; conflicts fail closed.
 
+Publishing failures keep the draft reserved and inactive. Clerk failures now log
+`Hosted portal Clerk request failed` in the API server with operation phase,
+HTTP status, a bounded error code and request ID. Raw provider messages, request
+headers, credentials and response bodies are not logged. The setup screen and
+saved error distinguish credential rejection, production-instance requirements,
+proxy verification, denied operations, rate limits and network/response failures.
+An API container shutdown log alone does not identify a publishing failure.
+
+Settings only queries custom-domain provisioning for the Custom Domain White
+Label Agency plan from the owner's own workspace. Subdomain-only agencies do
+not probe that permission-protected endpoint; its backend restrictions remain.
+
 Discovery shows only permitted workspaces. Unrelated users get an access message,
 not a new agency. Signup, invitation acceptance, recovery, wrong-account switching
 and logout need real cross-domain testing before launch.

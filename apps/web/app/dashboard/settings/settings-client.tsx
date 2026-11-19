@@ -1420,7 +1420,7 @@ export function SettingsClient({
 
       <EmailPreferences userId={userId} />
       {ownershipPanel}
-      {canManageClientWorkspaces && !process.env.NEXT_PUBLIC_PORTAL_ID && <WhiteLabelSettingsLink userId={userId} />}
+      {canManageClientWorkspaces && !process.env.NEXT_PUBLIC_PORTAL_ID && <WhiteLabelSettingsLink userId={userId} plan={billingStatus?.plan || ""} />}
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>

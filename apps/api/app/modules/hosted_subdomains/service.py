@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import json
+import logging
 import os
 import re
 from urllib.parse import urlsplit
@@ -21,6 +22,7 @@ RESERVED = frozenset({"www", "app", "api", "admin", "mail", "support", "billing"
     "staging", "test", "preview", "demo", "decisionate", "security", "help", "docs", "system", "root"})
 MAX_LOGO_BYTES = 1024 * 1024
 MAX_OTHER_IMAGE_BYTES = 128 * 1024
+logger = logging.getLogger(__name__)
 TRANSPARENT_DECISIONATE_LOGO = PRIMARY_ORIGIN + "/icons/decisionate-logo.png"
 LEGACY_DECISIONATE_JPEG_SHA256 = "be4dae140b501de8a363a3411884befa5602f7ee3938bacf4cf05911f80d868a"
 
@@ -115,12 +117,49 @@ def clerk_request(path, *, body=None):
         raise HTTPException(503, "Shared sign-in setup is not configured.")
     request = Request("https://api.clerk.com/v1" + path,
                       data=json.dumps(body).encode() if body is not None else None,
-                      headers={"Authorization": "Bearer " + secret, "Content-Type": "application/json"})
+                      headers={"Authorization": "Bearer " + secret, "Content-Type": "application/json", "Accept": "application/json"})
     try:
         with urlopen(request, timeout=15) as response:
-            return json.load(response)
-    except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
-        raise HTTPException(503, "Shared sign-in setup could not be confirmed. Retry without changing your address.") from error
+            raw = response.read(64_001)
+            if len(raw) > 64_000:
+                raise ValueError("Clerk response is too large")
+            result = json.loads(raw)
+            if not isinstance(result, dict):
+                raise ValueError("Invalid Clerk response")
+            return result
+    except HTTPError as error:
+        code = "unknown"
+        request_id = error.headers.get("x-request-id", "") if error.headers else ""
+        try:
+            raw = error.read(64_001)
+            payload = json.loads(raw) if len(raw) <= 64_000 else {}
+            errors = payload.get("errors", []) if isinstance(payload, dict) else []
+            candidate = errors[0].get("code", "") if isinstance(errors, list) and errors and isinstance(errors[0], dict) else ""
+            if isinstance(candidate, str) and re.fullmatch(r"[a-z0-9_]{1,80}", candidate):
+                code = candidate
+        except (OSError, ValueError):
+            pass
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", request_id):
+            request_id = "unknown"
+        logger.warning("Hosted portal Clerk request failed: method=%s phase=%s status=%s code=%s request_id=%s",
+                       request.get_method(), "domain_create" if body is not None else "domain_lookup", error.code, code, request_id)
+        if code == "invalid_proxy_configuration":
+            detail = "Clerk could not verify this portal's sign-in address. Platform support must check its HTTPS hosting and sign-in proxy. Your draft is saved."
+        elif code == "domain_update_forbidden":
+            detail = "Hosted portal publishing requires the production Clerk instance. Platform support must check the API server's sign-in credentials. Your draft is saved."
+        elif error.code == 401:
+            detail = "Clerk rejected the platform's sign-in credentials. Platform support must update them before publishing. Your draft is saved."
+        elif error.code == 403:
+            detail = "Clerk has not allowed this sign-in domain operation. Platform support must check the Clerk account's permissions and enabled features. Your draft is saved."
+        elif error.code == 429:
+            detail = "The sign-in service is receiving too many requests. Wait a moment, then retry publishing. Your draft is saved."
+        else:
+            detail = "The sign-in service could not finish portal setup. Retry without changing your address, or contact platform support. Your draft is saved."
+        raise HTTPException(503, detail) from None
+    except (URLError, TimeoutError, OSError, ValueError) as error:
+        logger.warning("Hosted portal Clerk request failed: method=%s phase=%s error_type=%s",
+                       request.get_method(), "domain_create" if body is not None else "domain_lookup", type(error).__name__)
+        raise HTTPException(503, "The sign-in service could not be reached or returned an invalid response. Retry without changing your address. Your draft is saved.") from None
 
 
 def ensure_satellite(hostname):

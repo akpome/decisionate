@@ -6,11 +6,11 @@ import { hostedPortalRequest, hostedSubdomainRequest } from "@/lib/api"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 
-export function WhiteLabelSettingsLink({ userId }: { userId: string }) {
+export function WhiteLabelSettingsLink({ userId, plan }: { userId: string; plan: string }) {
   const { portal } = useHostedPortal()
   const { activeWorkspaceId } = useActiveWorkspace(userId)
-  if (portal) return null
-  return <div className="flex flex-wrap gap-4"><HostedSettingsLink key={activeWorkspaceId} userId={userId} /><CustomSettingsLink userId={userId} /></div>
+  if (portal || !["agency", "agency_subdomain", "agency_custom_domain"].includes(plan)) return null
+  return <div className="flex flex-wrap gap-4"><HostedSettingsLink key={activeWorkspaceId} userId={userId} />{plan === "agency_custom_domain" && activeWorkspaceId === userId && <CustomSettingsLink userId={userId} />}</div>
 }
 
 function HostedSettingsLink({ userId }: { userId: string }) {

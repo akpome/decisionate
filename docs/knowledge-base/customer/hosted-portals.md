@@ -100,6 +100,13 @@ sign-in domain with Clerk. If shared sign-in setup is unavailable, save the draf
 and contact support. No manual hosting, sign-in or email verification switches are
 needed; the portal still needs working HTTPS, authentication and delivery services.
 
+If publishing fails, your draft and reserved address remain safe; the portal does
+not open without verified sign-in setup. Follow the displayed reason. Temporary
+service or rate-limit failures can be retried. Credential, account-permission or
+sign-in-address verification problems require platform support, not another
+subscription, a different subdomain or a new Clerk account. A subdomain-only
+plan does not require custom-domain provisioning.
+
 ## Where do hosted clients sign in and how are they invited?
 
 The branded sign-in page offers Continue to sign in and Create an account.

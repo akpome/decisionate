@@ -1,11 +1,13 @@
 from datetime import UTC, datetime, timedelta
 import base64
+from io import BytesIO
 import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI, Request
@@ -400,6 +402,80 @@ class HostedSubdomainTests(unittest.TestCase):
             with self.assertRaises(Exception) as caught:
                 service.ensure_satellite(domain["name"])
             self.assertEqual(caught.exception.status_code, 409)
+
+    def test_clerk_http_failures_explain_the_blocker_and_log_only_safe_diagnostics(self):
+        from fastapi import HTTPException
+        for status, code, expected in (
+            (422, "invalid_proxy_configuration", "HTTPS hosting and sign-in proxy"),
+            (400, "domain_update_forbidden", "production Clerk instance"),
+            (401, "invalid_clerk_secret_key", "sign-in credentials"),
+            (403, "feature_not_enabled", "permissions and enabled features"),
+            (429, "too_many_requests", "Wait a moment"),
+            (500, "internal_server_error", "Retry without changing your address"),
+        ):
+            with self.subTest(status=status):
+                error = HTTPError("https://api.clerk.com/v1/domains", status, "Provider rejected secret sk_test_private",
+                    {"x-request-id": "req_portal_test"}, BytesIO(json.dumps({"errors": [{"code": code,
+                        "message": "Secret sk_test_private and account details must never be logged"}]}).encode()))
+                with patch.object(service, "urlopen", side_effect=error), self.assertLogs(service.logger, level="WARNING") as logs:
+                    with self.assertRaises(HTTPException) as caught:
+                        service.clerk_request("/domains", body={"name": "north-star.decisionate.app"})
+                self.assertEqual(caught.exception.status_code, 503)
+                self.assertIn(expected, caught.exception.detail)
+                self.assertIn("Your draft is saved", caught.exception.detail)
+                output = " ".join(logs.output)
+                self.assertIn(f"status={status} code={code}", output)
+                self.assertIn("phase=domain_create", output)
+                self.assertIn("request_id=req_portal_test", output)
+                self.assertNotIn("sk_test", output + caught.exception.detail)
+                self.assertNotIn("account details", output + caught.exception.detail)
+
+    def test_clerk_network_and_invalid_response_failures_remain_bounded_and_secret_free(self):
+        from fastapi import HTTPException
+        for failure in (URLError("sk_test_private"), TimeoutError("sk_test_private"), ValueError("sk_test_private")):
+            with self.subTest(error=type(failure).__name__), patch.object(service, "urlopen", side_effect=failure), self.assertLogs(service.logger, level="WARNING") as logs:
+                with self.assertRaises(HTTPException) as caught:
+                    service.clerk_request("/domains")
+                self.assertEqual(caught.exception.status_code, 503)
+                self.assertIn("phase=domain_lookup", " ".join(logs.output))
+                self.assertNotIn("sk_test", " ".join(logs.output) + caught.exception.detail)
+        for response in (b"[]", b"<html>Gateway error</html>", b"x" * 64_001):
+            with self.subTest(response_size=len(response)), patch.object(service, "urlopen", return_value=BytesIO(response)), self.assertLogs(service.logger, level="WARNING"):
+                with self.assertRaises(HTTPException) as caught:
+                    service.clerk_request("/domains")
+                self.assertEqual(caught.exception.status_code, 503)
+
+    def test_clerk_error_payloads_and_headers_cannot_inject_logs(self):
+        from fastapi import HTTPException
+        for raw in (b"Not JSON", b"[]", b"x" * 64_001,
+                    json.dumps({"errors": [{"code": "malicious\nlog-entry"}]}).encode()):
+            error = HTTPError("https://api.clerk.com/v1/domains", 422, "failure", {"x-request-id": "unsafe\nheader"}, BytesIO(raw))
+            with patch.object(service, "urlopen", side_effect=error), self.assertLogs(service.logger, level="WARNING") as logs:
+                with self.assertRaises(HTTPException):
+                    service.clerk_request("/domains")
+            output = " ".join(logs.output)
+            self.assertIn("code=unknown request_id=unknown", output)
+            self.assertNotIn("malicious", output)
+            self.assertNotIn("unsafe", output)
+
+    def test_clerk_failure_during_activation_preserves_the_reserved_draft_and_its_reason(self):
+        self.assertEqual(self.save().status_code, 200)
+        error = HTTPError("https://api.clerk.com/v1/domains", 403, "Forbidden", {"x-request-id": "req_blocked"},
+            BytesIO(b'{"errors":[{"code":"feature_not_enabled","message":"private account information"}]}'))
+        with patch.object(service, "urlopen", side_effect=error), self.assertLogs(service.logger, level="WARNING"):
+            result = self.client.post(self.base + "/activate", headers=self.headers(), json={"revision": 1, "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(result.status_code, 503)
+        self.assertIn("permissions and enabled features", result.json()["detail"])
+        with self.Session() as db:
+            row = db.query(HostedSubdomainPortal).one()
+            self.assertEqual(row.status, "reserved")
+            self.assertEqual(row.revision, 1)
+            self.assertIsNone(row.published_configuration)
+            self.assertIsNone(row.clerk_domain_id)
+            self.assertEqual(row.last_error, result.json()["detail"])
+        public = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app")
+        self.assertFalse(public.json()["active"])
+        self.assertIsNone(public.json()["branding"])
 
     def test_portal_uses_existing_agency_trial_renewal_and_grace_rules(self):
         from app.modules.billing.lifecycle import build_subscription_access_state

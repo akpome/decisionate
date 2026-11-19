@@ -9,7 +9,7 @@ const source = path => readFileSync(new URL(path, import.meta.url), "utf8")
 const setup = source("../features/white-label/hosted-setup.tsx")
 function load(text, globals = {}) {
   const loaded = { exports: {} }
-  vm.runInNewContext(ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  vm.runInNewContext(ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText,
     { module: loaded, exports: loaded.exports, Error, URL, Headers, ...globals })
   return loaded.exports
 }
@@ -61,6 +61,39 @@ test("shared portal admin requests do not inherit the selected client workspace"
   assert.deepEqual(owners, ["agency", undefined])
   assert.equal(call[0], "https://api.example/api/v2/hosted-subdomains")
   assert.match(source("../features/white-label/settings-link.tsx"), /HostedSettingsLink key=\{activeWorkspaceId\}/)
+})
+
+test("Settings only probes custom-domain setup for a custom-domain plan in the user's own workspace", async () => {
+  const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
+  for (const [plan, workspace, hostedPortal, expected] of [
+    ["agency_subdomain", "agency", null, ["subdomain"]],
+    ["agency", "agency", null, ["subdomain"]],
+    ["agency_custom_domain", "agency", null, ["subdomain", "custom-domain"]],
+    ["agency_custom_domain", "another-agency", null, ["subdomain"]],
+    ["professional", "agency", null, []],
+    ["agency_custom_domain", "agency", { id: "hosted" }, []],
+  ]) {
+    const effects = [], calls = [], cleanups = []
+    const { WhiteLabelSettingsLink } = load(source("../features/white-label/settings-link.tsx"), { AbortController,
+      require: name => ({
+        "react/jsx-runtime": require("react/jsx-runtime"),
+        react: { ...React, useState: initial => [initial, () => {}], useEffect: effect => effects.push(effect) },
+        "next/link": { default: props => React.createElement("a", props) },
+        "@/lib/api": {
+          hostedSubdomainRequest: async () => { calls.push("subdomain"); return { commercially_available: true, portal: null } },
+          hostedPortalRequest: async () => { calls.push("custom-domain"); return { commercially_available: true, portal: null } },
+        },
+        "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal: hostedPortal }) },
+        "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: workspace }) },
+      })[name],
+    })
+    renderToStaticMarkup(React.createElement(WhiteLabelSettingsLink, { userId: "agency", plan }))
+    for (const effect of effects) cleanups.push(effect())
+    await new Promise(resolve => setImmediate(resolve))
+    for (const cleanup of cleanups) cleanup?.()
+    assert.deepEqual(calls, expected, plan + " in " + workspace)
+  }
+  assert.match(source("../app/dashboard/settings/settings-client.tsx"), /<WhiteLabelSettingsLink userId=\{userId\} plan=\{billingStatus\?\.plan \|\| ""\}/)
 })
 
 test("preparation stops on DNS waiting, readiness or unmount without launching automatically", async () => {
