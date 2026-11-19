@@ -82,7 +82,11 @@ choosing Upload logo. Uploads must be PNG, JPEG or WebP and can be up to 1 MB.
 That same logo appears in the portal preview, sign-in screen and browser tab;
 there is no separate browser-icon upload. Existing icon-only images are kept as
 the logo when no logo was previously selected. Removing the logo clears that
-image too. An optional background image can be up to 128 KB.
+image too. PNG or WebP can preserve a transparent background; JPEG cannot. The
+previously distributed black-backed Decisionate JPEG is recognized and replaced
+with its original transparent PNG, including in saved portal previews. Other
+uploaded logos keep their original pixels and backgrounds.
+An optional background image can be up to 128 KB.
 The subdomain field checks whether your chosen address is available. Names are
 case-insensitive, and each address belongs to only one agency. Use 3-40 letters,
 numbers or single hyphens; platform names such as app and support cannot be used.

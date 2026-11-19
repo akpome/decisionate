@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 import base64
 import json
 import os
+from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -463,6 +464,61 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(db.get(WorkspaceSubscription, 1).status, "active")
             self.assertEqual(db.get(HostedSubdomainPortal, self.portal_id).status, "active")
         self.assertTrue(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["active"])
+
+    def test_known_black_backed_logo_is_restored_on_new_uploads_without_touching_other_images(self):
+        jpeg = (Path(__file__).parent / "fixtures" / "legacy-decisionate-logo.jpg").read_bytes()
+        value = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+        for field in ("logo_url", "favicon_url"):
+            brand = service.Branding.model_validate({**self.brand, field: value})
+            self.assertEqual(brand.logo_url, service.TRANSPARENT_DECISIONATE_LOGO)
+            self.assertEqual(brand.favicon_url, "")
+        self.brand["logo_url"] = value
+        saved = self.save()
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["configuration"]["logo_url"], service.TRANSPARENT_DECISIONATE_LOGO)
+        with self.Session() as db:
+            self.assertEqual(json.loads(db.query(HostedSubdomainPortal).one().configuration)["logo_url"], service.TRANSPARENT_DECISIONATE_LOGO)
+        for other in ("", service.TRANSPARENT_DECISIONATE_LOGO, "https://cdn.agency.test/black-logo.jpg",
+                      "data:image/jpeg;base64," + base64.b64encode(jpeg + b"another agency image").decode(),
+                      "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16).decode()):
+            self.assertEqual(service.restore_legacy_logo(other), other)
+        malformed = "data:image/jpeg;base64,not-a-valid-image!"
+        self.assertEqual(service.restore_legacy_logo(malformed), malformed)
+
+    def test_saved_black_backed_logos_are_restored_for_preview_publication_and_old_asset_links(self):
+        self.publish()
+        jpeg = (Path(__file__).parent / "fixtures" / "legacy-decisionate-logo.jpg").read_bytes()
+        value = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+        for field in ("logo_url", "favicon_url"):
+            with self.subTest(field=field):
+                original = json.dumps({**self.brand, "logo_url": "", "favicon_url": "", field: value})
+                with self.Session() as db:
+                    row = db.get(HostedSubdomainPortal, self.portal_id)
+                    row.configuration = row.published_configuration = original
+                    db.commit()
+                preview = self.client.get(self.base, headers=self.headers())
+                self.assertEqual(preview.status_code, 200, preview.text)
+                self.assertEqual(preview.json()["portal"]["configuration"]["logo_url"], service.TRANSPARENT_DECISIONATE_LOGO)
+                public = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app")
+                self.assertEqual(public.json()["branding"]["logo_url"], service.TRANSPARENT_DECISIONATE_LOGO)
+                self.assertEqual(public.json()["branding"]["favicon_url"], service.TRANSPARENT_DECISIONATE_LOGO)
+                for asset in ("logo_url", "favicon_url"):
+                    response = self.client.get(self.base + "/assets/north-star.decisionate.app/" + asset, follow_redirects=False)
+                    self.assertEqual(response.status_code, 307, response.text)
+                    self.assertEqual(response.headers["location"], service.TRANSPARENT_DECISIONATE_LOGO)
+                    self.assertEqual(response.headers["cache-control"], "no-store")
+                with self.Session() as db:
+                    row = db.get(HostedSubdomainPortal, self.portal_id)
+                    self.assertEqual(row.configuration, original)
+                    self.assertEqual(row.published_configuration, original)
+        with self.Session() as db:
+            db.get(HostedSubdomainPortal, self.portal_id).status = "suspended"
+            db.commit()
+        self.assertIsNone(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"])
+        for asset in ("logo_url", "favicon_url"):
+            response = self.client.get(self.base + "/assets/north-star.decisionate.app/" + asset, follow_redirects=False)
+            self.assertEqual(response.status_code, 404)
+            self.assertNotIn("location", response.headers)
 
     def test_uploaded_images_are_published_as_bounded_raster_assets_and_hidden_when_suspended(self):
         png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6jXAAAAAASUVORK5CYII=")

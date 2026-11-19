@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import hashlib
 import json
 import os
 import re
@@ -20,10 +21,27 @@ RESERVED = frozenset({"www", "app", "api", "admin", "mail", "support", "billing"
     "staging", "test", "preview", "demo", "decisionate", "security", "help", "docs", "system", "root"})
 MAX_LOGO_BYTES = 1024 * 1024
 MAX_OTHER_IMAGE_BYTES = 128 * 1024
+TRANSPARENT_DECISIONATE_LOGO = PRIMARY_ORIGIN + "/icons/decisionate-logo.png"
+LEGACY_DECISIONATE_JPEG_SHA256 = "be4dae140b501de8a363a3411884befa5602f7ee3938bacf4cf05911f80d868a"
+
+
+def restore_legacy_logo(value):
+    # The distributed JPEG flattened this logo's transparent corners to black.
+    # Match the exact file, never remove dark pixels from an agency's own artwork.
+    prefix = "data:image/jpeg;base64,"
+    if value.startswith(prefix) and len(value) <= 4 * ((MAX_LOGO_BYTES + 2) // 3) + len(prefix):
+        try:
+            image = base64.b64decode(value[len(prefix):], validate=True)
+        except (ValueError, binascii.Error):
+            return value
+        if hashlib.sha256(image).hexdigest() == LEGACY_DECISIONATE_JPEG_SHA256:
+            return TRANSPARENT_DECISIONATE_LOGO
+    return value
 
 
 def canonical_branding(brand):
-    return {**brand, "logo_url": brand.get("logo_url") or brand.get("favicon_url") or "", "favicon_url": ""}
+    logo = restore_legacy_logo(brand.get("logo_url") or brand.get("favicon_url") or "")
+    return {**brand, "logo_url": logo, "favicon_url": ""}
 
 
 def normalize_slug(value):
@@ -80,7 +98,7 @@ class Branding(BaseModel):
 
     @model_validator(mode="after")
     def single_logo(self):
-        self.logo_url = self.logo_url or self.favicon_url
+        self.logo_url = restore_legacy_logo(self.logo_url or self.favicon_url)
         self.favicon_url = ""
         return self
 

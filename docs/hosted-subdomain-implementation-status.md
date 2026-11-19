@@ -100,6 +100,13 @@ or per-host configuration; credentials, non-HTTPS URLs and unsafe URL syntax are
 rejected. Background and legacy icon URLs retain the approved-host restriction.
 Arbitrary CSS/HTML is not accepted.
 
+The exact previously distributed black-backed Decisionate JPEG is identified by
+its SHA-256 digest and restored to the existing transparent first-party PNG.
+This applies on configuration reads and saves, without rewriting saved records
+or altering other agency artwork. Older published asset links redirect to that
+same PNG only while their portal is active and entitled. No general-purpose
+pixel stripping or image-provider call is used.
+
 ## Authentication and routing
 
 The existing Next.js 16 proxy integrates hostname lookup and Clerk. Existing `.ca`
