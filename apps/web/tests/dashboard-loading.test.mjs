@@ -18,14 +18,15 @@ const flush = async () => { for (let index = 0; index < 8; index++) await Promis
 function harness() {
   assert.ok(sharingEffect)
   const loaded = { exports: {} }, requests = [], state = { enabled: false, loading: false }
+  const sharingStatusRequest = { current: 0 }
   vm.runInNewContext(ts.transpileModule(`export function begin(selectedDatasetId, userId, activeWorkspaceId, selectedDashboard, canConfigureWorkspace) { return (${sharingEffect.getText(ast)})() }`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    module: loaded, exports: loaded.exports, queueMicrotask,
+    module: loaded, exports: loaded.exports, queueMicrotask, sharingStatusRequest,
     setShareEnabled: value => { state.enabled = value }, setShareStatusLoading: value => { state.loading = value },
     getDatasetShareStatus: (...args) => new Promise((resolve, reject) => requests.push({ args, resolve, reject })),
   })
-  return { ...loaded.exports, requests, state }
+  return { ...loaded.exports, requests, state, sharingStatusRequest }
 }
 
 test("dashboard chart loading does not wait for optional sharing metadata", () => {
@@ -47,7 +48,7 @@ test("the independent share lookup is scoped and disabled while status or data i
   assert.ok(start > 0)
   const lookup = source.slice(start, source.indexOf("useEffect", start))
   assert.match(lookup, /getDatasetShareStatus\(selectedDatasetId, userId, activeWorkspaceId, selectedDashboard\)/)
-  assert.match(lookup, /if \(isCurrent\) setShareEnabled/)
+  assert.match(lookup, /if \(isCurrent && sequence === sharingStatusRequest.current\) setShareEnabled/)
   assert.match(lookup, /if \(isCurrent\) setShareStatusLoading\(false\)/)
   assert.match(lookup, /return \(\) => \{ isCurrent = false \}/)
   const guard = source.slice(source.indexOf("const shareControlsDisabled"), source.indexOf("const stopSharingDisabled"))
@@ -79,6 +80,19 @@ test("sharing failures release pending controls without failing the data load", 
   h.requests[0].reject(new Error("Unavailable"))
   await flush()
   assert.deepEqual(h.state, { enabled: false, loading: false })
+})
+
+test("a pending share lookup cannot undo a completed send or revocation", async () => {
+  for (const enabled of [true, false]) {
+    const h = harness()
+    h.begin(1, "owner", "workspace", "general-business", true)
+    await flush()
+    h.sharingStatusRequest.current++
+    h.state.enabled = enabled
+    h.requests[0].resolve({ share_enabled: !enabled })
+    await flush()
+    assert.deepEqual(h.state, { enabled, loading: false })
+  }
 })
 
 test("sharing metadata is not requested without a dataset, user or configuration access", async () => {

@@ -15,13 +15,20 @@ Choose Share link to open the email dialog. Add up to ten email addresses,
 separated by commas or new lines, then choose Send email. Opening the dialog or
 canceling it does not send anything. Sending saves the selected dashboard view
 and emails a read-only link to each recipient separately; their addresses are
-not disclosed to other recipients. Existing dashboard sharing controls remain
-available. No email application needs to be installed on your computer.
+not disclosed to other recipients. No email application needs to be installed
+on your computer.
 
-Stop sharing when the audience or intended purpose changes. If a shared view
-looks different, compare the dataset, selected metrics, time window, grouping,
-mapping and dimension filter before attributing the difference to the source.
-Refresh or republish only through the application's supported controls.
+Choose Stop sharing beside Share link, or inside its email dialog, then confirm
+to disable all previously emailed links for that dashboard. The dashboard and
+its data are not deleted. Sharing again creates a new link; previously revoked
+links stay disabled. Stopping one dashboard does not stop other dashboards.
+The dashboards page also has a global action to stop all workspace dashboard
+links. Copies already viewed or downloaded cannot be recalled.
+
+If a shared view looks different, compare the dataset, selected metrics, time
+window, grouping, mapping and dimension filter before attributing the difference
+to the source. Refresh or republish only through the application's supported
+controls.
 
 ## Email a business analysis report
 
@@ -36,9 +43,11 @@ This control is separate from scheduled weekly emails and business-impact assess
 
 Anyone holding the emailed link can view the shared results without signing in;
 an email address is a delivery destination, not an access restriction. Forwarding
-the email also forwards access. Choose Stop sharing on the original report to
-revoke all its links. Sharing it again creates a new link; old revoked links
-remain unavailable. Deleting the report or a source also removes access.
+the email also forwards access. Choose Stop sharing on the original report or
+inside its email dialog, then confirm to revoke all its links without deleting
+the report. Sharing it again creates a new link; old revoked links remain
+unavailable. Copies already viewed or downloaded cannot be recalled. Deleting
+the report or a source also removes access.
 
 Send confirmation means the email provider accepted the message, not that it
 reached an inbox. Check spam folders. A partial or uncertain send states how many

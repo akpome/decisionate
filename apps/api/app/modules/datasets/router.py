@@ -3517,7 +3517,7 @@ def build_dashboard_share_status(
     return {
         "dataset_id": dataset.id,
         "dashboard": dashboard_key,
-        "share_enabled": bool(dashboard_share),
+        "share_enabled": bool(dashboard_share or dashboard_key == DEFAULT_SELECTED_DASHBOARD and dataset.share_token),
     }
 
 
@@ -11347,6 +11347,8 @@ async def stop_all_dataset_sharing(
     db = SessionLocal()
 
     try:
+        from app.infrastructure.ingestion_jobs import lock_workspace_queue
+        lock_workspace_queue(db, "share-email:" + workspace_id)
         datasets = (
             db.query(Dataset)
             .filter(
@@ -11593,6 +11595,9 @@ async def stop_dataset_sharing(
             workspace_id,
         )
 
+        from app.infrastructure.ingestion_jobs import lock_workspace_queue
+        lock_workspace_queue(db, "share-email:" + workspace_id)
+
         if dashboard is None:
             dataset.share_token = None
             db.commit()
@@ -11601,6 +11606,8 @@ async def stop_dataset_sharing(
             return build_dataset_share_result(dataset)
 
         dashboard_key = clean_dashboard_share_key(dashboard)
+        if dashboard_key == DEFAULT_SELECTED_DASHBOARD:
+            dataset.share_token = None
         dashboard_share = find_dashboard_share(
             db,
             dataset.id,

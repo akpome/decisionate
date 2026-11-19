@@ -1,12 +1,13 @@
+import asyncio
 import json
 import unittest
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
-from app.db.models import DashboardShare, Organization, WorkspaceApplication
+from app.db.models import DashboardShare, Dataset, Organization, WorkspaceApplication
 from app.application_context import application_scope, get_application
 from app.modules import share_emails as sharing
 from app.modules.reports import public
@@ -219,3 +220,65 @@ class ShareEmailTests(unittest.TestCase):
         with portal_scope(portal):
             self.assertEqual(sharing.shared_url("/share/report", {"token": "example"}),
                              "https://agency.decisionate.app/share/report?token=example")
+
+    def stop_dashboard(self, dashboard="general-business", *, allowed=True):
+        from app.modules.datasets import router as datasets
+        with patch.object(datasets, "SessionLocal", self.Session), \
+             patch.object(datasets, "get_user_id", return_value="owner"), \
+             patch.object(datasets, "get_workspace_id", return_value="owner"), \
+             patch.object(datasets, "require_workspace_data_manager", side_effect=None if allowed else HTTPException(403, "Read only")):
+            return asyncio.run(datasets.stop_dataset_sharing(SimpleNamespace(), Response(), 1, dashboard))
+
+    def public_dashboard(self, token, dashboard=None):
+        from app.modules import public_dashboard
+        with patch.object(public_dashboard, "SessionLocal", self.Session), \
+             patch.object(public_dashboard, "load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()):
+            return public_dashboard.get_public_shared_dashboard(1, Response(), token, dashboard)
+
+    def test_dashboard_revocation_disables_emailed_and_legacy_links_without_deleting_data(self):
+        self.send()
+        with self.Session() as db:
+            token = db.query(DashboardShare).one().share_token
+            dataset = db.get(Dataset, 1)
+            dataset.share_token = "l" * 43
+            db.add(DashboardShare(dataset_id=1, dashboard_key="retail-performance", share_token="r" * 43))
+            db.commit()
+        self.assertIn("dataset", self.public_dashboard(token, "general-business"))
+        self.assertIn("dataset", self.public_dashboard("l" * 43))
+        self.assertFalse(self.stop_dashboard()["share_enabled"])
+        for old, key in ((token, "general-business"), ("l" * 43, None)):
+            with self.assertRaises(HTTPException) as failure:
+                self.public_dashboard(old, key)
+            self.assertEqual(failure.exception.status_code, 404)
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Dataset, 1))
+            self.assertIsNone(db.get(Dataset, 1).share_token)
+            self.assertEqual(db.query(DashboardShare).one().dashboard_key, "retail-performance")
+        self.assertFalse(self.send().json()["share_enabled"], "Replaying a send must not restore a revoked link")
+        self.send(key="dashboard-share-again")
+        with self.assertRaises(HTTPException):
+            self.public_dashboard(token, "general-business")
+        with self.Session() as db:
+            self.assertNotEqual(db.query(DashboardShare).filter_by(dashboard_key="general-business").one().share_token, token)
+
+    def test_legacy_dashboard_status_is_visible_and_industry_revocation_keeps_other_links(self):
+        from app.modules.datasets.router import build_dashboard_share_status
+        with self.Session() as db:
+            dataset = db.get(Dataset, 1)
+            dataset.share_token = "l" * 43
+            db.add(DashboardShare(dataset_id=1, dashboard_key="retail-performance", share_token="r" * 43))
+            db.commit()
+            self.assertTrue(build_dashboard_share_status(dataset, "general-business", None)["share_enabled"])
+            self.assertFalse(build_dashboard_share_status(dataset, "retail-performance", None)["share_enabled"])
+        self.stop_dashboard("retail-performance")
+        with self.Session() as db:
+            self.assertEqual(db.get(Dataset, 1).share_token, "l" * 43)
+            self.assertEqual(db.query(DashboardShare).count(), 0)
+
+    def test_readonly_access_cannot_revoke_an_existing_dashboard_share(self):
+        self.send()
+        with self.assertRaises(HTTPException) as failure:
+            self.stop_dashboard(allowed=False)
+        self.assertEqual(failure.exception.status_code, 403)
+        with self.Session() as db:
+            self.assertEqual(db.query(DashboardShare).count(), 1)

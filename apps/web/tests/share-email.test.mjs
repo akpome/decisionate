@@ -24,7 +24,7 @@ test("the recipient modal uses a real focus-trapping dialog and shows access and
   assert.match(modal, /A saved copy of this preview will be shared/)
   assert.match(modal, /if \(busy\) event.preventDefault\(\)/)
   assert.match(modal, /requestKey.current \|\|= crypto.randomUUID\(\)/)
-  assert.match(modal, /if \(action.current \|\| result\) return/)
+  assert.match(modal, /if \(action.current \|\| result \|\| stopped \|\| confirmStop\) return/)
   assert.match(modal, /recipients.length > 10/)
   assert.match(modal, /role="alert"/)
   assert.match(modal, /role="status"/)
@@ -43,6 +43,7 @@ test("dashboard sharing opens the modal before saving a view or sending any emai
   assert.match(sending, /"\/share-emails"/)
   assert.match(sending, /"Idempotency-Key": requestKey/)
   assert.match(sending, /kind: "dashboard"[\s\S]*recipients/)
+  assert.match(sending, /setTemporaryShareStatus\(""\)/, "Re-sharing clears stale revoked status")
   assert.doesNotMatch(sending, /share_token|clipboard|shareUrl|buildDashboardShareUrl/)
   assert.equal((source.match(/\{shareEmailModal\}/g) || []).length, 2, "both dashboard render paths include the modal")
 })
@@ -55,6 +56,7 @@ test("single and multi dataset previews share one modal and preserve explicit sn
   assert.match(sending, /await saveSnapshot\(\)/)
   assert.match(sending, /"\/share-emails"/)
   assert.match(sending, /report_id: snapshot.report_id, recipients/)
+  assert.match(sending, /setMessage\(""\)/, "Re-sharing clears stale revoked status")
   assert.match(source, /Previously emailed links will no longer work/)
   assert.match(source, /method: "DELETE"/)
 })
@@ -71,4 +73,53 @@ test("the public report view shows saved evidence without workspace links, edits
   const metadata = read("../app/share/report/layout.tsx")
   assert.match(metadata, /index: false, follow: false/)
   assert.match(metadata, /referrer: "no-referrer"/)
+})
+
+function stopHarness(onStopSharing, options = {}) {
+  const state = { busy: false, stopped: false, confirming: true, error: "", calls: 0 }
+  const start = modal.indexOf("async function stopSharing()")
+  const end = modal.indexOf("\n  return <dialog", start)
+  const source = `${modal.slice(start, end)}; globalThis.stopSharing = stopSharing`
+  const context = { Error, action: { current: false }, active: true, onStopSharing: async () => { state.calls++; await onStopSharing() },
+    setBusy: value => { state.busy = value }, setError: value => { state.error = value },
+    setStopped: value => { state.stopped = value }, setConfirmStop: value => { state.confirming = value }, ...options }
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+  return { state, stop: context.stopSharing }
+}
+
+test("stopping requires server confirmation, prevents duplicate requests and preserves active sharing on failure", async () => {
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const success = stopHarness(() => gate)
+  const first = success.stop()
+  await success.stop()
+  assert.equal(success.state.calls, 1)
+  assert.equal(success.state.busy, true)
+  assert.equal(success.state.stopped, false)
+  release(); await first
+  assert.equal(success.state.stopped, true)
+  assert.equal(success.state.busy, false)
+  assert.equal(success.state.confirming, false)
+  const failed = stopHarness(() => { throw new Error("Please retry") })
+  await failed.stop()
+  assert.equal(failed.state.stopped, false)
+  assert.equal(failed.state.confirming, true)
+  assert.equal(failed.state.error, "Please retry")
+  assert.equal(failed.state.busy, false)
+})
+
+test("stop sharing is available from the email dialog and main dashboard without depending on data filters", () => {
+  assert.match(modal, /active && onStopSharing/)
+  assert.match(modal, /Keep sharing/)
+  assert.match(modal, /Confirm stop sharing/)
+  assert.match(modal, /Previously emailed links no longer work/)
+  const dashboard = read("../app/dashboard/page.tsx")
+  assert.match(dashboard, /onStopSharing=\{revokeDashboardShare\}/)
+  assert.match(dashboard, /ariaLabel="Stop sharing dashboard"/)
+  const disabled = dashboard.slice(dashboard.indexOf("const stopSharingDisabled ="), dashboard.indexOf("const isCustomSelectedDashboard ="))
+  assert.doesNotMatch(disabled, /dimensionBlocked|\bloading\b|shareControlsDisabled/)
+  assert.match(dashboard, /sequence === sharingStatusRequest.current/)
+  const report = read("../features/reports/report-workspace.tsx")
+  assert.match(report, /onStopSharing=\{canManage && report.report_id \? revokeReportShare : undefined\}/)
+  assert.match(report, /void execute\(revokeReportShare\)/)
 })

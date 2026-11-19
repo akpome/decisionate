@@ -514,6 +514,17 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
     return result
   }
 
+  async function revokeReportShare() {
+    if (!canManage || !report?.report_id || managementAction.current) throw new Error("The saved report is not available to stop sharing.")
+    managementAction.current = true; setSharing(true)
+    try {
+      await request(`/${encodeURIComponent(report.report_id)}/share`, { method: "DELETE" })
+      reportSharingRequest.current++
+      setReportSharing({ key: shareContext, enabled: false })
+      setMessage("Report sharing stopped. Previously emailed links no longer work.")
+    } finally { managementAction.current = false; setSharing(false) }
+  }
+
   async function openDecisionDraft(decisionId?: number, findingId?: string) {
     if (!canEditDecisions || !canSave || busy || openingDraft.current) return
     openingDraft.current = true
@@ -687,8 +698,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           {!weekly && !impactPage && canManage && canSave && <button type="button" className={button} disabled={busy || sharing} title="Email a read-only report link" onClick={() => setSharingContext(shareContext)}><Share2 size={16} />Share link</button>}
           {!weekly && !impactPage && canManage && reportSharing?.key === shareContext && reportSharing.enabled && <button type="button" className={button} disabled={busy || sharing} onClick={() => {
             if (!window.confirm("Stop sharing this report? Previously emailed links will no longer work.")) return
-            void execute(async () => { await request(`/${encodeURIComponent(report.report_id!)}/share`, { method: "DELETE" }); reportSharingRequest.current++; setReportSharing({ key: shareContext, enabled: false }); setMessage("Report sharing stopped.") })
-          }}><Unlink size={16} />Stop sharing</button>}
+            void execute(revokeReportShare)
+          }}>{sharing ? <LoaderCircle size={16} className="animate-spin" /> : <Unlink size={16} />}{sharing ? "Stopping..." : "Stop sharing"}</button>}
           <button type="button" className={button} title="Print or save as PDF" aria-label="Print or save as PDF" onClick={() => window.print()}><Printer size={17} /></button>
         </>}
         {weekly && canManage && view === "report" && report && (!report.report_id || report.weekly_current) && <button type="button" className={button} disabled={!weeklySendReady || previewDisabled || Boolean(weeklySendIssue) || uncertainDelivery} title={weeklySendReady ? "Email the current weekly report to the workspace owner" : "Preview and save the weekly report before sending"} onClick={() => void sendWeeklyNow()}><Send size={16} />Email workspace owner</button>}
@@ -798,7 +809,9 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       </>}
     </section>
     {relationships && !weekly && <div className="print:hidden"><CorrelationInsights key={`${userId}:${workspaceId}`} userId={userId} workspaceId={workspaceId} /></div>}
-    {report && sharingContext === shareContext && <ShareEmailModal key={shareContext} title={report.name} kind="report" unsaved={!report.report_id} onClose={() => setSharingContext("")} onSend={async (recipients, requestKey) => {
+    {report && sharingContext === shareContext && <ShareEmailModal key={shareContext} title={report.name} kind="report" unsaved={!report.report_id}
+      sharingEnabled={reportSharing?.key === shareContext && reportSharing.enabled} onStopSharing={canManage && report.report_id ? revokeReportShare : undefined}
+      onClose={() => setSharingContext("")} onSend={async (recipients, requestKey) => {
       if (!canManage || !canSave || busy || managementAction.current) throw new Error("The report is not ready to share.")
       managementAction.current = true; setSharing(true)
       try {
@@ -808,6 +821,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }, workspaceId)
         reportSharingRequest.current++
         setReportSharing({ key: shareContext, enabled: result.share_enabled })
+        setMessage("")
         return result
       } finally { managementAction.current = false; setSharing(false) }
     }} />}
