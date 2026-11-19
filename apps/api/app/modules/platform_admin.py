@@ -1347,6 +1347,8 @@ async def update_platform_admin_credit_settings(
                 status_code=400,
                 detail=f"{field_name} cannot be negative",
             )
+        if value is not None and value > 2147483647:
+            raise HTTPException(400, detail=f"{field_name} cannot exceed 2147483647")
 
     db = SessionLocal()
     try:
@@ -1375,8 +1377,7 @@ async def update_platform_admin_credit_settings(
             **current_pricing,
             **{
                 field_name: current_config.get(field_name, "")
-                for field_name in current_config
-                if field_name.endswith("price_id")
+                for field_name in BILLING_PRICE_ID_COLUMNS
             },
         }
         for field_name, current_value in values.items():
@@ -1401,7 +1402,7 @@ async def update_platform_admin_credit_settings(
             db,
             admin_user_id=auth_context.user_id,
             action="platform_credit_settings_updated",
-            details=json.dumps(values),
+            details=json.dumps({field_name: getattr(settings, field_name) for field_name in values}),
         )
         db.commit()
     finally:

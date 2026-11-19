@@ -29,6 +29,24 @@ caller's transaction aborted. The reviewed billing-settings fix isolates optiona
 reads using a nested transaction when a session is supplied. Verify the
 PostgreSQL regression tests, not only SQLite behavior, for that failure family.
 
+A first save to `/admin/credit-settings` can fail on older billing tables with
+`NOT NULL constraint failed` for `platform_billing_settings.agency_client_ai_credits`.
+That retired column was removed from the ORM even though some existing tables
+still require a value and have no server-side default. Fresh-schema saves can
+pass while the older schema fails. The compatibility fix retains the legacy ORM
+column with its original default and adds it during bootstrap when absent. It
+does not overwrite existing legacy values, restore per-client AI allowances or
+change subscriptions or Stripe charges. Client workspaces continue using the
+agency's shared credit pool.
+
+Pricing-save tests cover defaultless legacy tables, post-removal schemas,
+bootstrap repetition, all four plans, partial updates, rollback and the audit's
+actual saved values. Values outside the database integer range are rejected
+before writes. The form preserves entered values after a failed save so an
+administrator can correct and retry them. A generic browser 500 or an unrelated
+startup billing-reconciliation warning is not proof of this diagnosis in a live
+deployment; inspect the failed request's server traceback when available.
+
 Duplicate-looking decision records require report linkage, evidence and action
 inspection. Do not merge by title alone, erase recorded outcomes or assume every
 legacy placeholder is the same decision. Repair must preserve ownership and

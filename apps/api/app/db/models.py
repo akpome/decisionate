@@ -1665,6 +1665,9 @@ class PlatformBillingSettings(Base):
         default=25000,
     )
 
+    # Older tables require this column; client workspaces still share the agency pool.
+    agency_client_ai_credits = Column(Integer, nullable=False, default=2500)
+
     agency_growth_ai_credits = Column(
         Integer,
         nullable=False,

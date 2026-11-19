@@ -2438,12 +2438,12 @@ export default function PlatformAdminPage() {
               )}
 
               {!creditSettingsLoading && creditSettingsError && (
-                <p className="px-5 py-4 text-sm text-red-700">
+                <p role="alert" className="px-5 py-4 text-sm text-red-700">
                   {creditSettingsError}
                 </p>
               )}
 
-              {!creditSettingsLoading && !creditSettingsError && creditSettings && (
+              {!creditSettingsLoading && creditSettings && (
                 <form
                   className="space-y-5 p-5"
                   onSubmit={(event) => {
