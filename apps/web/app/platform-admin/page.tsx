@@ -4093,9 +4093,11 @@ export default function PlatformAdminPage() {
                           </td>
                           <td className="px-5 py-3 text-gray-500">
                             <div className="space-y-2"><span className="block truncate" title={platformUser.email || undefined}>{platformUser.email || "Legacy account recovery"}</span>
+                            {platformUser.access_paused && <span className="block text-xs text-amber-800">Paused - previous email shown. Reassign to restore access.</span>}
                             {adminAccess?.full_access && user?.id && platformUser.clerk_user_id.startsWith("usr_") && !platformUser.clerk_user_id.includes(":client:") && <UserEmailMapping
-                              userId={user.id} targetUserId={platformUser.clerk_user_id} currentEmail={platformUser.email || null} disabled={platformUser.protected || platformUser.platform_admin} onMapped={async email => {
+                              userId={user.id} targetUserId={platformUser.clerk_user_id} currentEmail={platformUser.email || null} paused={platformUser.access_paused} disabled={platformUser.protected || platformUser.platform_admin} onMapped={async email => {
                                 setPlatformUsers(current => current.map(item => item.clerk_user_id === platformUser.clerk_user_id ? { ...item, email } : item))
+                                setPlatformUsers(await getPlatformAdminUsers(user.id, undefined, 100, currentUserEmail))
                                 await refreshAuditEvents()
                               }} />}</div>
                           </td>

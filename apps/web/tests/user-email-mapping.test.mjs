@@ -14,15 +14,20 @@ const handler = name => dialog.body.statements.find(node => ts.isFunctionDeclara
 function harness(send, options = {}) {
   const state = { saved: false, busy: false, error: "", calls: [], events: [], refreshed: 0, closed: 0 }
   const context = { Error, userId: "operator", targetUserId: "usr_recover", email: " Owner@example.test ", previousEmail: "former@example.test", reason: "Employee replacement", confirmed: true,
-    running: { current: false }, mappedResult: { current: null }, saved: false, busy: false,
+    running: { current: false }, mappedResult: { current: null }, saved: false, busy: false, paused: false,
+    review: { user_id: "usr_recover", email: "owner@example.test", source_user_id: null, target_paused: false },
     setBusy: value => { state.busy = value; context.busy = value }, setSaved: value => { state.saved = value; context.saved = value },
     setSavedEmail: value => { state.savedEmail = value },
+    setPausedUserId: value => { state.pausedUserId = value },
+    setReview: value => { state.review = value; context.review = value },
+    setConfirmed: value => { context.confirmed = value },
+    previewPlatformUserEmailReassignment: async (...args) => { state.previewArgs = args; return options.preview || { email: "owner@example.test", source_user_id: null } },
     setError: value => { state.error = value }, onMapped: async email => { state.refreshed++; state.mappedEmail = email; if (options.refreshFails) throw new Error("Unavailable") },
     onClose: () => { state.closed++ }, reassignPlatformUserEmail: async (...args) => { state.calls.push(args); return send(...args) },
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail } },
     window: { dispatchEvent: value => state.events.push(value) }, ...options,
   }
-  vm.runInNewContext(ts.transpileModule(handler("save") + handler("close") + "; globalThis.save=save;globalThis.close=close;", {
+  vm.runInNewContext(ts.transpileModule(handler("save") + handler("close") + handler("reviewChange") + "; globalThis.save=save;globalThis.close=close;globalThis.reviewChange=reviewChange;", {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, context)
   return { ...context, state }
@@ -41,7 +46,7 @@ test("reassignment waits for confirmation, preserves the target ID and locks dup
   assert.equal(h.state.busy, true)
   assert.equal(h.state.saved, false)
   finish(mapped); await pending
-  assert.deepEqual(h.state.calls, [["operator", "usr_recover", "Owner@example.test", "former@example.test", "Employee replacement"]])
+  assert.deepEqual(h.state.calls, [["operator", "usr_recover", "owner@example.test", "former@example.test", "Employee replacement", null]])
   assert.equal(h.state.saved, true)
   assert.equal(h.state.refreshed, 1)
   assert.equal(h.state.mappedEmail, "owner@example.test")
@@ -78,6 +83,27 @@ test("reassignment requires a reason and a new address", async () => {
     await h.save()
     assert.equal(h.state.calls.length, 0)
   }
+})
+
+test("reviewing an occupied email identifies the source without saving and requires another confirmation", async () => {
+  const h = harness(() => mapped, { review: null, preview: { email: "owner@example.test", source_user_id: "usr_previous", target_paused: false } })
+  await h.save()
+  assert.equal(h.state.calls.length, 0)
+  await h.reviewChange()
+  assert.equal(h.state.review.source_user_id, "usr_previous")
+  assert.equal(h.state.calls.length, 0)
+  await h.save()
+  assert.equal(h.state.calls.length, 0)
+})
+
+test("confirmed transfers send the reviewed source ID and display which account was paused", async () => {
+  const h = harness(() => ({ ...mapped, paused_user_id: "usr_previous" }), {
+    review: { email: "owner@example.test", source_user_id: "usr_previous" },
+  })
+  await h.save()
+  assert.equal(h.state.calls[0][5], "usr_previous")
+  assert.equal(h.state.pausedUserId, "usr_previous")
+  assert.equal(h.state.saved, true)
 })
 
 test("reassignment stays available for mapped accounts, traps focus and explains removal of old access", () => {

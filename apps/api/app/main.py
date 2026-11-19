@@ -598,8 +598,9 @@ ensure_workspace_column(
 # Provider-Independent Identity Backfill
 # =========================
 
-from app.modules.identity.service import ensure_identity_revocation_column
+from app.modules.identity.service import ensure_identity_revocation_column, ensure_user_access_column
 ensure_identity_revocation_column()
+ensure_user_access_column()
 ensure_internal_identity_backfill()
 if engine.dialect.name == "postgresql":
     from app.modules.identity.service import ensure_user_email_constraint

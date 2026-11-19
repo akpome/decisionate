@@ -64,6 +64,8 @@ def get_workspace_owner_email(db, organization: Organization) -> str | None:
             return None
 
     user = db.query(AppUser).filter(AppUser.id == owner_id).first()
+    if user and user.access_paused_at is not None:
+        return None
     if user and user.email:
         return str(user.email).strip() or None
 

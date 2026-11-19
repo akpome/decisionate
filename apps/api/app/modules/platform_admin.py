@@ -263,6 +263,7 @@ class PlatformAdminAccountProfileResponse(BaseModel):
 class PlatformAdminUserResponse(BaseModel):
     clerk_user_id: str
     email: str | None = None
+    access_paused: bool = False
     organization_count: int
     organization_names: list[str]
     roles: list[str]
@@ -1882,6 +1883,8 @@ async def add_platform_admin_administrators(
     db = SessionLocal()
     try:
         records: list[PlatformAdminAdministratorRecord] = []
+        from app.infrastructure.ingestion_jobs import lock_workspace_queue
+        lock_workspace_queue(db, "user-email-repair", wait=False)
         seen_user_ids: set[str] = set()
         owner_user_ids = platform_owner_user_ids(db, auth_context.user_id)
 
@@ -1899,7 +1902,7 @@ async def add_platform_admin_administrators(
                 lock_user_email(db, target_email)
                 target_user = (
                     db.query(AppUser)
-                    .filter(func.lower(AppUser.email) == target_email)
+                    .filter(func.lower(AppUser.email) == target_email, AppUser.access_paused_at.is_(None))
                     .first()
                 )
                 if target_user is None:
@@ -1923,6 +1926,8 @@ async def add_platform_admin_administrators(
                         .first()
                     )
                     target_email = target_user.email if target_user else None
+                    if target_user and target_user.access_paused_at is not None:
+                        raise HTTPException(409, "Reassign this paused account to an email before granting administrator access.")
 
             if not target_user_id:
                 raise HTTPException(
@@ -2093,7 +2098,7 @@ def get_or_create_platform_admin_owner(
     lock_user_email(db, email)
     matches = (
         db.query(AppUser)
-        .filter(func.lower(AppUser.email) == email)
+        .filter(func.lower(AppUser.email) == email, AppUser.access_paused_at.is_(None))
         .limit(2)
         .all()
     )
@@ -2827,6 +2832,26 @@ class MapUserEmailRequest(BaseModel):
 class ReassignUserEmailRequest(MapUserEmailRequest):
     previous_email: str | None = Field(default=None, max_length=254)
     reason: str = Field(min_length=3, max_length=500)
+    source_user_id: str | None = Field(default=None, max_length=100, pattern=r"^usr_[A-Za-z0-9_-]+$")
+
+
+class PreviewUserEmailReassignmentRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    user_id: str = Field(min_length=5, max_length=100, pattern=r"^usr_[A-Za-z0-9_-]+$")
+    email: str = Field(min_length=3, max_length=254)
+    previous_email: str | None = Field(default=None, max_length=254)
+
+
+@router.post("/users/reassign-email/preview")
+def preview_platform_user_email_reassignment(request: Request, payload: PreviewUserEmailReassignmentRequest):
+    auth = require_platform_admin_full_access(request)
+    from app.modules.identity.repair import preview_email_reassignment
+    with SessionLocal() as db:
+        try:
+            return preview_email_reassignment(db, payload.user_id, payload.email, payload.previous_email,
+                actor_user_id=auth.user_id, protected_ids=platform_owner_user_ids(db, auth.user_id))
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
 
 
 @router.post("/users/reassign-email")
@@ -2840,7 +2865,8 @@ def reassign_platform_user_email(request: Request, payload: ReassignUserEmailReq
         lock_workspace_queue(db, "user-email-repair", wait=False)
         try:
             result = reassign_user_email(db, payload.user_id, payload.email, payload.previous_email,
-                actor_user_id=auth.user_id, protected_ids=platform_owner_user_ids(db, auth.user_id))
+                actor_user_id=auth.user_id, protected_ids=platform_owner_user_ids(db, auth.user_id),
+                source_user_id=payload.source_user_id)
         except ValueError as error:
             raise HTTPException(400, str(error)) from None
         if result["changed"]:
@@ -2849,7 +2875,16 @@ def reassign_platform_user_email(request: Request, payload: ReassignUserEmailReq
                     "previous_email": result["previous_email"], "new_email": result["email"],
                     "reason": payload.reason.strip(), "revoked_sign_ins": result["revoked_sign_ins"],
                     "workspace_data_preserved": True,
+                    "paused_user_id": result.get("paused_user_id"),
+                    "moved_sign_ins": result.get("moved_sign_ins", 0),
                 }))
+            if result.get("paused_user_id"):
+                record_platform_admin_audit(db, admin_user_id=auth.user_id,
+                    target_user_id=result["paused_user_id"], target_email=result["email"],
+                    action="user_paused_after_email_transfer", details=json.dumps({
+                        "destination_user_id": result["user_id"], "email": result["email"],
+                        "reason": payload.reason.strip(), "workspace_data_preserved": True,
+                    }))
         db.commit()
         return result
 
@@ -2955,10 +2990,13 @@ async def get_platform_admin_users(
             if identity_email and identity.user_id not in identity_emails:
                 identity_emails[identity.user_id] = identity_email
         users: dict[str, dict] = {}
+        paused_user_ids = set()
 
         for app_user in db.query(AppUser).all():
             if ":client:" in app_user.id:
                 continue
+            if app_user.access_paused_at is not None:
+                paused_user_ids.add(app_user.id)
             users[app_user.id] = {
                 "email": str(app_user.email or "").strip() or identity_emails.get(app_user.id),
                 "organization_names": set(),
@@ -3102,6 +3140,7 @@ async def get_platform_admin_users(
                 PlatformAdminUserResponse(
                     clerk_user_id=clerk_user_id,
                     email=user_record.get("email"),
+                    access_paused=clerk_user_id in paused_user_ids,
                     organization_count=len(
                         user_record["organization_names"]
                     ),

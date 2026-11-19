@@ -1647,6 +1647,7 @@
         "apps/web/tests/user-email-mapping.test.mjs",
         "apps/api/tests/test_user_email_mapping.py",
         "apps/api/tests/test_user_email_reassignment.py",
+        "apps/api/tests/test_user_email_transfer.py",
         "apps/api/app/db/models.py",
         "apps/api/app/modules/marketing/service.py",
         "apps/api/app/modules/billing/notifications.py",

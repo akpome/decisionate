@@ -12,11 +12,53 @@ from app.modules.identity.clerk import lookup_clerk_email
 from app.modules.identity.service import lock_user_email, lock_user_identity, normalize_user_email, validate_user_email_constraint
 
 
-def _email_in_use(db, user_id, email):
+def _email_owners(db, user_id, email):
     from app.modules.applications import workspace_application_id
-    profiles = db.query(AppUser.id).filter(AppUser.id != user_id, func.lower(func.trim(AppUser.email)) == email).all()
-    aliases = db.query(AuthIdentity.user_id).filter(AuthIdentity.user_id != user_id, AuthIdentity.revoked_at.is_(None), func.lower(func.trim(AuthIdentity.email)) == email).all()
-    return any(workspace_application_id(db, other_id) == get_application().id for other_id, in [*profiles, *aliases])
+    profiles = db.query(AppUser.id).filter(
+        AppUser.id != user_id, AppUser.access_paused_at.is_(None),
+        func.lower(func.trim(AppUser.email)) == email,
+    ).all()
+    aliases = db.query(AuthIdentity.user_id).outerjoin(AppUser, AppUser.id == AuthIdentity.user_id).filter(
+        AuthIdentity.user_id != user_id, AuthIdentity.revoked_at.is_(None),
+        AppUser.access_paused_at.is_(None), func.lower(func.trim(AuthIdentity.email)) == email,
+    ).all()
+    return {other_id for other_id, in [*profiles, *aliases]
+            if workspace_application_id(db, other_id) == get_application().id}
+
+
+def _email_in_use(db, user_id, email):
+    return bool(_email_owners(db, user_id, email))
+
+
+def _check_reassignable_account(db, user_id, actor_user_id, protected_ids):
+    if not re.fullmatch(r"usr_[A-Za-z0-9_-]+", user_id):
+        raise HTTPException(400, "Choose a user account, not a workspace reference.")
+    if user_id == actor_user_id or user_id in protected_ids or db.query(PlatformAdminRole.id).filter_by(user_id=user_id).first():
+        raise HTTPException(409, "Protected and administrator accounts cannot be reassigned. Remove administrator access first, or ask another platform owner to review the account.")
+
+
+def preview_email_reassignment(db, user_id, requested_email, previous_email, *, actor_user_id, protected_ids=()):
+    _check_reassignable_account(db, user_id, actor_user_id, protected_ids)
+    email = normalize_user_email(requested_email)
+    user = db.get(AppUser, user_id)
+    identities = db.query(AuthIdentity).filter_by(user_id=user_id, revoked_at=None).order_by(AuthIdentity.last_seen_at.desc(), AuthIdentity.id.desc()).all()
+    if user is None and not (identities or db.query(Organization.id).filter_by(owner_user_id=user_id).first()
+            or db.query(OrganizationMember.id).filter_by(clerk_user_id=user_id).first()):
+        raise HTTPException(404, "User account not found.")
+    current = str(user.email or "").strip().lower() if user else ""
+    current = current or next((item.email.strip().lower() for item in identities if item.email and item.email.strip()), None)
+    previous = str(previous_email or "").strip().lower() or None
+    if current != previous and current != email:
+        raise HTTPException(409, "This account's email changed since the page was opened. Reload the user list before reassigning it.")
+    with workspace_application_scope(user_id, db, include_portal=False):
+        owners = _email_owners(db, user_id, email)
+        if len(owners) > 1:
+            raise HTTPException(409, "More than one active account uses this email. Review the accounts before transferring it.")
+        source_id = next(iter(owners), None)
+        if source_id:
+            _check_reassignable_account(db, source_id, actor_user_id, protected_ids)
+    return {"user_id": user_id, "email": email, "previous_email": current,
+            "source_user_id": source_id, "target_paused": bool(user and user.access_paused_at)}
 
 
 def map_user_email(db, user_id, requested_email):
@@ -64,17 +106,24 @@ def map_user_email(db, user_id, requested_email):
     return {"user_id": user_id, "email": email, "mapped": True, "changed": True}
 
 
-def reassign_user_email(db, user_id, requested_email, previous_email, *, actor_user_id, protected_ids=()):
-    if not re.fullmatch(r"usr_[A-Za-z0-9_-]+", user_id):
-        raise HTTPException(400, "Choose a user account, not a workspace reference.")
+def reassign_user_email(db, user_id, requested_email, previous_email, *, actor_user_id, protected_ids=(), source_user_id=None):
+    _check_reassignable_account(db, user_id, actor_user_id, protected_ids)
     email = normalize_user_email(requested_email)
     previous = str(previous_email or "").strip().lower() or None
-    if user_id == actor_user_id or user_id in protected_ids or db.query(PlatformAdminRole.id).filter_by(user_id=user_id).first():
-        raise HTTPException(409, "Protected and administrator accounts cannot be reassigned. Remove administrator access first, or ask another platform owner to review the account.")
     with workspace_application_scope(user_id, db, include_portal=False) as application:
         for address in sorted({email, *([previous] if previous else [])}):
             lock_user_email(db, address)
-        lock_user_identity(db, user_id)
+        owners = _email_owners(db, user_id, email)
+        if len(owners) > 1:
+            raise HTTPException(409, "More than one active account uses this email. Review the accounts before transferring it.")
+        source_id = next(iter(owners), None)
+        if source_id and source_id != source_user_id:
+            raise HTTPException(409, "This email already belongs to another account. Review and confirm which account will be paused before transferring it.")
+        for account_id in sorted({user_id, *([source_id] if source_id else [])}):
+            lock_user_identity(db, account_id)
+            _check_reassignable_account(db, account_id, actor_user_id, protected_ids)
+        if _email_owners(db, user_id, email) != owners:
+            raise HTTPException(409, "The email assignment changed after review. Review the reassignment again.")
         user = db.query(AppUser).filter_by(id=user_id).populate_existing().with_for_update().first()
         identities = db.query(AuthIdentity).filter_by(user_id=user_id, revoked_at=None).order_by(AuthIdentity.last_seen_at.desc(), AuthIdentity.id.desc()).with_for_update().all()
         if user is None and not (identities or db.query(Organization.id).filter_by(owner_user_id=user_id).first()
@@ -84,13 +133,38 @@ def reassign_user_email(db, user_id, requested_email, previous_email, *, actor_u
             raise HTTPException(409, "Remove administrator access before reassigning this account.")
         current = str(user.email or "").strip().lower() if user else ""
         current = current or next((item.email.strip().lower() for item in identities if item.email and item.email.strip()), None)
-        if current == email:
+        if current == email and user and user.access_paused_at is None and not source_id:
             return {"user_id": user_id, "email": email, "mapped": True, "changed": False, "revoked_sign_ins": 0}
         if current != previous:
             raise HTTPException(409, "This account's email changed since the page was opened. Reload the user list before reassigning it.")
-        if _email_in_use(db, user_id, email):
-            raise HTTPException(409, "This email already belongs to another account in this application. Accounts cannot be merged through reassignment.")
+        if source_user_id and source_id != source_user_id:
+            raise HTTPException(409, "The email assignment changed after review. Review the reassignment again.")
         now = utc_now()
+        moved_sign_ins = 0
+        if source_id:
+            source = db.query(AppUser).filter_by(id=source_id).populate_existing().with_for_update().first()
+            if source is None:
+                source = AppUser(id=source_id, email=email)
+                db.add(source)
+            source.access_paused_at = now
+            allowed_providers = {identity_provider("clerk")} | ({"legacy"} if application.is_default else set())
+            source_identities = db.query(AuthIdentity).filter_by(user_id=source_id, revoked_at=None).with_for_update().all()
+            missing_emails = [item for item in source_identities if item.provider == identity_provider("clerk") and not str(item.email or "").strip()]
+            if len(missing_emails) > 5:
+                raise HTTPException(409, "This account has too many incomplete sign-in references. Repair its sign-ins before transferring the email.")
+            for identity in missing_emails:
+                found, verified_email = lookup_clerk_email(identity.subject)
+                if found and not verified_email:
+                    raise HTTPException(409, "Verify the previous account's primary email before transferring it.")
+                if verified_email:
+                    identity.email = verified_email
+            for identity in source_identities:
+                # Move only the sign-ins for this email, never another email's access.
+                if identity.provider in allowed_providers and str(identity.email or "").strip().lower() == email:
+                    identity.user_id = user_id
+                    moved_sign_ins += 1
+                else:
+                    identity.revoked_at = now
         for identity in identities:
             identity.revoked_at = now
         if user is None:
@@ -98,14 +172,18 @@ def reassign_user_email(db, user_id, requested_email, previous_email, *, actor_u
             db.add(user)
         else:
             user.email = email
+        user.access_paused_at = None
         user.first_name = user.last_name = user.display_name = None
         if application.is_default:
             from app.modules.marketing.service import retire_account_identity
             retire_account_identity(db, user_id, actor_user_id=actor_user_id)
+            if source_id:
+                retire_account_identity(db, source_id, actor_user_id=actor_user_id)
         db.flush()
         validate_user_email_constraint(db)
     return {"user_id": user_id, "email": email, "previous_email": current, "mapped": True,
-            "changed": True, "revoked_sign_ins": len(identities)}
+            "changed": True, "revoked_sign_ins": len(identities),
+            "paused_user_id": source_id, "moved_sign_ins": moved_sign_ins}
 
 
 def _reference_columns(db):

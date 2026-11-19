@@ -153,6 +153,8 @@ class AppUser(Base):
         index=True,
     )
 
+    access_paused_at = Column(DateTime, nullable=True)
+
     display_name = Column(
         String,
         nullable=True,

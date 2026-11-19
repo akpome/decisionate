@@ -1231,6 +1231,7 @@ export type PlatformAdminOrganization = {
 export type PlatformAdminUser = {
   clerk_user_id: string
   email?: string | null
+  access_paused?: boolean
   organization_count: number
   organization_names: string[]
   account_types: string[]
@@ -4547,10 +4548,27 @@ export type UserEmailRepairResult = {
   provider_unavailable: boolean; next_user_id: string | null; remaining_unmapped?: number
 }
 
-export async function reassignPlatformUserEmail(userId: string, targetUserId: string, email: string, previousEmail: string | null, reason: string): Promise<{ user_id: string; email: string; mapped: boolean }> {
+export type UserEmailReassignmentPreview = {
+  user_id: string
+  email: string
+  previous_email: string | null
+  source_user_id: string | null
+  target_paused: boolean
+}
+
+export async function previewPlatformUserEmailReassignment(userId: string, targetUserId: string, email: string, previousEmail: string | null): Promise<UserEmailReassignmentPreview> {
+  const response = await apiFetch(`${API_URL}/admin/users/reassign-email/preview`, {
+    method: "POST", headers: await workspaceJsonHeaders(userId, userId),
+    body: JSON.stringify({ user_id: targetUserId, email, previous_email: previousEmail }),
+  }, 45000)
+  if (!response.ok) await throwApiError(response, "The reassignment could not be reviewed")
+  return response.json()
+}
+
+export async function reassignPlatformUserEmail(userId: string, targetUserId: string, email: string, previousEmail: string | null, reason: string, sourceUserId?: string | null): Promise<{ user_id: string; email: string; mapped: boolean; paused_user_id?: string | null }> {
   const response = await apiFetch(`${API_URL}/admin/users/reassign-email`, {
     method: "POST", headers: await workspaceJsonHeaders(userId, userId),
-    body: JSON.stringify({ user_id: targetUserId, email, previous_email: previousEmail, reason, confirmation: "REASSIGN USER EMAIL" }),
+    body: JSON.stringify({ user_id: targetUserId, email, previous_email: previousEmail, reason, confirmation: "REASSIGN USER EMAIL", source_user_id: sourceUserId }),
   }, 45000)
   if (!response.ok) await throwApiError(response, "The account could not be reassigned")
   return response.json()

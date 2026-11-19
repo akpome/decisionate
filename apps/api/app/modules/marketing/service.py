@@ -55,6 +55,9 @@ def capture_identity(db, user_id, email, *, verified=False):
     from app.modules.applications import workspace_application_id
     if not get_application().is_default or workspace_application_id(db, user_id) != DEFAULT_APPLICATION_ID:
         return None
+    user = db.get(AppUser, user_id)
+    if user and user.access_paused_at is not None:
+        return None
     address = normalize_email(email)
     if not address:
         return None
@@ -82,7 +85,8 @@ def capture_identity(db, user_id, email, *, verified=False):
         except IntegrityError:
             contact = db.query(MarketingContact).filter_by(email=address).with_for_update().one()
     if contact.user_id and contact.user_id != user_id:
-        if verified and contact.deleted_at and not db.get(AppUser, contact.user_id):
+        previous_user = db.get(AppUser, contact.user_id)
+        if verified and contact.deleted_at and (previous_user is None or previous_user.access_paused_at is not None):
             contact.user_id = user_id
         else:
             return None

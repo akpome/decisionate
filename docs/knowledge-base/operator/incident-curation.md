@@ -80,7 +80,8 @@ further work without treating the failure as a missing or deleted account.
 For employee handover, select **Reassign email** beside the account in Users.
 The action remains visible when an email is already recorded; it is not limited
 to missing-email repair. Review the current email, enter the replacement's email,
-provide a reason and explicitly authorize the transfer. Only full platform
+provide a reason, select **Review reassignment** and explicitly authorize the
+reviewed change. Only full platform
 administrators may reassign an account. Protected accounts, the acting account
 and platform-admin accounts cannot be reassigned. Remove a limited administrator's
 grant first when appropriate; platform-owner recovery needs separate review.
@@ -90,10 +91,34 @@ workspace memberships. The replacement receives every workspace and permission
 attached to that ID. Existing login aliases are marked revoked rather than
 deleted, so previous signed tokens are denied on subsequent API requests and
 startup backfills cannot restore their access. The replacement must use a
-separate sign-in and verify the assigned email before accessing the account.
+separate sign-in and verify the assigned email before accessing the account
+when that address is not already assigned to an existing account.
 The operation does not create a Clerk user, send an invitation, modify the
-external Clerk account or merge another application's accounts. An address
-already assigned to another account in the same application is rejected.
+external Clerk account or merge another application's accounts.
+
+An address assigned to exactly one other active account in the same application
+can be transferred after review. The preview identifies that source account;
+confirmation must include its ID and the destination's expected old email.
+The transaction pauses the source account, moves only matching email sign-ins
+to the destination, revokes the source's other sign-ins and the destination's
+former sign-ins, and activates the destination.
+Clerk sign-ins missing a stored address require a verified primary-address
+lookup, bounded to five calls; an unavailable provider rolls back both accounts.
+Each ID keeps its own datasets,
+decisions, memberships and subscription; nothing is merged or cancelled. Both
+the reassignment and source pause are audited. Ambiguous duplicate mappings,
+protected accounts and platform-admin accounts require separate review.
+
+Paused accounts remain visible in Users with a **Paused** label and their
+previous email as history. That stored address is not an active assignment and
+is excluded from email-based sign-in lookup. Owner-email resolution returns no
+recipient for a paused account. Marketing reconciliation cannot reactivate it
+or transfer its consent. To restore a paused ID, use **Reassign email** to assign
+an available email, or explicitly review another transfer. Old revoked sign-ins
+stay revoked; the newly assigned verified email receives the ID's existing
+workspace access. Bootstrap adds the nullable `access_paused_at` column without
+pausing existing accounts or relaxing the required-email constraint.
+
 Concurrent changes to the displayed old email require refreshing before retry.
 The audit records the previous email, new email, reason and revoked login count.
 

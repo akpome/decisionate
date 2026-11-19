@@ -98,12 +98,26 @@ def ensure_identity_revocation_column(bind=engine):
             connection.execute(text("ALTER TABLE auth_identities ADD COLUMN revoked_at TIMESTAMP"))
 
 
+def ensure_user_access_column(bind=engine):
+    with bind.begin() as connection:
+        if "access_paused_at" not in _existing_table_columns(connection, "app_users"):
+            connection.execute(text("ALTER TABLE app_users ADD COLUMN access_paused_at TIMESTAMP"))
+
+
+def require_user_access_active(db, user_id):
+    lock_user_identity(db, user_id)
+    paused_at = db.query(AppUser.access_paused_at).filter(AppUser.id == user_id).scalar()
+    if paused_at is not None:
+        raise HTTPException(403, "This account is paused because its email was reassigned. Contact your administrator.")
+
+
 def _require_active_identity(db, identity):
     if identity is not None:
         lock_user_identity(db, identity.user_id)
         db.refresh(identity)
         if identity.revoked_at is not None:
             raise HTTPException(403, "This sign-in no longer has access to the reassigned account. Contact your administrator.")
+        require_user_access_active(db, identity.user_id)
 
 
 def _email_mapping_enforced() -> bool:
@@ -415,7 +429,10 @@ def _find_unique_user_by_email(
     if not clean_email:
         return None
 
-    query = db.query(AppUser).filter(func.lower(AppUser.email) == clean_email)
+    query = db.query(AppUser).filter(
+        func.lower(func.trim(AppUser.email)) == clean_email,
+        AppUser.access_paused_at.is_(None),
+    )
     application = get_application()
     if application.is_default:
         query = query.filter(~AppUser.id.in_(select(WorkspaceApplication.workspace_id).where(
@@ -612,6 +629,7 @@ def resolve_external_identity(
             _migrate_verified_legacy_identity(db, clean_subject, identity.user_id)
         from app.modules.applications import bind_workspace_application
         bind_workspace_application(db, identity.user_id)
+        require_user_access_active(db, identity.user_id)
         if get_application().is_default:
             capture_identity(db, identity.user_id, email, verified=email_verified)
         db.commit()
@@ -663,6 +681,7 @@ def link_external_identity(
         )
         for user_id in sorted({target_user.id, *([identity.user_id] if identity else [])}):
             lock_user_identity(db, user_id)
+        require_user_access_active(db, target_user.id)
         _require_active_identity(db, identity)
         if identity is None:
             identity = AuthIdentity(
