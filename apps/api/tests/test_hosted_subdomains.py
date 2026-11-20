@@ -22,10 +22,10 @@ from app.application_context import get_application
 from app.configuration import get_runtime_configuration
 from app.db.database import Base
 from app.db.models import (AppUser, AuthIdentity, HostedSubdomainPortal, HostedSubdomainEntitlement, HostedSubdomainEvent,
-    Organization, OrganizationMember, WorkspaceSubscription, WhiteLabelAvailability, OAuthConnectionState, utc_now)
+    Organization, OrganizationInvite, OrganizationMember, WorkspaceSubscription, WhiteLabelAvailability, OAuthConnectionState, utc_now)
 from app.modules import applications, auth_context, workspace_lifecycle
 from app.modules.identity import service as identity
-from app.modules.organizations import router as organizations
+from app.modules.organizations import invitations, router as organizations
 from app.modules.hosted_subdomains import router as portals, service, context, admin
 
 
@@ -306,6 +306,32 @@ class HostedSubdomainTests(unittest.TestCase):
             result = self.client.get("/organizations/workspaces", headers=self.headers(user=user, origin="https://north-star.decisionate.app"))
             self.assertEqual(result.status_code, 200, result.text)
             self.assertEqual([item["owner_user_id"] for item in result.json()], expected)
+
+    def test_hosted_client_creation_includes_the_owner_invitation_and_automatic_email(self):
+        self.publish()
+        origin = "https://north-star.decisionate.app"
+
+        def sent(recipient, subject, body, **kwargs):
+            with self.Session() as db:
+                invite = db.query(OrganizationInvite).filter_by(email=recipient).one()
+                workspace = db.get(Organization, invite.organization_id)
+                self.assertEqual(workspace.managing_agency_workspace_id, "agency")
+                self.assertEqual(invite.role, "client_owner")
+                self.assertEqual(invite.status, "pending")
+                self.assertEqual(invite.email_status, "sending")
+            self.assertIn(origin + "/sign-in?", body)
+
+        with patch.object(invitations, "send_platform_system_email", side_effect=sent) as send:
+            response = self.client.post("/organizations/client-workspaces", headers=self.headers(origin=origin),
+                json={"name": "New client", "client_email": " NEW@EXAMPLE.TEST "})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["invitation_email_status"], "sent")
+        send.assert_called_once()
+        self.assertEqual(send.call_args.args[0], "new@example.test")
+        with self.Session() as db:
+            invite = db.query(OrganizationInvite).filter_by(organization_id=response.json()["id"]).one()
+            self.assertEqual(invite.email_status, "sent")
+            self.assertEqual(db.query(OrganizationMember).filter_by(organization_id=response.json()["id"]).count(), 0)
 
     def test_client_pause_unlink_and_agency_pause_take_effect_without_cached_access(self):
         self.publish()

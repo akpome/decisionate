@@ -19,8 +19,10 @@ another client user or a support prompt cannot grant it implicitly.
 
 ## Invitations and first sign-in
 
-Creating a client workspace in Settings sends an invitation to the client
-owner's email address automatically; no separate send action is needed. The
+In Settings > Client Workspaces, enter the client workspace name and Workspace
+owner email, then choose Create and invite owner. This single action creates
+the workspace and its owner invitation together and sends the invitation email
+automatically; no separate invitation action is needed. The
 email names the agency and client workspace and links
 to the sign-in page, not directly to the dashboard. The link keeps the invited
 workspace as the destination after sign-in. The client signs in or creates an account with
@@ -35,8 +37,13 @@ login while keeping the invited workspace as the destination. It does not grant
 access to the wrong account or automatically sign anyone out merely for opening
 the link.
 
+Link an existing workspace is a separate, collapsed option for a client who
+already owns a workspace. Invite to agency asks that owner to approve linking
+their existing workspace; it is not a second step when creating a new one.
+
 For an existing pending invitation, the agency owner can select the client under
-Settings > Client Workspaces and choose Send invitation. Check the recipient's
+Settings > Client Workspaces and choose Resend invitation, or Send invitation
+when its email was not confirmed. Check the recipient's
 inbox and spam folder before sending again. There is a one-minute wait between
 send attempts. Revoking an invitation removes that pending access.
 

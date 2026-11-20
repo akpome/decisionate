@@ -37,15 +37,17 @@ export function ExistingClientInvitation({ userId }: { userId: string }) {
     finally { pending.current = false; setBusy(false) }
   }
 
-  return <form onSubmit={event => { event.preventDefault(); void invite() }} className="mt-5 border-t border-gray-100 pt-5">
-    <h3 className="text-sm font-semibold">Add an existing client workspace</h3>
+  return <details className="mt-5 border-t border-gray-100 pt-5">
+    <summary className="cursor-pointer text-sm font-semibold">Link an existing workspace</summary>
+    <form onSubmit={event => { event.preventDefault(); void invite() }}>
     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-      <label className="min-w-0 flex-1 text-xs text-gray-600">Client owner email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} disabled={busy} className="mt-1 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
-      <button type="submit" disabled={busy || !email.trim()} className={button}><Mail size={16} />{busy ? "Sending..." : "Invite workspace owner"}</button>
+      <label className="min-w-0 flex-1 text-xs text-gray-600">Existing workspace owner email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} disabled={busy} className="mt-1 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm" /></label>
+      <button type="submit" disabled={busy || !email.trim()} className={button}><Mail size={16} />{busy ? "Sending..." : "Invite to agency"}</button>
     </div>
     {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
     {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-  </form>
+    </form>
+  </details>
 }
 
 export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" }: { userId: string; workspace: OrganizationWorkspaceRecord; view?: "settings" | "recovery" }) {

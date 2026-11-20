@@ -15,6 +15,7 @@ import {
 import {
   type ChangeEvent,
   useEffect,
+  useRef,
   useState,
 } from "react"
 
@@ -132,6 +133,7 @@ export function SettingsClient({
     useState("")
   const [clientWorkspaceEmail, setClientWorkspaceEmail] =
     useState("")
+  const clientCreationPending = useRef(false)
   const [selectedClientWorkspaceId, setSelectedClientWorkspaceId] =
     useState("")
   const [clientWorkspaceMembers, setClientWorkspaceMembers] =
@@ -906,7 +908,7 @@ export function SettingsClient({
   }
 
   async function handleCreateClientWorkspace() {
-    if (!canCreateClientWorkspace) return
+    if (!canCreateClientWorkspace || clientCreationPending.current) return
 
     const cleanEmail =
       cleanPendingClientInviteEmail(
@@ -920,6 +922,7 @@ export function SettingsClient({
       return
     }
 
+    clientCreationPending.current = true
     setCreatingClientWorkspace(true)
     setClientWorkspaceError("")
     setClientWorkspaceNotice("")
@@ -963,6 +966,7 @@ export function SettingsClient({
         )
       )
     } finally {
+      clientCreationPending.current = false
       setCreatingClientWorkspace(false)
     }
   }
@@ -1839,10 +1843,12 @@ export function SettingsClient({
             </p>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <form onSubmit={event => { event.preventDefault(); void handleCreateClientWorkspace() }} aria-label="Create client workspace and invite owner" className="mt-5 grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <label className="min-w-0 text-xs font-medium text-gray-600">Client workspace name
             <input
               aria-label="Client workspace name"
               type="text"
+              required
               value={clientWorkspaceName}
               onChange={(event) => {
                 setClientWorkspaceName(event.target.value)
@@ -1851,12 +1857,14 @@ export function SettingsClient({
               }}
               placeholder="Client workspace name"
               disabled={!organization || creatingClientWorkspace}
-              className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-            />
+              className="mt-1 h-10 w-full rounded-md border px-3 text-sm font-normal disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+            /></label>
 
+            <label className="min-w-0 text-xs font-medium text-gray-600">Workspace owner email
             <input
-              aria-label="Client email"
+              aria-label="Workspace owner email"
               type="email"
+              required
               value={clientWorkspaceEmail}
               onChange={(event) => {
                 setClientWorkspaceEmail(event.target.value)
@@ -1865,20 +1873,21 @@ export function SettingsClient({
               }}
               placeholder="client@example.com"
               disabled={!organization || creatingClientWorkspace}
-              className="h-10 rounded-xl border px-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-            />
+              className="mt-1 h-10 w-full rounded-md border px-3 text-sm font-normal disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+            /></label>
 
             <button
-              type="button"
-              onClick={handleCreateClientWorkspace}
+              type="submit"
               disabled={!canCreateClientWorkspace}
-              className="h-10 rounded-xl bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+              aria-busy={creatingClientWorkspace}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[var(--decisionate-brand-primary)] px-4 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 md:w-56"
             >
+              <Mail size={16} aria-hidden="true" className="shrink-0" />
               {creatingClientWorkspace
-                ? "Creating..."
-                : "Create Workspace"}
+                ? "Creating and inviting..."
+                : "Create and invite owner"}
             </button>
-          </div>
+          </form>
 
           {clientWorkspaceError && (
             <p role="alert" className="mt-3 text-sm font-medium text-red-600">
@@ -1886,13 +1895,13 @@ export function SettingsClient({
             </p>
           )}
 
-          <ExistingClientInvitation userId={userId} />
-
           {clientWorkspaceNotice && (
             <p role="status" className="mt-3 text-sm font-medium text-green-700">
               {clientWorkspaceNotice}
             </p>
           )}
+
+          <ExistingClientInvitation userId={userId} />
 
           {selectedClientWorkspace && (
             <div className="mt-5 space-y-4">
@@ -1987,7 +1996,7 @@ export function SettingsClient({
                       <button type="button" onClick={() => void handleSendClientInvitation(selectedClientWorkspaceOwnerInvite)}
                         disabled={Boolean(clientAccessAction)} title="Send client invitation email"
                         className="inline-flex h-8 min-w-36 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-xs font-medium text-gray-700 disabled:opacity-50">
-                        <Mail size={14} />{clientAccessAction === "invite" ? "Sending..." : "Send invitation"}
+                        <Mail size={14} />{clientAccessAction === "invite" ? "Sending..." : selectedClientWorkspaceOwnerInvite.email_status === "sent" ? "Resend invitation" : "Send invitation"}
                       </button>
                       <button
                         type="button"

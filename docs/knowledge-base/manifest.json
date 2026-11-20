@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-19",
+  "reviewed_on": "2026-11-20",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -424,6 +424,7 @@
       ],
       "direct_questions": {
         "Invitations and first sign-in": [
+          "Does creating a client workspace automatically invite its owner?",
           "How does a client receive and accept their workspace invitation?",
           "Why did creating a client workspace not send an invitation email?",
           "How do I resend a client invitation?",

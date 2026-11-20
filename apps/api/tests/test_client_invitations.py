@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -101,6 +101,22 @@ class ClientInvitationFlowTests(unittest.TestCase):
             invite = db.query(OrganizationInvite).filter_by(email="new@example.test").one()
             self.assertEqual(invite.status, "pending")
             self.assertIsNotNone(invite.email_sent_at)
+
+    def test_an_invitation_insert_failure_cannot_leave_a_workspace_without_its_owner_invitation(self):
+        def fail_insert(mapper, connection, target):
+            raise RuntimeError("Invitation insert interrupted")
+
+        event.listen(OrganizationInvite, "before_insert", fail_insert)
+        try:
+            with TestClient(self.client.app, raise_server_exceptions=False) as client:
+                response = client.post("/organizations/client-workspaces", json={"name": "New Client", "client_email": "new@example.test"}, headers=self.headers())
+            self.assertEqual(response.status_code, 500)
+        finally:
+            event.remove(OrganizationInvite, "before_insert", fail_insert)
+        self.send.assert_not_called()
+        with self.Session() as db:
+            self.assertEqual(db.query(Organization).count(), 4)
+            self.assertEqual(db.query(OrganizationInvite).count(), 1)
 
     def test_invitation_links_use_the_login_route_even_when_the_configured_url_has_a_dashboard_path(self):
         with patch.object(invitations, "get_runtime_configuration", return_value=SimpleNamespace(

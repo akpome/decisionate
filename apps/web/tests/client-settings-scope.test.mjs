@@ -70,7 +70,7 @@ function components(workspace, overrides = {}, settingsState = {}) {
 
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props))
 const settingsMarkup = (workspace, overrides) => render(components(workspace, overrides).Settings, { userId: "client", fullName: "Client Owner", emailAddress: "client@example.test" })
-const noFullSettings = /Workspace Name|Logo link or upload|Email preferences|Agency workspace access|Allow agency access|Shared Workspaces|Team Members|Create Workspace|Start free trial|Agency invitations/
+const noFullSettings = /Workspace Name|Logo link or upload|Email preferences|Agency workspace access|Allow agency access|Shared Workspaces|Team Members|Create and invite owner|Start free trial|Agency invitations/
 
 test("linked client Settings contain only agency unlinking, including legacy owner roles", () => {
   for (const role of ["client", "client_owner", "owner"]) {
