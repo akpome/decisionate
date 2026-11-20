@@ -313,6 +313,7 @@ export function SettingsClient({
     billingStatus?.billing_model === "agency" &&
     canConfigureWorkspace
   const hostedPortalSettings = billingStatus?.plan === "agency_subdomain" && !process.env.NEXT_PUBLIC_PORTAL_ID
+  const canEditWorkspaceBranding = canConfigureWorkspace && ["professional", "agency"].includes(billingStatus?.plan || "")
 
   useEffect(() => {
     let ignoreResult = false
@@ -549,6 +550,8 @@ export function SettingsClient({
 
   async function handleSaveOrganization() {
     if (
+      !canEditWorkspaceBranding ||
+      loadingOrganization ||
       savingOrganization ||
       !organizationChanged ||
       !organizationName.trim() ||
@@ -685,6 +688,7 @@ export function SettingsClient({
 
   function handleResetBranding() {
     if (
+      !canEditWorkspaceBranding ||
       loadingOrganization ||
       savingOrganization ||
       !brandResetChanged
@@ -704,6 +708,7 @@ export function SettingsClient({
   async function handleLogoUpload(
     event: ChangeEvent<HTMLInputElement>
   ) {
+    if (!canEditWorkspaceBranding || loadingOrganization) return
     const file =
       event.currentTarget.files?.[0]
 
@@ -1485,7 +1490,7 @@ export function SettingsClient({
         </div>
       )}
       {!isClientPortalUser && !loadingOrganization && !organizationLoadError && billingStatus && (hostedPortalSettings
-        ? <HostedSubdomainSetup userId={userId} embedded /> : (
+        ? <HostedSubdomainSetup userId={userId} embedded /> : canEditWorkspaceBranding && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

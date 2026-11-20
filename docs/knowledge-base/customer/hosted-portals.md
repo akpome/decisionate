@@ -81,6 +81,9 @@ enable one before the platform is ready.
 An agency owner can edit their own Hosted portal settings from Settings in the
 main app or while signed in to their active agency portal. Client owners and
 staff cannot edit the agency's portal, and one agency cannot manage another's.
+The separate Workspace branding form is only shown to Professional and Standard
+Branded Agency owners. Hosted and Custom Domain White Label Agency plans do not
+show that form; they use their own portal configuration instead.
 Decisionate product-update preferences are not shown on hosted portals; this
 does not disable invitations, alerts or weekly report emails.
 

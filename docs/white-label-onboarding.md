@@ -21,6 +21,8 @@ The agency owner can update their portal in Settings from the main app or their
 own active agency portal. Client and ordinary staff accounts cannot change the
 agency's branding. Decisionate marketing signup and preferences are not displayed
 inside hosted portals; transactional emails and scheduled reports are unchanged.
+The separate Workspace branding form is available only to Professional and
+Standard Branded Agency owners, not either white-label subscription tier.
 
 Only sign-in is promoted on the public branded welcome page. Invited clients can
 choose **Create your login** after opening their workspace invitation.

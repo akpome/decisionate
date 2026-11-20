@@ -1,11 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "890ef971808918df9e1f4b3f166c35700f5f62f9",
+  "base_git_revision": "6bdbc7377f93134871471531cf9a75c65959e03d",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/hosted_subdomains/router.py",
-    "apps/api/tests/test_hosted_subdomains.py",
-    "apps/web/features/marketing/email-preferences.tsx",
+    "apps/web/app/dashboard/settings/settings-client.tsx",
     "docs/white-label-onboarding.md"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
@@ -138,7 +136,7 @@
     "apps/web/app/dashboard/reports/combined/page.tsx": "3ef973956705f169c5d3b7d137bead3794cbe92859bfb798fbcee7cf3d2ae8b1",
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
     "apps/web/app/dashboard/reports/weekly/page.tsx": "29306c58787eeb07e3df8ab242db4a8c5dec1313778cdfbb738e59c23ebf0017",
-    "apps/web/app/dashboard/settings/settings-client.tsx": "f2dacb0fdd2746b8e1763721038adc13b13d6a4bf5e440a74fd8e8a0ce1ef9d4",
+    "apps/web/app/dashboard/settings/settings-client.tsx": "eb8164f32eb8bef8aa82cbfbcff72766bc702ea5d835536383a65b7eac88c91f",
     "apps/web/app/layout.tsx": "96dca03c35c0da5f6096baea4fde5d394a799356f2b6949743a230d495de6cb0",
     "apps/web/app/platform-admin/page.tsx": "24ff65cf084943175846d042e002b65488e560e4955a2e9e9b927e0a30ab1bf5",
     "apps/web/app/privacy/page.tsx": "e2a13b5e7858ee0d27c723b80d67a5476da07cf8178c32fe5f128fc4172342f6",
@@ -237,10 +235,10 @@
     "docs/multi-application-api.md": "fa9697368f42ca6995a0118545b09815c0cd11630357469d72e10bfe11157f74",
     "docs/openai-data-flow.md": "2bcfa4ae96a3d98f4e9b3722d33854e7536f651c9ddea6c926fb23bc720f14fd",
     "docs/railway-scheduling.md": "73781498a08122f0e4987f21286eb375a120cbc5f179757d44af01d6cb7e6305",
-    "docs/white-label-onboarding.md": "ab8e3532384e237d37d16b49bc49ebf6318da02e667f0fe2cabcca292812e968"
+    "docs/white-label-onboarding.md": "a8ad33d800120423ccedfb88def4340181bed3b77345e287174c9b102862732f"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "044c27d9ff3c408ad1c4d02573aaf50fffc29a0a13f84cf43476a309778610cd",
+    "customer/hosted-portals.md": "3dd5ac15c6feac4f578ad32a3bfff333bb3ad6bb120db5c197cfa50e08f8144d",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

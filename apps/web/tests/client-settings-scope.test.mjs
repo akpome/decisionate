@@ -124,14 +124,52 @@ test("hosted subdomain owners get inline portal settings instead of standard wor
   assert.match(html, /workspace-deletion-title/)
 })
 
-test("standard plans keep workspace branding and do not embed hosted portal settings", () => {
+test("only Professional and Standard Branded Agency owners have workspace branding controls", () => {
   const workspace = { id: 1, name: "Owner workspace", owner_user_id: "owner", role: "owner", is_managed_client: false }
-  for (const plan of ["professional", "agency", "agency_custom_domain"]) {
+  for (const plan of ["professional", "agency"]) {
     const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "professional" ? "direct" : "agency" } }).Settings
     const html = render(Settings, { userId: "owner", fullName: "Owner", emailAddress: "owner@example.test" })
     assert.match(html, /Workspace Name/)
     assert.match(html, /Logo link or upload/)
     assert.doesNotMatch(html, /data-hosted-settings/)
+  }
+})
+
+test("custom-domain, free and unrecognized plans never fall back to workspace branding", () => {
+  const workspace = { id: 1, name: "Owner workspace", owner_user_id: "owner", role: "owner", is_managed_client: false }
+  for (const plan of ["agency_custom_domain", "free", "", "unknown-plan"]) {
+    const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "agency_custom_domain" ? "agency" : "direct" } }).Settings
+    const html = render(Settings, { userId: "owner", fullName: "Owner", emailAddress: "owner@example.test" })
+    assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|data-hosted-settings/)
+    assert.match(html, /Workspace Members/)
+    assert.match(html, /workspace-deletion-title/)
+  }
+})
+
+test("non-owner and client roles do not gain branding controls from an eligible plan", () => {
+  for (const plan of ["professional", "agency"]) {
+    for (const role of ["member", "client_owner", "client_user", "managed_client"]) {
+      const workspace = { ...linked, role }
+      const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "agency" ? "agency" : "direct" } }).Settings
+      const html = render(Settings, { userId: "client", fullName: "User", emailAddress: "user@example.test" })
+      assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|data-hosted-settings/)
+    }
+  }
+})
+
+test("branding actions are guarded when the plan is not eligible or its settings are reloading", async () => {
+  const file = path.join(web, "app/dashboard/settings/settings-client.tsx")
+  const source = readFileSync(file, "utf8")
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const component = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "SettingsClient")
+  for (const name of ["handleSaveOrganization", "handleResetBranding", "handleLogoUpload"]) {
+    const action = component.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name)
+    for (const state of [{ canEditWorkspaceBranding: false }, { canEditWorkspaceBranding: true, loadingOrganization: true }]) {
+      const run = vm.runInNewContext(ts.transpileModule(`${action.getText(ast)}\n${name}`, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022 },
+      }).outputText, state)
+      await run()
+    }
   }
 })
 

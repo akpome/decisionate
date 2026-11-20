@@ -75,8 +75,9 @@ For White Label Subdomain Agency owners, Settings embeds the hosted portal
 editor in place of standard workspace branding. It is not hidden behind a
 setup link. Both the embedded editor and the existing direct setup route hide
 the subdomain input after saving a draft; the reserved address is displayed with
-copy and, when active, open controls. Professional, Standard Branded Agency and
-custom-domain setup retain their existing settings. Client ownership, team and
+copy and, when active, open controls. Workspace branding is explicitly limited
+to Professional and Standard Branded Agency owners; other or unrecognized plans
+do not fall back to that form. Custom-domain portal configuration is unchanged. Client ownership, team and
 deletion controls are unchanged.
 
 The owner can manage the same portal from the main app or their own active
