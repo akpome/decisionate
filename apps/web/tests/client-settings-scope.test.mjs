@@ -85,10 +85,24 @@ test("active linked client owners can share, delete or unlink without seeing age
     const html = settingsMarkup({ ...linked, role })
     assert.match(html, />Unlink agency<\/button>/)
     assert.match(html, /Delete workspace/)
-    assert.match(html, /Share workspace/)
+    assert.equal((html.match(/>Share workspace</g) ?? []).length, 1)
     assert.match(html, /Allow agency access/)
     assert.doesNotMatch(html, noFullSettings)
   }
+})
+
+test("client Settings resets as a unit without giving sharing and ownership the same sibling key", () => {
+  const file = path.join(web, "app/dashboard/settings/settings-client.tsx")
+  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const component = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "SettingsClient")
+  const branch = component.body.statements.find(node => ts.isIfStatement(node) && node.expression.getText(source) === "clientSettingsOnly")
+  assert.ok(branch)
+  const markup = branch.getText(source)
+  assert.match(markup, /<div key=\{activeWorkspace\?\.owner_user_id\}/)
+  const sharing = markup.match(/<ClientWorkspaceSharing\b[^>]+>/)?.[0]
+  assert.ok(sharing)
+  assert.doesNotMatch(sharing, /\bkey=/)
+  assert.match(markup, /\{ownershipPanel \?\?/)
 })
 
 test("paused linked client Settings still offer only unlinking", () => {

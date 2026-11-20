@@ -1409,11 +1409,12 @@ export function SettingsClient({
   }
 
   if (clientSettingsOnly) {
+    // Reset the whole client view when the selected workspace changes.
     return (
-      <div className="space-y-6">
+      <div key={activeWorkspace?.owner_user_id} className="space-y-6">
         <DashboardPageHeader title="Settings" />
         {activeWorkspace?.is_paused === false && isClientWorkspaceOwner && (
-          <ClientWorkspaceSharing key={activeWorkspace.owner_user_id} workspaceId={activeWorkspace.owner_user_id} userId={userId} />
+          <ClientWorkspaceSharing workspaceId={activeWorkspace.owner_user_id} userId={userId} />
         )}
         {ownershipPanel ?? <p className="text-sm text-gray-600">Only the client workspace owner can share, delete or unlink this workspace.</p>}
       </div>

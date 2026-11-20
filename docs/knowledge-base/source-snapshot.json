@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "36cdda6cbf79179242cd6c2f6913aa9d4bb853d7",
+  "base_git_revision": "febe4977ed025c89b88356b386b1aee780cc0ae9",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/organizations/router.py"
+    "apps/web/app/dashboard/settings/settings-client.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -136,7 +136,7 @@
     "apps/web/app/dashboard/reports/combined/page.tsx": "3ef973956705f169c5d3b7d137bead3794cbe92859bfb798fbcee7cf3d2ae8b1",
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
     "apps/web/app/dashboard/reports/weekly/page.tsx": "29306c58787eeb07e3df8ab242db4a8c5dec1313778cdfbb738e59c23ebf0017",
-    "apps/web/app/dashboard/settings/settings-client.tsx": "77ac8c25e3b0bcff95f2d905c6243420d59b5b209a3365380f8eac5cf287611f",
+    "apps/web/app/dashboard/settings/settings-client.tsx": "6c0cc9f048ee1be62f7aeda14e7b32d78064d2924d4d565d2e61a4b8583e800b",
     "apps/web/app/layout.tsx": "96dca03c35c0da5f6096baea4fde5d394a799356f2b6949743a230d495de6cb0",
     "apps/web/app/platform-admin/page.tsx": "92c0d3f2cc005ad440bf0a5be21e01883e11179baefb12359f3b8b8eff7dc6cd",
     "apps/web/app/privacy/page.tsx": "e2a13b5e7858ee0d27c723b80d67a5476da07cf8178c32fe5f128fc4172342f6",
