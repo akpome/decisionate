@@ -147,7 +147,8 @@ test("a synced client session retains its invitation destination and still needs
   assert.equal(allowed.selected[0][1], workspace.owner_user_id)
   const denied = await openWorkspace(returned.auth, returned.completed, [])
   assert.deepEqual(denied.destinations, [])
-  assert.deepEqual(denied.errors, ["access"])
+  assert.deepEqual(denied.selected, [])
+  assert.deepEqual(denied.errors, ["invitation"])
 })
 
 test("a handshake with no signed session cannot grant access", async () => {

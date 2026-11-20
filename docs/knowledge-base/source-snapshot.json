@@ -1,9 +1,10 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "caf602d6d2a5d89c9ded1c93fa7ce1ce801bf286",
+  "base_git_revision": "5e295571bf4580d9069ace20ce73d95f53321d2c",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/dashboard/settings/settings-client.tsx"
+    "apps/api/tests/test_hosted_subdomains.py",
+    "apps/web/app/auth/redirect/page.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -114,14 +115,14 @@
     "apps/api/tests/test_admin_pricing_settings.py": "f54aad2513a588f00fb0048896ba85d1bfd058bd16f63a71d1a0d5b006e63942",
     "apps/api/tests/test_ai_service.py": "e0c73768885debbe6ad81e28371c3f11579b63b1f81b2a93df8de6cb0b8ebec0",
     "apps/api/tests/test_billing_settings_transactions.py": "712bf366b251c9a537916320e6870c347f2ea250d8e7cb31d8e9712cd9aa0f83",
-    "apps/api/tests/test_hosted_subdomains.py": "1f909502af8b471142aa8379597da272413d832b0a47d3674774827504328f9f",
+    "apps/api/tests/test_hosted_subdomains.py": "789f9dfc48786def1152113f298e5012d0e62bf83724ecb9b4993c4bfd81514c",
     "apps/api/tests/test_internal_identity_backfill.py": "0836b6e26ab2a5ec760c6ad86e1469b1630134ee4b5aa76ad511253787b99329",
     "apps/api/tests/test_joined_report_sources.py": "ff24ed5a4cd91a1d7e07ceac1ef9c8a4881e865a1c3528dc3aac0f81ddc0e57b",
     "apps/api/tests/test_user_email_mapping.py": "5aa40dea89d85e5902fef4bcc1e9f4af6b43b94d028096688e1c5b4083fbfe89",
     "apps/api/tests/test_user_email_reassignment.py": "af2f4a1d5a681c4ce17beaa6156054abf24fdc2da205074291ba624559c7adb5",
     "apps/api/tests/test_user_email_repair.py": "3134c9005510f6f3b1b27c330d00dbe302db6a4cd4f343ab6bd21fe19fd73d9e",
     "apps/api/tests/test_user_email_transfer.py": "a2fc0ede147f564027a05acdd9582f41379be8fd428570a2a0b959709e931052",
-    "apps/web/app/auth/redirect/page.tsx": "974d3dd896e2afb25f30b4d4bad5609b8a1a3f29e0b5d6e6ac22f84fd2c87248",
+    "apps/web/app/auth/redirect/page.tsx": "8dd38b3f78bf23e5d965a46ada6bac7deb69c84998b54f0c6e9c5e23d59ffa2b",
     "apps/web/app/clerk-provider.tsx": "8d6efbe048a451fab2e67ee83a866a7d27dd699be66ee6bbf8fdfb4db473908b",
     "apps/web/app/dashboard/billing/page.tsx": "5ff4653e57b141fa0fbf090a539961efa8e02b1b5395ef60ad4929b40223d549",
     "apps/web/app/dashboard/business-impact/page.tsx": "657b0306e9fd9af1381e2ba2481f45aa3e54a68030affcd7f243c694e20a104e",

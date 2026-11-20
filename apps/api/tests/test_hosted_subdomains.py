@@ -353,6 +353,36 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(invite.email_status, "sent")
             self.assertEqual(db.query(OrganizationMember).filter_by(organization_id=response.json()["id"]).count(), 0)
 
+    def test_fresh_signup_claims_only_its_verified_invitation_on_the_hosted_portal(self):
+        self.publish()
+        origin = "https://north-star.decisionate.app"
+        with patch.object(invitations, "send_platform_system_email"):
+            created = self.client.post("/organizations/client-workspaces", headers=self.headers(origin=origin),
+                json={"name": "Invited business", "client_email": "invited@example.test"})
+        self.assertEqual(created.status_code, 200, created.text)
+        workspace_id = created.json()["owner_user_id"]
+        organization_id = created.json()["id"]
+        invited = self.headers(user="new_signup", origin=origin, include_email=False)
+        wrong = {**self.headers(user="another", origin=origin), "X-User-Email": "invited@example.test"}
+        result = self.client.get("/organizations/workspaces", headers=wrong)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json(), [])
+        with patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value=None):
+            self.assertEqual(self.client.get("/organizations/workspaces", headers=invited).status_code, 403)
+        with self.Session() as db:
+            self.assertEqual(db.query(OrganizationInvite).filter_by(organization_id=organization_id).one().status, "pending")
+        with patch("app.modules.identity.clerk.cached_verified_clerk_email", return_value="invited@example.test"):
+            for _ in range(2):
+                result = self.client.get("/organizations/workspaces", headers=invited)
+                self.assertEqual(result.status_code, 200, result.text)
+                self.assertEqual([(workspace["owner_user_id"], workspace["role"]) for workspace in result.json()],
+                                 [(workspace_id, "client_owner")])
+            self.assertEqual(self.client.get("/identity", headers={**invited, "X-Workspace-Id": workspace_id}).status_code, 200)
+        self.assertEqual(self.client.get("/identity", headers={**wrong, "X-Workspace-Id": workspace_id}).status_code, 403)
+        with self.Session() as db:
+            self.assertEqual(db.query(OrganizationInvite).filter_by(organization_id=organization_id).one().status, "accepted")
+            self.assertEqual(db.query(OrganizationMember).filter_by(organization_id=organization_id).count(), 1)
+
     def test_client_pause_unlink_and_agency_pause_take_effect_without_cached_access(self):
         self.publish()
         headers = self.headers(user="client", workspace="agency:client:1", origin="https://north-star.decisionate.app")

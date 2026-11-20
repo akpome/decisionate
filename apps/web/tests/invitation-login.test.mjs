@@ -20,23 +20,25 @@ const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-red
 const destination = "/dashboard?workspace_id=agency%3Aclient%3Aone"
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status } }
 
-async function resolveInvitation({ workspaceList = [], failure, returnTo = destination } = {}) {
-  const effects = [], routes = [], errors = [], active = []
+async function resolveInvitation({ workspaceList = [], failure, returnTo = destination, portal = null } = {}) {
+  const effects = [], routes = [], errors = [], active = [], reads = []
   const Page = load("../app/auth/redirect/page.tsx", {
-    "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal: null }) },
+    "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal }) },
     "react/jsx-runtime": jsx, react: { useEffect: callback => effects.push(callback), useState: () => [null, error => errors.push(error)] },
     "@clerk/nextjs": { useUser: () => ({ isLoaded: true, isSignedIn: true, user: { id: "current", primaryEmailAddress: { emailAddress: "current@example.test" }, emailAddresses: [] } }), useClerk: () => ({ signOut() { throw new Error("Unexpected automatic logout") } }) },
     "next/navigation": { useRouter: () => ({ replace: route => routes.push(route) }) },
     "lucide-react": { LoaderCircle: () => null, LogOut: () => null, RefreshCw: () => null },
-    "@/lib/api": { ApiError, getPlatformAdminAccess: async () => false, getOrganizationWorkspaces: async () => { if (failure) throw failure; return workspaceList } },
+    "@/lib/api": { ApiError, getPlatformAdminAccess: async () => false, getOrganizationWorkspaces: async (...args) => {
+      reads.push(args); if (failure) throw failure; return workspaceList
+    } },
     "@/features/auth/lib/auth-redirects": redirects, "@/features/auth/lib/auth-workspaces": workspaces,
     "@/features/auth/lib/signup-consent": { writeSignupConsent() {} }, "@/features/auth/lib/marketing-consent": { completeSignupMarketing: async () => {} },
     "@/lib/workspace-context": { getActiveWorkspaceId: id => id, setActiveWorkspaceId: (_id, workspace) => active.push(workspace) },
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
-  }, { window: { location: { origin: "https://app.example.test", search: `?redirect_url=${encodeURIComponent(returnTo)}` } } }).default
+  }, { window: { location: { origin: portal?.origin ?? "https://app.example.test", search: `?redirect_url=${encodeURIComponent(returnTo)}` } } }).default
   Page(); effects.forEach(effect => effect())
   await new Promise(resolve => setImmediate(resolve))
-  return { routes, errors, active }
+  return { routes, errors, active, reads }
 }
 
 test("a signed-in account without the invited workspace returns to login instead of access denied or personal onboarding", async () => {
@@ -59,6 +61,22 @@ test("invitation permission failures go to login but service failures and expire
   }
   const ordinary = await resolveInvitation({ failure: new ApiError("Forbidden", 403), returnTo: "/dashboard" })
   assert.deepEqual(ordinary.routes, []); assert.equal(ordinary.errors.at(-1), "access")
+})
+
+test("hosted invitations offer account recovery without bouncing to hosted sign-in with the same session", async () => {
+  const portal = { origin: "https://north.decisionate.app", branding: { name: "North Star" } }
+  for (const failure of [undefined, new ApiError("Forbidden", 403)]) {
+    const result = await resolveInvitation({ portal, failure, workspaceList: [{ owner_user_id: "other", role: "client_owner" }] })
+    assert.deepEqual(result.routes, [])
+    assert.deepEqual(result.active, [])
+    assert.equal(result.errors.at(-1), "invitation")
+    assert.equal(result.reads[0][2]?.forceRefresh, true)
+  }
+  const matched = await resolveInvitation({ portal, workspaceList: [{ owner_user_id: "agency:client:one", role: "client_owner" }] })
+  assert.deepEqual(matched.routes, [destination])
+  assert.deepEqual(matched.active, ["agency:client:one"])
+  const withoutInvite = await resolveInvitation({ portal, returnTo: "/dashboard" })
+  assert.equal(withoutInvite.errors.at(-1), "access")
 })
 
 function invitationCard(session, signOut = () => { throw new Error("Unexpected automatic logout") }) {
