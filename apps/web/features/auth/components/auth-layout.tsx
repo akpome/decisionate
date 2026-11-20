@@ -32,15 +32,15 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
       : mode === "sign-in" ? `Welcome back to ${name}.` : `Create your account for ${name}.`
     : portalBrand.id ? description.replaceAll("Decisionate", portalBrand.name) : description
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6">
-      <header className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+    <main className={`bg-gray-50 px-4 py-6 sm:px-6 ${mode === "sign-up" ? "flex min-h-dvh flex-col" : "min-h-screen"}`}>
+      <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-between gap-4">
         <Link href={authBrand ? authPortal.origin : "/"} className="inline-flex min-w-0 items-center gap-2 text-lg font-semibold text-gray-950">
           {logo && <Image src={logo} alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" priority unoptimized />}
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{name}</span>
         </Link>
         <ThemeToggle />
       </header>
-      <div className="mx-auto mt-10 w-full min-w-0 max-w-[26rem] sm:mt-14">
+      <div className={`mx-auto w-full min-w-0 max-w-[26rem] ${mode === "sign-up" ? "my-auto py-6" : "mt-10 sm:mt-14"}`}>
         <AuthPageCopy title={title} description={pageDescription} />
         <div className="mt-6 min-w-0">{children}</div>
         {showAccountAction && <p className="mt-6 text-center text-sm text-gray-600">
@@ -49,7 +49,7 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
             {t(mode === "sign-in" ? (authBrand ? "Create your login" : "Create an account") : "Sign in")}
           </Link>
         </p>}
-        <footer className="my-8 flex justify-center gap-5 text-xs text-gray-500">
+        <footer className={`flex justify-center gap-5 text-xs text-gray-500 ${mode === "sign-up" ? "mt-8" : "my-8"}`}>
           <Link href={portalBrand.terms} className="hover:underline">{t("Terms of Service")}</Link>
           <Link href={portalBrand.privacy} className="hover:underline">{t("Privacy Policy")}</Link>
         </footer>

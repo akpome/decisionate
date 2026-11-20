@@ -1,13 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "aee38638ff5c57e7b9c873f0ea87b846b26b1376",
+  "base_git_revision": "07b80bca2c9a237903b88a85067c6a7bf4fde779",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/auth/redirect/page.tsx",
-    "apps/web/features/auth/components/auth-layout.tsx",
-    "apps/web/features/auth/lib/auth-redirects.ts",
-    "apps/web/features/hosted-subdomains/sign-in.tsx",
-    "apps/web/proxy.ts"
+    "apps/web/features/auth/components/auth-layout.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -148,7 +144,7 @@
     "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "3343d474391348d6610d5dc7ccf7e177adab87e7b6ecde2f9f13174fd65ccda2",
     "apps/web/app/sign-up/[[...sign-up]]/page.tsx": "e0cff096166ffaf14bbb4d13f684ba2bed2ae2d0dc390b6595e22d0139686407",
     "apps/web/components/searchable-select.tsx": "f58f9c68f6d03978666a19c964c2c7a0a76d9d3870f4026b93b094c7c6c374f9",
-    "apps/web/features/auth/components/auth-layout.tsx": "ede4a0642471c040ce5ed168b9223dd6fc20e981967024082fb51cc75e67d24c",
+    "apps/web/features/auth/components/auth-layout.tsx": "fecc8f7a8d1ce3b4117e0336b08dd3152d89f56391e63e94c2a82e1797edd798",
     "apps/web/features/auth/components/workspace-invitation-sign-in.tsx": "f1fdc7df443bb8d82375f80c5bccecc0ab13b8e15561fd2946e4941682e65873",
     "apps/web/features/auth/lib/auth-redirects.ts": "8ddfab46f1afc7790b86ef8e1810dc8adce5e84517b9a59b998c0ca1361f3305",
     "apps/web/features/auth/lib/auth-workspaces.ts": "25bee7164e8fa6e60d8da173e8fdc76b1a29e0b9442ed7f0ff7587376a8ef371",
