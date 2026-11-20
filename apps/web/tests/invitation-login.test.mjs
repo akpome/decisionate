@@ -63,13 +63,13 @@ test("invitation permission failures go to login but service failures and expire
   assert.deepEqual(ordinary.routes, []); assert.equal(ordinary.errors.at(-1), "access")
 })
 
-test("hosted invitations offer account recovery without bouncing to hosted sign-in with the same session", async () => {
+test("hosted invitations with an unrelated session return to the agency's invitation entry without an error", async () => {
   const portal = { origin: "https://north.decisionate.app", branding: { name: "North Star" } }
   for (const failure of [undefined, new ApiError("Forbidden", 403)]) {
     const result = await resolveInvitation({ portal, failure, workspaceList: [{ owner_user_id: "other", role: "client_owner" }] })
-    assert.deepEqual(result.routes, [])
+    assert.deepEqual(result.routes, [redirects.getWorkspaceAccountSwitchUrl(destination)])
     assert.deepEqual(result.active, [])
-    assert.equal(result.errors.at(-1), "invitation")
+    assert.deepEqual(result.errors, [null])
     assert.equal(result.reads[0][2]?.forceRefresh, true)
   }
   const matched = await resolveInvitation({ portal, workspaceList: [{ owner_user_id: "agency:client:one", role: "client_owner" }] })

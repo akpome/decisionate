@@ -524,6 +524,25 @@ test("central sign-in only forwards server-validated portal returns and strips s
   assert.equal(loggedIn.headers.get("location"), target)
 })
 
+test("agency invitation recovery retains the branded auth entry despite an existing Clerk session", async () => {
+  const portal = { id: "north", hostname: "north.decisionate.app", origin: "https://north.decisionate.app", active: true }
+  const destination = "/dashboard?workspace_id=agency%3Aclient%3A2"
+  const target = hostedTypes.getHostedAuthReturnUrl(portal.origin + redirects.getAuthRedirectUrl(destination))
+  const h = proxyHarness({ hostedPortal: portal, hostedReturn: target, responseObjects: true })
+  const recovery = portal.origin + redirects.getWorkspaceAccountSwitchUrl(destination)
+  assert.equal(await h.run(recovery, "other-account"), undefined, "Recovery must not loop to the same callback")
+  for (const mode of ["sign-in", "sign-up"]) {
+    const entry = hostedTypes.getHostedAuthUrl(mode, target)
+    assert.equal(await h.run(entry, "other-account"), undefined)
+    assert.equal(h.headers().get("x-decisionate-hosted-return"), target)
+    assert.equal(await h.run(entry), undefined)
+    const callback = new URL(entry)
+    callback.pathname += "/sso-callback"
+    const completed = await h.run(callback.href, "verified-account")
+    assert.equal(completed.headers.get("location"), target)
+  }
+})
+
 function browserStorage(blocked = false) {
   const values = new Map()
   const target = new EventTarget()

@@ -59,6 +59,7 @@ function renderHostedAuth(signup = false, bareClerkUrl = false, invited = false)
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server"), calls = []
   const { HostedSignIn } = load("../features/hosted-subdomains/sign-in.tsx", {
     "./types": types,
+    "@/features/auth/lib/auth-redirects": redirects,
     "react/jsx-runtime": require("react/jsx-runtime"), "@clerk/nextjs": { useClerk: () => ({
       buildSignInUrl: options => { calls.push({ mode: "sign-in", ...options }); return "https://app.decisionate.ca/sign-in" + (bareClerkUrl ? "" : "?sdk-sync=1") },
       buildSignUpUrl: options => { calls.push({ mode: "sign-up", ...options }); return "https://app.decisionate.ca/sign-up" + (bareClerkUrl ? "" : "?sdk-sync=1") },
@@ -84,8 +85,11 @@ test("the public hosted welcome offers sign-in without advertising open registra
 
 test("an invitation's hosted sign-in offers login creation and preserves its workspace", () => {
   const { html, returnTo } = renderHostedAuth(false, false, true)
-  assert.ok(html.includes(`href="${redirects.getSignUpUrl(returnTo)}"`))
-  assert.match(html, /Invited to this workspace\?/)
+  const target = types.getHostedAuthUrl("sign-up", "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo),
+    "https://app.decisionate.ca/sign-up?sdk-sync=1")
+  assert.ok(html.includes(`href="${target.replaceAll("&", "&amp;")}"`))
+  assert.match(html, /Accept your invitation/)
+  assert.match(html, /Use the email address from your agency invitation/)
   assert.match(html, /Create your login/)
   assert.doesNotMatch(html, /New here|Create an account/)
 })

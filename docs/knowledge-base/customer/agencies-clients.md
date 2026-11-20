@@ -30,12 +30,13 @@ the invited email address and verifies it. After sign-in, Decisionate accepts
 the pending invitation and opens the client workspace, not a new personal
 workspace. A client owner or client user signing in without the invitation link
 also defaults to their client workspace unless they already selected another
-accessible client workspace. If the browser is already signed in to an account
-without access to the invited workspace, the link returns to Sign in with a
-Use invited account action. That action signs out the current account and opens
-login while keeping the invited workspace as the destination. It does not grant
-access to the wrong account or automatically sign anyone out merely for opening
-the link.
+accessible client workspace. On a hosted agency portal, an unrelated signed-in
+session leads to Accept your invitation. Choose Continue to sign in if you
+already have a login, or Create your login otherwise. If asked to continue,
+that action signs out the previous session and opens the chosen form. On the
+standard sign-in page, choose Use invited account if shown. Use the email that
+received the invitation. Merely opening the invitation does not sign anyone
+out or grant access to the current account.
 
 Link an existing workspace is a separate, collapsed option for a client who
 already owns a workspace. Invite to agency asks that owner to approve linking

@@ -21,10 +21,6 @@ import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 const redirectErrors = {
   session: ["Your session could not be verified.", "Sign in again to continue."],
   access: ["Workspace access was denied.", "Try another account or contact support if you believe you should have access."],
-  invitation: [
-    "We couldn't open this invitation with your current account.",
-    "Sign in or create your login with the email address your agency invited. If you're already using that address, try again or ask your agency to check the invitation.",
-  ],
   workspace: ["We couldn't open your workspace.", "Your account is signed in, but the workspace service is unavailable. Please try again."],
 } as const
 
@@ -78,13 +74,6 @@ export default function AuthRedirectPage() {
 
     let cancelled = false
 
-    function recoverInvitation() {
-      // Keep the invitation on this portal until the visitor explicitly
-      // switches accounts; another sign-in redirect would reuse this session.
-      if (portal) setError("invitation")
-      else router.replace(getWorkspaceAccountSwitchUrl(returnTo))
-    }
-
     async function routeAuthenticatedUser() {
       setError(null)
       writeSignupConsent(false)
@@ -114,7 +103,7 @@ export default function AuthRedirectPage() {
       }
       const workspace = chooseAuthWorkspace(workspaceResult.value, authenticatedUserId, getActiveWorkspaceId(authenticatedUserId), requestedWorkspaceId)
       if (requestedWorkspaceId && !workspace) {
-        recoverInvitation()
+        router.replace(getWorkspaceAccountSwitchUrl(returnTo))
         return
       }
       if (portal && !workspace) {
@@ -131,7 +120,7 @@ export default function AuthRedirectPage() {
     void routeAuthenticatedUser().catch((failure: unknown) => {
       if (!cancelled) {
         if (requestedWorkspaceId && failure instanceof ApiError && failure.status === 403) {
-          recoverInvitation()
+          router.replace(getWorkspaceAccountSwitchUrl(returnTo))
           return
         }
         setError(failure instanceof ApiError && failure.status === 401 ? "session" : failure instanceof ApiError && failure.status === 403 ? "access" : "workspace")
@@ -168,14 +157,14 @@ export default function AuthRedirectPage() {
             {t("Opening your workspace...")}
           </p>
         )}
-        {userPrimaryEmail && <p className="mt-3 break-all text-xs text-gray-500">{userPrimaryEmail}</p>}
+        {error && userPrimaryEmail && <p className="mt-3 break-all text-xs text-gray-500">{userPrimaryEmail}</p>}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          {(error === "workspace" || error === "access" || error === "invitation") && (
+          {(error === "workspace" || error === "access") && (
             <button type="button" disabled={switching} onClick={() => setAttempt(value => value + 1)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--decisionate-brand-primary-surface-text)] disabled:opacity-60">
               <RefreshCw size={16} aria-hidden="true" />{t("Try again")}
             </button>
           )}
-          {isLoaded && isSignedIn && (
+          {error && isLoaded && isSignedIn && (
             <button type="button" onClick={() => void switchAccount()} disabled={switching} aria-busy={switching} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60">
               <LogOut size={16} aria-hidden="true" />{t(switching ? "Signing out..." : error === "session" ? "Sign in again" : "Switch account")}
             </button>

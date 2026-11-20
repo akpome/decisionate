@@ -111,14 +111,14 @@ test("invited clients can create a login from branded credentials without losing
   const html = renderLayout()
   assert.match(html, /src="https:\/\/cdn.agency.test\/logo.png"/)
   assert.match(html, /href="https:\/\/north.decisionate.app"/)
-  assert.match(html, /Welcome back to North Star/)
+  assert.match(html, /Use the email address that received your invitation/)
   assert.match(html, /Invited to this workspace\?/)
   assert.match(html, /Create your login/)
   assert.doesNotMatch(html, /New here|Create an account/)
   assert.doesNotMatch(html, /Decisionate|decisionate-logo.png/)
   assert.ok(html.includes(`/sign-up?redirect_url=${encodeURIComponent(returnTo)}`))
   const signup = renderLayout(portal, "sign-up")
-  assert.match(signup, /Create your account for North Star/)
+  assert.match(signup, /Use the email address that received your invitation/)
   assert.ok(signup.includes(`/sign-in?redirect_url=${encodeURIComponent(returnTo)}`))
   const regular = renderLayout(null)
   assert.match(regular, /Welcome back to Decisionate/)
@@ -145,6 +145,68 @@ test("ordinary agency sign-in hides public signup while retaining invitation and
   assert.ok(invited.includes(`/sign-up?redirect_url=${encodeURIComponent(directInvite)}`))
   assert.doesNotMatch(renderLayout(portal, "sign-in", returnTo, false), /Create your login/)
   assert.match(renderLayout(portal, "sign-up"), /Already have an account/)
+})
+
+test("only an existing Clerk session at a hosted invitation entry sees the continuation action", async () => {
+  const ContinueHostedInvitation = () => null, ClerkAuthCard = () => null
+  for (const mode of ["sign-in", "sign-up"]) {
+    for (const [target, sessionId, isInvitation] of [[returnTo, "session_existing", true], [returnTo, null, true],
+      [portal.origin + "/auth/redirect", "session_existing", false], [null, "session_existing", false]]) {
+      let sessionLookups = 0
+      const { AuthCard } = load("../app/auth-card.tsx", {
+        "react/jsx-runtime": jsx,
+        "@clerk/nextjs/server": { auth: async () => { sessionLookups++; return { sessionId } } },
+        "next/headers": { headers: async () => new Headers(target ? { "x-decisionate-hosted-return": target } : {}) },
+        "@/features/auth/lib/auth-redirects": redirects,
+        "@/features/auth/components/continue-hosted-invitation": { ContinueHostedInvitation },
+        "./clerk-auth-card": { ClerkAuthCard },
+      })
+      const card = await AuthCard({ mode })
+      assert.equal(sessionLookups, Number(isInvitation))
+      assert.equal(card.type, isInvitation && sessionId ? ContinueHostedInvitation : ClerkAuthCard)
+      assert.equal(card.props.mode, mode)
+      if (card.type === ContinueHostedInvitation) {
+        assert.equal(card.props.hostedReturn, target)
+        assert.equal(card.props.sessionId, sessionId)
+      }
+    }
+  }
+})
+
+test("continuing an invitation signs out only the selected Clerk session and keeps the original auth mode", async () => {
+  for (const mode of ["sign-in", "sign-up"]) {
+    let calls = [], fail = true, stateIndex = 0
+    const state = [false, false]
+    const { ContinueHostedInvitation } = load("../features/auth/components/continue-hosted-invitation.tsx", {
+      "react/jsx-runtime": jsx,
+      react: { useState: () => { const index = stateIndex++; return [state[index], value => { state[index] = value }] } },
+      "@clerk/nextjs": { useClerk: () => ({ signOut: async options => { calls.push(options); if (fail) throw new Error("Unavailable") } }) },
+      "lucide-react": { ArrowRight: () => null },
+      "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
+    })
+    function view() {
+      stateIndex = 0
+      return ContinueHostedInvitation({ mode, hostedReturn: returnTo, sessionId: "session_current" })
+    }
+    const rendered = view()
+    assert.match(renderToStaticMarkup(rendered), /Continuing signs out the current account/)
+    assert.deepEqual(calls, [], "Opening the invitation must not sign out the visitor")
+    rendered.props.children[0].props.onClick()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.match(renderToStaticMarkup(view()), /Please try again/)
+    fail = false
+    view().props.children[0].props.onClick()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(view().props.children[0].props.disabled, true)
+    assert.equal(calls.length, 2)
+    for (const { redirectUrl, sessionId } of calls) {
+      const url = new URL(redirectUrl, "https://app.decisionate.ca")
+      assert.equal(url.origin, "https://app.decisionate.ca")
+      assert.equal(url.pathname, `/${mode}`)
+      assert.equal(url.searchParams.get("redirect_url"), returnTo)
+      assert.equal(sessionId, "session_current")
+    }
+  }
 })
 
 test("Clerk's sign-in widget keeps the existing hosted return and recovery routing", () => {

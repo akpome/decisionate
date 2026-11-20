@@ -7,7 +7,7 @@ import type { ReactNode } from "react"
 import { AuthPageCopy } from "@/app/auth-page-copy"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { getInvitedWorkspaceId, getSignInUrl, getSignUpUrl } from "../lib/auth-redirects"
+import { getHostedInvitationWorkspaceId, getSignInUrl, getSignUpUrl } from "../lib/auth-redirects"
 import { portalBrand } from "@/lib/portal-brand"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 import { getHostedLogo } from "@/features/hosted-subdomains/types"
@@ -23,14 +23,13 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
   const { t } = useDecisionateText()
   const { returnTo: hostedReturn, authPortal } = useHostedPortal()
   const authBrand = authPortal?.branding
-  const hostedDestination = hostedReturn ? new URL(hostedReturn) : null
-  const invitedWorkspaceId = hostedDestination ? getInvitedWorkspaceId(hostedDestination.pathname === "/auth/redirect"
-    ? hostedDestination.searchParams.get("redirect_url") : hostedDestination.pathname + hostedDestination.search) : null
+  const invitedWorkspaceId = getHostedInvitationWorkspaceId(hostedReturn)
   const showAccountAction = showAccountLink && (mode === "sign-up" || !authBrand || Boolean(invitedWorkspaceId))
   const name = authBrand?.name || portalBrand.name
   const logo = authBrand ? getHostedLogo(authBrand) : portalBrand.logo
   const pageDescription = authBrand
-    ? mode === "sign-in" ? `Welcome back to ${name}.` : `Create your account for ${name}.`
+    ? invitedWorkspaceId ? "Use the email address that received your invitation."
+      : mode === "sign-in" ? `Welcome back to ${name}.` : `Create your account for ${name}.`
     : portalBrand.id ? description.replaceAll("Decisionate", portalBrand.name) : description
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6">

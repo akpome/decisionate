@@ -7,6 +7,7 @@ import {
 import {
   getAuthRedirectUrl,
   getAuthRequestOrigin,
+  getHostedInvitationWorkspaceId,
   getInvitedWorkspaceId,
   getSafeReturnTo,
   getSignInUrl,
@@ -73,7 +74,14 @@ function clerkProxy(portal: HostedPortal | null, hostedReturn: string | null) {
     const { userId } = await auth()
 
     if (userId) {
-      if (hostedReturn) return NextResponse.redirect(hostedReturn)
+      if (hostedReturn) {
+        // An invitation may be opened in a browser signed into another
+        // account. Render the account choice on the primary Clerk host.
+        if (["/sign-in", "/sign-up"].includes(req.nextUrl.pathname.replace(/\/$/, "")) && getHostedInvitationWorkspaceId(hostedReturn)) {
+          return NextResponse.next({ request: { headers: req.headers } })
+        }
+        return NextResponse.redirect(hostedReturn)
+      }
       const origin = getAuthRequestOrigin(req.headers, req.url)
       const returnTo = getSafeReturnTo(req.nextUrl.searchParams.get("redirect_url"), origin)
       if (isSignInRoute(req) && req.nextUrl.searchParams.get("switch_account") === "1" && getInvitedWorkspaceId(returnTo)) {

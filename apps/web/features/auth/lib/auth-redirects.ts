@@ -91,6 +91,18 @@ export function getInvitedWorkspaceId(value: RedirectValue) {
   return returnTo ? new URL(returnTo, "https://decisionate.invalid").searchParams.get("workspace_id") : null
 }
 
+export function getHostedInvitationWorkspaceId(hostedReturn: string | null | undefined) {
+  if (!hostedReturn) return null
+  try {
+    const url = new URL(hostedReturn)
+    const destination = url.pathname === AUTH_REDIRECTS.afterLogin
+      ? url.searchParams.get("redirect_url") : url.pathname + url.search
+    return getInvitedWorkspaceId(getSafeReturnTo(destination, url.origin))
+  } catch {
+    return null
+  }
+}
+
 export function getWorkspaceAccountSwitchUrl(value: RedirectValue) {
   const returnTo = getDashboardReturnTo(value)
   const signIn = getSignInUrl(returnTo)
