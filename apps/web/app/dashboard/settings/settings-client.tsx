@@ -103,6 +103,9 @@ export function SettingsClient({
     canConfigureWorkspace: canConfigureWorkspaceFromAccess,
     isClientWorkspace,
     loadingWorkspaceAccess,
+    workspaceAccessReady,
+    workspaceAccessError,
+    retryWorkspaceAccess,
     workspaceRole,
   } = useWorkspaceAccess(userId)
   const clientSettingsOnly = isClientWorkspace || isAgencyManagedWorkspace(activeWorkspace) || Boolean(
@@ -144,14 +147,17 @@ export function SettingsClient({
     useState("")
   const [pendingMemberInvites, setPendingMemberInvites] =
     useState<OrganizationInviteRecord[]>([])
-  const [loadingOrganization, setLoadingOrganization] =
-    useState(true)
+  const [loadedOrganizationKey, setLoadedOrganizationKey] =
+    useState("")
   const [savingOrganization, setSavingOrganization] =
     useState(false)
   const [accessRetrying, setAccessRetrying] =
     useState(false)
   const [organizationLoadRetryKey, setOrganizationLoadRetryKey] =
     useState(0)
+  const organizationLoadKey = JSON.stringify([userId, activeWorkspaceId, organizationLoadRetryKey])
+  // An older request (or no request yet) does not settle this workspace's settings.
+  const loadingOrganization = loadedOrganizationKey !== organizationLoadKey
   const [memberActionId, setMemberActionId] =
     useState<number | null>(null)
   const [organizationLoadError, setOrganizationLoadError] =
@@ -321,13 +327,8 @@ export function SettingsClient({
     let ignoreResult = false
 
     async function loadOrganization() {
-      if (!canConfigureWorkspace) {
-        setBillingStatus(null)
-        setLoadingOrganization(false)
-        return
-      }
+      if (!canConfigureWorkspace) return
 
-      setLoadingOrganization(true)
       setOrganizationLoadError("")
       setSaveError("")
       setMemberError("")
@@ -339,7 +340,8 @@ export function SettingsClient({
         billingResult,
       ] = await Promise.allSettled([
         getMyOrganization(
-          userId
+          userId,
+          activeWorkspaceId
         ),
         getOrganizationWorkspaces(
           userId,
@@ -349,7 +351,8 @@ export function SettingsClient({
           }
         ),
         getBillingStatus(
-          userId
+          userId,
+          activeWorkspaceId
         ),
       ])
 
@@ -461,7 +464,7 @@ export function SettingsClient({
           )
         }
 
-        setLoadingOrganization(false)
+        setLoadedOrganizationKey(organizationLoadKey)
       }
     }
 
@@ -473,7 +476,7 @@ export function SettingsClient({
   }, [
     activeWorkspaceId,
     canConfigureWorkspace,
-    organizationLoadRetryKey,
+    organizationLoadKey,
     userId,
   ])
 
@@ -1374,7 +1377,8 @@ export function SettingsClient({
   const ownershipPanel = activeWorkspace && (isClientWorkspaceOwner || (activeWorkspace.agency_removed && workspaceRole === "owner"))
     ? <ClientWorkspaceOwnership key={activeWorkspace.owner_user_id} userId={userId} workspace={activeWorkspace} /> : null
 
-  if (loadingWorkspaceAccess) {
+  const checkingWorkspaceAccess = loadingWorkspaceAccess || !workspaceAccessReady
+  if (checkingWorkspaceAccess || (canConfigureWorkspace && loadingOrganization)) {
     return (
       <div className="space-y-6">
         <DashboardPageHeader
@@ -1385,7 +1389,19 @@ export function SettingsClient({
           role="status"
           className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500"
         >
-          Checking workspace access...
+          {checkingWorkspaceAccess ? "Checking workspace access..." : "Loading workspace settings..."}
+        </div>
+      </div>
+    )
+  }
+
+  if (workspaceAccessError) {
+    return (
+      <div className="space-y-6">
+        <DashboardPageHeader title="Settings" />
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <span>{workspaceAccessError}</span>
+          <button type="button" onClick={retryWorkspaceAccess} className="rounded-md border border-red-200 bg-white px-3 py-2 font-medium hover:bg-red-100">Retry workspace access</button>
         </div>
       </div>
     )
@@ -1485,15 +1501,14 @@ export function SettingsClient({
           Workspace Profile And Branding Section
       ========================= */}
 
-      {!isClientPortalUser && loadingOrganization && <p role="status" className="text-sm text-gray-600">Loading workspace settings...</p>}
-      {!isClientPortalUser && !loadingOrganization && (organizationLoadError || !billingStatus) && (
+      {!isClientPortalUser && (organizationLoadError || !billingStatus) && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <span>{organizationLoadError || "Unable to check your workspace plan. Please try again."}</span>
           <button type="button" onClick={() => setOrganizationLoadRetryKey(currentKey => currentKey + 1)}
             className="rounded-md border border-red-200 bg-white px-3 py-2 font-medium hover:bg-red-100">Retry workspace load</button>
         </div>
       )}
-      {!isClientPortalUser && !loadingOrganization && !organizationLoadError && billingStatus && (hostedPortalSettings
+      {!isClientPortalUser && !organizationLoadError && billingStatus && (hostedPortalSettings
         ? <HostedSubdomainSetup userId={userId} embedded /> : canEditWorkspaceBranding && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

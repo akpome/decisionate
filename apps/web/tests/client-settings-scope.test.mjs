@@ -13,11 +13,12 @@ const unlinked = { ...linked, role: "owner", is_managed_client: false, agency_re
 
 function components(workspace, overrides = {}, settingsState = {}) {
   const modules = new Map()
+  let renderedUserId
   const access = {
     activeWorkspace: workspace, activeWorkspaceId: workspace.owner_user_id, workspaceRole: workspace.role,
     isClientWorkspace: ["client", "client_owner", "client_user"].includes(workspace.role) || (workspace.role === "owner" && workspace.is_managed_client),
     canConfigureWorkspace: workspace.role === "owner" && !workspace.is_managed_client,
-    loadingWorkspaceAccess: false, ...overrides,
+    loadingWorkspaceAccess: false, workspaceAccessReady: true, ...overrides,
   }
   function load(file) {
     if (modules.has(file)) return modules.get(file)
@@ -36,7 +37,7 @@ function components(workspace, overrides = {}, settingsState = {}) {
         }
       }
     }
-    const state = { loadingOrganization: false, billingStatus: { plan: "professional", billing_model: "direct" }, ...settingsState }
+    const state = { billingStatus: { plan: "professional", billing_model: "direct" }, ...settingsState }
     let stateIndex = 0
     vm.runInNewContext(ts.transpileModule(source, {
       fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
@@ -45,6 +46,9 @@ function components(workspace, overrides = {}, settingsState = {}) {
       require: name => {
         if (name === "react" && stateNames.length) return { ...React, useState: initial => {
           const key = stateNames[stateIndex++]
+          if (key === "loadedOrganizationKey" && !Object.hasOwn(state, key)) {
+            return [JSON.stringify([renderedUserId, access.activeWorkspaceId, 0]), () => {}]
+          }
           return [Object.hasOwn(state, key) ? state[key] : initial, () => {}]
         } }
         if (name === "@/lib/api") return {}
@@ -62,8 +66,12 @@ function components(workspace, overrides = {}, settingsState = {}) {
     })
     return loaded.exports
   }
+  const SettingsClient = load(path.join(web, "app/dashboard/settings/settings-client.tsx")).SettingsClient
   return {
-    Settings: load(path.join(web, "app/dashboard/settings/settings-client.tsx")).SettingsClient,
+    Settings: props => {
+      renderedUserId = props.userId
+      return React.createElement(SettingsClient, props)
+    },
     Ownership: load(path.join(web, "features/settings/client-workspace-ownership.tsx")).ClientWorkspaceOwnership,
   }
 }
@@ -175,14 +183,31 @@ test("branding actions are guarded when the plan is not eligible or its settings
   }
 })
 
-test("pending or failed plan loads never flash the wrong branding editor", () => {
+test("first owner render shows loading until the plan request settles", () => {
   const workspace = { id: 1, name: "Agency", owner_user_id: "agency", role: "owner", is_managed_client: false }
   for (const loading of [true, false]) {
-    const Settings = components(workspace, {}, { loadingOrganization: loading, billingStatus: null }).Settings
+    const Settings = components(workspace, {}, { ...(loading && { loadedOrganizationKey: "" }), billingStatus: null }).Settings
     const html = render(Settings, { userId: "agency", fullName: "Owner", emailAddress: "owner@example.test" })
     assert.doesNotMatch(html, /Workspace Name|Logo link or upload|data-hosted-settings/)
     assert.match(html, loading ? /Loading workspace settings/ : /Unable to check your workspace plan/)
     assert.equal(html.includes("Retry workspace load"), !loading)
+    assert.equal(html.includes('role="alert"'), !loading)
+  }
+})
+
+test("switching workspaces or retrying hides stale alerts and controls before effects run", () => {
+  const workspace = { id: 1, name: "Agency", owner_user_id: "agency", role: "owner", is_managed_client: false }
+  for (const state of [
+    { loadedOrganizationKey: JSON.stringify(["client", "previous-workspace", 0]) },
+    { organizationLoadRetryKey: 1 },
+  ]) {
+    const Settings = components(workspace, {}, {
+      organizationLoadError: "Old plan error", saveError: "Old save error", memberError: "Old member error",
+      billingStatus: { plan: "agency_subdomain", billing_model: "agency" }, ...state,
+    }).Settings
+    const html = render(Settings, { userId: "client", fullName: "Owner", emailAddress: "owner@example.test" })
+    assert.match(html, /Loading workspace settings/)
+    assert.doesNotMatch(html, /Old .* error|role="alert"|Retry workspace load|Hosted portal settings|Client Workspaces|Workspace Members|Delete workspace/)
   }
 })
 
@@ -202,10 +227,19 @@ test("primary Professional and Agency owners have a dedicated deletion section, 
 })
 
 test("loading access never flashes client settings or configuration forms", () => {
-  const html = settingsMarkup(unlinked, { loadingWorkspaceAccess: true })
-  assert.match(html, /Checking workspace access/)
-  assert.doesNotMatch(html, /Delete workspace|Unlink agency<\/button>/)
-  assert.doesNotMatch(html, noFullSettings)
+  for (const pending of [{ loadingWorkspaceAccess: true }, { workspaceAccessReady: false, canConfigureWorkspace: false }]) {
+    const html = settingsMarkup(unlinked, { ...pending, workspaceAccessError: "Previous access error" })
+    assert.match(html, /Checking workspace access/)
+    assert.doesNotMatch(html, /Delete workspace|Unlink agency<\/button>|Previous access error|Only the business owner|role="alert"/)
+    assert.doesNotMatch(html, noFullSettings)
+  }
+})
+
+test("settled workspace access failures offer retry instead of an owner-only notice", () => {
+  const html = settingsMarkup(unlinked, { canConfigureWorkspace: false, workspaceAccessError: "Unable to check workspace access." })
+  assert.match(html, /role="alert".*Unable to check workspace access/)
+  assert.match(html, /Retry workspace access/)
+  assert.doesNotMatch(html, /Only the business owner|Checking workspace access/)
 })
 
 test("trial and agency recovery are separate from ownership settings", () => {
@@ -233,7 +267,7 @@ test("limited Settings do not fetch branding, members or billing administration"
   const calls = []
   const load = vm.runInNewContext(ts.transpileModule(`${loader}\nloadOrganization`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
     canConfigureWorkspace: false,
-    setBillingStatus: () => {}, setLoadingOrganization: () => {},
+    setLoadedOrganizationKey: () => assert.fail("Skipped requests must not mark settings as loaded"),
     getMyOrganization: () => calls.push("organization"), getOrganizationMembers: () => calls.push("members"),
     getOrganizationInvites: () => calls.push("invites"), getBillingStatus: () => calls.push("billing"),
   })
