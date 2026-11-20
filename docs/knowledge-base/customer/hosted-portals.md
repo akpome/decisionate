@@ -125,7 +125,14 @@ have an account choose Sign in instead. Switching between sign-in and sign-up
 preserves the invited workspace destination.
 
 Credential entry, verification and password recovery use the existing secure
-Decisionate account flow, then return to the branded portal. Clients need the
+Decisionate account flow, then return to the branded portal. When opened from an
+active agency portal, the credentials page uses that agency's published name and
+logo, including its browser-tab icon. It still uses the shared secure sign-in
+address; there is no separate login account or Clerk instance. Switching between
+sign-in and sign-up retains the agency and invited workspace. Direct Decisionate
+sign-ins retain Decisionate branding. This presentation does not change shared
+verification emails or third-party identity-provider consent screens.
+Clients need the
 normal workspace invitation and permission; signup alone does not grant access,
 create another workspace or enroll a client in a subscription.
 Manage invitations in Settings. An invitation to attach an existing independent

@@ -11,7 +11,7 @@ import { ThemeBootstrap } from "./theme-bootstrap"
 import { LanguageBootstrap } from "./language-bootstrap"
 import { WorkspaceFaviconBootstrap } from "./workspace-favicon-bootstrap"
 import { portalBrand } from "@/lib/portal-brand"
-import { requestHostedPortal } from "@/features/hosted-subdomains/server"
+import { requestHostedAuthPortal, requestHostedPortal } from "@/features/hosted-subdomains/server"
 import { HostedPortalProvider } from "@/features/hosted-subdomains/provider"
 
 const baseMetadata: Metadata = {
@@ -35,7 +35,7 @@ const baseMetadata: Metadata = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const portal = await requestHostedPortal()
+  const portal = await requestHostedPortal() || await requestHostedAuthPortal()
   return {
     ...baseMetadata,
     ...(portal?.branding ? { title: portal.branding.name, applicationName: portal.branding.name,
@@ -55,23 +55,25 @@ export default async function RootLayout({
   children: ReactNode
 }) {
   const portal = await requestHostedPortal()
+  const authPortal = portal ? null : await requestHostedAuthPortal()
   const returnTo = (await headers()).get("x-decisionate-hosted-return")
+  const hasHostedBrand = Boolean(portal || authPortal)
   return (
     <html
       lang="en-CA"
       suppressHydrationWarning
     >
       <head>
-        {!portal && portalBrand.logo && <link
+        {!hasHostedBrand && portalBrand.logo && <link
           rel="icon"
           href={portalBrand.logo}
           type="image/png"
         />}
-        {!portal && <WorkspaceFaviconBootstrap />}
+        {!hasHostedBrand && <WorkspaceFaviconBootstrap />}
       </head>
       <body className="bg-gray-50 text-gray-950 antialiased">
-        <HostedPortalProvider portal={portal} returnTo={returnTo}>
-        <AppClerkProvider portal={portal} hostedReturn={returnTo}>
+        <HostedPortalProvider portal={portal} returnTo={returnTo} authPortal={authPortal}>
+        <AppClerkProvider portal={portal} hostedReturn={returnTo} authPortal={authPortal}>
           <ThemeBootstrap />
           <LanguageBootstrap />
           <div className="min-h-screen">

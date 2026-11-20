@@ -19,6 +19,15 @@ existing `app.decisionate.ca` Clerk sign-in, then returns through Clerk session
 synchronization. Credential entry and password recovery retain the primary
 Decisionate identity. No second Clerk instance is created.
 
+The central credentials page resolves the agency's published public branding only
+from the proxy-validated return header, rechecking the active registered portal.
+Its header, favicon and Clerk appearance use that agency's identity; generic Clerk
+authentication copy avoids leaking the primary application's display name. This
+presentation context is separate from the actual hosted portal context: the
+primary Clerk provider remains primary, and workspace, issuer and satellite
+configuration are unchanged. Verification email and OAuth-provider branding remain
+those of the shared identity service.
+
 Audit findings and differences from the original handoff:
 
 - Existing `modules/hosted_portals.py` implements **custom-domain** provisioning

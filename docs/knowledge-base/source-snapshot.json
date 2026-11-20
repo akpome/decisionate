@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "885441ed4afee86d97a779bd61b3bfaa2ce2c230",
+  "base_git_revision": "a3f06fd8d054628176891fd5a0c21590020f64ef",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/hosted_subdomains/service.py",
-    "apps/api/app/modules/organizations/router.py",
-    "apps/api/tests/test_hosted_subdomains.py",
-    "apps/web/app/dashboard/dashboard-shell.tsx",
-    "apps/web/lib/api.ts"
+    "apps/web/app/clerk-provider.tsx",
+    "apps/web/app/layout.tsx",
+    "apps/web/features/auth/components/auth-layout.tsx",
+    "apps/web/features/hosted-subdomains/provider.tsx",
+    "apps/web/features/hosted-subdomains/server.ts"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -125,6 +125,7 @@
     "apps/api/tests/test_user_email_repair.py": "3134c9005510f6f3b1b27c330d00dbe302db6a4cd4f343ab6bd21fe19fd73d9e",
     "apps/api/tests/test_user_email_transfer.py": "a2fc0ede147f564027a05acdd9582f41379be8fd428570a2a0b959709e931052",
     "apps/web/app/auth/redirect/page.tsx": "974d3dd896e2afb25f30b4d4bad5609b8a1a3f29e0b5d6e6ac22f84fd2c87248",
+    "apps/web/app/clerk-provider.tsx": "8d6efbe048a451fab2e67ee83a866a7d27dd699be66ee6bbf8fdfb4db473908b",
     "apps/web/app/dashboard/billing/page.tsx": "febaeb20a7c50147bd1fa37e102de5684e6dee7d2c0d01f6a3e623f43d06538b",
     "apps/web/app/dashboard/business-impact/page.tsx": "657b0306e9fd9af1381e2ba2481f45aa3e54a68030affcd7f243c694e20a104e",
     "apps/web/app/dashboard/dashboard-shell.tsx": "15043c9b4cc111a014f14c1bba00ab276045c5ff8ba8b384e32c662ef0fa1118",
@@ -139,12 +140,14 @@
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
     "apps/web/app/dashboard/reports/weekly/page.tsx": "29306c58787eeb07e3df8ab242db4a8c5dec1313778cdfbb738e59c23ebf0017",
     "apps/web/app/dashboard/settings/settings-client.tsx": "20f07a67d0f496d6eb3aee8c8d259e25ac0fc0f81d32964e86c35c6d9e3be5dc",
+    "apps/web/app/layout.tsx": "96dca03c35c0da5f6096baea4fde5d394a799356f2b6949743a230d495de6cb0",
     "apps/web/app/platform-admin/page.tsx": "24ff65cf084943175846d042e002b65488e560e4955a2e9e9b927e0a30ab1bf5",
     "apps/web/app/privacy/page.tsx": "e2a13b5e7858ee0d27c723b80d67a5476da07cf8178c32fe5f128fc4172342f6",
     "apps/web/app/share/report/page.tsx": "b7f0a87158499789fd679bb4fc7ad64cfa7c232c20b7308243a3d2d67adf19bc",
     "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "9ddc87aa5b7456279040da5986906ffd73473f9a449893382722e002834ea10c",
     "apps/web/app/sign-up/[[...sign-up]]/page.tsx": "e0cff096166ffaf14bbb4d13f684ba2bed2ae2d0dc390b6595e22d0139686407",
     "apps/web/components/searchable-select.tsx": "f58f9c68f6d03978666a19c964c2c7a0a76d9d3870f4026b93b094c7c6c374f9",
+    "apps/web/features/auth/components/auth-layout.tsx": "10da64a69770c95ef98fb77271c5089f96b702355efe03d96307bf7836d00980",
     "apps/web/features/auth/components/workspace-invitation-sign-in.tsx": "f1fdc7df443bb8d82375f80c5bccecc0ab13b8e15561fd2946e4941682e65873",
     "apps/web/features/auth/lib/auth-redirects.ts": "1ad5a3b9931bc5d2aa7610d678c61f3f3fdd399a8ec26b232188e014b83c805d",
     "apps/web/features/auth/lib/auth-workspaces.ts": "25bee7164e8fa6e60d8da173e8fdc76b1a29e0b9442ed7f0ff7587376a8ef371",
@@ -161,6 +164,8 @@
     "apps/web/features/datasets/lib/metric-selection-save.ts": "f5e26dc649de82e84e657e8a6e8ecc0bd635a6a07bd43426f1a263d23777b1ec",
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "5d885f0c41f9ef97700554396b7bad4d3d7f6c502bfc31327ae1882730094e1b",
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "1800308a101183a53afa3aa9d539c98de3b231347fee0c7f40455e709688f2dd",
+    "apps/web/features/hosted-subdomains/provider.tsx": "f1d3d638c2e62130f2326483dbd1840c2d404b29e99f338c765d69b101397862",
+    "apps/web/features/hosted-subdomains/server.ts": "6ffb86b3a5478aa2d4778beea89ca592fd46b4e15124d92e798c62b3b6712097",
     "apps/web/features/hosted-subdomains/setup.tsx": "a76c60b0cc7e1a49a3d3ad406689bf8003d5a4cb30e3ed68caa49cf212672662",
     "apps/web/features/hosted-subdomains/sign-in.tsx": "7cb81af4f1868470ff6bb034061191a42ac4113c9a0fcc7bc835433955180647",
     "apps/web/features/hosted-subdomains/types.ts": "442010905c8ee062de0a1fe2f0b328db7fab9c65fd6ed6a756dfd41f564c1009",
@@ -235,7 +240,7 @@
     "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "b908b5121855ad6450127c5f060303e39bad6c6da67d44f75619047fdf1b8bb6",
+    "customer/hosted-portals.md": "eba2cf098aba1e3617c979ef5c3272114e7237fb583e58afbe556e0c69d7283f",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

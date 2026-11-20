@@ -12,7 +12,7 @@ function load(path, dependencies = {}, globals = {}) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } }).outputText, { module: loaded, exports: loaded.exports, URL, Request, Response, ...globals,
     require: name => {
-      if (name === "@/features/hosted-subdomains/server") return { requestHostedPortal: async () => null }
+      if (name === "@/features/hosted-subdomains/server") return { requestHostedPortal: async () => null, requestHostedAuthPortal: async () => null }
       if (name === "@/features/hosted-subdomains/provider") return {}
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
