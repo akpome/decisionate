@@ -137,37 +137,48 @@ function deferred() {
 }
 function view(upload, wait, refresh = async () => {}) {
   const state = [], calls = []
+  let status = null, hidden = false
   let cursor = 0, successes = 0
-  const { CsvUpload } = load(read("../features/datasets/components/csv-upload.tsx"), {}, {
-    react: { ...React, useState(initial) { const index = cursor++; state[index] ??= typeof initial === "function" ? initial() : initial
-      return [state[index], next => { state[index] = next }] }, useRef(initial) { const index = cursor++; return state[index] ??= { current: initial } } },
+  const { CsvUpload, DatasetUploadNotice, isDatasetUploadBusy } = load(read("../features/datasets/components/csv-upload.tsx"), {}, {
+    react: { ...React, useRef(initial) { const index = cursor++; return state[index] ??= { current: initial } } },
     "@clerk/nextjs": { useUser: () => ({ user: { id: "owner" } }) },
     "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: "workspace" }) },
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
     "@/lib/api": { uploadDataset: (...args) => { calls.push(args); return upload(...args) }, waitForDataIngestionJob: wait },
   })
-  function tree() { cursor = 0; return CsvUpload({ onUploadSuccess: async () => { successes++; await refresh() } }) }
+  function picker() {
+    cursor = 0
+    return CsvUpload({
+      busy: isDatasetUploadBusy(status),
+      onStatusChange: next => { status = next },
+      onUploadSuccess: async () => { successes++; await refresh() },
+    })
+  }
   function find(node, predicate) {
     if (!React.isValidElement(node)) return undefined
     if (predicate(node)) return node
     return React.Children.toArray(node.props.children).map(child => find(child, predicate)).find(Boolean)
   }
-  return { calls, successes: () => successes, html: () => renderToStaticMarkup(tree()),
-    start(file) { const input = find(tree(), node => node.type === "input"); const target = { files: [file], value: file.name }; input.props.ref.current = target
+  return { calls, successes: () => successes, hidePicker: () => { hidden = true },
+    html: () => renderToStaticMarkup(React.createElement(React.Fragment, null,
+      React.createElement(DatasetUploadNotice, { status }), React.createElement("section", { hidden }, picker()))),
+    start(file) { const input = find(picker(), node => node.type === "input"); const target = { files: [file], value: file.name }; input.props.ref.current = target
       return input.props.onChange({ target }) } }
 }
 
-test("the upload tile shows a spinner during transfer, processing and dataset refresh", async () => {
+test("upload progress remains visible through transfer, processing and refresh, even when the picker is closed", async () => {
   const transfer = deferred(), preparation = deferred(), refresh = deferred()
   const component = view(() => transfer.promise, () => preparation.promise, () => refresh.promise)
   assert.match(component.html(), /<div role="status" aria-atomic="true" class="sr-only"><\/div>/)
   const pending = component.start(new File(["a\n1"], "shopify.csv"))
-  assert.match(component.html(), /<label[^>]+>.*animate-spin.*role="status".*Uploading data file.*shopify\.csv.*<\/label>/)
+  assert.match(component.html(), /role="status".*animate-spin.*Uploading data file.*shopify\.csv.*<progress aria-label="Uploading data file\.\.\."/)
   assert.match(component.html(), /type="file" disabled=""/)
   assert.doesNotMatch(component.html(), /Uploaded File/)
+  assert.doesNotMatch(component.html(), /<progress[^>]+\bvalue=/)
+  component.hidePicker()
   transfer.resolve({ status: "queued", job_id: 7 })
   await new Promise(resolve => setImmediate(resolve))
-  assert.match(component.html(), /Preparing your dataset/)
+  assert.match(component.html(), /<progress aria-label="Preparing your dataset\.\.\.".*<section hidden=""/)
   assert.doesNotMatch(component.html(), /Uploaded File/)
   preparation.resolve({ id: 7, status: "succeeded" })
   await new Promise(resolve => setImmediate(resolve))
@@ -175,8 +186,21 @@ test("the upload tile shows a spinner during transfer, processing and dataset re
   assert.match(component.html(), /Preparing your dataset/)
   refresh.resolve()
   await pending
-  assert.doesNotMatch(component.html(), /animate-spin|type="file" disabled/)
+  assert.doesNotMatch(component.html(), /animate-spin|<progress|type="file" disabled/)
   assert.match(component.html(), /Uploaded File/)
+})
+
+test("a fast upload still leaves a visible confirmation", async () => {
+  const component = view(async () => ({ status: "queued", job_id: 7 }), async () => ({ status: "succeeded" }))
+  await component.start(new File(["a\n1"], "sales.csv"))
+  component.hidePicker()
+  assert.match(component.html(), /role="status".*Uploaded File.*sales\.csv.*<section hidden=""/)
+  assert.doesNotMatch(component.html(), /<progress/)
+})
+
+test("the Datasets page renders upload feedback outside the collapsible import tools", () => {
+  const page = read("../app/dashboard/datasets/page.tsx")
+  assert.match(page, /<DatasetUploadNotice status=\{uploadStatus\} \/>\}\s+\{\(canConfigureWorkspace \|\| canViewConnections\) && \(\s+<section id="dataset-import-tools"/)
 })
 
 test("uncertain status keeps the affected filename without falsely labelling the import as successful", async () => {

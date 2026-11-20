@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Link2, Plug, Plus, RefreshCw, Upload, X } from "lucide-react"
 
 import { ConnectionPullWidget } from "@/features/datasets/components/connection-pull-widget"
-import { CsvUpload } from "@/features/datasets/components/csv-upload"
+import { CsvUpload, DatasetUploadNotice, isDatasetUploadBusy, type DatasetUploadStatus } from "@/features/datasets/components/csv-upload"
 import { SignedUrlImport } from "@/features/datasets/components/signed-url-import"
 import { DatasetList } from "@/features/datasets/components/dataset-list"
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
@@ -59,6 +59,7 @@ export default function DatasetsPage() {
     useState(0)
   const [showImportTools, setShowImportTools] = useState(false)
   const [importMode, setImportMode] = useState("file")
+  const [fileUploads, setFileUploads] = useState<Record<string, DatasetUploadStatus>>({})
 
   const { user } = useUser()
   const {
@@ -72,6 +73,13 @@ export default function DatasetsPage() {
     loadingWorkspaceAccess,
   } =
     useWorkspaceAccess(user?.id)
+
+  const uploadScope = JSON.stringify([user?.id, activeWorkspaceId])
+  const uploadStatus = fileUploads[uploadScope] ?? null
+
+  function updateUploadStatus(status: DatasetUploadStatus) {
+    setFileUploads(current => ({ ...current, [uploadScope]: status }))
+  }
 
   async function loadDatasets() {
     if (!user?.id) return
@@ -292,6 +300,8 @@ export default function DatasetsPage() {
         </button>
       )}
 
+      {canConfigureWorkspace && <DatasetUploadNotice status={uploadStatus} />}
+
       {(canConfigureWorkspace || canViewConnections) && (
         <section id="dataset-import-tools" hidden={!showImportTools} className="border-t pt-5">
           <div role="tablist" aria-label={t("Import method")} className="mb-5 flex gap-1 border-b">
@@ -317,7 +327,7 @@ export default function DatasetsPage() {
             })}
           </div>
           {canConfigureWorkspace && <>
-            <div id="import-panel-file" role="tabpanel" aria-labelledby="import-tab-file" hidden={importMode !== "file"}><CsvUpload sources={sources} onUploadSuccess={loadDatasets} /></div>
+            <div id="import-panel-file" role="tabpanel" aria-labelledby="import-tab-file" hidden={importMode !== "file"}><CsvUpload sources={sources} busy={isDatasetUploadBusy(uploadStatus)} onStatusChange={updateUploadStatus} onUploadSuccess={loadDatasets} /></div>
             <div id="import-panel-link" role="tabpanel" aria-labelledby="import-tab-link" hidden={importMode !== "link"}><SignedUrlImport onImportSuccess={loadDatasets} /></div>
           </>}
           {canViewConnections && <div id="import-panel-connection" role="tabpanel" aria-labelledby="import-tab-connection" hidden={canConfigureWorkspace && importMode !== "connection"}>

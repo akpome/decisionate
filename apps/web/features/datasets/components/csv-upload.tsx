@@ -1,16 +1,13 @@
 "use client"
 
-import {
-  useRef,
-  useState,
-} from "react"
+import { useRef } from "react"
 import {
   type DatasetSourceOption,
   waitForDataIngestionJob,
   uploadDataset,
 } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
-import { LoaderCircle, Upload } from "lucide-react"
+import { CircleCheck, LoaderCircle, Upload } from "lucide-react"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -18,7 +15,52 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface CsvUploadProps {
   sources?: DatasetSourceOption[]
+  busy: boolean
+  onStatusChange: (status: DatasetUploadStatus) => void
   onUploadSuccess: () => void | Promise<void>
+}
+
+export type DatasetUploadStatus =
+  | { phase: "uploading" | "processing" | "complete"; fileName: string }
+  | { phase: "error"; fileName: string; message: string }
+
+export function isDatasetUploadBusy(status: DatasetUploadStatus | null) {
+  return status?.phase === "uploading" || status?.phase === "processing"
+}
+
+export function DatasetUploadNotice({ status }: { status: DatasetUploadStatus | null }) {
+  const { t } = useDecisionateText()
+  const notice = status?.phase !== "error" ? status : null
+  const busy = isDatasetUploadBusy(notice)
+  const label = t(notice?.phase === "uploading" ? "Uploading data file..." : notice?.phase === "processing" ? "Preparing your dataset..." : "Uploaded File")
+  return (
+    <>
+      <div role="status" aria-atomic="true" className={notice ? "min-w-0 rounded-lg border border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)] px-4 py-3" : "sr-only"}>
+        {notice && (
+          <>
+            <div className="flex items-start gap-3">
+              {busy ? (
+                <LoaderCircle size={22} strokeWidth={2.5} className="shrink-0 animate-spin text-[var(--decisionate-brand-primary-text,#1d4ed8)] motion-reduce:animate-none" aria-hidden="true" />
+              ) : (
+                <CircleCheck size={22} className="shrink-0 text-[var(--decisionate-brand-primary-text,#1d4ed8)]" aria-hidden="true" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{label}</p>
+                <p className="break-all text-sm text-gray-600">{notice.fileName}</p>
+              </div>
+            </div>
+            {busy && <progress aria-label={label} className="mt-2 block h-1.5 w-full accent-[var(--decisionate-brand-primary)] motion-reduce:hidden" />}
+          </>
+        )}
+      </div>
+      {status?.phase === "error" && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {status.fileName && <p className="mb-1 break-all font-medium">{status.fileName}</p>}
+          {status.message}
+        </div>
+      )}
+    </>
+  )
 }
 
 const uploadFileExtensions: Record<string, string[]> = {
@@ -47,6 +89,8 @@ const fallbackUploadSource: Pick<
 
 export function CsvUpload({
   sources = [],
+  busy,
+  onStatusChange,
   onUploadSuccess,
 }: CsvUploadProps) {
   const { t } = useDecisionateText()
@@ -54,11 +98,6 @@ export function CsvUpload({
   const { activeWorkspaceId } =
     useActiveWorkspace(user?.id)
 
-  const [fileName, setFileName] = useState("")
-  const [phase, setPhase] = useState<"uploading" | "processing" | null>(null)
-  const loading = phase !== null
-  const [errorMessage, setErrorMessage] =
-    useState("")
   const fileInputRef =
     useRef<HTMLInputElement | null>(null)
   const uploadSources =
@@ -105,25 +144,21 @@ export function CsvUpload({
   ) {
     const file = event.target.files?.[0]
 
-    if (!file) return
+    if (!file || busy) return
 
     if (!user?.id) {
-      setFileName("")
-      setErrorMessage(
-        t("Sign in before uploading a dataset.")
-      )
+      onStatusChange({ phase: "error", fileName: "", message: t("Sign in before uploading a dataset.") })
       event.target.value = ""
       return
     }
 
-    setFileName(file.name)
-    setErrorMessage("")
+    const fileName = file.name
     if (!acceptedExtensions.some(extension => file.name.trim().toLowerCase().endsWith(extension))) {
-      setErrorMessage(t("This file format is not supported."))
+      onStatusChange({ phase: "error", fileName, message: t("This file format is not supported.") })
       event.target.value = ""
       return
     }
-    setPhase("uploading")
+    onStatusChange({ phase: "uploading", fileName })
 
     try {
       const queuedJob = await uploadDataset(
@@ -131,7 +166,7 @@ export function CsvUpload({
         user.id,
         activeWorkspaceId
       )
-      setPhase("processing")
+      onStatusChange({ phase: "processing", fileName })
       if (
         queuedJob.status === "queued" &&
         queuedJob.job_id
@@ -143,15 +178,10 @@ export function CsvUpload({
         )
       }
       await onUploadSuccess()
+      onStatusChange({ phase: "complete", fileName })
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : t("Upload failed")
-      )
+      onStatusChange({ phase: "error", fileName, message: error instanceof Error ? error.message : t("Upload failed") })
     } finally {
-      setPhase(null)
-
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -163,28 +193,14 @@ export function CsvUpload({
       {/* Upload Area */}
       <label
         htmlFor="dataset-file-upload"
-        className={`flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed px-4 py-8 text-center transition focus-within:border-[var(--decisionate-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] ${loading ? "cursor-wait border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)]" : "cursor-pointer border-gray-300 bg-white hover:bg-gray-50"}`}
+        className={`flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-8 text-center transition focus-within:border-[var(--decisionate-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] ${busy ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-gray-50"}`}
       >
         <div className="w-full min-w-0 space-y-2">
-          {loading ? (
-            <LoaderCircle size={24} className="mx-auto animate-spin text-[var(--decisionate-brand-primary-text)] motion-reduce:animate-none" aria-hidden="true" />
-          ) : (
-            <>
-              <Upload size={24} className="mx-auto text-gray-400" aria-hidden="true" />
-              <p className="text-sm font-medium">{t("Upload Data File")}</p>
-            </>
-          )}
-          <div role="status" aria-atomic="true" className={loading ? "space-y-2" : "sr-only"}>
-            {loading && (
-              <>
-                <p className="text-sm font-medium">{t(phase === "processing" ? "Preparing your dataset..." : "Uploading data file...")}</p>
-                <p className="break-all text-sm text-gray-600">{fileName}</p>
-              </>
-            )}
-          </div>
+          <Upload size={24} className="mx-auto text-gray-400" aria-hidden="true" />
+          <p className="text-sm font-medium">{t("Upload Data File")}</p>
           <p
             id={uploadHelpId}
-            className={loading ? "sr-only" : "text-sm text-gray-500"}
+            className="text-sm text-gray-500"
           >
             {acceptedFormatLabel}
           </p>
@@ -194,7 +210,7 @@ export function CsvUpload({
           id="dataset-file-upload"
           ref={fileInputRef}
           type="file"
-          disabled={loading}
+          disabled={busy}
           accept={acceptedExtensions.join(
             ","
           )}
@@ -225,29 +241,6 @@ export function CsvUpload({
                 </p>
               )
           )}
-        </div>
-      )}
-
-      {errorMessage && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-        >
-          {fileName && <p className="mb-1 break-all font-medium">{fileName}</p>}
-          {errorMessage}
-        </div>
-      )}
-
-      {/* File Info */}
-      {fileName && !loading && !errorMessage && (
-        <div className="rounded-xl border bg-white p-4">
-          <p className="font-medium">
-            {t("Uploaded File")}
-          </p>
-
-          <p className="mt-1 break-all text-sm text-gray-500">
-            {fileName}
-          </p>
         </div>
       )}
     </div>
