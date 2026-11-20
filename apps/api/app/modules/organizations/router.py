@@ -1113,43 +1113,29 @@ def claim_pending_invites(
     if not clean_email or not email_verified:
         return 0
 
-    pending_invites = (
-        db.query(OrganizationInvite)
-        .filter(
-            OrganizationInvite.email == clean_email,
-            OrganizationInvite.status == "pending",
-        )
-        .with_for_update()
-        .all()
+    pending = db.query(OrganizationInvite).filter(
+        OrganizationInvite.email == clean_email,
+        OrganizationInvite.status == "pending",
     )
-    claimed_count = 0
-
-    organization_ids = {
-        invite.organization_id
-        for invite in pending_invites
-    }
+    # Lock workspaces before invitation rows, in the same order as writes.
+    # An acceptance moves the occupied slot from invites to members.
     organizations_by_id = {
         organization.id: organization
-        for organization in (
-            db.query(Organization)
-            .filter(Organization.id.in_(organization_ids))
-            .all()
-            if organization_ids
-            else []
-        )
+        for organization in db.query(Organization).filter(
+            Organization.id.in_(pending.with_entities(OrganizationInvite.organization_id).statement)
+        ).order_by(Organization.id).with_for_update().all()
     }
+    if not organizations_by_id:
+        return 0
+
+    pending_invites = pending.filter(OrganizationInvite.organization_id.in_(organizations_by_id)).with_for_update().all()
+    claimed_count = 0
     existing_members_by_organization = {
         member.organization_id: member
-        for member in (
-            db.query(OrganizationMember)
-            .filter(
-                OrganizationMember.organization_id.in_(organization_ids),
-                OrganizationMember.clerk_user_id == user_id,
-            )
-            .all()
-            if organization_ids
-            else []
-        )
+        for member in db.query(OrganizationMember).filter(
+            OrganizationMember.organization_id.in_(organizations_by_id),
+            OrganizationMember.clerk_user_id == user_id,
+        ).all()
     }
 
     for invite in pending_invites:
@@ -1168,6 +1154,11 @@ def claim_pending_invites(
             invite.organization_id
         )
         if not existing_member:
+            if invite_role == "client_user" and is_client_workspace(organization) and db.query(OrganizationMember.id).filter(
+                OrganizationMember.organization_id == organization.id,
+                OrganizationMember.role.in_({"member", "client_user"}),
+            ).first():
+                continue
             existing_members_by_organization[invite.organization_id] = (
                 OrganizationMember(
                     organization_id=invite.organization_id,
@@ -1264,7 +1255,7 @@ def validate_client_workspace_role_capacity(
     ):
         raise HTTPException(
             status_code=409,
-            detail="A client workspace can have only one client user",
+            detail="A client workspace can have only one client user. Revoke the pending invitation or remove the current collaborator first.",
         )
 
 
@@ -1292,6 +1283,8 @@ def get_owned_organization_or_404(
 def get_managed_organization_or_404(
     db,
     auth_context,
+    *,
+    lock: bool = False,
 ):
     if auth_context.workspace_role not in {"owner", "client_owner", "client"}:
         raise HTTPException(
@@ -1299,13 +1292,10 @@ def get_managed_organization_or_404(
             detail="Only workspace owners can manage workspace members",
         )
 
-    organization = (
-        db.query(Organization)
-        .filter(
-            Organization.owner_user_id == auth_context.workspace_id,
-        )
-        .first()
+    query = db.query(Organization).filter(
+        Organization.owner_user_id == auth_context.workspace_id,
     )
+    organization = (query.with_for_update() if lock else query).first()
 
     if not organization:
         raise HTTPException(
@@ -2183,6 +2173,7 @@ async def add_organization_member(
         organization = get_managed_organization_or_404(
             db,
             auth_context,
+            lock=True,
         )
         member_reference = clean_member_user_id(
             payload.clerk_user_id,
@@ -2374,6 +2365,7 @@ def add_organization_invite(
         organization = get_managed_organization_or_404(
             db,
             auth_context,
+            lock=True,
         )
         invite_email = clean_invite_email(
             payload.email,
@@ -2464,10 +2456,12 @@ def add_organization_invite(
 def resend_organization_invite(invite_id: int, request: Request):
     auth_context = get_auth_context(request, allow_managed_client_workspace=True)
     with SessionLocal() as db:
-        organization = get_managed_organization_or_404(db, auth_context)
+        organization = get_managed_organization_or_404(db, auth_context, lock=True)
         invite = db.query(OrganizationInvite).filter_by(id=invite_id, organization_id=organization.id).first()
         if invite is None:
             raise HTTPException(404, "Invitation not found.")
+        if canonical_client_workspace_role(organization, invite.role) == "client_user":
+            validate_client_workspace_role_capacity(db, organization, invite.role, exclude_invite_id=invite.id)
         return send_invitation_email(db, organization, invite, resend=True)
 
 
@@ -2495,6 +2489,7 @@ async def update_organization_member_role(
         organization = get_managed_organization_or_404(
             db,
             auth_context,
+            lock=True,
         )
         member = (
             db.query(OrganizationMember)
@@ -2570,6 +2565,7 @@ async def remove_organization_invite(
         organization = get_managed_organization_or_404(
             db,
             auth_context,
+            lock=True,
         )
         invite = (
             db.query(OrganizationInvite)
@@ -2586,6 +2582,8 @@ async def remove_organization_invite(
                 detail="Organization invite not found",
             )
 
+        if is_client_workspace(organization) and invite.status != "pending":
+            raise HTTPException(409, "This invitation is no longer pending. Refresh the collaborator list to manage access.")
         db.delete(invite)
         db.commit()
 

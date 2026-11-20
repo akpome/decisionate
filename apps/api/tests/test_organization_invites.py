@@ -1,18 +1,28 @@
+import os
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from uuid import uuid4
 
-from sqlalchemy import create_engine
+from fastapi import HTTPException
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Organization, OrganizationInvite, OrganizationMember, WorkspaceApplication
 from app.modules.auth_context import AuthContext
+from app.modules.organizations import router
 from app.modules.organizations.router import (
     canonical_client_workspace_role,
     claim_pending_invites,
     get_managed_organization_or_404,
     validate_client_workspace_role_capacity,
 )
+from app.modules.organizations.schemas import OrganizationInviteCreate
+
+
+INVITATION_TABLES = (Organization, OrganizationMember, OrganizationInvite, WorkspaceApplication)
 
 
 class OrganizationInviteClaimTests(unittest.TestCase):
@@ -155,6 +165,67 @@ class OrganizationInviteClaimTests(unittest.TestCase):
         finally:
             session.close()
             engine.dispose()
+
+    def test_legacy_duplicate_pending_recipients_cannot_both_accept_access(self):
+        engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
+        for model in INVITATION_TABLES:
+            model.__table__.create(engine)
+        with sessionmaker(bind=engine)() as db:
+            db.add(Organization(id=1, owner_user_id="owner", name="Client", managing_agency_workspace_id="agency"))
+            db.add_all([
+                OrganizationInvite(organization_id=1, email="first@example.test", role="member", status="pending"),
+                OrganizationInvite(organization_id=1, email="second@example.test", role="client_user", status="pending"),
+            ])
+            db.commit()
+            self.assertEqual(claim_pending_invites(db, "first", "first@example.test", email_verified=True), 1)
+            db.commit()
+            self.assertEqual(claim_pending_invites(db, "second", "second@example.test", email_verified=True), 0)
+            self.assertEqual(db.query(OrganizationMember).one().clerk_user_id, "first")
+            self.assertEqual(db.query(OrganizationInvite).filter_by(email="second@example.test").one().status, "pending")
+
+
+@unittest.skipUnless(os.getenv("DECISIONATE_TEST_POSTGRES_URL"), "An isolated PostgreSQL test database is required")
+class ConcurrentClientInvitationTests(unittest.TestCase):
+    def test_different_emails_cannot_reserve_the_same_collaborator_slot(self):
+        url = os.environ["DECISIONATE_TEST_POSTGRES_URL"]
+        admin = create_engine(url)
+        schema = "client_invitations_" + uuid4().hex
+        with admin.begin() as connection:
+            connection.execute(text(f"CREATE SCHEMA {schema}"))
+
+        def remove_schema():
+            with admin.begin() as connection:
+                connection.execute(text(f"DROP SCHEMA {schema} CASCADE"))
+            admin.dispose()
+
+        self.addCleanup(remove_schema)
+        engine = create_engine(url, connect_args={"options": f"-csearch_path={schema} -clock_timeout=5000"})
+        self.addCleanup(engine.dispose)
+        for model in INVITATION_TABLES:
+            model.__table__.create(engine)
+        sessions = sessionmaker(bind=engine)
+        with sessions() as db:
+            db.add(Organization(id=1, owner_user_id="client", name="Client", managing_agency_workspace_id="agency"))
+            db.commit()
+
+        start = Barrier(2, timeout=5)
+
+        def invite(email):
+            start.wait()
+            try:
+                router.add_organization_invite(None, OrganizationInviteCreate(email=email, role="client_user"))
+            except HTTPException as error:
+                return error.status_code
+            return 200
+
+        with patch.object(router, "SessionLocal", sessions), patch.object(
+            router, "get_auth_context", return_value=AuthContext("client", "client", email="owner@example.test")
+        ), patch.object(router, "send_invitation_email") as send, ThreadPoolExecutor(max_workers=2) as workers:
+            self.assertEqual(sorted(workers.map(invite, ["first@example.test", "second@example.test"])), [200, 409])
+            send.assert_called_once()
+        with sessions() as db:
+            self.assertEqual(db.query(OrganizationInvite).filter_by(status="pending").count(), 1)
 
 
 if __name__ == "__main__":

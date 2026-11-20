@@ -1,11 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "fb89020f7827feca0523f48fba3f05a8a02d8c9f",
+  "base_git_revision": "36cdda6cbf79179242cd6c2f6913aa9d4bb853d7",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/organizations/router.py",
-    "apps/web/features/settings/client-workspace-ownership.tsx",
-    "apps/web/lib/api.ts"
+    "apps/api/app/modules/organizations/router.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -76,7 +74,7 @@
     "apps/api/app/modules/organizations/agency_accounts.py": "c5b6d9adb20c9f9280cdb02fabeecc7b21dd5594d3cb2035c955621ee893ded5",
     "apps/api/app/modules/organizations/invitations.py": "734bd595e52cc9c7ddd7a1cf533eb1a8c8037b138572d52aef7f64acc33366bc",
     "apps/api/app/modules/organizations/ownership.py": "0cc09d1f6e4298cb6f291df9dd325c92648e8213dfcc6f1c4ca2953bfee5d537",
-    "apps/api/app/modules/organizations/router.py": "b700616777d061b6086d72f3d6ddac39eb7ae37e56249599bf15b0173c04a8c9",
+    "apps/api/app/modules/organizations/router.py": "12c4823a8240eae41a75640aca42fec537f95c66d6f712c84a7ce447381fcc23",
     "apps/api/app/modules/performance/growth_schemas.py": "b6f2825ddaa94e17686c0454f1c987516d646ca03ba7340803f0bb907b96d862",
     "apps/api/app/modules/performance/growth_service.py": "ab9bf89bc494962f763d99ddca3aaab45a591a3f00c1b383a9a8fa5a2dd3b36e",
     "apps/api/app/modules/performance/router.py": "6bb6380e95de33042103b4c03cbebce26ae1d489097ec56e55249be317f2cc83",
@@ -247,7 +245,7 @@
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",
     "customer/getting-started.md": "810205b6f2af17f6cce9b613e1424fcb34e2653bf57b8fb64236b771cfd8496c",
     "customer/workspaces-access.md": "52fd97b0d7dade5b5ebb47723279a7f745f39d900136b06285a1a459887e5c24",
-    "customer/agencies-clients.md": "d8ff81d9609a7aedc0fc568b06392a0a87ad56a181cb2b56f8487f091c8ce348",
+    "customer/agencies-clients.md": "c3721f1f6dedc293d63ca4d52c510aba893adae156648e65cb95d2c43f3f50e8",
     "customer/uploads-datasets.md": "493d4f26f6f355dd0927cdc03794a386c397dcd45c6617561e5420705e5e3ce3",
     "customer/connectors.md": "2ef0ce6e93c1f1b152dcf61c60a40de59bf0a10c51807a9b08a01d65a8f6f3b3",
     "customer/sync-retention.md": "2c556bd7ab87ceeaad9b6e6d6314f97f16f1041e9d7d613e6c54b88c59f2d721",

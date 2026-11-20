@@ -73,6 +73,10 @@ class ClientAccountLifecycleTests(unittest.TestCase):
         self.assertFalse(self.status(False).json()["is_paused"])
         with self.Session() as db:
             workspace_lifecycle.require_workspace_active(self.workspace, db)
+            self.assertEqual(router.claim_pending_invites(db, "new-client", "new@example.test", email_verified=True), 0)
+            self.assertEqual(db.query(OrganizationInvite).one().status, "pending")
+            db.delete(db.query(OrganizationMember).one())
+            db.commit()
             self.assertEqual(router.claim_pending_invites(db, "new-client", "new@example.test", email_verified=True), 1)
 
     def test_status_requires_a_boolean(self):

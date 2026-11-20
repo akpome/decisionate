@@ -12,9 +12,38 @@ const errorText = (failure: unknown) => failure instanceof Error ? failure.messa
 
 type ShareAccess = {
   key: string
+  entries: SharingEntry[]
+  error?: string
+}
+
+type SharingEntry = {
+  key: string
+  email: string
   members: OrganizationMemberRecord[]
   invites: OrganizationInviteRecord[]
-  error?: string
+}
+
+function groupSharingEntries(members: OrganizationMemberRecord[], invites: OrganizationInviteRecord[]) {
+  const entries = new Map<string, SharingEntry>()
+  function entry(email: string, fallback: string) {
+    const key = email ? `email:${email.toLowerCase()}` : fallback
+    const existing = entries.get(key)
+    if (existing) return existing
+    const added: SharingEntry = { key, email, members: [], invites: [] }
+    entries.set(key, added)
+    return added
+  }
+  for (const member of members) {
+    if (member.role !== "client_user" && member.role !== "member") continue
+    const match = entry(member.email?.trim() || "", `member:${member.clerk_user_id}`)
+    if (!match.members.some(item => item.id === member.id)) match.members.push(member)
+  }
+  for (const invite of invites) {
+    if (invite.status !== "pending" || (invite.role !== "client_user" && invite.role !== "member")) continue
+    const match = entry(invite.email.trim(), `invitation:${invite.id}`)
+    if (!match.invites.some(item => item.id === invite.id)) match.invites.push(invite)
+  }
+  return [...entries.values()]
 }
 
 export function ClientWorkspaceSharing({ userId, workspaceId }: { userId: string; workspaceId: string }) {
@@ -33,13 +62,9 @@ export function ClientWorkspaceSharing({ userId, workspaceId }: { userId: string
     void Promise.all([getOrganizationMembers(userId, workspaceId), getOrganizationInvites(userId, workspaceId)])
       .then(([members, invites]) => {
         if (ignore) return
-        setAccess({
-          key,
-          members: members.filter(member => member.role === "client_user" || member.role === "member"),
-          invites: invites.filter(invite => invite.role === "client_user" || invite.role === "member"),
-        })
+        setAccess({ key, entries: groupSharingEntries(members, invites) })
       }).catch(failure => {
-        if (!ignore) setAccess({ key, members: [], invites: [], error: errorText(failure) })
+        if (!ignore) setAccess({ key, entries: [], error: errorText(failure) })
       })
     return () => { ignore = true }
   }, [key, userId, workspaceId])
@@ -52,10 +77,10 @@ export function ClientWorkspaceSharing({ userId, workspaceId }: { userId: string
     setNotice("")
     try {
       setNotice(await action())
-      setRevision(value => value + 1)
     } catch (failure) {
       setError(errorText(failure))
     } finally {
+      setRevision(value => value + 1)
       pending.current = false
       setBusy(false)
     }
@@ -67,6 +92,14 @@ export function ClientWorkspaceSharing({ userId, workspaceId }: { userId: string
     return ""
   }
 
+  function removeSharingEntry(entry: SharingEntry) {
+    void change(async () => {
+      for (const invite of entry.invites) await removeOrganizationInvite(invite.id, userId, workspaceId)
+      for (const member of entry.members) await removeOrganizationMember(member.id, userId, workspaceId)
+      return entry.members.length ? "Collaborator access removed." : "Invitation revoked."
+    })
+  }
+
   return <section aria-labelledby="client-sharing-title" className="space-y-4 border-t border-gray-200 py-5">
     <h2 id="client-sharing-title" className="text-lg font-semibold">Share workspace</h2>
     {!current ? <p role="status" className="text-sm text-gray-600">Loading workspace access...</p> : current.error ? (
@@ -75,11 +108,11 @@ export function ClientWorkspaceSharing({ userId, workspaceId }: { userId: string
         <button type="button" className={button} onClick={() => setRevision(value => value + 1)}><RefreshCw size={16} />Retry</button>
       </div>
     ) : <>
-      {current.members.length === 0 && current.invites.length === 0 && (
+      {current.entries.length === 0 && (
         <form className="flex flex-wrap items-end gap-3" onSubmit={event => {
           event.preventDefault()
           const address = email.trim()
-          if (!address) return
+          if (!address || current.entries.length) return
           void change(async () => {
             const invite = await addOrganizationInvite({ email: address, role: "client_user" }, userId, workspaceId)
             setEmail("")
@@ -93,25 +126,27 @@ export function ClientWorkspaceSharing({ userId, workspaceId }: { userId: string
           <button type="submit" disabled={busy || !email.trim()} className={button}><Mail size={16} />{busy ? "Sending..." : "Invite collaborator"}</button>
         </form>
       )}
-      {current.members.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-0 break-all text-sm">{member.email || "Email unavailable"} <span className="text-gray-600">· Collaborator</span></p>
-        <button type="button" disabled={busy} className={`${button} text-red-700`} onClick={() => void change(async () => {
-          await removeOrganizationMember(member.id, userId, workspaceId)
-          return "Collaborator access removed."
-        })}><UserMinus size={16} />Remove access</button>
-      </div>)}
-      {current.invites.map(invite => <div key={invite.id} className="flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-0 break-all text-sm">{invite.email} <span className="text-gray-600">· {invite.email_status === "sent" ? "Invitation pending" : "Email not confirmed"}</span></p>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={busy} className={button} onClick={() => void change(async () =>
-            deliveryMessage(await sendOrganizationInvite(invite.id, userId, workspaceId))
-          )}><Mail size={16} />{invite.email_status === "sent" ? "Resend invitation" : "Send invitation"}</button>
-          <button type="button" disabled={busy} className={button} onClick={() => void change(async () => {
-            await removeOrganizationInvite(invite.id, userId, workspaceId)
-            return "Invitation revoked."
-          })}><X size={16} />Revoke invitation</button>
-        </div>
-      </div>)}
+      {current.entries.length > 1 && <p className="text-sm text-gray-600">Only one collaborator is allowed. Remove extra access before inviting someone else.</p>}
+      {current.entries.length > 0 && <ul className="divide-y divide-gray-100">
+        {current.entries.map(entry => {
+          const accepted = entry.members.length > 0
+          const invite = entry.invites[0]
+          const sent = invite?.email_status === "sent"
+          return <li key={entry.key} className="flex flex-wrap items-center justify-between gap-3 py-2">
+            <p className="min-w-0 break-all text-sm">{entry.email || "Email unavailable"} <span className="text-gray-600">· {accepted ? "Collaborator" : sent ? "Invitation pending" : "Email not confirmed"}</span></p>
+            <div className="flex flex-wrap gap-2">
+              {!accepted && invite && current.entries.length === 1 && entry.invites.length === 1 && (
+                <button type="button" disabled={busy} className={button} onClick={() => void change(async () =>
+                  deliveryMessage(await sendOrganizationInvite(invite.id, userId, workspaceId))
+                )}><Mail size={16} />{sent ? "Resend invitation" : "Send invitation"}</button>
+              )}
+              <button type="button" disabled={busy} className={accepted ? `${button} text-red-700` : button} onClick={() => removeSharingEntry(entry)}>
+                {accepted ? <UserMinus size={16} /> : <X size={16} />}{accepted ? "Remove access" : "Revoke invitation"}
+              </button>
+            </div>
+          </li>
+        })}
+      </ul>}
     </>}
     {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

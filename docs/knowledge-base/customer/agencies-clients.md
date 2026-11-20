@@ -91,7 +91,9 @@ form for an owner who already has a workspace.
 An active client owner can choose Share workspace in Settings to invite one
 collaborator by email. The collaborator must verify the invited email before
 getting access. The owner can resend or revoke a pending invitation and remove
-an accepted collaborator. Sharing does not give the collaborator ownership or
+an accepted collaborator. A pending invitation uses the same slot as an accepted
+collaborator. Revoke it or remove current access before inviting another email.
+Sharing does not give the collaborator ownership or
 give the agency access to client data.
 
 An active client owner can select Delete workspace in Settings without unlinking
