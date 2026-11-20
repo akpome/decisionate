@@ -117,7 +117,9 @@ def clerk_request(path, *, body=None):
         raise HTTPException(503, "Shared sign-in setup is not configured.")
     request = Request("https://api.clerk.com/v1" + path,
                       data=json.dumps(body).encode() if body is not None else None,
-                      headers={"Authorization": "Bearer " + secret, "Content-Type": "application/json", "Accept": "application/json"})
+                      headers={"Authorization": "Bearer " + secret, "Content-Type": "application/json",
+                               "Accept": "application/json", "User-Agent": "Decisionate/1.0"})
+    phase = "domain_create" if body is not None else "domain_lookup"
     try:
         with urlopen(request, timeout=15) as response:
             raw = response.read(64_001)
@@ -135,15 +137,25 @@ def clerk_request(path, *, body=None):
             payload = json.loads(raw) if len(raw) <= 64_000 else {}
             errors = payload.get("errors", []) if isinstance(payload, dict) else []
             candidate = errors[0].get("code", "") if isinstance(errors, list) and errors and isinstance(errors[0], dict) else ""
-            if isinstance(candidate, str) and re.fullmatch(r"[a-z0-9_]{1,80}", candidate):
+            if isinstance(candidate, str) and re.fullmatch(r"[a-z0-9_]{1,80}", candidate) and not candidate.startswith(("sk_", "pk_")):
                 code = candidate
         except (OSError, ValueError):
             pass
-        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", request_id):
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", request_id) or request_id.startswith(("sk_", "pk_")):
             request_id = "unknown"
         logger.warning("Hosted portal Clerk request failed: method=%s phase=%s status=%s code=%s request_id=%s",
-                       request.get_method(), "domain_create" if body is not None else "domain_lookup", error.code, code, request_id)
-        if code == "invalid_proxy_configuration":
+                       request.get_method(), phase, error.code, code, request_id)
+        setup_errors = {
+            "feature_not_enabled": "Clerk reports this domain feature is disabled for the instance used by the API server. Platform support must check that instance's enabled features. Your draft is saved.",
+            "authorization_missing_scopes": "Clerk rejected the API server's permission to manage domains. Platform support must check domain lookup and creation permissions for the production credential. Your draft is saved.",
+            "domain_managed_by_integration": "Clerk says an integration manages this application's domains. Platform support must use that integration's settings or contact Clerk to allow automated domain setup. Your draft is saved.",
+            "feature_requires_custom_domain": "Clerk requires a verified custom domain for this operation. Platform support must check the existing production instance's domain setup. Your draft is saved.",
+            "provider_domain_operation_not_allowed": "Clerk refused this domain configuration. Platform support must check the existing production instance's domain setup. Your draft is saved.",
+            "operation_not_allowed_on_primary_domain": "Clerk refused a primary-domain operation. Platform support must check the satellite setup without changing the existing primary domain. Your draft is saved.",
+        }
+        if code in setup_errors:
+            detail = setup_errors[code]
+        elif code == "invalid_proxy_configuration":
             detail = "Clerk could not verify this portal's sign-in address. Platform support must check its HTTPS hosting and sign-in proxy. Your draft is saved."
         elif code == "domain_update_forbidden":
             detail = "Hosted portal publishing requires the production Clerk instance. Platform support must check the API server's sign-in credentials. Your draft is saved."
@@ -155,10 +167,13 @@ def clerk_request(path, *, body=None):
             detail = "The sign-in service is receiving too many requests. Wait a moment, then retry publishing. Your draft is saved."
         else:
             detail = "The sign-in service could not finish portal setup. Retry without changing your address, or contact platform support. Your draft is saved."
+        public_codes = {*setup_errors, "invalid_proxy_configuration", "domain_update_forbidden", "invalid_clerk_secret_key", "too_many_requests"}
+        reference = code if code in public_codes else f"clerk_http_{error.code}"
+        detail += f" Reference: {reference}/{phase}."
         raise HTTPException(503, detail) from None
     except (URLError, TimeoutError, OSError, ValueError) as error:
         logger.warning("Hosted portal Clerk request failed: method=%s phase=%s error_type=%s",
-                       request.get_method(), "domain_create" if body is not None else "domain_lookup", type(error).__name__)
+                       request.get_method(), phase, type(error).__name__)
         raise HTTPException(503, "The sign-in service could not be reached or returned an invalid response. Retry without changing your address. Your draft is saved.") from None
 
 

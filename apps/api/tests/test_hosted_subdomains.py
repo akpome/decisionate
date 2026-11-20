@@ -403,13 +403,33 @@ class HostedSubdomainTests(unittest.TestCase):
                 service.ensure_satellite(domain["name"])
             self.assertEqual(caught.exception.status_code, 409)
 
+    def test_clerk_domain_requests_identify_the_application_and_keep_authentication(self):
+        for body in (None, {"name": "north-star.decisionate.app", "is_satellite": True,
+                            "proxy_url": "https://north-star.decisionate.app/__clerk"}):
+            with self.subTest(method="POST" if body else "GET"):
+                with patch.object(service, "urlopen", return_value=BytesIO(b'{"data":[]}')) as provider:
+                    self.assertEqual(service.clerk_request("/domains", body=body), {"data": []})
+                request = provider.call_args.args[0]
+                self.assertEqual(request.full_url, "https://api.clerk.com/v1/domains")
+                self.assertEqual(request.get_header("User-agent"), "Decisionate/1.0")
+                self.assertEqual(request.get_header("Authorization"), "Bearer sk_test_shared")
+                self.assertEqual(request.get_header("Accept"), "application/json")
+                self.assertEqual(request.get_method(), "POST" if body else "GET")
+                self.assertEqual(json.loads(request.data) if request.data else None, body)
+                self.assertEqual(provider.call_args.kwargs["timeout"], 15)
+
     def test_clerk_http_failures_explain_the_blocker_and_log_only_safe_diagnostics(self):
         from fastapi import HTTPException
         for status, code, expected in (
             (422, "invalid_proxy_configuration", "HTTPS hosting and sign-in proxy"),
             (400, "domain_update_forbidden", "production Clerk instance"),
             (401, "invalid_clerk_secret_key", "sign-in credentials"),
-            (403, "feature_not_enabled", "permissions and enabled features"),
+            (403, "feature_not_enabled", "instance's enabled features"),
+            (403, "authorization_missing_scopes", "domain lookup and creation permissions"),
+            (403, "domain_managed_by_integration", "integration's settings"),
+            (403, "feature_requires_custom_domain", "requires a verified custom domain"),
+            (403, "provider_domain_operation_not_allowed", "existing production instance's domain setup"),
+            (403, "operation_not_allowed_on_primary_domain", "without changing the existing primary domain"),
             (429, "too_many_requests", "Wait a moment"),
             (500, "internal_server_error", "Retry without changing your address"),
         ):
@@ -423,6 +443,8 @@ class HostedSubdomainTests(unittest.TestCase):
                 self.assertEqual(caught.exception.status_code, 503)
                 self.assertIn(expected, caught.exception.detail)
                 self.assertIn("Your draft is saved", caught.exception.detail)
+                reference = code if status != 500 else "clerk_http_500"
+                self.assertIn(f"Reference: {reference}/domain_create.", caught.exception.detail)
                 output = " ".join(logs.output)
                 self.assertIn(f"status={status} code={code}", output)
                 self.assertIn("phase=domain_create", output)
@@ -465,7 +487,8 @@ class HostedSubdomainTests(unittest.TestCase):
         with patch.object(service, "urlopen", side_effect=error), self.assertLogs(service.logger, level="WARNING"):
             result = self.client.post(self.base + "/activate", headers=self.headers(), json={"revision": 1, "confirmation": "PUBLISH PORTAL"})
         self.assertEqual(result.status_code, 503)
-        self.assertIn("permissions and enabled features", result.json()["detail"])
+        self.assertIn("instance's enabled features", result.json()["detail"])
+        self.assertIn("Reference: feature_not_enabled/domain_lookup.", result.json()["detail"])
         with self.Session() as db:
             row = db.query(HostedSubdomainPortal).one()
             self.assertEqual(row.status, "reserved")
@@ -476,6 +499,20 @@ class HostedSubdomainTests(unittest.TestCase):
         public = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app")
         self.assertFalse(public.json()["active"])
         self.assertIsNone(public.json()["branding"])
+
+    def test_unrecognized_provider_codes_are_not_exposed_in_the_customer_reference(self):
+        from fastapi import HTTPException
+        for code in ("sk_live_private", "unknown_future_error", "malicious\ncontent"):
+            error = HTTPError("https://api.clerk.com/v1/domains", 403, "Forbidden", {"x-request-id": "req_test"},
+                BytesIO(json.dumps({"errors": [{"code": code, "message": "Private provider content"}]}).encode()))
+            with patch.object(service, "urlopen", side_effect=error), self.assertLogs(service.logger, level="WARNING") as logs:
+                with self.assertRaises(HTTPException) as caught:
+                    service.clerk_request("/domains")
+            self.assertIn("Reference: clerk_http_403/domain_lookup.", caught.exception.detail)
+            self.assertNotIn(code, caught.exception.detail)
+            self.assertNotIn("Private provider content", caught.exception.detail)
+            if code.startswith("sk_"):
+                self.assertNotIn(code, " ".join(logs.output))
 
     def test_portal_uses_existing_agency_trial_renewal_and_grace_rules(self):
         from app.modules.billing.lifecycle import build_subscription_access_state

@@ -126,6 +126,20 @@ headers, credentials and response bodies are not logged. The setup screen and
 saved error distinguish credential rejection, production-instance requirements,
 proxy verification, denied operations, rate limits and network/response failures.
 An API container shutdown log alone does not identify a publishing failure.
+Known setup refusals now also include a safe on-screen reference such as
+`authorization_missing_scopes/domain_create`, so screenshots can identify the
+operation and documented error without access to server logs. Integration-managed
+domain restrictions and disabled features have distinct explanations; unknown
+provider codes and raw messages are never exposed in that customer reference.
+An eligible Clerk plan does not prove that the API server is using the same
+instance or that an integration permits domain creation. Do not rotate keys,
+uninstall integrations, alter the primary domain or bypass publication checks
+based solely on a generic 403.
+Domain lookup and creation send the same `Decisionate/1.0` User-Agent as verified
+identity requests. A read-only development-instance probe reproduced HTTP 403
+with Python's default User-Agent and HTTP 200 with this application header for
+the same credentials and domain-list endpoint. No live domains were created or
+changed by that check; production activation still needs an end-to-end retry.
 
 Settings only queries custom-domain provisioning for the Custom Domain White
 Label Agency plan from the owner's own workspace. Subdomain-only agencies do

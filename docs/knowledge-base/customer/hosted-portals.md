@@ -106,6 +106,11 @@ service or rate-limit failures can be retried. Credential, account-permission or
 sign-in-address verification problems require platform support, not another
 subscription, a different subdomain or a new Clerk account. A subdomain-only
 plan does not require custom-domain provisioning.
+The publishing error may include a Reference naming the failed setup step.
+Share that reference with platform support; it contains no API keys. A paid
+Clerk plan alone does not confirm that the API server uses the correct instance
+or has permission to create its domains. Do not disconnect a Clerk integration
+or replace your production keys just to clear an unexplained error.
 
 ## Where do hosted clients sign in and how are they invited?
 
