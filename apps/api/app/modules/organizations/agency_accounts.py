@@ -179,6 +179,7 @@ def list_agency_invitations(request: Request):
 
 @router.post("/agency-invitations/{invitation_id}/accept")
 def accept_agency_invitation(invitation_id: str, request: Request):
+    from app.modules.hosted_subdomains.context import portal_for_workspace
     from app.modules.organizations.router import ensure_client_workspace_idle
     auth = get_auth_context(request)
     with SessionLocal() as db:
@@ -207,8 +208,9 @@ def accept_agency_invitation(invitation_id: str, request: Request):
         organization.logo_url, organization.primary_color = agency.logo_url, agency.primary_color
         organization.accent_color, organization.report_display_name = agency.accent_color, agency.report_display_name
         invitation.organization_id, invitation.status = organization.id, "accepted"
+        portal = portal_for_workspace(db, agency.owner_user_id) if get_application().is_default else None
         db.commit()
-        return {"accepted": True, "workspace_id": organization.owner_user_id}
+        return {"accepted": True, "workspace_id": organization.owner_user_id, "portal_origin": portal.origin if portal else None}
 
 
 @router.post("/agency-invitations/{invitation_id}/decline")

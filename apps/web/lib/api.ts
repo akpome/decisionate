@@ -6281,6 +6281,7 @@ export async function getActiveMaintenanceNotice(): Promise<MaintenanceNotice | 
 }
 
 export type AgencyClientInvitation = { id: string; agency_name: string }
+type AgencyInvitationResponse = { accepted: true; workspace_id: string; portal_origin?: string | null } | { declined: true }
 
 async function clientAccountRequest<T>(path: string, userId: string, workspaceId: string, method = "GET", body?: unknown): Promise<T> {
   const response = await fetchOrganizationRequest(`${API_URL}/organizations/${path}`, {
@@ -6301,7 +6302,7 @@ export const inviteExistingAgencyClient = (email: string, userId: string) =>
   clientAccountRequest<{ email_status: string; email_error?: string }>("agency-invitations", userId, userId, "POST", { email })
 
 export const respondToAgencyClientInvitation = (id: string, accept: boolean, userId: string, workspaceId: string) =>
-  clientAccountRequest(`agency-invitations/${encodeURIComponent(id)}/${accept ? "accept" : "decline"}`, userId, workspaceId, "POST")
+  clientAccountRequest<AgencyInvitationResponse>(`agency-invitations/${encodeURIComponent(id)}/${accept ? "accept" : "decline"}`, userId, workspaceId, "POST")
 
 export const startIndependentWorkspaceTrial = (userId: string, workspaceId: string) =>
   clientAccountRequest<{ trial_days: number }>("independent-trial", userId, workspaceId, "POST")

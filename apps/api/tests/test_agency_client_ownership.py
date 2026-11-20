@@ -209,6 +209,7 @@ class AgencyClientOwnershipTests(unittest.TestCase):
         self.assertEqual(before.json()[0]["id"], invitation)
         response = self.client_request(f"agency-invitations/{invitation}/accept")
         self.assertEqual(response.status_code, 200, response.text)
+        self.assertIsNone(response.json()["portal_origin"])
         with self.Session() as db:
             organization = db.get(Organization, 2)
             self.assertEqual(organization.managing_agency_workspace_id, "other")

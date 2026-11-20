@@ -69,13 +69,13 @@ test("legacy primary login links also request a sync after the active portal has
   assert.equal(await safeHostedReturn("https://evil.test/auth/redirect"), null)
 })
 
-async function authenticatedReturn(destination) {
+async function authenticatedReturn(destination, workspaceReturn) {
   const returnTo = portal.origin + redirects.getAuthRedirectUrl(destination)
   const primarySession = session(types.hostedPrimaryOrigin)
   const primary = await clerk.authenticateRequest(request(types.hostedPrimaryOrigin + "/sign-in", `__session=${primarySession}; __client_uat=${now}`))
   assert.equal(primary.status, "signed-in")
   const link = new URL(types.getHostedAuthUrl("sign-in", returnTo, types.hostedPrimaryOrigin + "/sign-in"))
-  const callback = link.searchParams.get("redirect_url")
+  const callback = workspaceReturn ?? link.searchParams.get("redirect_url")
   const before = await clerk.authenticateRequest(request(returnTo), options)
   assert.equal(before.status, "signed-out", "An unmarked return reproduces the original signed-out loop")
   const sync = await clerk.authenticateRequest(request(callback), options)
@@ -150,6 +150,16 @@ test("a synced client session retains its invitation destination and still needs
   assert.deepEqual(denied.destinations, [redirects.getWorkspaceAccountSwitchUrl(destination)])
   assert.deepEqual(denied.selected, [])
   assert.deepEqual(denied.errors, [])
+})
+
+test("a rejoined client syncs from the primary session and opens the same workspace on its hosted portal", async () => {
+  const workspace = { owner_user_id: "former:client:shop", role: "client_owner" }
+  const destination = `/dashboard?workspace_id=${encodeURIComponent(workspace.owner_user_id)}`
+  const returned = await authenticatedReturn(destination, types.getHostedWorkspaceReturnUrl(portal.origin, workspace.owner_user_id))
+  const result = await openWorkspace(returned.auth, returned.completed, [workspace])
+  assert.deepEqual(result.destinations, [destination])
+  assert.equal(result.selected[0][1], workspace.owner_user_id)
+  assert.deepEqual(result.errors, [])
 })
 
 test("a handshake with no signed session cannot grant access", async () => {

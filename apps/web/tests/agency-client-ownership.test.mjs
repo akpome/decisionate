@@ -13,6 +13,10 @@ function declaration(name, target = tree) {
   visit(target); assert.ok(found); return found.getText(target)
 }
 const compile = (code, context) => vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+const hostedModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../features/hosted-subdomains/types.ts", import.meta.url), "utf8"), {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+}).outputText, { URL, exports: hostedModule.exports })
 const workspace = { id: 2, name: "Client Shop", owner_user_id: "old:client:shop", agency_removed: true }
 function harness(overrides = {}) {
   const calls = [], context = {
@@ -20,7 +24,12 @@ function harness(overrides = {}) {
     setBusy: value => { context.busy = value }, setError: value => { context.error = value }, setNotice: value => { context.notice = value },
     setInvitations: update => { context.invitations = update(context.invitations) }, refreshAccess: () => { context.refreshed = true },
     startIndependentWorkspaceTrial: async (...args) => { calls.push(["trial", ...args]); return { trial_days: 30 } },
-    respondToAgencyClientInvitation: async (...args) => calls.push(["invitation", ...args]),
+    respondToAgencyClientInvitation: async (...args) => {
+      calls.push(["invitation", ...args])
+      return args[1] ? { accepted: true, workspace_id: workspace.owner_user_id } : { declined: true }
+    },
+    getHostedWorkspaceReturnUrl: hostedModule.exports.getHostedWorkspaceReturnUrl,
+    window: { location: { replace: url => calls.push(["navigate", url]) } },
     deleteOwnedWorkspace: async (...args) => calls.push(["delete", ...args]),
     unlinkOwnedWorkspaceAgency: async (...args) => calls.push(["unlink", ...args]),
     setLeaving: value => { context.leaving = value },
@@ -113,6 +122,44 @@ test("joining or declining an agency acts only on the selected invitation and wo
     assert.deepEqual(denied.calls, [])
     assert.equal(denied.context.invitations.length, 1)
   }
+})
+
+test("after acceptance, the owner returns to their workspace on the agency's hosted portal", async () => {
+  const origin = "https://new-agency.decisionate.app"
+  const h = harness({ canReviewInvitations: true, respondToAgencyClientInvitation: async () => ({
+    accepted: true, workspace_id: workspace.owner_user_id, portal_origin: origin,
+  }) })
+  await h.act("accept", h.context.invitations[0])
+  assert.equal(h.calls.length, 1)
+  assert.equal(h.calls[0][0], "navigate")
+  const destination = new URL(h.calls[0][1])
+  assert.equal(destination.origin, origin)
+  assert.equal(destination.pathname, "/auth/redirect")
+  assert.equal(destination.searchParams.get("__clerk_synced"), "false")
+  const workspacePath = new URL(destination.searchParams.get("redirect_url"), origin)
+  assert.equal(workspacePath.pathname, "/dashboard")
+  assert.equal(workspacePath.searchParams.get("workspace_id"), workspace.owner_user_id)
+})
+
+test("a failed or mismatched acceptance, a decline or a non-portal destination cannot redirect", async () => {
+  const good = { accepted: true, workspace_id: workspace.owner_user_id, portal_origin: "https://agency.decisionate.app" }
+  for (const [action, result] of [
+    ["accept", { ...good, accepted: false }],
+    ["accept", { ...good, workspace_id: "other:client:shop" }],
+    ["accept", { ...good, portal_origin: null }],
+    ["accept", { ...good, portal_origin: "https://other.example.test" }],
+    ["accept", { ...good, portal_origin: "https://agency.decisionate.app:3000" }],
+    ["decline", good],
+  ]) {
+    const h = harness({ canReviewInvitations: true, respondToAgencyClientInvitation: async () => result })
+    await h.act(action, h.context.invitations[0])
+    assert.deepEqual(h.calls, [])
+    assert.equal(h.context.refreshed, true)
+  }
+  const denied = harness({ canReviewInvitations: true, respondToAgencyClientInvitation: async () => { throw new Error("Agency capacity is full") } })
+  await denied.act("accept", denied.context.invitations[0])
+  assert.deepEqual(denied.calls, [])
+  assert.match(denied.context.error, /capacity is full/)
 })
 
 test("owner deletion requires the exact name and does not use agency removal", async () => {

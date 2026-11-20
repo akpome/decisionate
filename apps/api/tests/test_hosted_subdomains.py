@@ -358,11 +358,39 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(result.json()[0]["id"], invitation)
             result = self.client.post(f"/organizations/agency-invitations/{invitation}/accept", headers=primary_owner)
             self.assertEqual(result.status_code, 200, result.text)
+            self.assertEqual(result.json(), {"accepted": True, "workspace_id": workspace, "portal_origin": origin})
         result = self.client.get("/organizations/workspaces", headers=hosted_client)
         self.assertEqual(result.status_code, 200, result.text)
         self.assertEqual(result.json()[0]["owner_user_id"], workspace)
         self.assertFalse(result.json()[0]["is_paused"])
         self.assertFalse(result.json()[0]["agency_owner_access_enabled"])
+
+    def test_accepting_another_agencys_invitation_returns_its_active_portal(self):
+        self.publish()
+        saved = self.save("another-star", user="another")
+        self.assertEqual(saved.status_code, 200, saved.text)
+        with patch.object(portals, "ensure_satellite", return_value="domain_another"):
+            activated = self.client.post(self.base + "/activate", headers=self.headers(user="another"),
+                json={"revision": 1, "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(activated.status_code, 200, activated.text)
+        workspace = "agency:client:1"
+        with self.Session() as db:
+            db.query(OrganizationMember).filter_by(organization_id=3).one().role = "client_owner"
+            db.commit()
+        removed = self.client.delete("/organizations/client-workspaces/3", headers=self.headers())
+        self.assertTrue(removed.json()["removed"], removed.text)
+        new_origin = "https://another-star.decisionate.app"
+        with patch.object(agency_accounts, "SessionLocal", self.Session), patch.object(agency_accounts, "send_platform_system_email"):
+            invitation = self.client.post("/organizations/agency-invitations", headers=self.headers(user="another", origin=new_origin),
+                json={"email": "client@example.test"})
+            self.assertEqual(invitation.status_code, 200, invitation.text)
+            joined = self.client.post(f"/organizations/agency-invitations/{invitation.json()['id']}/accept",
+                headers=self.headers(user="client", workspace=workspace))
+        self.assertEqual(joined.status_code, 200, joined.text)
+        self.assertEqual(joined.json()["workspace_id"], workspace)
+        self.assertEqual(joined.json()["portal_origin"], new_origin)
+        old_portal = self.client.get("/organizations/workspaces", headers=self.headers(user="client", origin="https://north-star.decisionate.app"))
+        self.assertEqual((old_portal.status_code, old_portal.json()), (200, []))
 
     def test_hosted_client_creation_includes_the_owner_invitation_and_automatic_email(self):
         self.publish()

@@ -27,6 +27,17 @@ export function getHostedAuthReturnUrl(returnTo: string) {
   destination.searchParams.set("__clerk_synced", "false")
   return destination.href
 }
+export function getHostedWorkspaceReturnUrl(portalOrigin: string | null | undefined, workspaceId: string) {
+  if (!portalOrigin || !workspaceId) return null
+  try {
+    const destination = new URL("/auth/redirect", portalOrigin)
+    if (destination.origin !== portalOrigin) return null
+    destination.searchParams.set("redirect_url", `/dashboard?workspace_id=${encodeURIComponent(workspaceId)}`)
+    return getHostedAuthReturnUrl(destination.href)
+  } catch {
+    return null
+  }
+}
 export function getHostedAuthUrl(mode: "sign-in" | "sign-up", returnTo: string, clerkUrl?: string) {
   const destination = new URL(`/${mode}`, hostedPrimaryOrigin)
   try {

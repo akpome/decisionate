@@ -148,7 +148,9 @@ must first be canceled in Billing to avoid overlapping subscriptions.
 
 Joining preserves the same workspace and its records, uses the new agency's
 billing and branding, and leaves agency data access off until the client owner
-explicitly enables it. The former agency does not regain access merely because
+explicitly enables it. After accepting, the client returns to the agency's
+branded portal if it is active. Without an active portal, the workspace stays on
+Decisionate. The former agency does not regain access merely because
 its name remains in an older workspace ID or invitation link.
 
 ## Branding

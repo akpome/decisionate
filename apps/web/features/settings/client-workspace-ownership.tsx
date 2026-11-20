@@ -3,6 +3,7 @@
 import { useClerk } from "@clerk/nextjs"
 import { useEffect, useId, useRef, useState } from "react"
 import { Check, Mail, Play, RefreshCw, Trash2, Unlink, X } from "lucide-react"
+import { getHostedWorkspaceReturnUrl } from "@/features/hosted-subdomains/types"
 
 import {
   deleteOwnedWorkspace, getAgencyClientInvitations, inviteExistingAgencyClient,
@@ -125,8 +126,15 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
       } else if (action === "sign-out") {
         await signOut({ redirectUrl: "/sign-in" })
       } else if (canReviewInvitations && invitation) {
-        await respondToAgencyClientInvitation(invitation.id, action === "accept", userId, workspace.owner_user_id)
+        const result = await respondToAgencyClientInvitation(invitation.id, action === "accept", userId, workspace.owner_user_id)
         setInvitations(items => items.filter(item => item.id !== invitation.id))
+        if (action === "accept" && "accepted" in result && result.accepted && result.workspace_id === workspace.owner_user_id) {
+          const hostedWorkspace = getHostedWorkspaceReturnUrl(result.portal_origin, result.workspace_id)
+          if (hostedWorkspace) {
+            window.location.replace(hostedWorkspace)
+            return
+          }
+        }
         setNotice(action === "accept" ? `Your workspace has joined ${invitation.agency_name}. Agency data access remains off until you enable it.` : "Agency invitation declined.")
         refreshAccess()
       }
