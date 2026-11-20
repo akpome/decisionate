@@ -34,6 +34,12 @@ then add its redirect parameters on the client after the first document request.
 Relying on that late update leaves the initial shared layout using Decisionate's
 identity. The link retains valid Clerk-generated query parameters but always sets
 the portal destination on the first request to the fixed primary auth route.
+Both new welcome links and server-validated legacy primary sign-in returns include
+Clerk's documented `__clerk_synced=false` trigger in the satellite destination.
+Without it, Core 3's default `satelliteAutoSync: false` treats a return without
+satellite cookies as signed out. The trigger starts Clerk's verified handshake;
+Clerk then marks it complete. Normal portal requests are not rewritten to request
+another sync, and existing workspace authorization still runs after authentication.
 
 Audit findings and differences from the original handoff:
 

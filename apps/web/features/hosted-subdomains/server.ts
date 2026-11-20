@@ -2,7 +2,7 @@ import "server-only"
 import { cache } from "react"
 import { headers } from "next/headers"
 import { getAuthRequestOrigin, getSafeReturnTo } from "@/features/auth/lib/auth-redirects"
-import { hostedPrimaryOrigin, type HostedPortal, isHostedHostname } from "./types"
+import { getHostedAuthReturnUrl, hostedPrimaryOrigin, type HostedPortal, isHostedHostname } from "./types"
 
 export async function resolveHostedPortal(hostname: string): Promise<HostedPortal | null> {
   if (!isHostedHostname(hostname)) return null
@@ -32,7 +32,7 @@ async function resolveHostedReturn(value: string | null) {
     if (url.pathname !== "/auth/redirect" && !getSafeReturnTo(url.pathname + url.search, url.origin)) return null
     const portal = await resolveHostedPortal(url.hostname)
     if (!portal?.active) return null
-    return { portal, url: url.href }
+    return { portal, url: getHostedAuthReturnUrl(url.href) }
   } catch { return null }
 }
 

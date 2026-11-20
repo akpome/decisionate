@@ -135,6 +135,10 @@ verification emails or third-party identity-provider consent screens.
 The portal's Continue button carries its return address in the first credentials
 request, even if Clerk generates a plain primary sign-in URL. This lets the agency
 name and published logo appear immediately instead of changing after page load.
+After authentication, Clerk must share the signed-in session with the agency
+portal before opening the workspace. The portal return link requests that sync;
+it does not bypass sign-in or workspace permissions. A successful return opens the
+authorized workspace or invitation destination, not the welcome screen again.
 Clients need the
 normal workspace invitation and permission; signup alone does not grant access,
 create another workspace or enroll a client in a subscription.

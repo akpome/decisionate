@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "b0fe4334f5b3b987a5cfda05eff67c7ac8ec36ad",
+  "base_git_revision": "39a94065206172641fa49f1663731e32574afe39",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/features/hosted-subdomains/sign-in.tsx",
+    "apps/web/features/hosted-subdomains/server.ts",
     "apps/web/features/hosted-subdomains/types.ts"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
@@ -162,10 +162,10 @@
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "5d885f0c41f9ef97700554396b7bad4d3d7f6c502bfc31327ae1882730094e1b",
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "1800308a101183a53afa3aa9d539c98de3b231347fee0c7f40455e709688f2dd",
     "apps/web/features/hosted-subdomains/provider.tsx": "f1d3d638c2e62130f2326483dbd1840c2d404b29e99f338c765d69b101397862",
-    "apps/web/features/hosted-subdomains/server.ts": "6ffb86b3a5478aa2d4778beea89ca592fd46b4e15124d92e798c62b3b6712097",
+    "apps/web/features/hosted-subdomains/server.ts": "f81fdb7068a6abdd000189769cfdb6b060127aff16cf14a855280dc3736587c5",
     "apps/web/features/hosted-subdomains/setup.tsx": "a76c60b0cc7e1a49a3d3ad406689bf8003d5a4cb30e3ed68caa49cf212672662",
     "apps/web/features/hosted-subdomains/sign-in.tsx": "3e1b14523153595a1c1ad19f2c8a9ef11038f6000f46ea68d23d61b685a7010d",
-    "apps/web/features/hosted-subdomains/types.ts": "56c8cd0c6ed973a47f3f8cd1a311d7d08268be0fe9ee496f2a453b52d4e9b64a",
+    "apps/web/features/hosted-subdomains/types.ts": "4682253e4962a55925dd695d3560cc05279dc5eaa1acb302dca73607db1d6e34",
     "apps/web/features/hosted-subdomains/unavailable-page.ts": "0acf0d39ad9d8ca2ddc4224a50f839bc71aaed975f30bf4b135b9295b875411b",
     "apps/web/features/performance/amount-source.tsx": "122a9f4c76f165a258ec8bacbd93c81067647dbc83c99168080eff31c61ca8dd",
     "apps/web/features/performance/growth-results.tsx": "70b243acaeb2dc4cba429d9b97261e4da8deec0936f8ebe7b0f0cc4cafa82169",
@@ -237,7 +237,7 @@
     "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "8198de26fc39fe23fb1502ff318f48243ac06410a498e9e955e822cde7b300b6",
+    "customer/hosted-portals.md": "9a6e7084e95ef4448dd0ac679c8bdb615cd6d68c812de76d8a7f2fc7591fd84c",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

@@ -47,7 +47,7 @@ test("return allowlisting requires a registered active HTTPS portal and a safe a
   const h = resolution()
   const target = "https://north.decisionate.app/auth/redirect?redirect_url=%2Fdashboard&__clerk_synced=false"
   assert.equal(await h.safeHostedReturn(target), target)
-  assert.equal(await h.safeHostedReturn("https://north.decisionate.app/connections"), "https://north.decisionate.app/connections")
+  assert.equal(await h.safeHostedReturn("https://north.decisionate.app/connections"), "https://north.decisionate.app/connections?__clerk_synced=false")
   for (const path of ["http://north.decisionate.app/dashboard", "https://evil.test/dashboard", "//north.decisionate.app/dashboard",
     "https://user@north.decisionate.app/dashboard", "https://north.decisionate.app:3000/dashboard", "https://north.decisionate.app/sign-in",
     "https://north.decisionate.app/sign-up", "https://north.decisionate.app/%2f/evil.test", "https://north.decisionate.app/dashboard\\evil", "https://north.decisionate.app/"])
@@ -103,7 +103,11 @@ test("the first credentials request includes the agency even when the live Clerk
       const target = new URL(link[1].replaceAll("&amp;", "&"))
       assert.equal(target.origin, "https://app.decisionate.ca")
       assert.equal(target.pathname, signup ? "/sign-up" : "/sign-in")
-      assert.equal(target.searchParams.get("redirect_url"), "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo))
+      const returned = new URL(target.searchParams.get("redirect_url"))
+      assert.equal(returned.origin, "https://north.decisionate.app")
+      assert.equal(returned.pathname, "/auth/redirect")
+      assert.equal(returned.searchParams.get("redirect_url"), returnTo)
+      assert.equal(returned.searchParams.get("__clerk_synced"), "false")
       assert.equal(target.searchParams.get("sdk-sync"), bare ? null : "1")
     }
   }
