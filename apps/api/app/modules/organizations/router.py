@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from app.db.database import SessionLocal
-from app.application_context import identity_provider
+from app.application_context import get_application, identity_provider
 from app.modules.applications import bind_workspace_application, workspace_belongs_to_application
 from app.db.models import (
     AppUser,
@@ -976,8 +976,9 @@ def sync_client_workspace_branding(
 
 def build_organization_response(
     organization: Organization,
+    db,
 ):
-    return {
+    response = {
         "id": organization.id,
         "name": organization.name,
         "owner_user_id": organization.owner_user_id,
@@ -999,6 +1000,12 @@ def build_organization_response(
         "agency_removed": independent_client(organization),
         "independent_trial_started": organization.independent_trial_started_at is not None,
     }
+    if get_application().is_default and not managing_agency_workspace_id(organization) and not independent_client(organization):
+        from app.modules.hosted_subdomains.context import portal_for_workspace
+        portal = portal_for_workspace(db, organization.owner_user_id)
+        if portal:
+            response["hosted_portal_logo_url"] = portal.branding["logo_url"]
+    return response
 
 
 def ensure_owner_membership(
@@ -1744,6 +1751,7 @@ async def create_organization(
 
         return build_organization_response(
             organization_record,
+            db,
         )
 
     finally:
@@ -2037,9 +2045,7 @@ async def get_my_organization(
         if not organization:
             return None
 
-        return build_organization_response(
-            organization,
-        )
+        return build_organization_response(organization, db)
 
     finally:
         db.close()
@@ -2100,7 +2106,7 @@ async def update_agency_owner_access(
         db.commit()
         db.refresh(organization)
 
-        return build_organization_response(organization)
+        return build_organization_response(organization, db)
     finally:
         db.close()
 
@@ -2678,6 +2684,7 @@ async def update_my_organization(
 
         return build_organization_response(
             organization,
+            db,
         )
 
     finally:

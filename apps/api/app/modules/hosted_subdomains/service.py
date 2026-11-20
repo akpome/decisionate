@@ -203,7 +203,8 @@ def public_branding(row):
     base = os.getenv("DECISIONATE_API_URL", "https://api.decisionate.ca").rstrip("/")
     for field in ("logo_url", "background_url"):
         if brand[field].startswith("data:"):
-            brand[field] = f"{base}/api/v2/hosted-subdomains/assets/{row.hostname}/{field}"
+            version = hashlib.sha256(brand[field].encode()).hexdigest()[:16]
+            brand[field] = f"{base}/api/v2/hosted-subdomains/assets/{row.hostname}/{field}?v={version}"
     brand["favicon_url"] = brand["logo_url"]
     return brand
 

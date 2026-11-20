@@ -66,7 +66,8 @@ export function getWorkspaceBrand(
     return {
       name: fallbackName,
       logoUrl:
-        organization.logo_url?.trim() || "",
+        organization.hosted_portal_logo_url?.trim() ??
+        organization.logo_url?.trim() ?? "",
       primaryColor: getSafeBrandColor(
         organization.primary_color,
         defaultBrandPrimaryColor

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 import base64
+import hashlib
 from io import BytesIO
 import json
 import os
@@ -144,6 +145,80 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(db.query(HostedSubdomainPortal).count(), 1)
             self.assertEqual(db.get(Organization, 1).name, "Original agency")
             self.assertEqual(db.query(HostedSubdomainEvent).count(), 2)
+
+    def test_agency_profile_exposes_published_logo_without_replacing_standard_brand(self):
+        with self.Session() as db:
+            agency = db.get(Organization, 1)
+            agency.logo_url = "https://agency.test/standard.png"
+            db.commit()
+        self.brand["logo_url"] = "https://agency.test/published.png"
+        published = self.publish()
+        response = self.client.get("/organizations/me", headers=self.headers())
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["hosted_portal_logo_url"], self.brand["logo_url"])
+        self.assertEqual(response.json()["logo_url"], "https://agency.test/standard.png")
+        self.assertEqual(response.json()["name"], "Original agency")
+        self.brand["logo_url"] = "https://agency.test/draft.png"
+        self.assertEqual(self.save(revision=published["revision"]).status_code, 200)
+        profile = self.client.get("/organizations/me", headers=self.headers()).json()
+        self.assertEqual(profile["hosted_portal_logo_url"], "https://agency.test/published.png")
+        updated = self.client.patch("/organizations/me", headers=self.headers(),
+            json={"name": "Agency renamed", "logo_url": "https://agency.test/changed-standard.png"})
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["hosted_portal_logo_url"], "https://agency.test/published.png")
+        with self.Session() as db:
+            self.assertEqual(db.get(Organization, 1).logo_url, "https://agency.test/changed-standard.png")
+
+    def test_draft_and_other_workspaces_cannot_supply_the_agency_logo(self):
+        self.brand["logo_url"] = "https://agency.test/draft.png"
+        self.assertEqual(self.save().status_code, 200)
+        response = self.client.get("/organizations/me", headers=self.headers())
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertNotIn("hosted_portal_logo_url", response.json())
+        with patch.object(portals, "ensure_satellite", return_value="domain_north"):
+            self.assertEqual(self.client.post(self.base + "/activate", headers=self.headers(),
+                json={"revision": 1, "confirmation": "PUBLISH PORTAL"}).status_code, 200)
+        for headers in (self.headers(user="another"), self.headers(user="client", workspace="agency:client:1")):
+            response = self.client.get("/organizations/me", headers=headers)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertNotIn("hosted_portal_logo_url", response.json())
+        with patch.object(organizations, "get_application", return_value=SimpleNamespace(is_default=False)):
+            response = self.client.get("/organizations/me", headers=self.headers())
+            self.assertNotIn("hosted_portal_logo_url", response.json())
+
+    def test_inactive_portals_do_not_supply_an_agency_logo(self):
+        self.brand["logo_url"] = "https://agency.test/published.png"
+        self.publish()
+        for status in ("reserved", "suspended", "retired"):
+            with self.subTest(status=status):
+                with self.Session() as db:
+                    db.query(HostedSubdomainPortal).one().status = status
+                    db.commit()
+                response = self.client.get("/organizations/me", headers=self.headers())
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertNotIn("hosted_portal_logo_url", response.json())
+        with self.Session() as db:
+            db.query(HostedSubdomainPortal).one().status = "active"
+            db.query(WorkspaceSubscription).filter_by(workspace_id="agency").one().plan = "professional"
+            db.commit()
+        response = self.client.get("/organizations/me", headers=self.headers())
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertNotIn("hosted_portal_logo_url", response.json())
+
+    def test_uploaded_and_removed_published_logos_are_reflected_in_agency_profile(self):
+        self.brand["logo_url"] = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 16).decode()
+        published = self.publish()
+        response = self.client.get("/organizations/me", headers=self.headers())
+        self.assertEqual(response.json()["hosted_portal_logo_url"],
+            "https://api.decisionate.ca" + self.base + "/assets/north-star.decisionate.app/logo_url?v="
+            + hashlib.sha256(self.brand["logo_url"].encode()).hexdigest()[:16])
+        self.brand["logo_url"] = ""
+        saved = self.save(revision=published["revision"])
+        with patch.object(portals, "ensure_satellite", return_value="domain_north"):
+            response = self.client.post(self.base + "/activate", headers=self.headers(),
+                json={"revision": saved.json()["revision"], "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.get("/organizations/me", headers=self.headers()).json()["hosted_portal_logo_url"], "")
 
     def test_address_checks_normalize_names_and_do_not_reserve_or_contact_providers(self):
         with patch.object(service, "clerk_request", side_effect=AssertionError("Availability is a local check")):
@@ -638,7 +713,8 @@ class HostedSubdomainTests(unittest.TestCase):
         self.brand["logo_url"] = "data:image/png;base64," + base64.b64encode(png).decode()
         self.publish()
         config = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()
-        self.assertEqual(config["branding"]["logo_url"], "https://api.decisionate.ca" + self.base + "/assets/north-star.decisionate.app/logo_url")
+        self.assertEqual(config["branding"]["logo_url"], "https://api.decisionate.ca" + self.base + "/assets/north-star.decisionate.app/logo_url?v="
+            + hashlib.sha256(self.brand["logo_url"].encode()).hexdigest()[:16])
         result = self.client.get(self.base + "/assets/north-star.decisionate.app/logo_url")
         self.assertEqual(result.content, png)
         self.assertEqual(result.headers["content-type"], "image/png")
@@ -647,6 +723,25 @@ class HostedSubdomainTests(unittest.TestCase):
             db.get(HostedSubdomainPortal, self.portal_id).status = "suspended"
             db.commit()
         self.assertEqual(self.client.get(self.base + "/assets/north-star.decisionate.app/logo_url").status_code, 404)
+
+    def test_uploaded_logo_version_changes_only_when_a_different_image_is_published(self):
+        original = b"\x89PNG\r\n\x1a\n" + b"0" * 16
+        replacement = b"\x89PNG\r\n\x1a\n" + b"1" * 16
+        self.brand["logo_url"] = "data:image/png;base64," + base64.b64encode(original).decode()
+        published = self.publish()
+        logo = self.client.get("/organizations/me", headers=self.headers()).json()["hosted_portal_logo_url"]
+        self.brand["logo_url"] = "data:image/png;base64," + base64.b64encode(replacement).decode()
+        saved = self.save(revision=published["revision"])
+        self.assertEqual(self.client.get("/organizations/me", headers=self.headers()).json()["hosted_portal_logo_url"], logo)
+        self.assertEqual(self.client.get(logo).content, original)
+        with patch.object(portals, "ensure_satellite", return_value="domain_north"):
+            response = self.client.post(self.base + "/activate", headers=self.headers(),
+                json={"revision": saved.json()["revision"], "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(response.status_code, 200, response.text)
+        updated = self.client.get("/organizations/me", headers=self.headers()).json()["hosted_portal_logo_url"]
+        self.assertNotEqual(updated, logo)
+        self.assertEqual(self.client.get(updated).content, replacement)
+        self.assertEqual(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]["logo_url"], updated)
 
     def test_inline_images_reject_html_svg_invalid_base64_and_excessive_sizes(self):
         for value in ["data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=", "data:image/png;base64,PHNjcmlwdD4=",
@@ -708,7 +803,7 @@ class HostedSubdomainTests(unittest.TestCase):
         self.assertEqual(draft["favicon_url"], "")
         published = self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]
         self.assertEqual(published["logo_url"], published["favicon_url"])
-        self.assertTrue(published["logo_url"].endswith("/logo_url"))
+        self.assertIn("/logo_url?v=", published["logo_url"])
         for field in ("logo_url", "favicon_url"):
             result = self.client.get(self.base + "/assets/north-star.decisionate.app/" + field)
             self.assertEqual(result.status_code, 200)

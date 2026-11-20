@@ -9,6 +9,8 @@ import {
 } from "next/navigation"
 import { UserButton, useUser } from "@clerk/nextjs"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
+import { getHostedLogo } from "@/features/hosted-subdomains/types"
+import { WorkspaceBrandMark } from "./workspace-brand-mark"
 import {
   AlertCircle,
   Bell,
@@ -765,7 +767,7 @@ export function DashboardShell({
     user?.fullName ??
     "Decisionate Workspace"
   const activeBrand =
-    portal?.branding ? { name: portal.branding.name, logoUrl: portal.branding.logo_url,
+    portal?.branding ? { name: portal.branding.name, logoUrl: getHostedLogo(portal.branding),
       primaryColor: portal.branding.primary_color, accentColor: portal.branding.accent_color } : getWorkspaceBrand(
       activeWorkspaceId,
       user?.id,
@@ -932,26 +934,12 @@ export function DashboardShell({
         <div className="shrink-0 border-b px-4 py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg text-sm font-bold text-white"
-              style={{
-                backgroundColor:
-                  displayBrand.primaryColor,
-              }}
-            >
-              {displayBrand.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={displayBrand.logoUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                displayBrand.name
-                  .charAt(0)
-                  .toUpperCase()
-              )}
-            </div>
+            <WorkspaceBrandMark
+              name={displayBrand.name}
+              logoUrl={displayBrand.logoUrl}
+              primaryColor={displayBrand.primaryColor}
+              className="h-10 w-10 rounded-lg text-sm"
+            />
 
             <div className="min-w-0">
               <p

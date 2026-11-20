@@ -1859,6 +1859,7 @@ export type OrganizationRecord = {
   name: string
   owner_user_id?: string | null
   logo_url?: string | null
+  hosted_portal_logo_url?: string | null
   primary_color?: string | null
   accent_color?: string | null
   report_display_name?: string | null
@@ -4156,7 +4157,12 @@ export async function hostedSubdomainRequest<T>(userId: string, path = "", init:
     ...init, cache: "no-store", headers: await workspaceJsonHeaders(userId, admin ? userId : undefined),
   }, 90_000)
   if (!response.ok) await throwApiError(response, "Hosted portal could not be updated")
-  return response.json()
+  const result = await response.json()
+  if (!admin && path === "/activate" && init.method?.toUpperCase() === "POST") {
+    invalidateApiReadCache([`organization:${userId.trim()}`, `organization-workspaces:${userId.trim()}`])
+    notifyWorkspaceAccessChanged()
+  }
+  return result
 }
 
 export async function whiteLabelAvailabilityRequest<T>(userId: string, init: RequestInit = {}): Promise<T> {

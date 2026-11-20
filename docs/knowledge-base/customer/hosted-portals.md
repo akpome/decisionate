@@ -86,6 +86,10 @@ image too. PNG or WebP can preserve a transparent background; JPEG cannot. The
 previously distributed black-backed Decisionate JPEG is recognized and replaced
 with its original transparent PNG, including in saved portal previews. Other
 uploaded logos keep their original pixels and backgrounds.
+After publication, the logo also appears for the agency owner's own workspace on
+app.decisionate.ca, without replacing its saved standard-agency branding or changing
+client workspaces. Draft logos do not change the live sidebar. Publishing refreshes
+the agency display automatically; an already open session can also be reloaded.
 An optional background image can be up to 128 KB.
 The subdomain field checks whether your chosen address is available. Names are
 case-insensitive, and each address belongs to only one agency. Use 3-40 letters,

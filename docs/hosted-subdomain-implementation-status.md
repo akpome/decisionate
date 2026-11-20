@@ -93,6 +93,15 @@ its current name has passed the check. Existing reserved addresses remain locked
 One logo is configured through an HTTPS URL or a PNG/JPEG/WebP upload up to 1 MB.
 It is reused for preview, sign-in and the browser icon. Legacy icon-only records
 fall back to that image as the logo; new saves clear the separate icon field.
+The agency owner's organization profile also exposes the active, entitled portal's
+published logo as a read-only presentation field. The main application uses this
+for the owner's own workspace without rewriting standard agency branding or
+borrowing it for client workspaces. Successful publication invalidates organization
+caches and broadcasts one workspace refresh; saving a draft does not. The sidebar
+uses the existing proportional logo renderer with transparent image backgrounds
+and a fallback initial when an image cannot be loaded.
+Uploaded image URLs include a hash of their published content so browsers reload
+replacements without draft changes or unrelated edits refreshing the image.
 Background uploads remain capped at 128 KB. Uploaded SVG/HTML/scripts are rejected.
 Bounded uploaded image data is stored with the configuration and served through
 fixed raster URLs. Logo URLs load directly in the browser without server fetching

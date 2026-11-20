@@ -1,10 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "20207717c11cb2b0a71382606c4f6e97f8bb6a22",
+  "base_git_revision": "885441ed4afee86d97a779bd61b3bfaa2ce2c230",
   "referenced_sources_modified_in_worktree": [
     "apps/api/app/modules/hosted_subdomains/service.py",
-    "apps/api/tests/test_hosted_subdomains.py"
+    "apps/api/app/modules/organizations/router.py",
+    "apps/api/tests/test_hosted_subdomains.py",
+    "apps/web/app/dashboard/dashboard-shell.tsx",
+    "apps/web/lib/api.ts"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -65,7 +68,7 @@
     "apps/api/app/modules/hosted_portals.py": "fb480b9fab13bd448ff7f86c6827059219c7f9f07512e47424d3b585535730f2",
     "apps/api/app/modules/hosted_subdomains/context.py": "78d002147f66374c14b061ffe92f1befd29311de13ed77b242b06ea7a13be13d",
     "apps/api/app/modules/hosted_subdomains/router.py": "bff7bb218e1b694775fdd24aaa5cab1c6b4225abf8e346a13579bf117ace5d25",
-    "apps/api/app/modules/hosted_subdomains/service.py": "96bbdf4979220522e3d0cd8b4ab19c0fea1fc962d39fc3524d0aecd582e1cecc",
+    "apps/api/app/modules/hosted_subdomains/service.py": "d1e5230f7e038b82b9f31a0d3cbc44d7c7088cd29aea8d4575ed83b469e7c5e9",
     "apps/api/app/modules/identity/clerk.py": "f8b9a3b7d9e4d87e7c301aa6d5275074db28126fe264346189ebcd3a727034a7",
     "apps/api/app/modules/identity/repair.py": "579c79cc0744b8b50ee49a36b32757dff846bcbda9aa46edcdf289ef98c07967",
     "apps/api/app/modules/identity/service.py": "c372a5872f6203bc46e032835fcb86947895ebbcd269fdc233c93314a3cbb67f",
@@ -74,7 +77,7 @@
     "apps/api/app/modules/organizations/agency_accounts.py": "2d892211e1ad1a0f95994405bd9d362e8d6b5ddd458094039e590380e279631f",
     "apps/api/app/modules/organizations/invitations.py": "734bd595e52cc9c7ddd7a1cf533eb1a8c8037b138572d52aef7f64acc33366bc",
     "apps/api/app/modules/organizations/ownership.py": "0cc09d1f6e4298cb6f291df9dd325c92648e8213dfcc6f1c4ca2953bfee5d537",
-    "apps/api/app/modules/organizations/router.py": "5ea10dd6c4e43190089922721a3ab6833c62d96ada57f814bbf5949f18424d2f",
+    "apps/api/app/modules/organizations/router.py": "15d6cb7e328a41e91175d7b5a949eded15b56fd2b83e1f82c9719a2f8ac37cc8",
     "apps/api/app/modules/performance/growth_schemas.py": "b6f2825ddaa94e17686c0454f1c987516d646ca03ba7340803f0bb907b96d862",
     "apps/api/app/modules/performance/growth_service.py": "ab9bf89bc494962f763d99ddca3aaab45a591a3f00c1b383a9a8fa5a2dd3b36e",
     "apps/api/app/modules/performance/router.py": "6bb6380e95de33042103b4c03cbebce26ae1d489097ec56e55249be317f2cc83",
@@ -114,7 +117,7 @@
     "apps/api/tests/test_admin_pricing_settings.py": "f54aad2513a588f00fb0048896ba85d1bfd058bd16f63a71d1a0d5b006e63942",
     "apps/api/tests/test_ai_service.py": "e0c73768885debbe6ad81e28371c3f11579b63b1f81b2a93df8de6cb0b8ebec0",
     "apps/api/tests/test_billing_settings_transactions.py": "712bf366b251c9a537916320e6870c347f2ea250d8e7cb31d8e9712cd9aa0f83",
-    "apps/api/tests/test_hosted_subdomains.py": "0e64c4a58f502c897c45872d703c665329284c9d4f3a24a079e7f7a8cc00bdc0",
+    "apps/api/tests/test_hosted_subdomains.py": "e95be575bcf424a466833e9a099fd758e2fcb90bf4871880d516cc3112af2f2b",
     "apps/api/tests/test_internal_identity_backfill.py": "0836b6e26ab2a5ec760c6ad86e1469b1630134ee4b5aa76ad511253787b99329",
     "apps/api/tests/test_joined_report_sources.py": "ff24ed5a4cd91a1d7e07ceac1ef9c8a4881e865a1c3528dc3aac0f81ddc0e57b",
     "apps/api/tests/test_user_email_mapping.py": "5aa40dea89d85e5902fef4bcc1e9f4af6b43b94d028096688e1c5b4083fbfe89",
@@ -124,7 +127,7 @@
     "apps/web/app/auth/redirect/page.tsx": "974d3dd896e2afb25f30b4d4bad5609b8a1a3f29e0b5d6e6ac22f84fd2c87248",
     "apps/web/app/dashboard/billing/page.tsx": "febaeb20a7c50147bd1fa37e102de5684e6dee7d2c0d01f6a3e623f43d06538b",
     "apps/web/app/dashboard/business-impact/page.tsx": "657b0306e9fd9af1381e2ba2481f45aa3e54a68030affcd7f243c694e20a104e",
-    "apps/web/app/dashboard/dashboard-shell.tsx": "24f577aa69e1cc492f7f0645a85f3e76864305e913afade0a84f80a85d80308c",
+    "apps/web/app/dashboard/dashboard-shell.tsx": "15043c9b4cc111a014f14c1bba00ab276045c5ff8ba8b384e32c662ef0fa1118",
     "apps/web/app/dashboard/decisions/[id]/page.tsx": "7e83cf713fd6a389d424a758fdb9a6cad8084eabd461a4ec94b469a9f12a15ed",
     "apps/web/app/dashboard/decisions/new/page.tsx": "0a28b3c8a17c40395640fdb7fad666c1136b4807b833e96d7afa66cdc2d1b83d",
     "apps/web/app/dashboard/entity-matching/page.tsx": "91fa627970d00b5e83471d9d13ded635e1a42fd99d3eebbd7ceef0eed18fbcd4",
@@ -214,7 +217,7 @@
     "apps/web/features/white-label/hosted-setup.tsx": "7a433c8702d617df6b29626cbc08f891a91b67b327ef63afbfacc57abdd5da1b",
     "apps/web/features/white-label/setup.tsx": "1b6b851ebb2e159208aa2ff806d78990602e97775d3b25fa567e301ee516e8b9",
     "apps/web/features/white-label/state.ts": "1335aa31b14a723f8c0b05d0a73f403ecce090fb0054c2b890a20f89017c2d4b",
-    "apps/web/lib/api.ts": "7e94b64a8c00579186b26c42811e1e09262317588def3da981ee73b08d4c68e3",
+    "apps/web/lib/api.ts": "1cbe968635fa65148560267a23a43cb4f1f5e103d8fee5260385ca15b120d88d",
     "apps/web/lib/application-routes.ts": "f2303cd164bdc993495c73ca8ac1eb85817d36dbde77d3af257a8061674fd634",
     "apps/web/lib/workspace-ownership.ts": "1d899d0d1da74e412470899b5da54a24cdcd81d34ddb844c1a7c5b4aac8b6122",
     "apps/web/next.config.ts": "75feb7a8ad2f79a865e6646f636d8b325eef9e9f448fc8db5bbf36288481d266",
@@ -232,7 +235,7 @@
     "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "3fc95e924508cf0cc9aa1a48c6cf3b1354eda51fb5022e3332babaed7d2aad77",
+    "customer/hosted-portals.md": "b908b5121855ad6450127c5f060303e39bad6c6da67d44f75619047fdf1b8bb6",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",
