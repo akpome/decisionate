@@ -10,7 +10,7 @@ import {
   uploadDataset,
 } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
-import { Upload } from "lucide-react"
+import { LoaderCircle, Upload } from "lucide-react"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -18,7 +18,7 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface CsvUploadProps {
   sources?: DatasetSourceOption[]
-  onUploadSuccess: () => void
+  onUploadSuccess: () => void | Promise<void>
 }
 
 const uploadFileExtensions: Record<string, string[]> = {
@@ -131,11 +131,11 @@ export function CsvUpload({
         user.id,
         activeWorkspaceId
       )
+      setPhase("processing")
       if (
         queuedJob.status === "queued" &&
         queuedJob.job_id
       ) {
-        setPhase("processing")
         await waitForDataIngestionJob(
           queuedJob.job_id,
           user.id,
@@ -163,17 +163,28 @@ export function CsvUpload({
       {/* Upload Area */}
       <label
         htmlFor="dataset-file-upload"
-        className={`flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-8 text-center transition focus-within:border-[var(--decisionate-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] ${loading ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-gray-50"}`}
+        className={`flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed px-4 py-8 text-center transition focus-within:border-[var(--decisionate-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--decisionate-brand-primary-ring)] ${loading ? "cursor-wait border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)]" : "cursor-pointer border-gray-300 bg-white hover:bg-gray-50"}`}
       >
-        <div className="space-y-2">
-          <Upload size={24} className="mx-auto text-gray-400" aria-hidden="true" />
-          <p className="text-sm font-medium">
-            {t("Upload Data File")}
-          </p>
-
+        <div className="w-full min-w-0 space-y-2">
+          {loading ? (
+            <LoaderCircle size={24} className="mx-auto animate-spin text-[var(--decisionate-brand-primary-text)] motion-reduce:animate-none" aria-hidden="true" />
+          ) : (
+            <>
+              <Upload size={24} className="mx-auto text-gray-400" aria-hidden="true" />
+              <p className="text-sm font-medium">{t("Upload Data File")}</p>
+            </>
+          )}
+          <div role="status" aria-atomic="true" className={loading ? "space-y-2" : "sr-only"}>
+            {loading && (
+              <>
+                <p className="text-sm font-medium">{t(phase === "processing" ? "Preparing your dataset..." : "Uploading data file...")}</p>
+                <p className="break-all text-sm text-gray-600">{fileName}</p>
+              </>
+            )}
+          </div>
           <p
             id={uploadHelpId}
-            className="text-sm text-gray-500"
+            className={loading ? "sr-only" : "text-sm text-gray-500"}
           >
             {acceptedFormatLabel}
           </p>
@@ -187,6 +198,7 @@ export function CsvUpload({
           accept={acceptedExtensions.join(
             ","
           )}
+          aria-label={t("Upload Data File")}
           aria-describedby={uploadHelpId}
           className="sr-only"
           onChange={handleFileUpload}
@@ -213,18 +225,6 @@ export function CsvUpload({
                 </p>
               )
           )}
-        </div>
-      )}
-
-      {/* Upload State */}
-      {loading && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600"
-        >
-          <p>{t(phase === "processing" ? "Preparing your dataset..." : "Uploading data file...")}</p>
-          <p className="mt-1 break-all text-xs">{fileName}</p>
         </div>
       )}
 

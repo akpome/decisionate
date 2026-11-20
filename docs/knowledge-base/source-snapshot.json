@@ -1,11 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "3162b650d5015e005052052536607d86a1cfa7d7",
+  "base_git_revision": "96165e04a86173998029101350971ad47c1a004a",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/organizations/email_association.py",
-    "apps/api/app/modules/organizations/router.py",
-    "apps/api/app/modules/platform_admin.py"
+    "apps/web/features/datasets/components/csv-upload.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -159,7 +157,7 @@
     "apps/web/features/dashboard/components/dataset-selector.tsx": "a97f7c821526304760e3cff731ab56c05c586cc40f2551f3294765b565e7e90b",
     "apps/web/features/dashboard/date-window.ts": "1ce1ffd58285c1c2c749cba3c0f7a77b68e6ecc904c9fbd909bc660569501d61",
     "apps/web/features/dashboards/dashboard-definitions.ts": "26dddbfc1599c5179cc823ec6231582aa8a5c5761ec2239a7defd6d9301f95ca",
-    "apps/web/features/datasets/components/csv-upload.tsx": "ead7d2e5c19d8ebbc2a52353ab3120d1ca0480536bb372d388b196a92f961ab3",
+    "apps/web/features/datasets/components/csv-upload.tsx": "706a964d9262c1ed1be612ad13c06c22fa206f742004f983cb655bd921033ec3",
     "apps/web/features/datasets/components/dimension-filter.tsx": "4e233a029ed905827c2971d4eb385fb34b7ff38a99bc5cbc10a41fe14b2dbaa4",
     "apps/web/features/datasets/lib/metric-selection-save.ts": "f5e26dc649de82e84e657e8a6e8ecc0bd635a6a07bd43426f1a263d23777b1ec",
     "apps/web/features/decisions/components/decision-impact-reviews.tsx": "5d885f0c41f9ef97700554396b7bad4d3d7f6c502bfc31327ae1882730094e1b",

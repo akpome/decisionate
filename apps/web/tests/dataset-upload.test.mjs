@@ -135,7 +135,7 @@ function deferred() {
   const promise = new Promise((accept, fail) => { resolve = accept; reject = fail })
   return { promise, resolve, reject }
 }
-function view(upload, wait) {
+function view(upload, wait, refresh = async () => {}) {
   const state = [], calls = []
   let cursor = 0, successes = 0
   const { CsvUpload } = load(read("../features/datasets/components/csv-upload.tsx"), {}, {
@@ -146,7 +146,7 @@ function view(upload, wait) {
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
     "@/lib/api": { uploadDataset: (...args) => { calls.push(args); return upload(...args) }, waitForDataIngestionJob: wait },
   })
-  function tree() { cursor = 0; return CsvUpload({ onUploadSuccess: async () => { successes++ } }) }
+  function tree() { cursor = 0; return CsvUpload({ onUploadSuccess: async () => { successes++; await refresh() } }) }
   function find(node, predicate) {
     if (!React.isValidElement(node)) return undefined
     if (predicate(node)) return node
@@ -157,20 +157,25 @@ function view(upload, wait) {
       return input.props.onChange({ target }) } }
 }
 
-test("upload and preparation are distinct states, with success shown only after job completion", async () => {
-  const transfer = deferred(), preparation = deferred()
-  const component = view(() => transfer.promise, () => preparation.promise)
+test("the upload tile shows a spinner during transfer, processing and dataset refresh", async () => {
+  const transfer = deferred(), preparation = deferred(), refresh = deferred()
+  const component = view(() => transfer.promise, () => preparation.promise, () => refresh.promise)
+  assert.match(component.html(), /<div role="status" aria-atomic="true" class="sr-only"><\/div>/)
   const pending = component.start(new File(["a\n1"], "shopify.csv"))
-  assert.match(component.html(), /Uploading data file/)
-  assert.match(component.html(), /shopify.csv/)
+  assert.match(component.html(), /<label[^>]+>.*animate-spin.*role="status".*Uploading data file.*shopify\.csv.*<\/label>/)
+  assert.match(component.html(), /type="file" disabled=""/)
   assert.doesNotMatch(component.html(), /Uploaded File/)
   transfer.resolve({ status: "queued", job_id: 7 })
   await new Promise(resolve => setImmediate(resolve))
   assert.match(component.html(), /Preparing your dataset/)
   assert.doesNotMatch(component.html(), /Uploaded File/)
   preparation.resolve({ id: 7, status: "succeeded" })
-  await pending
+  await new Promise(resolve => setImmediate(resolve))
   assert.equal(component.successes(), 1)
+  assert.match(component.html(), /Preparing your dataset/)
+  refresh.resolve()
+  await pending
+  assert.doesNotMatch(component.html(), /animate-spin|type="file" disabled/)
   assert.match(component.html(), /Uploaded File/)
 })
 
@@ -179,7 +184,7 @@ test("uncertain status keeps the affected filename without falsely labelling the
   await component.start(new File(["a\n1"], "shopify.csv"))
   assert.match(component.html(), /role="alert"/)
   assert.match(component.html(), /shopify.csv/)
-  assert.doesNotMatch(component.html(), /Uploaded File/)
+  assert.doesNotMatch(component.html(), /Uploaded File|animate-spin|type="file" disabled/)
   assert.equal(component.calls.length, 1)
   assert.equal(component.successes(), 0)
 })
