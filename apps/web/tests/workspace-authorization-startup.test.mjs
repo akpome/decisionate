@@ -28,10 +28,10 @@ const client = { id: 2, owner_user_id: "agency:client:shop", role: "managed_clie
 function harness(overrides = {}) {
   const calls = [], context = {
     user: { id: "agency" }, activeWorkspaceId: client.owner_user_id, workspaceAccessUserId: "", organization: null,
-    ignoreResult: false, workspaces: [], workspaceAccessRevision: 0,
+    ignoreResult: false, workspaces: [], workspaceAccessRevision: 0, hostedPortalId: undefined, workspaceAccessError: "",
     getMyOrganization: async (...args) => { calls.push(["profile", ...args]); assert.equal(args[1], "agency"); return own },
     getOrganizationWorkspaces: async () => [own, client],
-    setWorkspaceAccessError: error => { context.error = error },
+    setWorkspaceAccessError: error => { context.error = context.workspaceAccessError = error },
     setOrganization: value => { context.organization = value },
     setWorkspaces: value => { context.workspaces = value },
     setWorkspaceAccessUserId: value => { context.workspaceAccessUserId = value },
@@ -42,7 +42,8 @@ function harness(overrides = {}) {
     window: { location: { search: "" } }, URLSearchParams, console: { error() {} }, ...overrides,
   }
   const readiness = find(shell, node => ts.isVariableDeclaration(node) && node.name.getText() === "workspaceSelectionReady")
-  return { calls, context, load: compile(`${declaration(shell, "loadOrganization")}\nloadOrganization`, context), ready: () => compile(`(() => { const ${readiness}; return workspaceSelectionReady })()`, context) }
+  const emptyState = find(shell, node => ts.isVariableDeclaration(node) && node.name.getText() === "noHostedWorkspace")
+  return { calls, context, load: compile(`${declaration(shell, "loadOrganization")}\nloadOrganization`, context), ready: () => compile(`(() => { const ${readiness}; return workspaceSelectionReady })()`, context), hostedEmpty: () => compile(`(() => { const ${emptyState}; return noHostedWorkspace })()`, context) }
 }
 
 test("saved denied client selections are validated before the dashboard becomes ready", async () => {
@@ -63,6 +64,35 @@ test("a removed client owner keeps their existing independent workspace", async 
   await h.load("client")
   assert.equal(h.context.activeWorkspaceId, independent.owner_user_id)
   assert.equal(h.ready(), true)
+})
+
+test("a hosted client removed from the agency sees recovery rather than a failed personal workspace check", async () => {
+  let listed = [{ ...client, role: "client_owner" }]
+  const h = harness({ user: { id: "client" }, hostedPortalId: "agency-portal", getOrganizationWorkspaces: async () => listed,
+    getMyOrganization: async () => assert.fail("Hosted clients must not request a profile outside their portal") })
+  await h.load("client")
+  assert.equal(h.ready(), true)
+  assert.equal(h.hostedEmpty(), false)
+  listed = []
+  await h.load("client")
+  assert.equal(h.ready(), false)
+  assert.equal(h.hostedEmpty(), true)
+  assert.equal(h.context.error, "")
+  assert.match(shell, /<a href=\{hostedWorkspaceRecoveryUrl\}[^>]*>Open my workspace/)
+  const onboarding = find(shell, node => ts.isCallExpression(node) && node.expression.getText() === "useEffect" && node.getText().includes('router.replace("/onboarding")'))
+  assert.match(onboarding, /if \(\s*hostedPortalId \|\|/)
+})
+
+test("hosted agency owners still load their profile, while a failed discovery stays an error", async () => {
+  const owner = harness({ hostedPortalId: "agency-portal" })
+  await owner.load("agency")
+  assert.deepEqual(owner.calls[0], ["profile", "agency", "agency"])
+  assert.equal(owner.ready(), true)
+  const failure = harness({ hostedPortalId: "agency-portal", getOrganizationWorkspaces: async () => { throw new Error("Unavailable") } })
+  await failure.load("agency")
+  assert.equal(failure.ready(), false)
+  assert.equal(failure.hostedEmpty(), false)
+  assert.match(failure.context.error, /access could not be checked/)
 })
 
 test("failed discovery cannot approve a saved selection or misroute a client to onboarding", async () => {

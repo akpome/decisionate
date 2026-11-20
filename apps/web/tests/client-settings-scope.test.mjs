@@ -78,7 +78,7 @@ function components(workspace, overrides = {}, settingsState = {}) {
 
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props))
 const settingsMarkup = (workspace, overrides) => render(components(workspace, overrides).Settings, { userId: "client", fullName: "Client Owner", emailAddress: "client@example.test" })
-const noFullSettings = /Workspace Name|Logo link or upload|Email preferences|Shared Workspaces|Team Members|Create and invite owner|Start free trial|Agency invitations/
+const noFullSettings = /Workspace Name|Logo link or upload|Email preferences|Shared Workspaces|Team Members|Create and invite owner|Start free trial/
 
 test("active linked client owners can share, delete or unlink without seeing agency settings", () => {
   for (const role of ["client", "client_owner", "owner"]) {
@@ -87,6 +87,7 @@ test("active linked client owners can share, delete or unlink without seeing age
     assert.match(html, /Delete workspace/)
     assert.equal((html.match(/>Share workspace</g) ?? []).length, 1)
     assert.match(html, /Allow agency access/)
+    assert.doesNotMatch(html, /Agency invitations/)
     assert.doesNotMatch(html, noFullSettings)
   }
 })
@@ -108,7 +109,7 @@ test("client Settings resets as a unit without giving sharing and ownership the 
 test("paused linked client Settings still offer only unlinking", () => {
   const html = settingsMarkup({ ...linked, is_paused: true })
   assert.match(html, />Unlink agency<\/button>/)
-  assert.doesNotMatch(html, /Delete workspace|Share workspace|Allow agency access/)
+  assert.doesNotMatch(html, /Delete workspace|Share workspace|Allow agency access|Agency invitations/)
   assert.doesNotMatch(html, noFullSettings)
 })
 
@@ -124,10 +125,11 @@ test("the agency sees the accepted owner separately from linking a new workspace
   assert.doesNotMatch(html, /Share workspace|Allow agency access/)
 })
 
-test("unlinked owners stay on deletion-only Settings until independent access is active", () => {
+test("unlinked owners can review invitations and delete their workspace without billing access", () => {
   for (const is_paused of [true, undefined]) {
     const html = settingsMarkup({ ...unlinked, is_paused })
     assert.match(html, />Delete workspace<\/button>/)
+    assert.match(html, /id="agency-invitations"[\s\S]*Agency invitations[\s\S]*Loading invitations/)
     assert.doesNotMatch(html, /Unlink agency<\/button>|Subscribe directly|Allow agency access/)
     assert.doesNotMatch(html, noFullSettings)
   }
@@ -277,12 +279,13 @@ test("settled workspace access failures offer retry instead of an owner-only not
   assert.doesNotMatch(html, /Only the business owner|Checking workspace access/)
 })
 
-test("trial and agency recovery are separate from ownership settings", () => {
+test("the independent trial stays in Billing and agency invitations are reviewed in Settings", () => {
   const { Ownership } = components(unlinked)
   const recovery = render(Ownership, { userId: "client", workspace: unlinked, view: "recovery" })
   assert.match(recovery, /Start free trial/)
-  assert.match(recovery, /Agency invitations/)
-  assert.doesNotMatch(recovery, /Delete workspace|Unlink agency<\/button>|Subscribe directly/)
+  assert.doesNotMatch(recovery, /Agency invitations|Delete workspace|Unlink agency<\/button>|Subscribe directly/)
+  assert.match(render(Ownership, { userId: "client", workspace: { ...unlinked, is_paused: false } }), /Agency invitations/)
+  assert.doesNotMatch(render(Ownership, { userId: "member", workspace: { ...unlinked, role: "member" } }), /Agency invitations/)
   const active = render(Ownership, { userId: "client", workspace: { ...unlinked, is_paused: false }, view: "recovery" })
   assert.doesNotMatch(active, /Start free trial/)
   const billing = readFileSync(path.join(web, "app/dashboard/billing/page.tsx"), "utf8")

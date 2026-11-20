@@ -31,7 +31,7 @@ test("agency pause and resume controls are available after client ownership is a
 
 test("paused managed clients cannot use independent-trial recovery controls", () => {
   assert.match(shell, /activeWorkspaceRecord\.agency_removed && \["\/settings"/)
-  assert.match(shell, /activeWorkspaceRecord\.agency_removed && pathname !== "\/settings" && <Link/)
+  assert.match(shell, /activeWorkspaceRecord\.agency_removed && canManageClientOwnership && <Link href="\/settings#agency-invitations"/)
   assert.match(shell, /!activeWorkspaceRecord\.agency_removed && canManageClientOwnership && user\?\.id && <ClientWorkspaceOwnership/)
   assert.match(shell, /\["client", "client_owner", "owner"\]\.includes\(activeWorkspaceRole\)/)
   assert.match(shell, /"Client account unlinked" : "Client account paused"/)
@@ -56,14 +56,17 @@ function pausedMarkup(overrides = {}) {
   }))
 }
 
-test("unlinked dashboards show the requested status and only a Settings link", () => {
+test("unlinked dashboards direct owners to invitations and other members to the owner", () => {
   for (const pathname of ["/dashboard", "/business-analysis", "/forecasts"]) {
     const html = pausedMarkup({ pathname })
     assert.match(html, /Client account unlinked/)
-    assert.match(html, /Your data is preserved\. Contact your agency to resume access\./)
-    assert.match(html, /href="\/settings"/)
+    assert.match(html, /Your data is preserved\. Accept an agency invitation to restore access\./)
+    assert.match(html, /href="\/settings#agency-invitations"[^>]*>Review agency invitations/)
     assert.doesNotMatch(html, /Ownership choices|Start free trial|Subscribe directly|Delete workspace/)
   }
+  const member = pausedMarkup({ canManageClientOwnership: false })
+  assert.match(member, /Contact your workspace owner to restore access/)
+  assert.doesNotMatch(member, /Review agency invitations|href="\/settings/)
 })
 
 test("linked paused owners retain unlink controls while other users see only the pause notice", () => {
@@ -71,5 +74,5 @@ test("linked paused owners retain unlink controls while other users see only the
   assert.match(pausedMarkup({ activeWorkspaceRecord }), /Ownership choices/)
   const html = pausedMarkup({ activeWorkspaceRecord, canManageClientOwnership: false })
   assert.match(html, /Client account paused/)
-  assert.doesNotMatch(html, /Ownership choices|Open Settings/)
+  assert.doesNotMatch(html, /Ownership choices|Review agency invitations/)
 })

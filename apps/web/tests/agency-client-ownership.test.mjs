@@ -106,9 +106,12 @@ test("unlinking and trial activation invalidate billing and workspace caches tog
 
 test("joining or declining an agency acts only on the selected invitation and workspace", async () => {
   for (const action of ["accept", "decline"]) {
-    const h = harness(); await h.act(action, h.context.invitations[0])
+    const h = harness({ canReviewInvitations: true }); await h.act(action, h.context.invitations[0])
     assert.deepEqual(h.calls, [["invitation", "invite", action === "accept", "client", "old:client:shop"]])
     assert.equal(h.context.invitations.length, 0); assert.equal(h.context.refreshed, true)
+    const denied = harness({ canReviewInvitations: false }); await denied.act(action, denied.context.invitations[0])
+    assert.deepEqual(denied.calls, [])
+    assert.equal(denied.context.invitations.length, 1)
   }
 })
 

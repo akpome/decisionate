@@ -150,7 +150,7 @@ def invite_existing_client(payload: AgencyInvitationCreate, request: Request):
             agency_name = " ".join(agency.name.split())
             send_platform_system_email(email, f"{agency_name} invited your workspace to their agency",
                 f"{agency_name} would like to manage your existing {get_application().name} workspace.\n\nSign in using {email}: {url}\n\n"
-                "Open Settings in the workspace you own to accept or decline. Your data stays in the same workspace. "
+                "Open Settings in the workspace you own. Under Agency invitations, choose Join agency or Decline. Your data stays in the same workspace. "
                 "Accepting does not give the agency access to your data; you control that separately.",
                 sender_name=f"{agency_name} via {get_application().name}",
                 branding={"is_managed_client": True, "brand_name": agency_name, "brand_logo_url": agency.logo_url},

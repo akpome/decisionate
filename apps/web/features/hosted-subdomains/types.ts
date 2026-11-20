@@ -17,6 +17,7 @@ export function isHostedLogoUrl(value: string) {
   } catch { return false }
 }
 export const hostedPrimaryOrigin = "https://app.decisionate.ca"
+export const hostedWorkspaceRecoveryUrl = `${hostedPrimaryOrigin}/sign-in?redirect_url=${encodeURIComponent("/settings")}`
 export function getHostedAuthReturnUrl(returnTo: string) {
   const destination = new URL(returnTo)
   if (destination.protocol !== "https:" || !isHostedHostname(destination.hostname) || destination.username || destination.password || destination.port) {

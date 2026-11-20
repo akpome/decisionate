@@ -1,6 +1,7 @@
 import unittest
 from datetime import timedelta
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from sqlalchemy import create_engine, text
 
@@ -224,9 +225,25 @@ class AgencyClientOwnershipTests(unittest.TestCase):
 
     def test_old_agency_can_reinvite_but_cannot_reclaim_the_workspace_without_consent(self):
         self.detach(); invitation = self.invite("agency")
+        body = self.mail.call_args.args[2]
+        url = urlsplit(next(word for word in body.split() if word.startswith("https://")))
+        self.assertEqual((url.hostname, url.path), ("app.example.test", "/sign-in"))
+        self.assertEqual(parse_qs(url.query)["redirect_url"], ["/settings"])
+        self.assertIn("Under Agency invitations, choose Join agency or Decline", body)
         with self.Session() as db: self.assertIsNone(db.get(Organization, 2).managing_agency_workspace_id)
+        available = self.client_request("agency-invitations", "get")
+        self.assertEqual(available.json(), [{"id": invitation, "agency_name": "North Star Agency"}])
         self.assertEqual(self.client_request(f"agency-invitations/{invitation}/accept").status_code, 200)
-        with self.Session() as db: self.assertEqual(db.get(Organization, 2).managing_agency_workspace_id, "agency")
+        listing = self.client_request("workspaces", "get").json()
+        client_workspace = next(item for item in listing if item["id"] == 2)
+        self.assertEqual(client_workspace["owner_user_id"], self.workspace)
+        self.assertFalse(client_workspace["agency_removed"])
+        self.assertFalse(client_workspace["is_paused"])
+        with self.Session() as db:
+            self.assertEqual(db.get(Organization, 2).managing_agency_workspace_id, "agency")
+            self.assertFalse(db.get(Organization, 2).agency_owner_access_enabled)
+            self.assertEqual(db.get(Dataset, 21).workspace_id, self.workspace)
+            require_workspace_active(self.workspace, db)
 
     def test_other_users_and_unverified_addresses_cannot_accept_an_invitation(self):
         self.detach(); invitation = self.invite()

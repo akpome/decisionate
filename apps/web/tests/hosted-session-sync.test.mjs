@@ -119,6 +119,7 @@ async function openWorkspace(auth, completed, accessible) {
     "@/lib/workspace-context": { getActiveWorkspaceId: () => auth.userId, setActiveWorkspaceId: (...ids) => selected.push(ids) },
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
     "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal }) },
+    "@/features/hosted-subdomains/types": types,
   }, { URLSearchParams, window: { location: { origin: portal.origin, search: completed.search } } })
   renderToStaticMarkup(React.createElement(AuthRedirectPage))
   const cleanups = effects.map(effect => effect())

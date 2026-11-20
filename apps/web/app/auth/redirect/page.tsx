@@ -17,10 +17,12 @@ import { completeSignupMarketing } from "@/features/auth/lib/marketing-consent"
 import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
+import { hostedWorkspaceRecoveryUrl } from "@/features/hosted-subdomains/types"
 
 const redirectErrors = {
   session: ["Your session could not be verified.", "Sign in again to continue."],
   access: ["Workspace access was denied.", "Try another account or contact support if you believe you should have access."],
+  portal: ["No workspace on this agency portal", "If your workspace was unlinked, open it directly to review any agency invitations."],
   workspace: ["We couldn't open your workspace.", "Your account is signed in, but the workspace service is unavailable. Please try again."],
 } as const
 
@@ -107,7 +109,7 @@ export default function AuthRedirectPage() {
         return
       }
       if (portal && !workspace) {
-        setError("access")
+        setError("portal")
         return
       }
       if (adminResult.status === "rejected" && (!workspace || returnTo?.startsWith("/platform-admin"))) {
@@ -159,6 +161,7 @@ export default function AuthRedirectPage() {
         )}
         {error && userPrimaryEmail && <p className="mt-3 break-all text-xs text-gray-500">{userPrimaryEmail}</p>}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {error === "portal" && <a href={hostedWorkspaceRecoveryUrl} className="inline-flex min-h-10 items-center rounded-md bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--decisionate-brand-primary-surface-text)]">{t("Open my workspace")}</a>}
           {(error === "workspace" || error === "access") && (
             <button type="button" disabled={switching} onClick={() => setAttempt(value => value + 1)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--decisionate-brand-primary-surface-text)] disabled:opacity-60">
               <RefreshCw size={16} aria-hidden="true" />{t("Try again")}

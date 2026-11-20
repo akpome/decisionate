@@ -9,7 +9,7 @@ import {
 } from "next/navigation"
 import { UserButton, useUser } from "@clerk/nextjs"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
-import { getHostedLogo } from "@/features/hosted-subdomains/types"
+import { getHostedLogo, hostedWorkspaceRecoveryUrl } from "@/features/hosted-subdomains/types"
 import { WorkspaceBrandMark } from "./workspace-brand-mark"
 import {
   AlertCircle,
@@ -316,6 +316,7 @@ export function DashboardShell({
   const router = useRouter()
   const { user } = useUser()
   const { portal } = useHostedPortal()
+  const hostedPortalId = portal?.id
   const [organization, setOrganization] =
     useState<OrganizationRecord | null>(null)
   const [workspaces, setWorkspaces] =
@@ -363,6 +364,7 @@ export function DashboardShell({
       (activeWorkspaceId === user.id && organization)
     )
   )
+  const noHostedWorkspace = Boolean(hostedPortalId && user?.id && workspaceAccessUserId === user.id && !workspaces.length && !workspaceAccessError)
   const clerkButtonMounted = useSyncExternalStore(
     subscribeToClientMount,
     getClientMountSnapshot,
@@ -477,22 +479,21 @@ export function DashboardShell({
       userId: string
     ) {
       try {
+        const workspaceRequest = getOrganizationWorkspaces(userId, user?.primaryEmailAddress?.emailAddress, {
+          includeManagedClientWorkspaces: true,
+          forceRefresh: workspaceAccessRevision > 0,
+        })
+        // On a hosted portal, a client's personal workspace is outside the portal.
+        const organizationRequest = hostedPortalId
+          ? workspaceRequest.then(items => items.some(item => item.owner_user_id === userId && item.role === "owner")
+            ? getMyOrganization(userId, userId) : null)
+          : getMyOrganization(userId, userId)
         const [
           organizationResult,
           workspaceResult,
         ] = await Promise.allSettled([
-          getMyOrganization(
-            userId,
-            userId
-          ),
-          getOrganizationWorkspaces(
-            userId,
-            user?.primaryEmailAddress?.emailAddress,
-            {
-              includeManagedClientWorkspaces: true,
-              forceRefresh: workspaceAccessRevision > 0,
-            }
-          ),
+          organizationRequest,
+          workspaceRequest,
         ])
 
         if (
@@ -601,6 +602,7 @@ export function DashboardShell({
       ignoreResult = true
     }
   }, [
+    hostedPortalId,
     pathname,
     user?.id,
     user?.primaryEmailAddress?.emailAddress,
@@ -668,6 +670,7 @@ export function DashboardShell({
 
   useEffect(() => {
     if (
+      hostedPortalId ||
       !user?.id ||
       pathname === "/onboarding" ||
       workspaceSetupUserId !== user.id ||
@@ -680,6 +683,7 @@ export function DashboardShell({
 
     router.replace("/onboarding")
   }, [
+    hostedPortalId,
     organization,
     pathname,
     router,
@@ -792,18 +796,18 @@ export function DashboardShell({
       )
     )
   const displayBrand =
-    activeBrandReady
+    activeBrandReady || (noHostedWorkspace && portalBranding)
       ? activeBrand
       : {
-          name: "Loading workspace",
+          name: noHostedWorkspace ? "Agency portal" : "Loading workspace",
           logoUrl: "",
           primaryColor: "#CBD5E1",
           accentColor: "#E2E8F0",
         }
   const displayWorkspaceName =
-    activeBrandReady
-      ? workspaceName
-      : "Loading workspace..."
+    noHostedWorkspace
+      ? displayBrand.name
+      : activeBrandReady ? workspaceName : "Loading workspace..."
   const themeStyle = portalBranding || activeBrandReady ? getWorkspaceThemeStyle(activeBrand) : undefined
 
   useWorkspaceBrowserBrand(
@@ -1231,7 +1235,11 @@ export function DashboardShell({
         )}
 
         {!workspaceSelectionReady ? (
-          <section role={workspaceAccessError ? "alert" : "status"} className="py-6">
+          noHostedWorkspace ? <section className="py-6">
+            <h1 className="text-lg font-semibold">No workspace on this agency portal</h1>
+            <p className="mt-2 text-sm text-gray-600">If your workspace was unlinked, your data is still there. Open your workspace to review any agency invitations.</p>
+            <a href={hostedWorkspaceRecoveryUrl} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium">Open my workspace</a>
+          </section> : <section role={workspaceAccessError ? "alert" : "status"} className="py-6">
             <p className="text-sm text-gray-600">{workspaceAccessError || "Loading your workspace..."}</p>
             {workspaceAccessError && <button type="button" onClick={() => window.location.reload()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium"><RefreshCw size={16} aria-hidden="true" />Reload</button>}
           </section>
@@ -1239,8 +1247,8 @@ export function DashboardShell({
           <div>
             <section role="status" className="border-l-4 border-amber-400 px-4 py-3">
               <h1 className="text-lg font-semibold">{activeWorkspaceRecord.agency_removed ? "Client account unlinked" : "Client account paused"}</h1>
-              <p className="mt-2 text-sm text-gray-600">Your data is preserved. Contact your agency to resume access.</p>
-              {activeWorkspaceRecord.agency_removed && pathname !== "/settings" && <Link href="/settings" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Open Settings</Link>}
+              <p className="mt-2 text-sm text-gray-600">{!activeWorkspaceRecord.agency_removed ? "Your data is preserved. Contact your agency to resume access." : canManageClientOwnership ? "Your data is preserved. Accept an agency invitation to restore access." : "Your data is preserved. Contact your workspace owner to restore access."}</p>
+              {activeWorkspaceRecord.agency_removed && canManageClientOwnership && <Link href="/settings#agency-invitations" className="mt-3 inline-flex items-center text-sm font-medium text-blue-600">Review agency invitations</Link>}
             </section>
             {!activeWorkspaceRecord.agency_removed && canManageClientOwnership && user?.id && <ClientWorkspaceOwnership key={activeWorkspaceRecord.owner_user_id} userId={user.id} workspace={activeWorkspaceRecord} />}
           </div>

@@ -25,7 +25,7 @@ from app.db.models import (AppUser, AuthIdentity, HostedSubdomainPortal, HostedS
     Organization, OrganizationInvite, OrganizationMember, WorkspaceSubscription, WhiteLabelAvailability, OAuthConnectionState, utc_now)
 from app.modules import applications, auth_context, workspace_lifecycle
 from app.modules.identity import service as identity
-from app.modules.organizations import invitations, router as organizations
+from app.modules.organizations import agency_accounts, invitations, router as organizations
 from app.modules.hosted_subdomains import router as portals, service, context, admin
 
 
@@ -326,6 +326,43 @@ class HostedSubdomainTests(unittest.TestCase):
             result = self.client.get("/organizations/workspaces", headers=self.headers(user=user, origin="https://north-star.decisionate.app"))
             self.assertEqual(result.status_code, 200, result.text)
             self.assertEqual([item["owner_user_id"] for item in result.json()], expected)
+
+    def test_removed_hosted_client_rejoins_through_primary_settings_without_weakening_portal_access(self):
+        self.publish()
+        origin, workspace = "https://north-star.decisionate.app", "agency:client:1"
+        hosted_client = self.headers(user="client", origin=origin)
+        primary_owner = self.headers(user="client", workspace=workspace)
+        with self.Session() as db:
+            db.query(OrganizationMember).filter_by(organization_id=3).one().role = "client_owner"
+            db.commit()
+
+        result = self.client.delete("/organizations/client-workspaces/3", headers=self.headers(origin=origin))
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertTrue(result.json()["removed"])
+        result = self.client.get("/organizations/workspaces", headers=hosted_client)
+        self.assertEqual((result.status_code, result.json()), (200, []))
+        result = self.client.get("/organizations/me", headers=self.headers(user="client", origin=origin, workspace=workspace))
+        self.assertEqual(result.status_code, 403, result.text)
+        result = self.client.get("/organizations/workspaces", headers=self.headers(user="client"))
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()[0]["owner_user_id"], workspace)
+        self.assertTrue(result.json()[0]["agency_removed"])
+
+        with patch.object(agency_accounts, "SessionLocal", self.Session), patch.object(agency_accounts, "send_platform_system_email") as mail:
+            result = self.client.post("/organizations/agency-invitations", headers=self.headers(origin=origin), json={"email": "client@example.test"})
+            self.assertEqual(result.status_code, 200, result.text)
+            invitation = result.json()["id"]
+            self.assertIn("https://app.decisionate.ca/sign-in?redirect_url=%2Fsettings", mail.call_args.args[2])
+            result = self.client.get("/organizations/agency-invitations", headers=primary_owner)
+            self.assertEqual(result.status_code, 200, result.text)
+            self.assertEqual(result.json()[0]["id"], invitation)
+            result = self.client.post(f"/organizations/agency-invitations/{invitation}/accept", headers=primary_owner)
+            self.assertEqual(result.status_code, 200, result.text)
+        result = self.client.get("/organizations/workspaces", headers=hosted_client)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()[0]["owner_user_id"], workspace)
+        self.assertFalse(result.json()[0]["is_paused"])
+        self.assertFalse(result.json()[0]["agency_owner_access_enabled"])
 
     def test_hosted_client_creation_includes_the_owner_invitation_and_automatic_email(self):
         self.publish()

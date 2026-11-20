@@ -119,12 +119,15 @@ must finish first; this protects against a worker recreating deleted data.
 
 When the agency removes the client or the client chooses Unlink agency, the locked
 workspace shows Client account unlinked and confirms that its data is preserved.
-The notice directs the client to contact their agency to arrange restored access;
-an unlinked agency must send a new invitation, not simply resume the old account.
+The notice offers the owner a link to review agency invitations in Settings.
+An unlinked agency must send a new invitation, not simply resume the old account.
+On a hosted agency portal, Open my workspace takes the client to Decisionate
+sign-in and their own Settings. They cannot open an unlinked workspace through
+the former agency's portal.
 Limited client Settings shows Share workspace, Allow agency access, Unlink agency and Delete workspace
 as allowed by the workspace status and the user's role. It does not show branding,
-agency team management or email preferences. Trial, direct subscription and
-agency invitation choices appear in Billing, not on the locked dashboard.
+agency team management or email preferences. An unlinked owner reviews agency
+invitations in Settings. Trial and direct subscription choices appear in Billing.
 After independent Professional access is active, full workspace Settings is available.
 The client owner can still open Settings and Billing. Their data
 is preserved while they choose how to continue. Data analysis, shared links and
@@ -135,10 +138,10 @@ for 30 days. It does not create a replacement workspace or move any data. Each
 workspace can start this independent trial only once; joining and leaving agencies
 does not reset it. After the trial, choose a plan in Billing to continue.
 
-An agency owner can choose Add an existing client workspace in Settings and send
+An agency owner can choose Link an existing workspace in Settings and send
 an invitation to the client's sign-in email. The same agency or a different agency
 can do this. Sending the invitation alone grants no access. The verified client
-owner opens Billing in their existing workspace and chooses Join agency or
+owner opens Settings in their existing workspace and chooses Join agency or
 Decline under Agency invitations. The agency needs an active Agency plan and an
 available client slot when the owner accepts. A live independent paid subscription
 must first be canceled in Billing to avoid overlapping subscriptions.

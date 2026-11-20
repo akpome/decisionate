@@ -16,6 +16,7 @@ function load(path, dependencies = {}, globals = {}) {
 }
 const routes = load("../lib/application-routes.ts")
 const redirects = load("../features/auth/lib/auth-redirects.ts", { "@/lib/application-routes": routes })
+const hostedTypes = load("../features/hosted-subdomains/types.ts")
 const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-redirects": redirects })
 const destination = "/dashboard?workspace_id=agency%3Aclient%3Aone"
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status } }
@@ -24,6 +25,7 @@ async function resolveInvitation({ workspaceList = [], failure, returnTo = desti
   const effects = [], routes = [], errors = [], active = [], reads = []
   const Page = load("../app/auth/redirect/page.tsx", {
     "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal }) },
+    "@/features/hosted-subdomains/types": hostedTypes,
     "react/jsx-runtime": jsx, react: { useEffect: callback => effects.push(callback), useState: () => [null, error => errors.push(error)] },
     "@clerk/nextjs": { useUser: () => ({ isLoaded: true, isSignedIn: true, user: { id: "current", primaryEmailAddress: { emailAddress: "current@example.test" }, emailAddresses: [] } }), useClerk: () => ({ signOut() { throw new Error("Unexpected automatic logout") } }) },
     "next/navigation": { useRouter: () => ({ replace: route => routes.push(route) }) },
@@ -76,7 +78,13 @@ test("hosted invitations with an unrelated session return to the agency's invita
   assert.deepEqual(matched.routes, [destination])
   assert.deepEqual(matched.active, ["agency:client:one"])
   const withoutInvite = await resolveInvitation({ portal, returnTo: "/dashboard" })
-  assert.equal(withoutInvite.errors.at(-1), "access")
+  assert.equal(withoutInvite.errors.at(-1), "portal")
+  assert.deepEqual(withoutInvite.routes, [])
+  assert.deepEqual(withoutInvite.active, [])
+  const recovery = new URL(hostedTypes.hostedWorkspaceRecoveryUrl)
+  assert.equal(recovery.origin, hostedTypes.hostedPrimaryOrigin)
+  assert.equal(recovery.pathname, "/sign-in")
+  assert.equal(recovery.searchParams.get("redirect_url"), "/settings")
 })
 
 function invitationCard(session, signOut = () => { throw new Error("Unexpected automatic logout") }) {
