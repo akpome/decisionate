@@ -11,7 +11,7 @@ const web = path.resolve(import.meta.dirname, "..")
 const linked = { id: 2, name: "Client Shop", owner_user_id: "agency:client:shop", role: "client_owner", is_managed_client: true, is_paused: false }
 const unlinked = { ...linked, role: "owner", is_managed_client: false, agency_removed: true, is_paused: true }
 
-function components(workspace, overrides = {}) {
+function components(workspace, overrides = {}, settingsState = {}) {
   const modules = new Map()
   const access = {
     activeWorkspace: workspace, activeWorkspaceId: workspace.owner_user_id, workspaceRole: workspace.role,
@@ -23,12 +23,32 @@ function components(workspace, overrides = {}) {
     if (modules.has(file)) return modules.get(file)
     const loaded = { exports: {} }
     modules.set(file, loaded.exports)
-    vm.runInNewContext(ts.transpileModule(readFileSync(file, "utf8"), {
+    const source = readFileSync(file, "utf8")
+    const stateNames = []
+    if (file.endsWith("settings-client.tsx")) {
+      const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+      const component = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "SettingsClient")
+      for (const statement of component.body.statements) {
+        if (!ts.isVariableStatement(statement)) continue
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isArrayBindingPattern(declaration.name) && ts.isCallExpression(declaration.initializer)
+            && declaration.initializer.expression.getText(ast) === "useState") stateNames.push(declaration.name.elements[0].name.text)
+        }
+      }
+    }
+    const state = { loadingOrganization: false, billingStatus: { plan: "professional", billing_model: "direct" }, ...settingsState }
+    let stateIndex = 0
+    vm.runInNewContext(ts.transpileModule(source, {
       fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
     }).outputText, {
       module: loaded, exports: loaded.exports, process: { env: {} },
       require: name => {
+        if (name === "react" && stateNames.length) return { ...React, useState: initial => {
+          const key = stateNames[stateIndex++]
+          return [Object.hasOwn(state, key) ? state[key] : initial, () => {}]
+        } }
         if (name === "@/lib/api") return {}
+        if (name === "@/features/hosted-subdomains/setup") return { HostedSubdomainSetup: ({ embedded }) => React.createElement("section", { "data-hosted-settings": embedded }, "Hosted portal settings") }
         if (name === "@clerk/nextjs") return { useClerk: () => ({ signOut: async () => {} }) }
         if (name === "@/lib/use-workspace-access") return { useWorkspaceAccess: () => access }
         if (name === "@/app/use-decisionate-language") return { useDecisionateText: () => ({ t: text => text, language: "en" }) }
@@ -89,6 +109,40 @@ test("Agency, Professional and converted Professional owners retain full Setting
     assert.match(html, /Workspace Name/)
     assert.match(html, /Logo link or upload/)
     assert.match(html, /Email preferences/)
+  }
+})
+
+test("hosted subdomain owners get inline portal settings instead of standard workspace branding", () => {
+  const workspace = { id: 1, name: "Agency", owner_user_id: "agency", role: "owner", is_managed_client: false }
+  const Settings = components(workspace, {}, { billingStatus: { plan: "agency_subdomain", billing_model: "agency" } }).Settings
+  const html = render(Settings, { userId: "agency", fullName: "Agency Owner", emailAddress: "owner@example.test" })
+  assert.match(html, /data-hosted-settings="true"/)
+  assert.match(html, /Hosted portal settings/)
+  assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|href="\/hosted-portal"/)
+  assert.match(html, /Client Workspaces/)
+  assert.match(html, /Workspace Members/)
+  assert.match(html, /workspace-deletion-title/)
+})
+
+test("standard plans keep workspace branding and do not embed hosted portal settings", () => {
+  const workspace = { id: 1, name: "Owner workspace", owner_user_id: "owner", role: "owner", is_managed_client: false }
+  for (const plan of ["professional", "agency", "agency_custom_domain"]) {
+    const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "professional" ? "direct" : "agency" } }).Settings
+    const html = render(Settings, { userId: "owner", fullName: "Owner", emailAddress: "owner@example.test" })
+    assert.match(html, /Workspace Name/)
+    assert.match(html, /Logo link or upload/)
+    assert.doesNotMatch(html, /data-hosted-settings/)
+  }
+})
+
+test("pending or failed plan loads never flash the wrong branding editor", () => {
+  const workspace = { id: 1, name: "Agency", owner_user_id: "agency", role: "owner", is_managed_client: false }
+  for (const loading of [true, false]) {
+    const Settings = components(workspace, {}, { loadingOrganization: loading, billingStatus: null }).Settings
+    const html = render(Settings, { userId: "agency", fullName: "Owner", emailAddress: "owner@example.test" })
+    assert.doesNotMatch(html, /Workspace Name|Logo link or upload|data-hosted-settings/)
+    assert.match(html, loading ? /Loading workspace settings/ : /Unable to check your workspace plan/)
+    assert.equal(html.includes("Retry workspace load"), !loading)
   }
 })
 

@@ -15,12 +15,12 @@ const emptyBrand: HostedBrand = { name: "", logo_url: "", favicon_url: "", backg
 const inputClass = "mt-1 h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm"
 const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm disabled:opacity-50"
 
-export function HostedSubdomainSetup({ userId }: { userId: string }) {
+export function HostedSubdomainSetup({ userId, embedded = false }: { userId: string; embedded?: boolean }) {
   const { activeWorkspaceId } = useActiveWorkspace(userId)
-  return <HostedSubdomainEditor key={`${userId}:${activeWorkspaceId}`} userId={userId} />
+  return <HostedSubdomainEditor key={`${userId}:${activeWorkspaceId}`} userId={userId} embedded={embedded} />
 }
 
-function HostedSubdomainEditor({ userId }: { userId: string }) {
+function HostedSubdomainEditor({ userId, embedded }: { userId: string; embedded: boolean }) {
   const [data, setData] = useState<Setup | null>(null)
   const [brand, setBrand] = useState<HostedBrand>(emptyBrand)
   const [slug, setSlug] = useState("")
@@ -42,8 +42,11 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
   const checkedAddress = addressCheck?.input === slug ? addressCheck : null
   const checkingAddress = Boolean(canEdit && !data?.portal && slug.trim() && !checkedAddress)
   const addressReady = Boolean(data?.portal || checkedAddress?.status === "available")
-  const addressMessage = data?.portal ? "This is your reserved address." : checkingAddress ? "Checking address..." : checkedAddress?.message || ""
+  const addressMessage = checkingAddress ? "Checking address..." : checkedAddress?.message || ""
   const dirty = Boolean(data && (slug !== (data.portal?.slug || "") || JSON.stringify(brand) !== JSON.stringify(data.portal?.configuration || { ...emptyBrand, ...data.defaults })))
+  const Container = embedded ? "section" : "main"
+  const Heading = embedded ? "h2" : "h1"
+  const Subheading = embedded ? "h3" : "h2"
   useEffect(() => {
     if (preview) previewDialog.current?.showModal()
   }, [preview])
@@ -130,9 +133,9 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
       {key === "logo_url" && logoError && <p role="alert" className="mt-2 text-sm text-red-700">{logoError}</p>}
     </div>
   }
-  return <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+  return <Container aria-label={embedded ? "Hosted portal settings" : undefined} className={embedded ? "min-w-0" : "mx-auto w-full max-w-5xl px-4 py-6 sm:px-6"}>
     <header className="flex items-center justify-between gap-4 border-b border-gray-200 pb-5">
-      <h1 className="text-2xl font-semibold">Hosted portal</h1>
+      <Heading className={embedded ? "text-xl font-semibold" : "text-2xl font-semibold"}>{embedded ? "Hosted portal settings" : "Hosted portal"}</Heading>
       <button className={buttonClass} aria-label="Refresh hosted portal" title="Refresh hosted portal" disabled={busy}
         onClick={() => { if (!dirty || window.confirm("Discard unsaved portal changes?")) setReload(value => value + 1) }}><RefreshCw size={16} /></button>
     </header>
@@ -142,24 +145,24 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
     {data && <>
       <section className="border-b border-gray-200 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">White Label Subdomain Agency</h2><span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "White-label subscription required"}</span>
+          <Subheading className="font-semibold">White Label Subdomain Agency</Subheading><span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "White-label subscription required"}</span>
         </div>
         {!data.entitled && <Link href="/billing" className="mt-3 inline-block text-sm text-blue-700 underline">Choose a white-label plan</Link>}
         {!data.commercially_available && !data.portal?.published && <p className="mt-3 text-sm text-gray-600">New hosted portals are not available yet.</p>}
       </section>
-      {data.portal?.published && <section className="flex flex-wrap items-center gap-3 border-b border-gray-200 py-5">
+      {data.portal && <section aria-label="Portal address" className="flex flex-wrap items-center gap-3 border-b border-gray-200 py-5">
         <span className="min-w-0 break-all text-sm">{data.portal.hostname}</span>
         <span className="text-sm text-gray-500">{data.portal.status}</span>
         {data.entitled && data.portal.status === "active" && <a href={data.portal.url} target="_blank" rel="noreferrer" className={buttonClass}>Open portal<ExternalLink size={16} /></a>}
         <button className={buttonClass} title="Copy portal URL" aria-label="Copy portal URL" onClick={() => void perform(async () => { await navigator.clipboard.writeText(data.portal!.url); setNotice("Portal URL copied.") })}><Copy size={16} /></button>
-        <Link href="/settings" className="text-sm text-blue-700 underline">Manage client invitations</Link>
+        {!embedded && <Link href="/settings" className="text-sm text-blue-700 underline">Manage client invitations</Link>}
       </section>}
       {canEdit && <form onSubmit={event => { event.preventDefault(); void perform(() => save(true)) }}>
         <fieldset disabled={busy} className="min-w-0 disabled:opacity-60">
-          <section className="border-b border-gray-200 py-6">
-            <h2 className="mb-4 font-semibold">Portal address</h2>
+          {!data.portal && <section className="border-b border-gray-200 py-6">
+            <Subheading className="mb-4 font-semibold">Portal address</Subheading>
             <label className="block max-w-xl text-sm text-gray-700">Subdomain
-              <div className="mt-1 flex min-w-0 items-center rounded-md border border-gray-300 bg-white"><input aria-label="Subdomain" aria-describedby="hosted-address-status" aria-invalid={!data.portal && Boolean(checkedAddress && checkedAddress.status !== "available")} autoCapitalize="none" spellCheck={false} required disabled={Boolean(data.portal)} pattern={"[a-z0-9][a-z0-9\\-]{1,38}[a-z0-9]"} maxLength={40}
+              <div className="mt-1 flex min-w-0 items-center rounded-md border border-gray-300 bg-white"><input aria-label="Subdomain" aria-describedby="hosted-address-status" aria-invalid={Boolean(checkedAddress && checkedAddress.status !== "available")} autoCapitalize="none" spellCheck={false} required pattern={"[a-z0-9][a-z0-9\\-]{1,38}[a-z0-9]"} maxLength={40}
                 value={slug} onChange={event => { setSlug(event.target.value.toLowerCase()); setAddressCheck(null) }} className="h-10 min-w-0 flex-1 rounded-l-md px-3" /><span className="shrink-0 pr-3 text-xs text-gray-500">.decisionate.app</span></div>
             </label>
             <div id="hosted-address-status" role="status" className={`mt-2 flex min-h-5 max-w-xl items-center gap-2 text-sm ${!data.portal && checkedAddress && checkedAddress.status !== "available" ? "text-red-700" : "text-gray-600"}`}>
@@ -167,9 +170,9 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
               <span>{addressMessage}</span>
               {!data.portal && checkedAddress?.status === "error" && <button type="button" className="shrink-0 underline" onClick={() => { setAddressCheck(null); setAddressRetry(value => value + 1) }}>Try again</button>}
             </div>
-          </section>
+          </section>}
           <section className="border-b border-gray-200 py-6">
-            <h2 className="mb-4 font-semibold">Brand identity</h2>
+            <Subheading className="mb-4 font-semibold">Brand identity</Subheading>
             <div className="grid gap-4 sm:grid-cols-2">{field("name", "Portal name")}{field("support_email", "Support email", "email")}
               <label className="min-w-0 text-sm text-gray-700" htmlFor="hosted-logo-url">Logo URL
                 <input id="hosted-logo-url" type="url" inputMode="url" pattern="https://.*" title="Enter an HTTPS logo URL" maxLength={2048}
@@ -181,7 +184,7 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
             <div className="mt-5 flex flex-wrap gap-6">{([['primary_color', 'Primary colour'], ['accent_color', 'Accent colour'], ['background_color', 'Background colour']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><input aria-label={label} type="color" value={brand[key]} onChange={event => setBrand(value => ({ ...value, [key]: event.target.value }))} className="h-9 w-10 cursor-pointer" />{label}</label>)}</div>
           </section>
           <section className="border-b border-gray-200 py-6">
-            <h2 className="mb-4 font-semibold">Welcome screen</h2>
+            <Subheading className="mb-4 font-semibold">Welcome screen</Subheading>
             <div className="grid gap-4 sm:grid-cols-2">{field("welcome_heading", "Welcome heading")}{imageField("background_url", "Background image")}</div>
             <label className="mt-4 block text-sm text-gray-700">Welcome message<textarea value={brand.welcome_text} maxLength={400} onChange={event => setBrand(value => ({ ...value, welcome_text: event.target.value }))} className="mt-1 min-h-24 w-full rounded-md border border-gray-300 bg-white p-3" /></label>
           </section>
@@ -213,5 +216,5 @@ function HostedSubdomainEditor({ userId }: { userId: string }) {
         })}><Check size={16} />{busy ? "Publishing..." : data.portal.published ? "Publish changes" : "Activate portal"}</button></div>
       </div>
     </dialog>}
-  </main>
+  </Container>
 }

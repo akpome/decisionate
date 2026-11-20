@@ -9,13 +9,17 @@ tier), with normal trial, renewal and grace-period rules. This is an alternative
 base subscription, not an add-on to Standard Branded Agency. Platform Admin sets
 monthly/annual amounts and recurring Stripe IDs for all four plans. Existing
 Professional and Agency subscriptions and prices are preserved.
-When enabled, Settings > Hosted portal offers address reservation, branding draft,
-desktop/mobile preview and explicit activation. No agency-owned
+When enabled, the White Label Subdomain Agency owner's Settings page displays
+Hosted portal settings directly in place of the standard workspace branding form.
+It offers address reservation, branding draft, desktop/mobile preview and explicit
+activation. Once an address is saved, the subdomain input is hidden; the portal
+address remains available to copy or open when active. No agency-owned
 provider accounts or separate Vercel project are required. The branded welcome
 screen uses `app.decisionate.ca` for secure credential entry and returns to the
 authorized portal. It does not change the custom product below.
 
-Invited clients can choose **Create an account** on the branded sign-in page.
+Only sign-in is promoted on the public branded welcome page. Invited clients can
+choose **Create your login** after opening their workspace invitation.
 Its sign-up page uses the same central Clerk instance; the **Sign in** link
 preserves the invitation when switching back. Signup creates a login, not a new
 workspace or subscription. Existing agency invitations and verified-email access

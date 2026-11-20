@@ -168,7 +168,7 @@ test("hosted setup uses a native modal, immutable addresses, explicit publish an
   assert.match(source, /<dialog ref=\{previewDialog\}/)
   assert.match(source, /\.showModal\(\)/)
   assert.match(source, /onCancel=/)
-  assert.match(source, /disabled=\{Boolean\(data.portal\)\}/)
+  assert.match(source, /\{!data.portal && <section/)
   assert.match(source, /confirmation: "PUBLISH PORTAL"/)
   assert.match(source, /Save draft/)
   assert.match(source, /data.blockers.length > 0/)
@@ -229,7 +229,7 @@ test("hosted logo picker accepts exactly 1 MB while other images retain their 12
   assert.match(svg.state.error, /PNG, JPEG or WebP/)
 })
 
-function renderSetup({ entitled = true, available = true, slug = "", addressCheck = null, portal = null } = {}) {
+function renderSetup({ entitled = true, available = true, slug = "", addressCheck = null, portal = null, embedded = false } = {}) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
   const brand = { name: "North Star", support_email: "help@northstar.test", logo_url: "", favicon_url: "", background_url: "",
     primary_color: "#2563EB", accent_color: "#059669", background_color: "#FFFFFF", welcome_heading: "Welcome", welcome_text: "" }
@@ -245,7 +245,7 @@ function renderSetup({ entitled = true, available = true, slug = "", addressChec
     "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: "agency" }) },
     "@/lib/workspace-brand": { getBrandSurfaceTextColor: () => "#ffffff" },
   })
-  return renderToStaticMarkup(React.createElement(HostedSubdomainSetup, { userId: "owner" }))
+  return renderToStaticMarkup(React.createElement(HostedSubdomainSetup, { userId: "owner", embedded }))
 }
 
 test("eligible agencies go directly to portal setup without a price, purchase or extra subscription", () => {
@@ -257,6 +257,19 @@ test("eligible agencies go directly to portal setup without a price, purchase or
   assert.match(html, /Upload logo/)
   assert.doesNotMatch(html, /Browser icon/)
   assert.doesNotMatch(html, /View subscription price|Cancel hosted white label|Subscription options|Add hosted white label/)
+})
+
+test("embedded portal settings use section headings and expose the editor without another navigation link", () => {
+  const html = renderSetup({ embedded: true })
+  assert.match(html, /<section aria-label="Hosted portal settings"/)
+  assert.match(html, /<h2[^>]*>Hosted portal settings<\/h2>/)
+  assert.match(html, /<h3[^>]*>Brand identity<\/h3>/)
+  assert.match(html, /Logo URL/)
+  assert.match(html, /Upload logo/)
+  assert.match(html, /Welcome message/)
+  assert.match(html, /Preview portal/)
+  assert.doesNotMatch(html, /<main|<h1|href="\/hosted-portal"|Manage client invitations/)
+  assert.match(renderSetup(), /<main/)
 })
 
 test("one hosted logo is used consistently, preserving older icon-only branding", () => {
@@ -327,9 +340,27 @@ test("new portal saves wait for an available name, while existing reserved addre
   const stale = renderSetup({ slug: "another-name", addressCheck: { input: "north-star", status: "available", message: "Available" } })
   assert.match(stale, /Checking address/)
   assert.ok(buttons(stale).every(button => /disabled=""/.test(button)))
-  const existing = renderSetup({ slug: "north-star", portal: { slug: "north-star", configuration: {}, revision: 1 } })
-  assert.match(existing, /This is your reserved address/)
+  const existing = renderSetup({ slug: "north-star", portal: { slug: "north-star", hostname: "north-star.decisionate.app", url: "https://north-star.decisionate.app", configuration: {}, revision: 1 } })
+  assert.match(existing, /north-star.decisionate.app/)
+  assert.doesNotMatch(existing, /aria-label="Subdomain"/)
   assert.ok(buttons(existing).every(button => !/disabled=""/.test(button)))
+})
+
+test("saved draft and published addresses are displayed without a subdomain input", () => {
+  for (const published of [false, true]) {
+    const portal = { slug: "north-star", hostname: "north-star.decisionate.app", url: "https://north-star.decisionate.app",
+      status: published ? "active" : "draft", published, configuration: {}, revision: 1 }
+    for (const embedded of [false, true]) {
+      const html = renderSetup({ slug: portal.slug, portal, embedded })
+      assert.match(html, /aria-label="Portal address"/)
+      assert.match(html, /north-star.decisionate.app/)
+      assert.match(html, /Copy portal URL/)
+      assert.match(html, /Preview portal/)
+      assert.doesNotMatch(html, /aria-label="Subdomain"|id="hosted-address-status"/)
+      assert.equal(html.includes("Open portal"), published)
+      assert.equal(html.includes("Manage client invitations"), !embedded)
+    }
+  }
 })
 
 function addressAvailability({ slug = "north-star", portal = null, canEdit = true, failure = false } = {}) {

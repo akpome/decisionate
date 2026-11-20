@@ -69,6 +69,14 @@ Audit findings and differences from the original handoff:
 4. Preview desktop/mobile appearance, then explicitly activate/publish. Draft
    editing does not provision Clerk resources or change live branding.
 5. Open/copy the URL and manage client invitations using existing Settings.
+
+For White Label Subdomain Agency owners, Settings embeds the hosted portal
+editor in place of standard workspace branding. It is not hidden behind a
+setup link. Both the embedded editor and the existing direct setup route hide
+the subdomain input after saving a draft; the reserved address is displayed with
+copy and, when active, open controls. Professional, Standard Branded Agency and
+custom-domain setup retain their existing settings. Client ownership, team and
+deletion controls are unchanged.
    Signup alone never grants membership in an agency or client workspace.
 
 Owner/admin can edit branding; only the owner can change the existing Agency

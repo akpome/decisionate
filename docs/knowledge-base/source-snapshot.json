@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "f2efef4e301c6ce26dab224ff4fb0bb8f116bb29",
+  "base_git_revision": "ea6ddee0ef0ad065fc89373057ab6641e4f13e8e",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
-    "apps/web/features/auth/components/auth-layout.tsx",
-    "apps/web/features/hosted-subdomains/sign-in.tsx"
+    "apps/web/app/dashboard/settings/settings-client.tsx",
+    "apps/web/features/hosted-subdomains/setup.tsx",
+    "docs/white-label-onboarding.md"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -137,7 +137,7 @@
     "apps/web/app/dashboard/reports/combined/page.tsx": "3ef973956705f169c5d3b7d137bead3794cbe92859bfb798fbcee7cf3d2ae8b1",
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
     "apps/web/app/dashboard/reports/weekly/page.tsx": "29306c58787eeb07e3df8ab242db4a8c5dec1313778cdfbb738e59c23ebf0017",
-    "apps/web/app/dashboard/settings/settings-client.tsx": "20f07a67d0f496d6eb3aee8c8d259e25ac0fc0f81d32964e86c35c6d9e3be5dc",
+    "apps/web/app/dashboard/settings/settings-client.tsx": "f2dacb0fdd2746b8e1763721038adc13b13d6a4bf5e440a74fd8e8a0ce1ef9d4",
     "apps/web/app/layout.tsx": "96dca03c35c0da5f6096baea4fde5d394a799356f2b6949743a230d495de6cb0",
     "apps/web/app/platform-admin/page.tsx": "24ff65cf084943175846d042e002b65488e560e4955a2e9e9b927e0a30ab1bf5",
     "apps/web/app/privacy/page.tsx": "e2a13b5e7858ee0d27c723b80d67a5476da07cf8178c32fe5f128fc4172342f6",
@@ -164,7 +164,7 @@
     "apps/web/features/decisions/components/decision-report-evidence.tsx": "1800308a101183a53afa3aa9d539c98de3b231347fee0c7f40455e709688f2dd",
     "apps/web/features/hosted-subdomains/provider.tsx": "f1d3d638c2e62130f2326483dbd1840c2d404b29e99f338c765d69b101397862",
     "apps/web/features/hosted-subdomains/server.ts": "f81fdb7068a6abdd000189769cfdb6b060127aff16cf14a855280dc3736587c5",
-    "apps/web/features/hosted-subdomains/setup.tsx": "a76c60b0cc7e1a49a3d3ad406689bf8003d5a4cb30e3ed68caa49cf212672662",
+    "apps/web/features/hosted-subdomains/setup.tsx": "cb90bc7e05a26ac69ecd32ae42aa4f262af804d47f6b32286cb944124520f914",
     "apps/web/features/hosted-subdomains/sign-in.tsx": "7781e84695e27d899c7b015abe517dfc309a2cef8393f8f0efa1fb2bac45a71a",
     "apps/web/features/hosted-subdomains/types.ts": "4682253e4962a55925dd695d3560cc05279dc5eaa1acb302dca73607db1d6e34",
     "apps/web/features/hosted-subdomains/unavailable-page.ts": "0acf0d39ad9d8ca2ddc4224a50f839bc71aaed975f30bf4b135b9295b875411b",
@@ -235,10 +235,10 @@
     "docs/multi-application-api.md": "fa9697368f42ca6995a0118545b09815c0cd11630357469d72e10bfe11157f74",
     "docs/openai-data-flow.md": "2bcfa4ae96a3d98f4e9b3722d33854e7536f651c9ddea6c926fb23bc720f14fd",
     "docs/railway-scheduling.md": "73781498a08122f0e4987f21286eb375a120cbc5f179757d44af01d6cb7e6305",
-    "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
+    "docs/white-label-onboarding.md": "8f3f284ed0bc2f69977a15c5943e7fb701b63556dfab0718a9d44b88f7915bf8"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "e6ef0b9101b3c74acc42162c527471c64418251ef4180bec16a2dd34c8226d09",
+    "customer/hosted-portals.md": "abc7e069f3557c03687269ed7ecbaf6a306fc7693e96d3ef96be22993773d8b3",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

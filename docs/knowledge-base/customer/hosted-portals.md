@@ -68,8 +68,10 @@ Choose White Label Subdomain Agency in Billing when the plan is available.
 Professional and Standard Branded Agency do not include hosted white label.
 White Label Subdomain Agency is one complete subscription, not a portal add-on
 charged on top of Standard Branded Agency. Its monthly and annual prices are set
-by the platform administrator. An eligible owner opens Settings > Hosted portal
-and starts with the portal address and branding. Normal trial, renewal,
+by the platform administrator. An eligible owner opens Settings, where Hosted
+portal settings is shown directly instead of the standard Workspace branding
+form. No separate setup link is required. Start with the portal address and
+branding. Normal trial, renewal,
 cancellation and payment grace rules still apply. If plan access is inactive, use Billing to
 restore it. If new portals are unavailable, contact support. Branding alone cannot
 enable one before the platform is ready.
@@ -97,7 +99,9 @@ numbers or single hyphens; platform names such as app and support cannot be used
 Save draft reserves the address; checking availability alone does not reserve it.
 If someone else reserves it first, choose another name. An address already reserved
 by an agency stays unavailable to others, including while its portal is paused or
-retired. Your saved address cannot then be renamed in this screen.
+retired. After saving, the subdomain input is hidden. The saved portal address
+remains visible with a copy control and, when active, an Open portal button.
+Your saved address cannot then be renamed in this screen.
 Preview desktop or mobile, then explicitly activate or publish. Draft changes are
 not live until published. Reopen setup to continue. Publishing registers the portal's
 sign-in domain with Clerk. If shared sign-in setup is unavailable, save the draft

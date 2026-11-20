@@ -1,5 +1,6 @@
 "use client"
 import { WhiteLabelSettingsLink } from "@/features/white-label/settings-link"
+import { HostedSubdomainSetup } from "@/features/hosted-subdomains/setup"
 
 
 import {
@@ -311,6 +312,7 @@ export function SettingsClient({
   const canManageClientWorkspaces =
     billingStatus?.billing_model === "agency" &&
     canConfigureWorkspace
+  const hostedPortalSettings = billingStatus?.plan === "agency_subdomain" && !process.env.NEXT_PUBLIC_PORTAL_ID
 
   useEffect(() => {
     let ignoreResult = false
@@ -435,6 +437,10 @@ export function SettingsClient({
           setBillingStatus(billingResult.value)
         } else {
           setBillingStatus(null)
+          setOrganizationLoadError(current => current || getSettingsErrorMessage(
+            billingResult.reason,
+            "Unable to check your workspace plan. Please try again."
+          ))
         }
 
         if (inviteResult?.status === "fulfilled") {
@@ -1420,7 +1426,8 @@ export function SettingsClient({
 
       <EmailPreferences userId={userId} />
       {ownershipPanel}
-      {canManageClientWorkspaces && !process.env.NEXT_PUBLIC_PORTAL_ID && <WhiteLabelSettingsLink userId={userId} plan={billingStatus?.plan || ""} />}
+      {hostedPortalSettings && saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
+      {canManageClientWorkspaces && !hostedPortalSettings && !process.env.NEXT_PUBLIC_PORTAL_ID && <WhiteLabelSettingsLink userId={userId} plan={billingStatus?.plan || ""} />}
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
           <div>
@@ -1469,7 +1476,16 @@ export function SettingsClient({
           Workspace Profile And Branding Section
       ========================= */}
 
-      {!isClientPortalUser && (
+      {!isClientPortalUser && loadingOrganization && <p role="status" className="text-sm text-gray-600">Loading workspace settings...</p>}
+      {!isClientPortalUser && !loadingOrganization && (organizationLoadError || !billingStatus) && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <span>{organizationLoadError || "Unable to check your workspace plan. Please try again."}</span>
+          <button type="button" onClick={() => setOrganizationLoadRetryKey(currentKey => currentKey + 1)}
+            className="rounded-md border border-red-200 bg-white px-3 py-2 font-medium hover:bg-red-100">Retry workspace load</button>
+        </div>
+      )}
+      {!isClientPortalUser && !loadingOrganization && !organizationLoadError && billingStatus && (hostedPortalSettings
+        ? <HostedSubdomainSetup userId={userId} embedded /> : (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -1510,28 +1526,6 @@ export function SettingsClient({
             </span>
           </div>
         </div>
-
-        {organizationLoadError && (
-          <div
-            role="alert"
-            className="mb-5 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span>{organizationLoadError}</span>
-
-            <button
-              type="button"
-              onClick={() =>
-                setOrganizationLoadRetryKey(currentKey => currentKey + 1)
-              }
-              disabled={loadingOrganization}
-              className="w-fit shrink-0 rounded-lg border border-red-200 bg-white px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loadingOrganization
-                ? "Retrying..."
-                : "Retry workspace load"}
-            </button>
-          </div>
-        )}
 
         <div className="space-y-5">
           <div>
@@ -1820,7 +1814,7 @@ export function SettingsClient({
           </div>
         </div>
       </div>
-      )}
+      ))}
 
       {/* =========================
           Client Workspace Management Section For Owner And Member Access

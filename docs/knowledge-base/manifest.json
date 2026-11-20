@@ -39,6 +39,7 @@
         "apps/api/app/modules/hosted_portal_providers.py",
         "apps/web/features/white-label/hosted-setup.tsx",
         "apps/web/features/hosted-subdomains/setup.tsx",
+        "apps/web/app/dashboard/settings/settings-client.tsx",
         "apps/web/features/hosted-subdomains/sign-in.tsx",
         "apps/web/features/hosted-subdomains/types.ts",
         "apps/web/features/hosted-subdomains/server.ts",
