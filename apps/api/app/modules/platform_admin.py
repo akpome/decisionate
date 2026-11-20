@@ -27,7 +27,7 @@ from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy import and_, case, func, or_
 
 from app.db.database import Base, SessionLocal
-from app.modules.applications import workspace_belongs_to_application, workspace_scoped
+from app.modules.applications import workspace_application_scope, workspace_belongs_to_application, workspace_scoped
 from app.infrastructure.object_storage import (
     get_dataset_storage_reference,
     get_object_storage,
@@ -73,6 +73,7 @@ from app.modules.auth_context import get_auth_context
 from app.infrastructure.ingestion_jobs import ensure_workspace_jobs_idle, delete_workspace_ingestion_jobs
 from app.modules.billing.notifications import get_workspace_owner_email
 from app.modules.organizations.branding import get_client_email_branding
+from app.modules.organizations.email_association import require_unassigned_workspace_email, WORKSPACE_EMAIL_CONFLICT
 from app.modules.organizations.ownership import has_accepted_owner, is_workspace_owner, managed_client_filter, managing_agency_workspace_id
 from app.modules.billing.lifecycle import (
     build_subscription_access_state,
@@ -2584,6 +2585,9 @@ async def create_platform_admin_organization(
 
     db = SessionLocal()
     try:
+        for email in sorted([owner_email, *member_emails]):
+            lock_user_email(db, email)
+            require_unassigned_workspace_email(db, email)
         owner = get_or_create_platform_admin_owner(db, owner_email)
         existing_owned_workspace = (
             db.query(Organization)
@@ -2593,7 +2597,7 @@ async def create_platform_admin_organization(
         if existing_owned_workspace:
             raise HTTPException(
                 status_code=409,
-                detail="This owner already owns a workspace",
+                detail=WORKSPACE_EMAIL_CONFLICT,
             )
 
         organization = Organization(
@@ -4451,6 +4455,9 @@ async def add_platform_admin_organization_invite(
 
         email = clean_platform_admin_invite_email(payload.email)
         role = clean_platform_admin_member_role(payload.role)
+        with workspace_application_scope(organization.owner_user_id, db, include_portal=False):
+            lock_user_email(db, email)
+            require_unassigned_workspace_email(db, email, organization_id=organization.id)
         existing_invite = (
             db.query(OrganizationInvite)
             .filter(

@@ -15,8 +15,8 @@ from sqlalchemy.pool import StaticPool
 
 from app import main
 from app.db.database import Base
-from app.db.models import AppUser, AuthIdentity, Organization, OrganizationInvite, OrganizationMember, WorkspaceSubscription, utc_now
-from app.modules import auth_context, workspace_lifecycle
+from app.db.models import AppUser, AuthIdentity, Organization, OrganizationInvite, OrganizationMember, WorkspaceApplication, WorkspaceSubscription, utc_now
+from app.modules import auth_context, platform_admin, workspace_lifecycle
 from app.modules.alerts import email_delivery
 from app.modules.organizations import invitations, router
 
@@ -63,6 +63,7 @@ class ClientInvitationFlowTests(unittest.TestCase):
         app = FastAPI()
         app.middleware("http")(main.enforce_product_route_auth)
         app.include_router(router.router, prefix="/organizations")
+        app.include_router(platform_admin.router, prefix="/admin")
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
 
@@ -75,8 +76,8 @@ class ClientInvitationFlowTests(unittest.TestCase):
     def resend(self, identity=7, workspace=None):
         return self.client.post(f"/organizations/invites/{identity}/send", headers=self.headers(workspace or self.workspace))
 
-    def create(self):
-        return self.client.post("/organizations/client-workspaces", json={"name": "New Client", "client_email": "new@example.test"}, headers=self.headers())
+    def create(self, email="new@example.test"):
+        return self.client.post("/organizations/client-workspaces", json={"name": "New Client", "client_email": email}, headers=self.headers())
 
     def test_creation_commits_the_invitation_then_sends_a_branded_workspace_specific_link(self):
         def committed(recipient, subject, body, **kwargs):
@@ -101,6 +102,92 @@ class ClientInvitationFlowTests(unittest.TestCase):
             invite = db.query(OrganizationInvite).filter_by(email="new@example.test").one()
             self.assertEqual(invite.status, "pending")
             self.assertIsNotNone(invite.email_sent_at)
+
+    def test_registered_owner_member_and_pending_email_cannot_be_reused_for_another_workspace(self):
+        with self.Session() as db:
+            db.add_all([
+                AppUser(id="registered", email=" Owner@Example.Test "),
+                AuthIdentity(user_id="registered", provider="clerk", subject="registered-external", email="alias@example.test"),
+                AppUser(id="legacy"),
+                AuthIdentity(user_id="legacy", provider="clerk", subject="legacy-external", email="member@example.test"),
+                Organization(id=5, name="Existing company", owner_user_id="registered"),
+                OrganizationMember(organization_id=5, clerk_user_id="legacy", role="member"),
+            ])
+            db.commit()
+        with patch.object(router, "add_deferred_client_workspace_capacity") as add_capacity, patch.object(router, "get_client_workspace_limit", return_value=0):
+            for email in ("OWNER@EXAMPLE.TEST", "alias@example.test", "member@example.test", "client@example.test", "agency@example.test"):
+                with self.subTest(email=email):
+                    response = self.client.post("/organizations/client-workspaces", headers=self.headers(),
+                        json={"name": "Replacement", "client_email": email})
+                    self.assertEqual(response.status_code, 409, response.text)
+                    self.assertIn("already associated with another workspace", response.json()["detail"])
+                    self.assertIn("delete the existing workspace first", response.json()["detail"])
+                    self.assertNotIn("Existing company", response.json()["detail"])
+            add_capacity.assert_not_called()
+        for email in ("owner@example.test", "alias@example.test", " MEMBER@EXAMPLE.TEST ", "client@example.test"):
+            response = self.client.post("/organizations/invites", headers=self.headers(), json={"email": email, "role": "member"})
+            self.assertEqual(response.status_code, 409, response.text)
+        self.send.assert_not_called()
+        with self.Session() as db:
+            self.assertEqual(db.query(Organization).count(), 5)
+            self.assertEqual(db.query(OrganizationInvite).count(), 1)
+
+    def test_onboarding_cannot_create_a_new_workspace_for_an_existing_client_owner(self):
+        with self.Session() as db:
+            db.add(OrganizationMember(organization_id=2, clerk_user_id="client", role="client_owner"))
+            db.query(OrganizationInvite).filter_by(organization_id=2).delete()
+            db.commit()
+        self.actor, self.email = "client", "client@example.test"
+        response = self.client.post("/organizations/", headers=self.headers(), json={
+            "name": "Duplicate business", "plan": "professional", "first_name": "Test", "last_name": "Owner",
+            "business_type": "business", "country": "Canada", "industry": "Retail and ecommerce", "company_size": "1-10",
+            "role": "Business owner or founder", "primary_goal": "Understand business performance",
+        })
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertIn("delete the existing workspace first", response.json()["detail"])
+        with self.Session() as db:
+            self.assertIsNone(db.query(Organization).filter_by(owner_user_id="client").first())
+            self.assertIsNone(db.query(WorkspaceSubscription).filter_by(workspace_id="client").first())
+
+    def test_same_workspace_resend_and_released_invitation_history_are_not_conflicts(self):
+        self.assertEqual(self.resend().status_code, 200)
+        with self.Session() as db:
+            db.get(OrganizationInvite, 7).status = "accepted"
+            db.commit()
+        response = self.client.post("/organizations/invites", headers=self.headers(),
+            json={"email": "client@example.test", "role": "member"})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_admin_provisioning_and_invitations_cannot_bypass_email_association(self):
+        with patch.object(platform_admin, "require_platform_admin", return_value=SimpleNamespace(user_id="operator")), patch.object(platform_admin, "SessionLocal", self.Session):
+            for payload in (
+                {"name": "Duplicate owner", "owner_email": "client@example.test"},
+                {"name": "Duplicate member", "owner_email": "available@example.test", "member_emails": ["agency@example.test"]},
+            ):
+                response = self.client.post("/admin/organizations", json=payload, headers=self.headers())
+                self.assertEqual(response.status_code, 409, response.text)
+                self.assertIn("already associated with another workspace", response.json()["detail"])
+            response = self.client.post("/admin/organizations/1/invites", json={"email": "client@example.test", "role": "member"}, headers=self.headers())
+            self.assertEqual(response.status_code, 409, response.text)
+        with self.Session() as db:
+            self.assertEqual(db.query(Organization).count(), 4)
+            self.assertEqual(db.query(OrganizationInvite).count(), 1)
+            self.assertIsNone(db.query(AppUser).filter_by(email="available@example.test").first())
+
+    def test_other_application_and_revoked_or_reassigned_identity_do_not_reserve_an_email(self):
+        with self.Session() as db:
+            db.add_all([
+                AppUser(id="external-app", email="other-app@example.test"),
+                Organization(id=5, name="Separate application", owner_user_id="external-app"),
+                WorkspaceApplication(workspace_id="external-app", application_id="other-app"),
+                AppUser(id="archived", email="transferred@example.test", access_paused_at=utc_now()),
+                Organization(id=6, name="Archived identity", owner_user_id="archived"),
+                AuthIdentity(user_id="agency", provider="clerk", subject="former-login", email="old-alias@example.test", revoked_at=utc_now()),
+            ])
+            db.commit()
+        for email in ("other-app@example.test", "transferred@example.test", "old-alias@example.test"):
+            response = self.client.post("/organizations/invites", headers=self.headers(), json={"email": email, "role": "member"})
+            self.assertEqual(response.status_code, 200, response.text)
 
     def test_an_invitation_insert_failure_cannot_leave_a_workspace_without_its_owner_invitation(self):
         def fail_insert(mapper, connection, target):
@@ -161,6 +248,7 @@ class ClientInvitationFlowTests(unittest.TestCase):
     def test_creation_automatically_sends_to_the_client_owner_through_each_platform_transport(self):
         self.send.side_effect = email_delivery.send_platform_system_email
         for provider in ("resend", "smtp"):
+            recipient = f"{provider}@example.test"
             settings = {
                 "provider": provider, "configured": True, "smtp_host": "smtp.example.test", "smtp_port": 587,
                 "smtp_from_email": "no-reply@example.test", "smtp_from_name": "Decisionate",
@@ -173,14 +261,14 @@ class ClientInvitationFlowTests(unittest.TestCase):
                     self.assertLogs(invitations.logger, level="INFO") as logs:
                 network.return_value.__enter__.return_value.status = 200
                 smtp.return_value.__enter__.return_value.send_message.return_value = {}
-                response = self.create()
+                response = self.create(recipient)
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertEqual(response.json()["invitation_email_status"], "sent")
                 if provider == "resend":
                     network.assert_called_once()
                     request = network.call_args.args[0]
                     message = json.loads(request.data)
-                    self.assertEqual(message["to"], ["new@example.test"])
+                    self.assertEqual(message["to"], [recipient])
                     self.assertIn("North Star Agency via Decisionate", message["from"])
                     self.assertIn("https://app.example.test/sign-in?redirect_url=", message["html"])
                     self.assertTrue(request.get_header("Idempotency-key").startswith("workspace-invite-"))
@@ -190,7 +278,7 @@ class ClientInvitationFlowTests(unittest.TestCase):
                     connection.starttls.assert_called_once()
                     connection.send_message.assert_called_once()
                     message = connection.send_message.call_args.args[0]
-                    self.assertEqual(message["To"], "new@example.test")
+                    self.assertEqual(message["To"], recipient)
                     self.assertIn("North Star Agency via Decisionate", message["From"])
                     self.assertIn("https://app.example.test/sign-in?redirect_url=", message.get_body(preferencelist=("plain",)).get_content())
                     network.assert_not_called()
@@ -201,7 +289,7 @@ class ClientInvitationFlowTests(unittest.TestCase):
                     self.assertEqual(invite.email_status, "sent")
                     self.assertIsNotNone(invite.email_sent_at)
                 self.assertIn("accepted by provider", logs.output[0])
-                self.assertNotIn("new@example.test", " ".join(logs.output))
+                self.assertNotIn(recipient, " ".join(logs.output))
 
     def test_automatic_transport_failure_is_not_reported_as_a_sent_invitation(self):
         self.send.side_effect = email_delivery.send_platform_system_email

@@ -25,6 +25,7 @@ from app.modules.auth_context import (
     get_auth_jwks_url,
 )
 from app.modules.identity.clerk import get_verified_clerk_primary_email
+from app.modules.organizations.email_association import require_unassigned_workspace_email, WORKSPACE_EMAIL_CONFLICT
 from app.modules.organizations.invitations import send_invitation_email
 from app.modules.organizations.ownership import (
     client_owner_member, has_accepted_owner, independent_client, is_workspace_owner,
@@ -48,6 +49,7 @@ from app.modules.billing.lifecycle import (
     build_subscription_access_state,
 )
 from app.modules.identity.service import (
+    lock_user_email,
     resolve_user_reference,
 )
 from app.modules.datasets.services.joins import (
@@ -1691,14 +1693,18 @@ async def create_organization(
     db = SessionLocal()
 
     try:
+        owner_email = str(organization_user_email(db, user_id) or "").strip() or (auth_context.email if auth_context.email_verified else None)
+        if owner_email:
+            lock_user_email(db, owner_email)
+        require_unassigned_workspace_email(db, owner_email, user_id=user_id)
         existing = (
             db.query(Organization).filter(Organization.owner_user_id == user_id).first()
         )
 
         if existing:
             raise HTTPException(
-                status_code=400,
-                detail="Organization already exists",
+                status_code=409,
+                detail=WORKSPACE_EMAIL_CONFLICT,
             )
 
         organization_record = Organization(
@@ -1805,6 +1811,7 @@ def create_client_workspace(
             db,
             user_id,
         )
+        lock_user_email(db, client_email)
         db.refresh(agency_organization, with_for_update=True)
         subscription = (
             db.query(WorkspaceSubscription)
@@ -1824,6 +1831,7 @@ def create_client_workspace(
                 status_code=403,
                 detail="Client workspaces are available only on Agency plans",
             )
+        require_unassigned_workspace_email(db, client_email)
         additional_client_workspaces = int(
             subscription.additional_client_workspaces
             if subscription
@@ -2362,13 +2370,12 @@ def add_organization_invite(
     db = SessionLocal()
 
     try:
+        invite_email = clean_invite_email(payload.email)
+        lock_user_email(db, invite_email)
         organization = get_managed_organization_or_404(
             db,
             auth_context,
             lock=True,
-        )
-        invite_email = clean_invite_email(
-            payload.email,
         )
         invite_role = clean_member_role(
             payload.role,
@@ -2404,6 +2411,7 @@ def add_organization_invite(
                 if (auth_context.email or organization_user_email(db, auth_context.user_id) or "").strip().lower() == invite_email:
                     raise HTTPException(409, "You already own this workspace.")
 
+        require_unassigned_workspace_email(db, invite_email, organization_id=organization.id)
         existing_invite = (
             db.query(OrganizationInvite)
             .filter(
@@ -2456,10 +2464,13 @@ def add_organization_invite(
 def resend_organization_invite(invite_id: int, request: Request):
     auth_context = get_auth_context(request, allow_managed_client_workspace=True)
     with SessionLocal() as db:
-        organization = get_managed_organization_or_404(db, auth_context, lock=True)
+        organization = get_managed_organization_or_404(db, auth_context)
         invite = db.query(OrganizationInvite).filter_by(id=invite_id, organization_id=organization.id).first()
         if invite is None:
             raise HTTPException(404, "Invitation not found.")
+        lock_user_email(db, invite.email)
+        organization = get_managed_organization_or_404(db, auth_context, lock=True)
+        require_unassigned_workspace_email(db, invite.email, organization_id=organization.id)
         if canonical_client_workspace_role(organization, invite.role) == "client_user":
             validate_client_workspace_role_capacity(db, organization, invite.role, exclude_invite_id=invite.id)
         return send_invitation_email(db, organization, invite, resend=True)

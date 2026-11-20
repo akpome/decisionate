@@ -47,6 +47,10 @@ out or grant access to the current account.
 Link an existing workspace is a separate, collapsed option for a client who
 already owns a workspace. Invite to agency asks that owner to approve linking
 their existing workspace; it is not a second step when creating a new one.
+If the email is already tied to another workspace through ownership, membership
+or a pending invitation, Decisionate blocks a new workspace or email invitation.
+Use Link an existing workspace to reconnect a former client without deleting
+their data. To replace a workspace instead, only its owner can delete it.
 
 For an existing pending invitation, the agency owner can select the client under
 Settings > Client Workspaces and choose Resend invitation, or Send invitation

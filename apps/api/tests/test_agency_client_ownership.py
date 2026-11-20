@@ -127,6 +127,23 @@ class AgencyClientOwnershipTests(unittest.TestCase):
         normal = self.client_request("workspaces", "get")
         self.assertTrue(all(row.get("client_owner_contact_email") is None for row in normal.json()))
 
+    def test_deleting_an_owned_workspace_releases_the_email_for_a_new_invitation(self):
+        with self.Session() as db:
+            db.get(AppUser, "client").email = "client@example.test"
+            db.commit()
+        def create_replacement():
+            self.actor, self.email = "agency", "agency@example.test"
+            return self.client.post("/organizations/client-workspaces", headers=self.headers(),
+                json={"name": "Replacement", "client_email": "client@example.test"})
+
+        self.assertEqual(create_replacement().status_code, 409)
+        self.actor, self.email = "client", "client@example.test"
+        result = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": "Client Shop"})
+        self.assertEqual(result.status_code, 200, result.text)
+        created = create_replacement()
+        self.assertEqual(created.status_code, 200, created.text)
+        self.assertEqual(created.json()["invitation_email_status"], "sent")
+
     def test_active_client_owner_can_share_once_with_a_verified_collaborator_and_revoke_access(self):
         def invite(email, role="client_user"):
             return self.client_request("invites", json={"email": email, "role": role})

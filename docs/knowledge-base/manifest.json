@@ -463,6 +463,7 @@
         "apps/api/app/modules/workspace_lifecycle.py",
         "apps/api/app/modules/organizations/router.py",
         "apps/api/app/modules/organizations/invitations.py",
+        "apps/api/app/modules/organizations/email_association.py",
         "apps/api/app/modules/organizations/ownership.py",
         "apps/api/app/modules/organizations/agency_accounts.py",
         "apps/api/app/modules/billing/lifecycle.py",

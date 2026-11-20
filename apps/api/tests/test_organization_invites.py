@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import Organization, OrganizationInvite, OrganizationMember, WorkspaceApplication
+from app.db.models import AppUser, AuthIdentity, Organization, OrganizationInvite, OrganizationMember, WorkspaceApplication
 from app.modules.auth_context import AuthContext
 from app.modules.organizations import router
 from app.modules.organizations.router import (
@@ -22,7 +22,7 @@ from app.modules.organizations.router import (
 from app.modules.organizations.schemas import OrganizationInviteCreate
 
 
-INVITATION_TABLES = (Organization, OrganizationMember, OrganizationInvite, WorkspaceApplication)
+INVITATION_TABLES = (Organization, OrganizationMember, OrganizationInvite, WorkspaceApplication, AppUser, AuthIdentity)
 
 
 class OrganizationInviteClaimTests(unittest.TestCase):
@@ -187,7 +187,7 @@ class OrganizationInviteClaimTests(unittest.TestCase):
 
 @unittest.skipUnless(os.getenv("DECISIONATE_TEST_POSTGRES_URL"), "An isolated PostgreSQL test database is required")
 class ConcurrentClientInvitationTests(unittest.TestCase):
-    def test_different_emails_cannot_reserve_the_same_collaborator_slot(self):
+    def concurrent_invites(self, workspaces, invitations):
         url = os.environ["DECISIONATE_TEST_POSTGRES_URL"]
         admin = create_engine(url)
         schema = "client_invitations_" + uuid4().hex
@@ -206,26 +206,39 @@ class ConcurrentClientInvitationTests(unittest.TestCase):
             model.__table__.create(engine)
         sessions = sessionmaker(bind=engine)
         with sessions() as db:
-            db.add(Organization(id=1, owner_user_id="client", name="Client", managing_agency_workspace_id="agency"))
+            db.add_all(workspaces)
             db.commit()
 
         start = Barrier(2, timeout=5)
 
-        def invite(email):
+        def invite(job):
+            workspace_id, email, role = job
             start.wait()
             try:
-                router.add_organization_invite(None, OrganizationInviteCreate(email=email, role="client_user"))
+                router.add_organization_invite(workspace_id, OrganizationInviteCreate(email=email, role=role))
             except HTTPException as error:
                 return error.status_code
             return 200
 
         with patch.object(router, "SessionLocal", sessions), patch.object(
-            router, "get_auth_context", return_value=AuthContext("client", "client", email="owner@example.test")
+            router, "get_auth_context", side_effect=lambda workspace_id, **kwargs: AuthContext(workspace_id, workspace_id)
         ), patch.object(router, "send_invitation_email") as send, ThreadPoolExecutor(max_workers=2) as workers:
-            self.assertEqual(sorted(workers.map(invite, ["first@example.test", "second@example.test"])), [200, 409])
+            self.assertEqual(sorted(workers.map(invite, invitations)), [200, 409])
             send.assert_called_once()
         with sessions() as db:
             self.assertEqual(db.query(OrganizationInvite).filter_by(status="pending").count(), 1)
+
+    def test_different_emails_cannot_reserve_the_same_collaborator_slot(self):
+        self.concurrent_invites(
+            [Organization(id=1, owner_user_id="client", name="Client", managing_agency_workspace_id="agency")],
+            [("client", email, "client_user") for email in ["first@example.test", "second@example.test"]],
+        )
+
+    def test_same_email_cannot_be_reserved_by_two_workspaces(self):
+        self.concurrent_invites(
+            [Organization(owner_user_id=workspace, name=workspace) for workspace in ["first", "second"]],
+            [("first", "same@example.test", "member"), ("second", " SAME@example.test ", "member")],
+        )
 
 
 if __name__ == "__main__":
