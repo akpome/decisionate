@@ -17,6 +17,10 @@ address remains available to copy or open when active. No agency-owned
 provider accounts or separate Vercel project are required. The branded welcome
 screen uses `app.decisionate.ca` for secure credential entry and returns to the
 authorized portal. It does not change the custom product below.
+The agency owner can update their portal in Settings from the main app or their
+own active agency portal. Client and ordinary staff accounts cannot change the
+agency's branding. Decisionate marketing signup and preferences are not displayed
+inside hosted portals; transactional emails and scheduled reports are unchanged.
 
 Only sign-in is promoted on the public branded welcome page. Invited clients can
 choose **Create your login** after opening their workspace invitation.

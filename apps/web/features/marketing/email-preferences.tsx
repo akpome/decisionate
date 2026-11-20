@@ -6,6 +6,7 @@ import { Save } from "lucide-react"
 import { getMarketingConsent, marketingRequest, type MarketingConsentRequest, type MarketingContact } from "@/lib/api"
 import { storeMarketingChoice } from "@/features/auth/lib/marketing-consent"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 
 function ConsentIdentity({ config }: { config: MarketingConsentRequest }) {
   const { t } = useDecisionateText()
@@ -16,14 +17,17 @@ export function SignupMarketingOptIn() {
   const [config, setConfig] = useState<MarketingConsentRequest | null>(null)
   const [checked, setChecked] = useState(false)
   const { t, language } = useDecisionateText()
+  const { portal, authPortal } = useHostedPortal()
+  const disabled = Boolean(process.env.NEXT_PUBLIC_PORTAL_ID || portal || authPortal)
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_PORTAL_ID) return
+    if (disabled) return
     let cancelled = false
     void getMarketingConsent(language).then(result => {
       if (!cancelled) { storeMarketingChoice(false, result.version, result.language); setChecked(false); setConfig(result) }
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [language])
+  }, [language, disabled])
+  if (disabled) return null
   if (!config?.available) return null
   return <div className="space-y-2">
     <label className="flex items-start gap-3 text-sm leading-6 text-gray-700">
@@ -44,8 +48,10 @@ export function EmailPreferences({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState("")
   const { t, language } = useDecisionateText()
+  const { portal, authPortal } = useHostedPortal()
+  const disabled = Boolean(process.env.NEXT_PUBLIC_PORTAL_ID || portal || authPortal)
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_PORTAL_ID) return
+    if (disabled) return
     let cancelled = false
     void Promise.all([getMarketingConsent(language), marketingRequest<MarketingContact>(userId, "/preferences")]).then(([consent, current]) => {
       if (cancelled) return
@@ -53,9 +59,9 @@ export function EmailPreferences({ userId }: { userId: string }) {
       setChecked(["subscribed", "pending_confirmation"].includes(current.marketing_status))
     }).catch(error => { if (!cancelled) setStatus(error instanceof Error ? error.message : "Email preferences are unavailable") })
     return () => { cancelled = true }
-  }, [userId, language])
+  }, [userId, language, disabled])
   async function save() {
-    if (!config) return
+    if (disabled || !config) return
     setSaving(true); setStatus("")
     try {
       const result = await marketingRequest<MarketingContact>(userId, "/preferences", { method: "PUT", body: JSON.stringify({ subscribed: checked, consent_version: config.version, language: config.language }) })
@@ -63,7 +69,7 @@ export function EmailPreferences({ userId }: { userId: string }) {
     } catch (error) { setStatus(error instanceof Error ? error.message : "Email preferences could not be updated") }
     finally { setSaving(false) }
   }
-  if (process.env.NEXT_PUBLIC_PORTAL_ID) return null
+  if (disabled) return null
   return <section className="border-y border-gray-200 py-6">
     <h2 className="text-xl font-semibold">{t("Email preferences")}</h2>
     <div className="mt-4 space-y-3">

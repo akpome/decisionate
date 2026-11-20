@@ -78,6 +78,12 @@ enable one before the platform is ready.
 
 ## How do I brand and publish my hosted portal?
 
+An agency owner can edit their own Hosted portal settings from Settings in the
+main app or while signed in to their active agency portal. Client owners and
+staff cannot edit the agency's portal, and one agency cannot manage another's.
+Decisionate product-update preferences are not shown on hosted portals; this
+does not disable invitations, alerts or weekly report emails.
+
 Choose the subdomain, portal name, support email, logo, colors and welcome
 message. Set one logo by entering its public HTTPS image URL in Logo URL or
 choosing Upload logo. Uploads must be PNG, JPEG or WebP and can be up to 1 MB.

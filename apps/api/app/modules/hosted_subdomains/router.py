@@ -39,8 +39,12 @@ class PublishPortal(BaseModel):
 
 def require_agency(request, db):
     auth = get_auth_context(request)
-    if current_portal() or not get_application().is_default or auth.workspace_role not in {"owner", "admin"}:
-        raise HTTPException(403, "Manage your hosted portal from the agency settings in Decisionate.")
+    portal = current_portal()
+    if not get_application().is_default or auth.workspace_role not in {"owner", "admin"}:
+        raise HTTPException(403, "Only an agency owner can manage hosted portal settings.")
+    # An active portal can edit only its own agency, never a client's workspace or another agency.
+    if portal and auth.workspace_id != portal.agency_workspace_id:
+        raise HTTPException(403, "Only an agency owner can manage this hosted portal.")
     agency = db.query(Organization).filter_by(owner_user_id=auth.workspace_id).first()
     from app.modules.organizations.ownership import managing_agency_workspace_id, independent_client
     from app.modules.billing.service import is_agency_plan

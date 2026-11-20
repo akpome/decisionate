@@ -60,7 +60,7 @@ Audit findings and differences from the original handoff:
 
 ## Agency workflow
 
-1. Agency owner opens Settings > Hosted portal on the main application.
+1. Agency owner opens Settings on the main application and uses Hosted portal settings.
 2. Choose White Label Subdomain Agency through Billing when available. If it is
    inactive, restore it through Billing; portal setup does not add another charge.
 3. Enter the subdomain, name, support address, colors, optional images and welcome
@@ -69,6 +69,7 @@ Audit findings and differences from the original handoff:
 4. Preview desktop/mobile appearance, then explicitly activate/publish. Draft
    editing does not provision Clerk resources or change live branding.
 5. Open/copy the URL and manage client invitations using existing Settings.
+   Signup alone never grants membership in an agency or client workspace.
 
 For White Label Subdomain Agency owners, Settings embeds the hosted portal
 editor in place of standard workspace branding. It is not hidden behind a
@@ -77,7 +78,15 @@ the subdomain input after saving a draft; the reserved address is displayed with
 copy and, when active, open controls. Professional, Standard Branded Agency and
 custom-domain setup retain their existing settings. Client ownership, team and
 deletion controls are unchanged.
-   Signup alone never grants membership in an agency or client workspace.
+
+The owner can manage the same portal from the main app or their own active
+hosted origin. Portal management still requires an authenticated agency-owner
+role and the portal's exact agency workspace; clients, ordinary staff, other
+agencies and independent custom-domain applications remain blocked. Existing
+entitlement, revision, immutable-address and publication checks still apply.
+Decisionate marketing consent/preferences are hidden and not fetched on hosted
+portals or agency-branded central signup. The API continues to return 404 for
+marketing endpoints on hosted origins; global administration stays blocked too.
 
 Owner/admin can edit branding; only the owner can change the existing Agency
 billing. There is no separate hosted purchase or cancellation action. Existing

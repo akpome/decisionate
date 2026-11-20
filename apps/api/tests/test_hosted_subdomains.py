@@ -365,6 +365,55 @@ class HostedSubdomainTests(unittest.TestCase):
         for user, workspace in [("client", "agency:client:1"), ("staff", "agency")]:
             self.assertEqual(self.save(user=user, workspace=workspace).status_code, 403)
 
+    def test_agency_owner_can_read_edit_and_publish_from_its_own_hosted_portal(self):
+        row = self.publish()
+        origin = "https://north-star.decisionate.app"
+        headers = self.headers(origin=origin)
+        setup = self.client.get(self.base, headers=headers)
+        self.assertEqual(setup.status_code, 200, setup.text)
+        self.assertEqual(setup.json()["portal"]["id"], row["id"])
+        changed = {**self.brand, "name": "Updated agency"}
+        saved = self.client.put(self.base, headers=headers, json={
+            "slug": "north-star", "configuration": changed, "revision": row["revision"],
+        })
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["id"], row["id"])
+        self.assertEqual(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]["name"], self.brand["name"])
+        rename = self.client.put(self.base, headers=headers, json={
+            "slug": "different-agency", "configuration": changed, "revision": saved.json()["revision"],
+        })
+        self.assertEqual(rename.status_code, 409, rename.text)
+        with patch.object(portals, "ensure_satellite", return_value="domain_north") as satellite:
+            published = self.client.post(self.base + "/activate", headers=headers, json={
+                "revision": saved.json()["revision"], "confirmation": "PUBLISH PORTAL",
+            })
+        self.assertEqual(published.status_code, 200, published.text)
+        satellite.assert_called_once_with("north-star.decisionate.app")
+        self.assertEqual(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]["name"], "Updated agency")
+        with self.Session() as db:
+            self.assertEqual(db.query(HostedSubdomainPortal).count(), 1)
+            self.assertEqual(db.get(Organization, 1).name, "Original agency")
+            self.assertEqual(db.get(WorkspaceSubscription, 1).provider_subscription_id, "sub_agency")
+
+    def test_hosted_portal_management_rejects_clients_staff_and_other_agencies(self):
+        row = self.publish()
+        origin = "https://north-star.decisionate.app"
+        for user, workspace in (("client", "agency:client:1"), ("client", "agency"),
+                                ("staff", "agency"), ("another", "another"), ("another", "agency")):
+            with self.subTest(user=user, workspace=workspace):
+                headers = self.headers(user=user, workspace=workspace, origin=origin)
+                self.assertEqual(self.client.get(self.base, headers=headers).status_code, 403)
+                self.assertEqual(self.save(revision=row["revision"], user=user, workspace=workspace, origin=origin).status_code, 403)
+                with patch.object(portals, "ensure_satellite") as satellite:
+                    response = self.client.post(self.base + "/activate", headers=headers, json={
+                        "revision": row["revision"], "confirmation": "PUBLISH PORTAL",
+                    })
+                self.assertEqual(response.status_code, 403, response.text)
+                satellite.assert_not_called()
+        self.assertEqual(self.client.get(self.base, headers={"Origin": origin}).status_code, 401)
+        with self.Session() as db:
+            self.assertEqual(db.query(HostedSubdomainPortal).one().revision, row["revision"])
+
     def test_white_label_base_plan_includes_portal_without_a_separate_purchase(self):
         with patch("app.modules.billing.service.stripe_request", side_effect=AssertionError("Portal setup must not charge Stripe")) as stripe:
             setup = self.client.get(self.base, headers=self.headers())
@@ -397,7 +446,9 @@ class HostedSubdomainTests(unittest.TestCase):
         headers = self.headers(origin="https://north-star.decisionate.app")
         self.assertEqual(self.client.get("/admin/anything", headers=headers).status_code, 404)
         self.assertEqual(self.client.get("/marketing/activity", headers=headers).status_code, 404)
-        self.assertEqual(self.client.put(self.base, headers=headers, json={"slug": "north-star", "configuration": self.brand}).status_code, 403)
+        for path in ("/marketing/consent?language=en", "/marketing/preferences"):
+            self.assertEqual(self.client.get(path, headers=headers).status_code, 404)
+        self.assertFalse(self.client.get("/api/v2/application", headers=headers).json()["features"]["marketing_preferences"])
 
     def test_operator_suspend_resume_retire_is_audited_and_entitlement_required(self):
         row = self.publish()
