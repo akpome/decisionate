@@ -99,8 +99,8 @@ def delete_owned_workspace(payload: WorkspaceDeleteConfirmation, request: Reques
     auth = get_auth_context(request)
     with SessionLocal() as db:
         organization = owned_workspace(db, auth)
-        if managing_agency_workspace_id(organization):
-            raise HTTPException(409, "Unlink this workspace from its agency before deleting it.")
+        if managing_agency_workspace_id(organization) and organization.is_paused:
+            raise HTTPException(403, "This workspace is paused. Unlink it from its agency before deleting it.")
         if payload.confirmation.strip() != organization.name:
             raise HTTPException(400, "Type the workspace name to confirm deletion.")
         if db.query(Organization.id).filter(

@@ -52,6 +52,7 @@ export function ExistingClientInvitation({ userId }: { userId: string }) {
 
 export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" }: { userId: string; workspace: OrganizationWorkspaceRecord; view?: "settings" | "recovery" }) {
   const recovery = view === "recovery" && workspace.agency_removed === true
+  const canDelete = view === "settings" && (workspace.agency_removed || workspace.is_paused === false)
   const { signOut } = useClerk()
   const [invitations, setInvitations] = useState<AgencyClientInvitation[]>([])
   const [loadedInvitationKey, setLoadedInvitationKey] = useState("")
@@ -66,6 +67,14 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
   const [deleted, setDeleted] = useState(false)
   const [confirmation, setConfirmation] = useState("")
   const pending = useRef(false)
+  const deleteDialog = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    if (!deleting || !canDelete) return
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    deleteDialog.current?.showModal()
+    return () => { opener?.focus() }
+  }, [canDelete, deleting])
 
   useEffect(() => {
     if (!recovery) return
@@ -78,8 +87,8 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
 
   async function act(action: string, invitation?: AgencyClientInvitation) {
     if (pending.current) return
-    if ((action === "trial" || action === "delete") && !workspace.agency_removed) return
-    if (action === "delete" && confirmation.trim() !== workspace.name) return
+    if (action === "trial" && !workspace.agency_removed) return
+    if (action === "delete" && (!canDelete || confirmation.trim() !== workspace.name)) return
     pending.current = true; setBusy(action); setError(""); setNotice("")
     try {
       if (action === "leave") {
@@ -120,10 +129,14 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
         <h2 className="text-lg font-semibold">{recovery ? "Continue with Decisionate" : workspace.agency_removed ? "Client account unlinked" : "Agency connection"}</h2>
         <p className="mt-2 text-sm text-gray-600">{recovery ? "Your data is preserved. Manage your subscription or join an agency." : workspace.agency_removed ? "Your agency is no longer linked. Your data is preserved." : "Unlink your agency to manage this workspace independently. Your workspace and data will be kept."}</p>
       </div>
-      {view === "settings" && (workspace.agency_removed
-        ? <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>
-        : <button type="button" disabled={Boolean(busy)} onClick={() => setLeaving(true)} className={button}><Unlink size={16} />Unlink agency</button>)}
+      {view === "settings" && !workspace.agency_removed && (
+        <button type="button" disabled={Boolean(busy)} onClick={() => setLeaving(true)} className={button}><Unlink size={16} />Unlink agency</button>
+      )}
     </div>
+    {canDelete && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-red-200 pt-5">
+      <p className="text-sm text-gray-600">Deleting this workspace permanently removes its data.</p>
+      <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>
+    </div>}
     {recovery && <div className="mt-4 flex flex-wrap items-center gap-3">
       {!workspace.independent_trial_started && workspace.is_paused !== false && <button type="button" disabled={Boolean(busy)} onClick={() => void act("trial")} className={`${button} text-blue-700`}><Play size={16} />{busy === "trial" ? "Starting..." : "Start free trial"}</button>}
     </div>}
@@ -145,15 +158,18 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
         <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setLeaving(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy)} className={button}><Unlink size={16} />{busy === "leave" ? "Unlinking..." : "Unlink agency"}</button></div>
       </form>
     </div>}
-    {deleting && workspace.agency_removed && <div role="dialog" aria-modal="true" aria-labelledby="owned-workspace-delete" className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4">
-      <form className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5" onSubmit={event => { event.preventDefault(); void act("delete") }}>
+    {deleting && canDelete && <dialog ref={deleteDialog} aria-labelledby="owned-workspace-delete"
+      onCancel={event => { if (busy) event.preventDefault(); else setDeleting(false) }}
+      className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 text-gray-950 shadow-xl backdrop:bg-gray-950/60">
+      <form onSubmit={event => { event.preventDefault(); void act("delete") }}>
         <h2 id="owned-workspace-delete" className="text-lg font-semibold">Delete your workspace?</h2>
         <p className="mt-3 text-sm text-gray-600">This permanently deletes {workspace.name}, its datasets, reports, connections and decisions.</p>
+        {!workspace.agency_removed && <p className="mt-2 text-sm text-gray-600">This also removes the workspace from your agency and ends access for anyone you invited.</p>}
         <p className="mt-2 text-sm text-gray-600">You will be signed out. Your app account is removed if it has no other workspaces. Other members&apos; shared accounts and your sign-in provider account are not deleted.</p>
         <label className="mt-4 block text-sm">Type {workspace.name} to confirm<input autoFocus value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={Boolean(busy)} className="mt-2 h-10 w-full rounded-md border border-gray-200 px-3" /></label>
         {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-        <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setDeleting(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy) || confirmation.trim() !== workspace.name} className={`${button} text-red-600`}><Trash2 size={16} />{busy === "delete" ? "Deleting..." : "Permanently delete"}</button></div>
+        <div className="mt-5 flex flex-wrap justify-end gap-3"><button type="button" disabled={Boolean(busy)} onClick={() => setDeleting(false)} className={button}>Cancel</button><button type="submit" disabled={Boolean(busy) || confirmation.trim() !== workspace.name} className={`${button} text-red-600`}><Trash2 size={16} />{busy === "delete" ? "Deleting..." : "Permanently delete"}</button></div>
       </form>
-    </div>}
+    </dialog>}
   </section>
 }

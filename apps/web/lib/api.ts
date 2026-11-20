@@ -1925,6 +1925,7 @@ export type OrganizationWorkspaceRecord = {
   is_managed_client?: boolean
   agency_removed?: boolean
   client_owner_accepted?: boolean
+  client_owner_contact_email?: string | null
   independent_trial_started?: boolean
 }
 

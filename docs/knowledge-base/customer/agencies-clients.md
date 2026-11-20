@@ -78,8 +78,18 @@ for that workspace. It does not delete datasets, reports, decisions, connections
 members or the workspace itself. Workspace IDs and data IDs stay unchanged.
 An active import, report analysis or AI request must finish before removal.
 
-The client owner must unlink the agency before deleting the workspace. While linked
-and paused, Unlink agency is the only available workspace action: deletion, trials,
+Manage client workspaces shows the current owner email, or the invited owner
+and pending status before acceptance. Link an existing workspace is a separate
+form for an owner who already has a workspace.
+
+An active client owner can choose Share workspace in Settings to invite one
+collaborator by email. The collaborator must verify the invited email before
+getting access. The owner can resend or revoke a pending invitation and remove
+an accepted collaborator. Sharing does not give the collaborator ownership or
+give the agency access to client data.
+
+An active client owner can select Delete workspace in Settings without unlinking
+first. While linked and paused, Unlink agency is the only available workspace action: deletion, trials,
 direct subscription changes and analysis remain blocked. Unlinking requires confirmation,
 removes the workspace from the agency's list and revokes its access without deleting data.
 After unlinking, the owner can choose Delete workspace and type its name to confirm
@@ -103,9 +113,9 @@ When the agency removes the client or the client chooses Unlink agency, the lock
 workspace shows Client account unlinked and confirms that its data is preserved.
 The notice directs the client to contact their agency to arrange restored access;
 an unlinked agency must send a new invitation, not simply resume the old account.
-Client Settings contains only ownership actions: Unlink agency while linked,
-and Delete workspace after unlinking. It does not show branding, team management,
-email preferences or agency data-access controls. Trial, direct subscription and
+Limited client Settings shows Share workspace, Unlink agency and Delete workspace
+as allowed by the workspace status and the user's role. It does not show branding,
+agency team management, email preferences or agency data-access controls. Trial, direct subscription and
 agency invitation choices appear in Billing, not on the locked dashboard.
 After independent Professional access is active, full workspace Settings is available.
 The client owner can still open Settings and Billing. Their data

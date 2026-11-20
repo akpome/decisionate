@@ -137,7 +137,7 @@ test("client creation distinguishes saved invitations from emails that were sent
   assert.match(create,/invitation_email_status === "sent"/)
   assert.match(create,/invitation_email_status !== "sent"/)
   assert.match(source,/Send client invitation email/)
-  assert.match(source,/Email sent; awaiting sign-in/)
+  assert.match(source,/Invitation pending/)
   assert.match(source,/Create and invite owner/)
   assert.match(source,/Workspace owner email/)
   assert.match(source,/aria-label="Create client workspace and invite owner"/)

@@ -58,6 +58,7 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { EmailPreferences } from "@/features/marketing/email-preferences"
 import { ClientWorkspaceOwnership, ExistingClientInvitation } from "@/features/settings/client-workspace-ownership"
+import { ClientWorkspaceSharing } from "@/features/settings/client-workspace-sharing"
 import { WorkspaceDeletion } from "@/features/settings/workspace-deletion"
 import { isAgencyManagedWorkspace } from "@/lib/workspace-ownership"
 import {
@@ -1411,7 +1412,10 @@ export function SettingsClient({
     return (
       <div className="space-y-6">
         <DashboardPageHeader title="Settings" />
-        {ownershipPanel ?? <p className="text-sm text-gray-600">Only the client workspace owner can unlink the agency or delete this workspace.</p>}
+        {activeWorkspace?.is_paused === false && isClientWorkspaceOwner && (
+          <ClientWorkspaceSharing key={activeWorkspace.owner_user_id} workspaceId={activeWorkspace.owner_user_id} userId={userId} />
+        )}
+        {ownershipPanel ?? <p className="text-sm text-gray-600">Only the client workspace owner can share, delete or unlink this workspace.</p>}
       </div>
     )
   }
@@ -1852,9 +1856,7 @@ export function SettingsClient({
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Client workspace data stays isolated from the agency. Manage
-              members, pause access or delete client workspaces here; client users access
-              their workspace by signing in.
+              Accepted client workspaces belong to their owners. Their data stays separate from the agency.
             </p>
           </div>
 
@@ -1916,10 +1918,9 @@ export function SettingsClient({
             </p>
           )}
 
-          <ExistingClientInvitation userId={userId} />
-
           {selectedClientWorkspace && (
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 space-y-4 border-t border-gray-100 pt-5">
+              <h3 className="text-sm font-semibold">Manage client workspaces</h3>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <select
@@ -1972,6 +1973,13 @@ export function SettingsClient({
                 </div>
               </div>
 
+              {(selectedClientWorkspace.client_owner_accepted || selectedClientWorkspace.is_paused) && (
+                <p className="break-words text-sm text-gray-600">
+                  <strong>{selectedClientWorkspace.client_owner_accepted ? "Workspace owner:" : "Invited owner:"}</strong>{" "}
+                  {selectedClientWorkspace.client_owner_contact_email || (selectedClientWorkspace.client_owner_accepted ? "Email unavailable" : "No pending invitation")}
+                  {!selectedClientWorkspace.client_owner_accepted && selectedClientWorkspace.client_owner_contact_email && " · Invitation pending"}
+                </p>
+              )}
               {selectedClientWorkspace.client_owner_accepted && <p className="text-sm text-gray-600">The client owns this workspace. Removing it from your agency preserves its data and ends your agency&apos;s access.</p>}
               {!selectedClientWorkspace.is_paused && !selectedClientWorkspace.client_owner_accepted && <>
               <div className="flex min-h-12 flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1981,8 +1989,8 @@ export function SettingsClient({
                     </p>
                   ) : selectedClientWorkspaceOwnerMembers.length > 0 ? (
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Owner
+                      <span className="text-xs font-medium text-gray-600">
+                        Workspace owner
                       </span>
                       <div className="flex min-w-0 flex-wrap gap-2">
                         {selectedClientWorkspaceOwnerMembers.map(member => (
@@ -1997,15 +2005,15 @@ export function SettingsClient({
                     </div>
                   ) : selectedClientWorkspaceOwnerInvite ? (
                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Owner
+                      <span className="text-xs font-medium text-gray-600">
+                        Invited owner
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-gray-900">
                           {selectedClientWorkspaceOwnerInvite.email}
                         </p>
                         <span className="text-xs text-gray-500">
-                          {selectedClientWorkspaceOwnerInvite.email_status === "sent" ? "Email sent; awaiting sign-in" : "Invitation email not confirmed"}
+                          {selectedClientWorkspaceOwnerInvite.email_status === "sent" ? "Invitation pending" : "Invitation email not confirmed"}
                         </span>
                       </div>
                       <button type="button" onClick={() => void handleSendClientInvitation(selectedClientWorkspaceOwnerInvite)}
@@ -2218,6 +2226,7 @@ export function SettingsClient({
               </>}
             </div>
           )}
+          <ExistingClientInvitation userId={userId} />
         </section>
       )}
 

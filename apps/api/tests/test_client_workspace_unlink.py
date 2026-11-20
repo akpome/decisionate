@@ -80,13 +80,7 @@ class ClientWorkspaceUnlinkTests(unittest.TestCase):
             self.assertEqual(managing_agency_workspace_id(db.get(Organization, 2)), "agency")
             self.assertTrue(db.get(Organization, 2).is_paused)
 
-    def test_unlinked_owner_can_delete_but_active_linked_owner_must_unlink_first(self):
-        with self.Session() as db:
-            db.get(Organization, 2).is_paused = False
-            db.commit()
-        response = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": "Client Shop"})
-        self.assertEqual(response.status_code, 409)
-        self.assertIn("Unlink", response.json()["detail"])
+    def test_unlinked_owner_can_delete_without_restoring_independent_access(self):
         self.assertEqual(self.post("leave-agency").status_code, 200)
         response = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": "Client Shop"})
         self.assertEqual(response.status_code, 200, response.text)

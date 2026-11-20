@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from sqlalchemy import create_engine, text
 
-from app.db.models import AgencyClientInvitation, Dataset, Organization, OrganizationMember, WorkspaceSubscription, utc_now
+from app.db.models import AgencyClientInvitation, AppUser, Dataset, Organization, OrganizationInvite, OrganizationMember, WorkspaceSubscription, utc_now
 from app.modules.platform_admin import delete_internal_user_records
 from app.modules.billing.lifecycle import get_subscription_for_workspace
 from app.modules.organizations import agency_accounts, router
@@ -84,13 +84,74 @@ class AgencyClientOwnershipTests(unittest.TestCase):
     def test_only_the_client_owner_can_delete_the_workspace_with_its_name_confirmed(self):
         denied = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": "Client Shop"})
         self.assertEqual(denied.status_code, 403)
-        self.assertEqual(self.client_request("leave-agency").status_code, 200)
+        with self.Session() as db:
+            db.add(OrganizationMember(organization_id=2, clerk_user_id="collaborator", role="client_user"))
+            db.commit()
+        self.actor, self.email = "collaborator", "collaborator@example.test"
+        denied = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": "Client Shop"})
+        self.assertEqual(denied.status_code, 403, denied.text)
         self.actor, self.email = "client", "client@example.test"
         for confirmation, code in (("wrong", 400), ("Client Shop", 200)):
             response = self.client.request("DELETE", "/organizations/workspace", headers=self.headers(self.workspace), json={"confirmation": confirmation})
             self.assertEqual(response.status_code, code, response.text)
         with self.Session() as db:
             self.assertIsNone(db.get(Organization, 2)); self.assertIsNone(db.get(Dataset, 21)); self.assertIsNotNone(db.get(Organization, 1))
+            self.assertEqual(db.query(OrganizationMember).filter_by(organization_id=2).count(), 0)
+            self.assertEqual(db.query(OrganizationInvite).filter_by(organization_id=2).count(), 0)
+            self.assertEqual(db.query(WorkspaceSubscription).filter_by(workspace_id="agency").one().status, "active")
+
+    def test_owner_contact_changes_from_pending_to_current_owner_only_in_the_agency_list(self):
+        def client_row():
+            result = self.client.get("/organizations/workspaces?include_managed_client_workspaces=true", headers=self.headers())
+            self.assertEqual(result.status_code, 200, result.text)
+            return next(row for row in result.json() if row["id"] == 2)
+
+        with self.Session() as db:
+            db.query(OrganizationMember).filter_by(organization_id=2).delete()
+            db.commit()
+        pending = client_row()
+        self.assertFalse(pending["client_owner_accepted"])
+        self.assertEqual(pending["client_owner_contact_email"], "client@example.test")
+        self.actor, self.email = "client", "client@example.test"
+        claimed = self.client.get("/organizations/workspaces", headers=self.headers())
+        self.assertEqual(claimed.status_code, 200, claimed.text)
+        with self.Session() as db:
+            db.get(AppUser, "client").email = "current-owner@example.test"
+            db.commit()
+        self.actor, self.email = "agency", "agency@example.test"
+        accepted = client_row()
+        self.assertTrue(accepted["client_owner_accepted"])
+        self.assertEqual(accepted["client_owner_contact_email"], "current-owner@example.test")
+        self.assertEqual(self.client.get("/organizations/members", headers=self.headers(self.workspace)).status_code, 403)
+        normal = self.client_request("workspaces", "get")
+        self.assertTrue(all(row.get("client_owner_contact_email") is None for row in normal.json()))
+
+    def test_active_client_owner_can_share_once_with_a_verified_collaborator_and_revoke_access(self):
+        def invite(email, role="client_user"):
+            return self.client_request("invites", json={"email": email, "role": role})
+
+        self.assertEqual(invite("client@example.test").status_code, 409)
+        self.assertEqual(invite("no-owner@example.test", role="client_owner").status_code, 409)
+        result = invite("collaborator@example.test")
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()["email_status"], "sent")
+        self.assertEqual(self.send.call_args.args[0], "collaborator@example.test")
+        self.assertIn("workspace_id", self.send.call_args.args[2])
+        self.assertEqual(invite("additional@example.test").status_code, 409)
+
+        self.actor, self.email, self.verified = "collaborator", "collaborator@example.test", False
+        self.assertEqual(self.client.get("/organizations/workspaces", headers=self.headers()).json(), [])
+        self.verified = True
+        result = self.client.get("/organizations/workspaces", headers=self.headers())
+        self.assertEqual([(item["owner_user_id"], item["role"]) for item in result.json()], [(self.workspace, "client_user")])
+        self.assertEqual(self.client.post("/organizations/invites", headers=self.headers(self.workspace),
+                                         json={"email": "no-access@example.test", "role": "client_user"}).status_code, 403)
+        self.assertEqual(self.client.get("/organizations/members", headers=self.headers(self.workspace)).status_code, 403)
+        members = self.client_request("members", "get").json()
+        collaborator = next(member for member in members if member["role"] == "client_user")
+        self.assertEqual(self.client_request(f"members/{collaborator['id']}", "delete").status_code, 200)
+        self.actor, self.email = "collaborator", "collaborator@example.test"
+        self.assertEqual(self.client.get("/organizations/workspaces", headers=self.headers()).json(), [])
 
     def test_new_agency_can_only_add_the_existing_workspace_after_verified_owner_approval(self):
         self.detach(); invitation = self.invite()

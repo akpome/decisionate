@@ -169,7 +169,7 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         href: "/settings",
         label: "Settings",
         icon: <Settings size={18} />,
-        roles: ["client", "client_owner", "client_user"],
+        roles: ["owner", "client", "client_owner", "client_user"],
       },
     ],
   },
@@ -1035,6 +1035,9 @@ export function DashboardShell({
               const visibleItems =
                 group.items.filter(
                   item => item.href !== "/billing" || subscriptionAccess?.billing_enabled !== false
+                ).filter(
+                  item => item.href !== "/settings" || group.label !== "Workspace" ||
+                    activeWorkspaceRole !== "owner" || isClientWorkspaceContext
                 ).filter(
                   item =>
                     !item.ownerOnly ||

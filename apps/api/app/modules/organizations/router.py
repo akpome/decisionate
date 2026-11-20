@@ -27,7 +27,7 @@ from app.modules.auth_context import (
 from app.modules.identity.clerk import get_verified_clerk_primary_email
 from app.modules.organizations.invitations import send_invitation_email
 from app.modules.organizations.ownership import (
-    has_accepted_owner, independent_client, is_workspace_owner,
+    client_owner_member, has_accepted_owner, independent_client, is_workspace_owner,
     managed_client_filter, managing_agency_workspace_id,
 )
 from app.modules.billing.service import (
@@ -1043,13 +1043,10 @@ def ensure_owner_membership(
     return member
 
 
-def serialize_organization_member(
-    db,
-    member: OrganizationMember,
-):
+def organization_user_email(db, user_id: str):
     user = (
         db.query(AppUser)
-        .filter(AppUser.id == member.clerk_user_id)
+        .filter(AppUser.id == user_id)
         .first()
     )
     email = user.email if user else None
@@ -1058,7 +1055,7 @@ def serialize_organization_member(
         identity = (
             db.query(AuthIdentity)
             .filter(
-                AuthIdentity.user_id == member.clerk_user_id,
+                AuthIdentity.user_id == user_id,
                 AuthIdentity.revoked_at.is_(None),
                 AuthIdentity.email.isnot(None),
             )
@@ -1066,7 +1063,25 @@ def serialize_organization_member(
             .first()
         )
         email = identity.email if identity else None
+    return email
 
+
+def managed_client_owner_details(db, organization):
+    owner = client_owner_member(db, organization) if ":client:" in organization.owner_user_id else None
+    owner_id = owner.clerk_user_id if owner else organization.owner_user_id if ":client:" not in organization.owner_user_id else None
+    accepted = bool(owner_id or organization.client_owner_accepted_at)
+    email = organization_user_email(db, owner_id) if owner_id else None
+    if not accepted:
+        email = db.query(OrganizationInvite.email).filter(
+            OrganizationInvite.organization_id == organization.id,
+            OrganizationInvite.status == "pending",
+            OrganizationInvite.role.in_({"client", "client_owner"}),
+        ).order_by(OrganizationInvite.id).limit(1).scalar()
+    return {"client_owner_accepted": accepted, "client_owner_contact_email": email}
+
+
+def serialize_organization_member(db, member: OrganizationMember):
+    email = organization_user_email(db, member.clerk_user_id)
     role = member.role
     if role == "client_user" and independent_client(db.get(Organization, member.organization_id)):
         role = "member"
@@ -1234,6 +1249,7 @@ def validate_client_workspace_role_capacity(
     ]
 
     if canonical_role == "client_owner" and (
+        has_accepted_owner(db, organization) or
         "client_owner" in member_roles or
         "client_owner" in invite_roles
     ):
@@ -1587,7 +1603,7 @@ def get_accessible_workspaces(
                         ),
                         is_paused=bool(client_workspace.is_paused),
                         is_managed_client=True,
-                        client_owner_accepted=has_accepted_owner(db, client_workspace),
+                        **managed_client_owner_details(db, client_workspace),
                     )
                 )
 
@@ -1925,6 +1941,7 @@ def create_client_workspace(
             invitation_email_status=invite.email_status,
             invitation_email_error=invite.email_error,
             is_managed_client=True,
+            client_owner_contact_email=client_email,
         )
 
     finally:
@@ -1979,8 +1996,8 @@ def update_client_workspace_status(organization_id: int, payload: ClientWorkspac
             report_display_name=client.report_display_name,
             agency_owner_access_enabled=bool(client.agency_owner_access_enabled), is_paused=bool(client.is_paused),
             is_managed_client=True,
-            client_owner_accepted=has_accepted_owner(db, client),
             independent_trial_started=client.independent_trial_started_at is not None,
+            **managed_client_owner_details(db, client),
         )
 
 
@@ -2400,6 +2417,9 @@ def add_organization_invite(
                     status_code=400,
                     detail="Client workspace invitations cannot be agency owners",
                 )
+            if invite_role == "client_user" and is_workspace_owner(db, organization, auth_context.user_id):
+                if (auth_context.email or organization_user_email(db, auth_context.user_id) or "").strip().lower() == invite_email:
+                    raise HTTPException(409, "You already own this workspace.")
 
         existing_invite = (
             db.query(OrganizationInvite)

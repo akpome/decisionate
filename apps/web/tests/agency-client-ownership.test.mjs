@@ -29,6 +29,7 @@ function harness(overrides = {}) {
     signOut: async options => calls.push(["sign-out", options.redirectUrl]),
     message: error => error.message, ...overrides,
   }
+  context.canDelete = Boolean(context.workspace.agency_removed || context.workspace.is_paused === false)
   return { calls, context, act: compile(`${declaration("act")}\nact`, context) }
 }
 
@@ -38,8 +39,8 @@ test("the trial starts on the same workspace and refreshes billing and permissio
   assert.match(h.context.notice, /30-day trial has started/); assert.equal(h.context.pending.current, false)
 })
 
-test("a linked owner can unlink but cannot start a trial or delete before unlinking", async () => {
-  const h = harness({ workspace: { ...workspace, agency_removed: false }, confirmation: "Client Shop" })
+test("a paused linked owner can unlink but cannot start a trial or delete", async () => {
+  const h = harness({ workspace: { ...workspace, agency_removed: false, is_paused: true }, confirmation: "Client Shop" })
   await h.act("trial"); await h.act("delete")
   assert.deepEqual(h.calls, [])
   await h.act("leave")
@@ -83,10 +84,13 @@ test("joining or declining an agency acts only on the selected invitation and wo
 
 test("owner deletion requires the exact name and does not use agency removal", async () => {
   const invalid = harness({ confirmation: "wrong" }); await invalid.act("delete"); assert.deepEqual(invalid.calls, [])
-  const h = harness({ confirmation: "Client Shop" }); await h.act("delete")
-  assert.deepEqual(h.calls, [["delete", "Client Shop", "client", "old:client:shop"], ["clear", "client"], ["sign-out", "/sign-in"]])
-  assert.equal(h.context.deleted, true)
-  assert.equal(h.context.refreshed, undefined)
+  for (const linked of [false, true]) {
+    const h = harness({ workspace: { ...workspace, agency_removed: !linked, is_paused: !linked }, confirmation: "Client Shop" })
+    await h.act("delete")
+    assert.deepEqual(h.calls, [["delete", "Client Shop", "client", "old:client:shop"], ["clear", "client"], ["sign-out", "/sign-in"]])
+    assert.equal(h.context.deleted, true)
+    assert.equal(h.context.refreshed, undefined)
+  }
 })
 
 test("failed deletion keeps selection, while failed sign-out never retries deletion", async () => {

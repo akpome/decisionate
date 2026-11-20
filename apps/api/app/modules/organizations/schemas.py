@@ -94,6 +94,7 @@ class OrganizationWorkspaceResponse(BaseModel):
     is_managed_client: bool = False
     agency_removed: bool = False
     client_owner_accepted: bool = False
+    client_owner_contact_email: str | None = None
     independent_trial_started: bool = False
 
 
