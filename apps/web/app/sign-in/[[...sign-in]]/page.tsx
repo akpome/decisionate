@@ -16,7 +16,8 @@ export default async function SignInPage({ searchParams }: {
   const { redirect_url, switch_account } = await searchParams
   const returnTo = getSafeReturnTo(redirect_url, getAuthRequestOrigin(await headers()))
   const portal = await requestHostedPortal()
-  if (portal?.branding) return <HostedSignIn brand={portal.branding} returnTo={portal.origin + getAuthRedirectUrl(returnTo)} alternateUrl={getSignUpUrl(returnTo)} />
+  if (portal?.branding) return <HostedSignIn brand={portal.branding} returnTo={portal.origin + getAuthRedirectUrl(returnTo)}
+    alternateUrl={getInvitedWorkspaceId(returnTo) ? getSignUpUrl(returnTo) : undefined} />
   const accountSwitch = switch_account === "1" && Boolean(getInvitedWorkspaceId(returnTo))
   const card = <AuthCard mode="sign-in" returnTo={returnTo} />
   return (

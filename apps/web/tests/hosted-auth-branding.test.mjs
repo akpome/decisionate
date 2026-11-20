@@ -92,7 +92,7 @@ test("agency authentication branding does not turn the primary Clerk provider in
   assert.equal(regular.signInForceRedirectUrl, "/auth/redirect")
 })
 
-function renderLayout(authPortal = portal, mode = "sign-in") {
+function renderLayout(authPortal = portal, mode = "sign-in", target = returnTo, showAccountLink = true) {
   const { AuthLayout } = load("../features/auth/components/auth-layout.tsx", {
     "react/jsx-runtime": jsx,
     "next/image": { default: props => React.createElement("img", Object.fromEntries(Object.entries(props).filter(([key]) => !["priority", "unoptimized"].includes(key)))) },
@@ -101,18 +101,20 @@ function renderLayout(authPortal = portal, mode = "sign-in") {
     "@/app/theme-toggle": { ThemeToggle: () => null },
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
     "../lib/auth-redirects": redirects, "@/lib/portal-brand": { portalBrand: defaultBrand },
-    "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ authPortal, returnTo: authPortal ? returnTo : null }) },
+    "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ authPortal, returnTo: authPortal ? target : null }) },
     "@/features/hosted-subdomains/types": types,
   })
-  return renderToStaticMarkup(React.createElement(AuthLayout, { mode, title: "Sign in", description: "Welcome back to Decisionate." }, "Credentials"))
+  return renderToStaticMarkup(React.createElement(AuthLayout, { mode, title: "Sign in", description: "Welcome back to Decisionate.", showAccountLink }, "Credentials"))
 }
 
-test("the central credentials page shows the agency name and logo and keeps signup on the same verified return", () => {
+test("invited clients can create a login from branded credentials without losing the agency or workspace", () => {
   const html = renderLayout()
   assert.match(html, /src="https:\/\/cdn.agency.test\/logo.png"/)
   assert.match(html, /href="https:\/\/north.decisionate.app"/)
   assert.match(html, /Welcome back to North Star/)
-  assert.match(html, /New here\?/)
+  assert.match(html, /Invited to this workspace\?/)
+  assert.match(html, /Create your login/)
+  assert.doesNotMatch(html, /New here|Create an account/)
   assert.doesNotMatch(html, /Decisionate|decisionate-logo.png/)
   assert.ok(html.includes(`/sign-up?redirect_url=${encodeURIComponent(returnTo)}`))
   const signup = renderLayout(portal, "sign-up")
@@ -121,11 +123,28 @@ test("the central credentials page shows the agency name and logo and keeps sign
   const regular = renderLayout(null)
   assert.match(regular, /Welcome back to Decisionate/)
   assert.match(regular, /src="\/icons\/decisionate-logo.png"/)
+  assert.match(regular, /Create an account/)
   const withoutLogo = renderLayout({ ...portal, branding: { ...brand, logo_url: "" } })
   assert.match(withoutLogo, /North Star/)
   assert.doesNotMatch(withoutLogo, /<img|decisionate-logo.png/)
   const literalName = renderLayout({ ...portal, branding: { ...brand, name: "Agency {{applicationName}} & Co" } })
   assert.match(literalName, /Agency \{\{applicationName\}\} &amp; Co/)
+})
+
+test("ordinary agency sign-in hides public signup while retaining invitation and existing-account navigation", () => {
+  for (const path of ["/auth/redirect", "/auth/redirect?redirect_url=%2Fconnections", "/connections",
+    "/auth/redirect?redirect_url=%2Fdashboard%3Fworkspace_id%3D", "/auth/redirect?redirect_url=https%3A%2F%2Fevil.test%2Fdashboard%3Fworkspace_id%3Dclient"]) {
+    const html = renderLayout(portal, "sign-in", portal.origin + path)
+    assert.match(html, /Welcome back to North Star/)
+    assert.match(html, /Credentials/)
+    assert.doesNotMatch(html, /New here|Create an account|Create your login|sign-up/)
+  }
+  const directInvite = portal.origin + "/dashboard?workspace_id=client&__clerk_synced=false"
+  const invited = renderLayout(portal, "sign-in", directInvite)
+  assert.match(invited, /Create your login/)
+  assert.ok(invited.includes(`/sign-up?redirect_url=${encodeURIComponent(directInvite)}`))
+  assert.doesNotMatch(renderLayout(portal, "sign-in", returnTo, false), /Create your login/)
+  assert.match(renderLayout(portal, "sign-up"), /Already have an account/)
 })
 
 test("Clerk's sign-in widget keeps the existing hosted return and recovery routing", () => {

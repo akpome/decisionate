@@ -7,7 +7,7 @@ import type { ReactNode } from "react"
 import { AuthPageCopy } from "@/app/auth-page-copy"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { getSignInUrl, getSignUpUrl } from "../lib/auth-redirects"
+import { getInvitedWorkspaceId, getSignInUrl, getSignUpUrl } from "../lib/auth-redirects"
 import { portalBrand } from "@/lib/portal-brand"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
 import { getHostedLogo } from "@/features/hosted-subdomains/types"
@@ -23,6 +23,10 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
   const { t } = useDecisionateText()
   const { returnTo: hostedReturn, authPortal } = useHostedPortal()
   const authBrand = authPortal?.branding
+  const hostedDestination = hostedReturn ? new URL(hostedReturn) : null
+  const invitedWorkspaceId = hostedDestination ? getInvitedWorkspaceId(hostedDestination.pathname === "/auth/redirect"
+    ? hostedDestination.searchParams.get("redirect_url") : hostedDestination.pathname + hostedDestination.search) : null
+  const showAccountAction = showAccountLink && (mode === "sign-up" || !authBrand || Boolean(invitedWorkspaceId))
   const name = authBrand?.name || portalBrand.name
   const logo = authBrand ? getHostedLogo(authBrand) : portalBrand.logo
   const pageDescription = authBrand
@@ -40,10 +44,10 @@ export function AuthLayout({ mode, title, description, returnTo, showAccountLink
       <div className="mx-auto mt-10 w-full min-w-0 max-w-[26rem] sm:mt-14">
         <AuthPageCopy title={title} description={pageDescription} />
         <div className="mt-6 min-w-0">{children}</div>
-        {showAccountLink && <p className="mt-6 text-center text-sm text-gray-600">
-          {t(mode === "sign-in" ? (authBrand || portalBrand.id ? "New here?" : "New to Decisionate?") : "Already have an account?")}{" "}
+        {showAccountAction && <p className="mt-6 text-center text-sm text-gray-600">
+          {t(mode === "sign-in" ? (authBrand ? "Invited to this workspace?" : portalBrand.id ? "New here?" : "New to Decisionate?") : "Already have an account?")}{" "}
           <Link href={hostedReturn ? `${mode === "sign-in" ? "/sign-up" : "/sign-in"}?redirect_url=${encodeURIComponent(hostedReturn)}` : mode === "sign-in" ? getSignUpUrl(returnTo) : getSignInUrl(returnTo)} className="font-semibold text-[var(--decisionate-brand-primary-text)] underline underline-offset-4">
-            {t(mode === "sign-in" ? "Create an account" : "Sign in")}
+            {t(mode === "sign-in" ? (authBrand ? "Create your login" : "Create an account") : "Sign in")}
           </Link>
         </p>}
         <footer className="my-8 flex justify-center gap-5 text-xs text-gray-500">

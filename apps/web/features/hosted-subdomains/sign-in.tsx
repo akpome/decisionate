@@ -6,7 +6,7 @@ import { getHostedAuthUrl, getHostedLogo, type HostedBrand } from "./types"
 import { getBrandSurfaceTextColor } from "@/lib/workspace-brand"
 
 export function HostedSignIn({ brand, returnTo, alternateUrl, signup = false }: {
-  brand: HostedBrand; returnTo: string; alternateUrl: string; signup?: boolean
+  brand: HostedBrand; returnTo: string; alternateUrl?: string; signup?: boolean
 }) {
   const clerk = useClerk()
   const logo = getHostedLogo(brand)
@@ -25,12 +25,12 @@ export function HostedSignIn({ brand, returnTo, alternateUrl, signup = false }: 
           signup ? clerk.buildSignUpUrl({ redirectUrl: returnTo }) : clerk.buildSignInUrl({ redirectUrl: returnTo }))}>
         {signup ? "Continue to sign up" : "Continue to sign in"}<ArrowRight size={16} />
       </a>
-      <p className="mt-5 text-center text-sm leading-6 text-gray-600">
-        {signup ? "Already have an account?" : "New here?"}{" "}
+      {alternateUrl && <p className="mt-5 text-center text-sm leading-6 text-gray-600">
+        {signup ? "Already have an account?" : "Invited to this workspace?"}{" "}
         <a href={alternateUrl} className="inline-flex min-h-10 items-center font-semibold text-gray-950 underline underline-offset-4">
-          {signup ? "Sign in" : "Create an account"}
+          {signup ? "Sign in" : "Create your login"}
         </a>
-      </p>
+      </p>}
       <div className="mt-5 flex flex-wrap justify-between gap-3 text-xs text-gray-600">
         <a href={`mailto:${brand.support_email}`} className="underline">Contact support</a>
         <a href="https://decisionate.ca/privacy" className="underline">Privacy</a>

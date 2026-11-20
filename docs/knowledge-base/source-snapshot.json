@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-19",
-  "base_git_revision": "39a94065206172641fa49f1663731e32574afe39",
+  "base_git_revision": "f2efef4e301c6ce26dab224ff4fb0bb8f116bb29",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/features/hosted-subdomains/server.ts",
-    "apps/web/features/hosted-subdomains/types.ts"
+    "apps/web/app/sign-in/[[...sign-in]]/page.tsx",
+    "apps/web/features/auth/components/auth-layout.tsx",
+    "apps/web/features/hosted-subdomains/sign-in.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -141,10 +142,10 @@
     "apps/web/app/platform-admin/page.tsx": "24ff65cf084943175846d042e002b65488e560e4955a2e9e9b927e0a30ab1bf5",
     "apps/web/app/privacy/page.tsx": "e2a13b5e7858ee0d27c723b80d67a5476da07cf8178c32fe5f128fc4172342f6",
     "apps/web/app/share/report/page.tsx": "b7f0a87158499789fd679bb4fc7ad64cfa7c232c20b7308243a3d2d67adf19bc",
-    "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "9ddc87aa5b7456279040da5986906ffd73473f9a449893382722e002834ea10c",
+    "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "3343d474391348d6610d5dc7ccf7e177adab87e7b6ecde2f9f13174fd65ccda2",
     "apps/web/app/sign-up/[[...sign-up]]/page.tsx": "e0cff096166ffaf14bbb4d13f684ba2bed2ae2d0dc390b6595e22d0139686407",
     "apps/web/components/searchable-select.tsx": "f58f9c68f6d03978666a19c964c2c7a0a76d9d3870f4026b93b094c7c6c374f9",
-    "apps/web/features/auth/components/auth-layout.tsx": "10da64a69770c95ef98fb77271c5089f96b702355efe03d96307bf7836d00980",
+    "apps/web/features/auth/components/auth-layout.tsx": "82be5cbe2caee6b92612f2f8247d0a3c3262534abe918ecf45bf34cfcdd5f1fb",
     "apps/web/features/auth/components/workspace-invitation-sign-in.tsx": "f1fdc7df443bb8d82375f80c5bccecc0ab13b8e15561fd2946e4941682e65873",
     "apps/web/features/auth/lib/auth-redirects.ts": "1ad5a3b9931bc5d2aa7610d678c61f3f3fdd399a8ec26b232188e014b83c805d",
     "apps/web/features/auth/lib/auth-workspaces.ts": "25bee7164e8fa6e60d8da173e8fdc76b1a29e0b9442ed7f0ff7587376a8ef371",
@@ -164,7 +165,7 @@
     "apps/web/features/hosted-subdomains/provider.tsx": "f1d3d638c2e62130f2326483dbd1840c2d404b29e99f338c765d69b101397862",
     "apps/web/features/hosted-subdomains/server.ts": "f81fdb7068a6abdd000189769cfdb6b060127aff16cf14a855280dc3736587c5",
     "apps/web/features/hosted-subdomains/setup.tsx": "a76c60b0cc7e1a49a3d3ad406689bf8003d5a4cb30e3ed68caa49cf212672662",
-    "apps/web/features/hosted-subdomains/sign-in.tsx": "3e1b14523153595a1c1ad19f2c8a9ef11038f6000f46ea68d23d61b685a7010d",
+    "apps/web/features/hosted-subdomains/sign-in.tsx": "7781e84695e27d899c7b015abe517dfc309a2cef8393f8f0efa1fb2bac45a71a",
     "apps/web/features/hosted-subdomains/types.ts": "4682253e4962a55925dd695d3560cc05279dc5eaa1acb302dca73607db1d6e34",
     "apps/web/features/hosted-subdomains/unavailable-page.ts": "0acf0d39ad9d8ca2ddc4224a50f839bc71aaed975f30bf4b135b9295b875411b",
     "apps/web/features/performance/amount-source.tsx": "122a9f4c76f165a258ec8bacbd93c81067647dbc83c99168080eff31c61ca8dd",
@@ -237,7 +238,7 @@
     "docs/white-label-onboarding.md": "1e6dd885fe6ccc2c433fb12ef604b02859d182d84ce55c5afeaaf052d977470a"
   },
   "article_sha256": {
-    "customer/hosted-portals.md": "9a6e7084e95ef4448dd0ac679c8bdb615cd6d68c812de76d8a7f2fc7591fd84c",
+    "customer/hosted-portals.md": "e6ef0b9101b3c74acc42162c527471c64418251ef4180bec16a2dd34c8226d09",
     "customer/performance-analysis.md": "10d0f717648cd3f6a65c020c68b3bf2e1116d769b3131c3093e89f22a47112f0",
     "customer/budget-planner.md": "2810c28f1388f252ca76ca2be98384b94fe850e9462d781ecff68745708722e6",
     "customer/product-overview.md": "82780ed30ecc8fd46c396b64c73fedf7ec087c6a4778f8b99abdc8aad7ef98ee",

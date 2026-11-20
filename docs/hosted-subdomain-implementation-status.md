@@ -177,7 +177,12 @@ Label Agency plan from the owner's own workspace. Subdomain-only agencies do
 not probe that permission-protected endpoint; its backend restrictions remain.
 
 Discovery shows only permitted workspaces. Unrelated users get an access message,
-not a new agency. Signup, invitation acceptance, recovery, wrong-account switching
+not a new agency. Public hosted welcome pages and ordinary agency-branded
+credential pages offer sign-in only. Login creation is offered when the sign-in
+link carries an invited workspace destination, with verified-email invitation
+claims and membership still enforced by the backend. This is presentation,
+not a new authentication or authorization rule; regular Decisionate public
+registration is unchanged. Signup, invitation acceptance, recovery, wrong-account switching
 and logout need real cross-domain testing before launch.
 
 ## Billing and lifecycle

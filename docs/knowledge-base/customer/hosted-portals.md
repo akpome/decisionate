@@ -118,11 +118,15 @@ or replace your production keys just to clear an unexplained error.
 
 ## Where do hosted clients sign in and how are they invited?
 
-The branded sign-in page offers Continue to sign in and Create an account.
-Invited clients without a login choose Create an account, then Continue to sign
-up, using the email address from their agency invitation. Clients who already
-have an account choose Sign in instead. Switching between sign-in and sign-up
-preserves the invited workspace destination.
+The public agency welcome page offers Continue to sign in, not open registration.
+Ordinary agency sign-in pages do not show New here or Create an account.
+Clients without a login should open their workspace invitation. Its sign-in page
+offers Create your login; on a hosted welcome screen, continue with Continue to
+sign up. Use the email address from the invitation and verify it. Clients who
+already have an account sign in instead. Switching between sign-in and sign-up
+preserves the invited workspace destination. A workspace address in a link is
+not permission to join: the backend still requires the matching verified email
+and a pending invitation or existing membership.
 
 Credential entry, verification and password recovery use the existing secure
 Decisionate account flow, then return to the branded portal. When opened from an
