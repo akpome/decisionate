@@ -153,6 +153,54 @@ class AgencyClientOwnershipTests(unittest.TestCase):
         self.actor, self.email = "collaborator", "collaborator@example.test"
         self.assertEqual(self.client.get("/organizations/workspaces", headers=self.headers()).json(), [])
 
+    def test_client_owner_can_grant_and_revoke_access_for_only_the_managing_agency_owner(self):
+        path = "/organizations/agency-owner-access"
+        with self.Session() as db:
+            db.add(OrganizationMember(organization_id=2, clerk_user_id="collaborator", role="client_user"))
+            db.commit()
+
+        def agency_read(actor="agency"):
+            self.actor, self.email = actor, actor + "@example.test"
+            return self.client.get("/organizations/me", headers=self.headers(self.workspace))
+
+        self.assertEqual(agency_read().status_code, 403)
+        result = self.client_request("agency-owner-access", "patch", json={"enabled": True})
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertTrue(result.json()["agency_owner_access_enabled"])
+        self.assertEqual(agency_read().json()["name"], "Client Shop")
+        self.assertEqual(self.client.get("/organizations/members", headers=self.headers(self.workspace)).status_code, 403)
+        for actor in ("agency", "collaborator", "other"):
+            self.actor, self.email = actor, actor + "@example.test"
+            denied = self.client.patch(path, headers=self.headers(self.workspace), json={"enabled": False})
+            self.assertEqual(denied.status_code, 403, denied.text)
+        self.assertEqual(agency_read("other").status_code, 403)
+        self.assertEqual(agency_read().status_code, 200)
+
+        result = self.client_request("agency-owner-access", "patch", json={"enabled": False})
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertFalse(result.json()["agency_owner_access_enabled"])
+        self.assertEqual(agency_read().status_code, 403)
+        with self.Session() as db:
+            self.assertEqual(get_subscription_for_workspace(db, self.workspace).workspace_id, "agency")
+            self.assertEqual(db.get(Organization, 2).owner_user_id, self.workspace)
+            db.get(Organization, 2).is_paused = True
+            db.commit()
+        self.assertEqual(self.client_request("agency-owner-access", "patch", json={"enabled": True}).status_code, 403)
+
+    def test_owner_of_linked_existing_workspace_can_change_agency_access(self):
+        with self.Session() as db:
+            db.add(Organization(id=9, name="Already established", owner_user_id="existing", managing_agency_workspace_id="agency"))
+            db.commit()
+        self.actor, self.email = "existing", "existing@example.test"
+        enabled = self.client.patch("/organizations/agency-owner-access", headers=self.headers(), json={"enabled": True})
+        self.assertEqual(enabled.status_code, 200, enabled.text)
+        self.assertTrue(enabled.json()["agency_owner_access_enabled"])
+        invalid = self.client.patch("/organizations/agency-owner-access", headers=self.headers(), json={"enabled": "false"})
+        self.assertEqual(invalid.status_code, 422)
+        self.assertEqual(self.client.post("/organizations/leave-agency", headers=self.headers()).status_code, 200)
+        detached = self.client.patch("/organizations/agency-owner-access", headers=self.headers(), json={"enabled": True})
+        self.assertEqual(detached.status_code, 403, detached.text)
+
     def test_new_agency_can_only_add_the_existing_workspace_after_verified_owner_approval(self):
         self.detach(); invitation = self.invite()
         self.assertEqual(self.mail.call_args.args[0], "client@example.test")

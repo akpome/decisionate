@@ -17,6 +17,12 @@ Client users have the client-workspace data and analysis access supported for
 their role. Granting agency-owner access remains a client-owner operation;
 another client user or a support prompt cannot grant it implicitly.
 
+In an active client workspace, the client owner can open Settings > Agency
+connection and turn on Allow agency access. The managing agency owner can then
+open the client workspace. Turn it off to revoke access without unlinking,
+changing ownership, or changing billing. This is separate from Share workspace,
+which invites an individual collaborator.
+
 ## Invitations and first sign-in
 
 In Settings > Client Workspaces, enter the client workspace name and Workspace
@@ -113,9 +119,9 @@ When the agency removes the client or the client chooses Unlink agency, the lock
 workspace shows Client account unlinked and confirms that its data is preserved.
 The notice directs the client to contact their agency to arrange restored access;
 an unlinked agency must send a new invitation, not simply resume the old account.
-Limited client Settings shows Share workspace, Unlink agency and Delete workspace
+Limited client Settings shows Share workspace, Allow agency access, Unlink agency and Delete workspace
 as allowed by the workspace status and the user's role. It does not show branding,
-agency team management, email preferences or agency data-access controls. Trial, direct subscription and
+agency team management or email preferences. Trial, direct subscription and
 agency invitation choices appear in Billing, not on the locked dashboard.
 After independent Professional access is active, full workspace Settings is available.
 The client owner can still open Settings and Billing. Their data

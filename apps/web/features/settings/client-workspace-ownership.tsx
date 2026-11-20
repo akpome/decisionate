@@ -1,15 +1,16 @@
 "use client"
 
 import { useClerk } from "@clerk/nextjs"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { Check, Mail, Play, RefreshCw, Trash2, Unlink, X } from "lucide-react"
 
 import {
   deleteOwnedWorkspace, getAgencyClientInvitations, inviteExistingAgencyClient,
-  respondToAgencyClientInvitation, startIndependentWorkspaceTrial, unlinkOwnedWorkspaceAgency,
+  respondToAgencyClientInvitation, startIndependentWorkspaceTrial, unlinkOwnedWorkspaceAgency, updateAgencyOwnerAccess,
   type AgencyClientInvitation, type OrganizationWorkspaceRecord,
 } from "@/lib/api"
 import { clearActiveWorkspaceId, notifyWorkspaceAccessChanged } from "@/lib/workspace-context"
+import { isAgencyManagedWorkspace } from "@/lib/workspace-ownership"
 
 const button = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
 const message = (error: unknown) => error instanceof Error ? error.message : "The workspace could not be updated. Please try again."
@@ -53,6 +54,8 @@ export function ExistingClientInvitation({ userId }: { userId: string }) {
 export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" }: { userId: string; workspace: OrganizationWorkspaceRecord; view?: "settings" | "recovery" }) {
   const recovery = view === "recovery" && workspace.agency_removed === true
   const canDelete = view === "settings" && (workspace.agency_removed || workspace.is_paused === false)
+  const canChangeAgencyAccess = view === "settings" && workspace.is_paused === false && !workspace.agency_removed &&
+    isAgencyManagedWorkspace(workspace) && ["client", "client_owner", "owner"].includes(workspace.role)
   const { signOut } = useClerk()
   const [invitations, setInvitations] = useState<AgencyClientInvitation[]>([])
   const [loadedInvitationKey, setLoadedInvitationKey] = useState("")
@@ -66,6 +69,10 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
   const [leaving, setLeaving] = useState(false)
   const [deleted, setDeleted] = useState(false)
   const [confirmation, setConfirmation] = useState("")
+  const [agencyAccessUpdate, setAgencyAccessUpdate] = useState<{ previous: boolean; enabled: boolean } | null>(null)
+  const persistedAgencyAccess = workspace.agency_owner_access_enabled === true
+  const agencyAccessEnabled = agencyAccessUpdate?.previous === persistedAgencyAccess ? agencyAccessUpdate.enabled : persistedAgencyAccess
+  const agencyAccessDescriptionId = useId()
   const pending = useRef(false)
   const deleteDialog = useRef<HTMLDialogElement>(null)
 
@@ -84,6 +91,16 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
     }).catch(failure => { if (!cancelled) setError(message(failure)) }).finally(() => { if (!cancelled) setLoadedInvitationKey(invitationKey) })
     return () => { cancelled = true }
   }, [userId, workspace.owner_user_id, recovery, invitationKey])
+
+  async function changeAgencyAccess(enabled: boolean) {
+    if (!canChangeAgencyAccess || pending.current || enabled === agencyAccessEnabled) return
+    pending.current = true; setBusy("agency-access"); setError(""); setNotice("")
+    try {
+      const result = await updateAgencyOwnerAccess(enabled, userId, workspace.owner_user_id)
+      setAgencyAccessUpdate({ previous: persistedAgencyAccess, enabled: result.agency_owner_access_enabled })
+    } catch (failure) { setError(message(failure)) }
+    finally { pending.current = false; setBusy("") }
+  }
 
   async function act(action: string, invitation?: AgencyClientInvitation) {
     if (pending.current) return
@@ -133,6 +150,18 @@ export function ClientWorkspaceOwnership({ userId, workspace, view = "settings" 
         <button type="button" disabled={Boolean(busy)} onClick={() => setLeaving(true)} className={button}><Unlink size={16} />Unlink agency</button>
       )}
     </div>
+    {canChangeAgencyAccess && (
+      <div className="mt-5 border-t border-gray-200 pt-4">
+        <label className="flex min-h-10 w-fit items-center gap-3 text-sm font-medium">
+          <input type="checkbox" checked={agencyAccessEnabled} disabled={Boolean(busy)} aria-describedby={agencyAccessDescriptionId}
+            onChange={event => void changeAgencyAccess(event.target.checked)}
+            className="h-4 w-4 accent-[var(--decisionate-brand-primary)] disabled:opacity-60" />
+          Allow agency access
+        </label>
+        <p id={agencyAccessDescriptionId} className="max-w-xl text-sm text-gray-600">Lets the managing agency owner open this workspace and view its data. Billing and ownership stay the same.</p>
+        {busy === "agency-access" && <p role="status" className="mt-2 text-sm text-gray-600">Updating agency access...</p>}
+      </div>
+    )}
     {canDelete && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-red-200 pt-5">
       <p className="text-sm text-gray-600">Deleting this workspace permanently removes its data.</p>
       <button type="button" disabled={Boolean(busy)} onClick={() => { setDeleting(true); setConfirmation("") }} className={`${button} text-red-600`}><Trash2 size={16} />Delete workspace</button>

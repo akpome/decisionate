@@ -2082,10 +2082,7 @@ async def update_agency_owner_access(
 ):
     auth_context = get_auth_context(request)
 
-    if auth_context.workspace_role not in {
-        "client",
-        "client_owner",
-    }:
+    if auth_context.workspace_role not in {"client", "client_owner", "owner"}:
         raise HTTPException(
             status_code=403,
             detail="Only the client workspace owner can grant agency access",
@@ -2099,6 +2096,7 @@ async def update_agency_owner_access(
             .filter(
                 Organization.owner_user_id == auth_context.workspace_id,
             )
+            .with_for_update()
             .first()
         )
 
@@ -2108,20 +2106,13 @@ async def update_agency_owner_access(
                 detail="Agency access can only be configured in a client workspace",
             )
 
-        client_owner_membership = (
-            db.query(OrganizationMember)
-            .filter(
-                OrganizationMember.organization_id == organization.id,
-                OrganizationMember.clerk_user_id == auth_context.user_id,
-                OrganizationMember.role.in_({"client", "client_owner"}),
-            )
-            .first()
-        )
-        if not client_owner_membership:
+        if not is_workspace_owner(db, organization, auth_context.user_id):
             raise HTTPException(
                 status_code=403,
                 detail="Only the client workspace owner can grant agency access",
             )
+        if organization.is_paused:
+            raise HTTPException(403, "Agency access cannot be changed while the workspace is paused.")
 
         organization.agency_owner_access_enabled = payload.enabled
         db.commit()

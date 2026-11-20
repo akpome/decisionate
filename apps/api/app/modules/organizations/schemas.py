@@ -31,7 +31,7 @@ class ClientWorkspaceStatusUpdate(BaseModel):
 
 
 class AgencyOwnerAccessUpdate(BaseModel):
-    enabled: bool
+    enabled: StrictBool
 
 
 class OrganizationUpdate(BaseModel):

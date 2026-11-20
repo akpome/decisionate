@@ -78,7 +78,7 @@ function components(workspace, overrides = {}, settingsState = {}) {
 
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props))
 const settingsMarkup = (workspace, overrides) => render(components(workspace, overrides).Settings, { userId: "client", fullName: "Client Owner", emailAddress: "client@example.test" })
-const noFullSettings = /Workspace Name|Logo link or upload|Email preferences|Agency workspace access|Allow agency access|Shared Workspaces|Team Members|Create and invite owner|Start free trial|Agency invitations/
+const noFullSettings = /Workspace Name|Logo link or upload|Email preferences|Shared Workspaces|Team Members|Create and invite owner|Start free trial|Agency invitations/
 
 test("active linked client owners can share, delete or unlink without seeing agency settings", () => {
   for (const role of ["client", "client_owner", "owner"]) {
@@ -86,6 +86,7 @@ test("active linked client owners can share, delete or unlink without seeing age
     assert.match(html, />Unlink agency<\/button>/)
     assert.match(html, /Delete workspace/)
     assert.match(html, /Share workspace/)
+    assert.match(html, /Allow agency access/)
     assert.doesNotMatch(html, noFullSettings)
   }
 })
@@ -93,7 +94,7 @@ test("active linked client owners can share, delete or unlink without seeing age
 test("paused linked client Settings still offer only unlinking", () => {
   const html = settingsMarkup({ ...linked, is_paused: true })
   assert.match(html, />Unlink agency<\/button>/)
-  assert.doesNotMatch(html, /Delete workspace|Share workspace/)
+  assert.doesNotMatch(html, /Delete workspace|Share workspace|Allow agency access/)
   assert.doesNotMatch(html, noFullSettings)
 })
 
@@ -106,14 +107,14 @@ test("the agency sees the accepted owner separately from linking a new workspace
   const html = render(Settings, { userId: "agency", fullName: "Agency Owner", emailAddress: "agency@example.test" })
   assert.match(html, /Manage client workspaces[\s\S]*Client Shop[\s\S]*Workspace owner:<\/strong> owner@example.test[\s\S]*Link an existing workspace/)
   assert.match(html, /Remove from agency/)
-  assert.doesNotMatch(html, /Share workspace/)
+  assert.doesNotMatch(html, /Share workspace|Allow agency access/)
 })
 
 test("unlinked owners stay on deletion-only Settings until independent access is active", () => {
   for (const is_paused of [true, undefined]) {
     const html = settingsMarkup({ ...unlinked, is_paused })
     assert.match(html, />Delete workspace<\/button>/)
-    assert.doesNotMatch(html, /Unlink agency<\/button>|Subscribe directly/)
+    assert.doesNotMatch(html, /Unlink agency<\/button>|Subscribe directly|Allow agency access/)
     assert.doesNotMatch(html, noFullSettings)
   }
 })

@@ -6309,6 +6309,9 @@ export const startIndependentWorkspaceTrial = (userId: string, workspaceId: stri
 export const unlinkOwnedWorkspaceAgency = (userId: string, workspaceId: string) =>
   clientAccountRequest<{ removed: boolean; workspace_id: string }>("leave-agency", userId, workspaceId, "POST")
 
+export const updateAgencyOwnerAccess = (enabled: boolean, userId: string, workspaceId: string) =>
+  clientAccountRequest<{ agency_owner_access_enabled: boolean }>("agency-owner-access", userId, workspaceId, "PATCH", { enabled })
+
 export const deleteOwnedWorkspace = (confirmation: string, userId: string, workspaceId: string) =>
   clientAccountRequest("workspace", userId, workspaceId, "DELETE", { confirmation })
 

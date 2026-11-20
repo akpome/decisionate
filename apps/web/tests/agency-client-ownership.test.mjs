@@ -59,6 +59,36 @@ test("failed unlinking leaves the workspace linked and its confirmation retryabl
   assert.equal(h.context.pending.current, false)
 })
 
+test("toggling agency access persists only the server-confirmed value for the selected workspace", async () => {
+  let resolve
+  const calls = []
+  const h = harness({
+    canChangeAgencyAccess: true, agencyAccessEnabled: false, persistedAgencyAccess: false,
+    setAgencyAccessUpdate: value => { h.context.saved = value },
+    updateAgencyOwnerAccess: (...args) => { calls.push(args); return new Promise(done => { resolve = done }) },
+  })
+  const change = compile(`${declaration("changeAgencyAccess")}\nchangeAgencyAccess`, h.context)
+  const saving = change(true)
+  assert.equal(h.context.saved, undefined)
+  assert.equal(h.context.busy, "agency-access")
+  await change(true)
+  assert.deepEqual(calls, [[true, "client", workspace.owner_user_id]])
+  resolve({ agency_owner_access_enabled: true })
+  await saving
+  assert.equal(h.context.saved.enabled, true)
+
+  h.context.agencyAccessEnabled = true
+  h.context.persistedAgencyAccess = true
+  h.context.updateAgencyOwnerAccess = async (...args) => { calls.push(args); throw new Error("Network unavailable") }
+  await change(false)
+  assert.deepEqual(calls[1], [false, "client", workspace.owner_user_id])
+  assert.equal(h.context.saved.enabled, true)
+  assert.equal(h.context.error, "Network unavailable")
+  h.context.canChangeAgencyAccess = false
+  await change(false)
+  assert.equal(calls.length, 2)
+})
+
 test("unlinking and trial activation invalidate billing and workspace caches together", async () => {
   const api = readFileSync(new URL("../lib/api.ts", import.meta.url), "utf8")
   const target = ts.createSourceFile("api.ts", api, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
