@@ -28,6 +28,13 @@ primary Clerk provider remains primary, and workspace, issuer and satellite
 configuration are unchanged. Verification email and OAuth-provider branding remain
 those of the shared identity service.
 
+The portal welcome link explicitly includes its return URL before navigation.
+The live Clerk satellite URL builder can return only the primary sign-in path,
+then add its redirect parameters on the client after the first document request.
+Relying on that late update leaves the initial shared layout using Decisionate's
+identity. The link retains valid Clerk-generated query parameters but always sets
+the portal destination on the first request to the fixed primary auth route.
+
 Audit findings and differences from the original handoff:
 
 - Existing `modules/hosted_portals.py` implements **custom-domain** provisioning

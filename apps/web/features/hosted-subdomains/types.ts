@@ -17,4 +17,16 @@ export function isHostedLogoUrl(value: string) {
   } catch { return false }
 }
 export const hostedPrimaryOrigin = "https://app.decisionate.ca"
+export function getHostedAuthUrl(mode: "sign-in" | "sign-up", returnTo: string, clerkUrl?: string) {
+  const destination = new URL(`/${mode}`, hostedPrimaryOrigin)
+  try {
+    const built = new URL(clerkUrl || destination.href, hostedPrimaryOrigin)
+    if (built.origin === destination.origin && built.pathname === destination.pathname && !built.username && !built.password) {
+      destination.search = built.search
+    }
+  } catch { /* Use the known primary route if Clerk has not loaded a URL yet. */ }
+  // Satellites can return a bare Clerk URL; branding needs the destination on the first server request.
+  destination.searchParams.set("redirect_url", returnTo)
+  return destination.href
+}
 export const isHostedHostname = (hostname: string) => /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?\.decisionate\.app$/.test(hostname)

@@ -55,13 +55,13 @@ test("return allowlisting requires a registered active HTTPS portal and a safe a
   assert.equal(await resolution({ active: false }).safeHostedReturn(target), null)
 })
 
-function renderHostedAuth(signup = false) {
+function renderHostedAuth(signup = false, bareClerkUrl = false) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server"), calls = []
   const { HostedSignIn } = load("../features/hosted-subdomains/sign-in.tsx", {
     "./types": types,
     "react/jsx-runtime": require("react/jsx-runtime"), "@clerk/nextjs": { useClerk: () => ({
-      buildSignInUrl: options => { calls.push({ mode: "sign-in", ...options }); return "https://app.decisionate.ca/sign-in?sdk-sync=1" },
-      buildSignUpUrl: options => { calls.push({ mode: "sign-up", ...options }); return "https://app.decisionate.ca/sign-up?sdk-sync=1" },
+      buildSignInUrl: options => { calls.push({ mode: "sign-in", ...options }); return "https://app.decisionate.ca/sign-in" + (bareClerkUrl ? "" : "?sdk-sync=1") },
+      buildSignUpUrl: options => { calls.push({ mode: "sign-up", ...options }); return "https://app.decisionate.ca/sign-up" + (bareClerkUrl ? "" : "?sdk-sync=1") },
     }) }, "lucide-react": { ArrowRight: () => null }, "@/lib/workspace-brand": { getBrandSurfaceTextColor: () => "#ffffff" },
   })
   const returnTo = "/connections?workspace_id=client"
@@ -91,6 +91,38 @@ test("hosted signup has its own heading and central signup action with an invita
   assert.match(html, /Already have an account/)
   assert.doesNotMatch(html, /Welcome back|Your business results/)
   assert.ok(html.includes(`href="${redirects.getSignInUrl(returnTo)}"`))
+})
+
+test("the first credentials request includes the agency even when the live Clerk builder returns a bare URL", () => {
+  for (const signup of [false, true]) {
+    for (const bare of [false, true]) {
+      const { html, returnTo } = renderHostedAuth(signup, bare)
+      const link = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+        .find(match => match[2].includes(signup ? "Continue to sign up" : "Continue to sign in"))
+      assert.ok(link)
+      const target = new URL(link[1].replaceAll("&amp;", "&"))
+      assert.equal(target.origin, "https://app.decisionate.ca")
+      assert.equal(target.pathname, signup ? "/sign-up" : "/sign-in")
+      assert.equal(target.searchParams.get("redirect_url"), "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo))
+      assert.equal(target.searchParams.get("sdk-sync"), bare ? null : "1")
+    }
+  }
+})
+
+test("hosted auth links retain Clerk sync parameters and override only the return without leaving the primary sign-in route", () => {
+  const returnTo = "https://north.decisionate.app/auth/redirect?redirect_url=%2Fconnections%3Fworkspace_id%3Dclient&__clerk_synced=false"
+  const sdkUrl = "https://app.decisionate.ca/sign-in?__clerk_sync=test-sync&redirect_url=https%3A%2F%2Fevil.test&sign_in_fallback_redirect_url=%2Fauth%2Fredirect"
+  const target = new URL(types.getHostedAuthUrl("sign-in", returnTo, sdkUrl))
+  assert.equal(target.searchParams.get("redirect_url"), returnTo)
+  assert.equal(target.searchParams.get("__clerk_sync"), "test-sync")
+  assert.equal(target.searchParams.get("sign_in_fallback_redirect_url"), "/auth/redirect")
+  for (const sdk of [undefined, "", "not a valid URL", "https://evil.test/sign-in", "//evil.test/sign-in", "https://user@evil.test/sign-in",
+    "https://app.decisionate.ca/dashboard", "http://app.decisionate.ca/sign-in", "javascript:alert(1)", "https://user@app.decisionate.ca/sign-in"]) {
+    const fallback = new URL(types.getHostedAuthUrl("sign-in", returnTo, sdk))
+    assert.equal(fallback.origin, "https://app.decisionate.ca")
+    assert.equal(fallback.pathname, "/sign-in")
+    assert.equal(fallback.searchParams.get("redirect_url"), returnTo)
+  }
 })
 
 test("hosted auth pages keep safe workspace destinations on the portal when switching modes", async () => {

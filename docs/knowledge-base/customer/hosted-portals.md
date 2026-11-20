@@ -132,6 +132,9 @@ address; there is no separate login account or Clerk instance. Switching between
 sign-in and sign-up retains the agency and invited workspace. Direct Decisionate
 sign-ins retain Decisionate branding. This presentation does not change shared
 verification emails or third-party identity-provider consent screens.
+The portal's Continue button carries its return address in the first credentials
+request, even if Clerk generates a plain primary sign-in URL. This lets the agency
+name and published logo appear immediately instead of changing after page load.
 Clients need the
 normal workspace invitation and permission; signup alone does not grant access,
 create another workspace or enroll a client in a subscription.

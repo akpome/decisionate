@@ -2,7 +2,7 @@
 
 import { useClerk } from "@clerk/nextjs"
 import { ArrowRight } from "lucide-react"
-import { getHostedLogo, type HostedBrand } from "./types"
+import { getHostedAuthUrl, getHostedLogo, type HostedBrand } from "./types"
 import { getBrandSurfaceTextColor } from "@/lib/workspace-brand"
 
 export function HostedSignIn({ brand, returnTo, alternateUrl, signup = false }: {
@@ -21,7 +21,8 @@ export function HostedSignIn({ brand, returnTo, alternateUrl, signup = false }: 
         : brand.welcome_text && <p className="mt-3 break-words text-sm leading-6 text-gray-600">{brand.welcome_text}</p>}
       <a className="mt-6 flex min-h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold"
         style={{ backgroundColor: brand.primary_color, color: getBrandSurfaceTextColor(brand.primary_color) }}
-        href={signup ? clerk.buildSignUpUrl({ redirectUrl: returnTo }) : clerk.buildSignInUrl({ redirectUrl: returnTo })}>
+        href={getHostedAuthUrl(signup ? "sign-up" : "sign-in", returnTo,
+          signup ? clerk.buildSignUpUrl({ redirectUrl: returnTo }) : clerk.buildSignInUrl({ redirectUrl: returnTo }))}>
         {signup ? "Continue to sign up" : "Continue to sign in"}<ArrowRight size={16} />
       </a>
       <p className="mt-5 text-center text-sm leading-6 text-gray-600">
