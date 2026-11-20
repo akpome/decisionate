@@ -1,23 +1,36 @@
-# Set up a custom-domain customer portal
+# Set up a branded agency portal
 
 ## Can I offer a portal under my own brand?
 
-An owner on Custom Domain White Label Agency can open Settings and choose Set up a custom-domain
-portal when this offering is available. New custom-domain setup is closed by
+Agency includes a branded portal at an address such as agency.decisionate.app.
+Open Settings to configure Hosted portal settings, save a draft, preview and
+publish. Professional does not include an agency portal. Existing agencies keep
+their clients and data when upgraded to the hosted Agency offering.
+
+If Custom Domain White Label Agency is offered in Billing, its owner can open
+Settings and choose Set up a custom-domain portal. This separate offering appears
+only when the platform administrator enables it. New custom-domain setup is closed by
 default. Availability depends on both commercial availability and the platform's
 hosting and provider setup. If
 the page says hosting setup is not available yet, contact support; entering brand
 details does not activate an unavailable service. Ordinary client workspaces
 cannot create a portal.
 
-If new setup is closed, saved setup details are preserved and existing live
-portals remain accessible. An owner with a saved portal uses Manage custom-domain
-portal in Settings. This custom-domain workflow is separate from shared
+If new setup is closed, its plan and Settings link are hidden. Saved setup details
+are preserved and existing live portals remain accessible. Contact support for
+maintenance while setup is closed. This custom-domain workflow is separate from shared
 agency.decisionate.app portals described below. Each offering has independent
 availability; do not assume either is open for new customers.
 
 ## How do I set up my portal?
 
+For the standard Agency plan, open Settings > Hosted portal settings. Choose an
+available subdomain, add your agency name, support email, logo, colors and welcome
+message, then Save draft. Preview the portal and explicitly activate or publish
+it. The saved address cannot be renamed. Invite client workspace owners through
+your existing client controls. You do not need your own Stripe or hosting account.
+
+Only for the separately enabled custom-domain offering, follow these steps:
 Save your brand name, portal domain, support email, legal-page links, billing
 currency and prices. Your legal pages must be on your business website, outside
 the portal domain. A logo is optional. Annual prices are the total yearly charge.
@@ -64,10 +77,11 @@ copy of your clients or datasets. The custom-domain product above is different.
 
 ## How do I get a hosted agency portal?
 
-Choose White Label Subdomain Agency in Billing when the plan is available.
-Professional and Standard Branded Agency do not include hosted white label.
-White Label Subdomain Agency is one complete subscription, not a portal add-on
-charged on top of Standard Branded Agency. Its monthly and annual prices are set
+Choose Agency in Billing when the plan is available. Professional does not
+include a hosted portal. Agency is one complete subscription, not a portal add-on.
+The former Decisionate-branded Agency tier has been upgraded to this Agency plan
+without deleting client workspaces or changing existing Stripe charges.
+Its monthly and annual prices for new subscriptions are set
 by the platform administrator. An eligible owner opens Settings, where Hosted
 portal settings is shown directly instead of the standard Workspace branding
 form. No separate setup link is required. Start with the portal address and
@@ -81,8 +95,8 @@ enable one before the platform is ready.
 An agency owner can edit their own Hosted portal settings from Settings in the
 main app or while signed in to their active agency portal. Client owners and
 staff cannot edit the agency's portal, and one agency cannot manage another's.
-The separate Workspace branding form is only shown to Professional and Standard
-Branded Agency owners. Hosted and Custom Domain White Label Agency plans do not
+The separate Workspace branding form is only shown to Professional owners.
+Agency and Custom Domain White Label Agency plans do not
 show that form; they use their own portal configuration instead.
 Decisionate product-update preferences are not shown on hosted portals; this
 does not disable invitations, alerts or weekly report emails.

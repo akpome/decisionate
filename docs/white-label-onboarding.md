@@ -4,12 +4,17 @@
 
 The independent shared `agency.decisionate.app` product uses the existing agency's
 workspaces, Clerk identity, Decisionate Stripe subscription and email sender.
-Hosted access requires White Label Subdomain Agency (or the higher custom-domain
-tier), with normal trial, renewal and grace-period rules. This is an alternative
-base subscription, not an add-on to Standard Branded Agency. Platform Admin sets
-monthly/annual amounts and recurring Stripe IDs for all four plans. Existing
-Professional and Agency subscriptions and prices are preserved.
-When enabled, the White Label Subdomain Agency owner's Settings page displays
+Hosted access is included in Agency (and the optional custom-domain tier), with
+normal trial, renewal and grace-period rules. Professional and Agency are the
+standard plans; custom-domain white label appears only when enabled in Platform
+Admin. Agency uses the existing hosted plan's monthly/annual prices and Stripe
+IDs (`agency_subdomain_*`). Historical `agency_*` price IDs remain recognized for
+existing renewals but are not a separate offering.
+Startup upgrades default-application legacy Agency plan references in place.
+Workspace IDs, memberships, clients, files, provider subscription/price IDs,
+renewal dates and credit balances are preserved. Independent frontend application
+subscriptions are excluded. The migration is idempotent and never calls Stripe.
+The Agency owner's Settings page displays
 Hosted portal settings directly in place of the standard workspace branding form.
 It offers address reservation, branding draft, desktop/mobile preview and explicit
 activation. Once an address is saved, the subdomain input is hidden; the portal
@@ -21,8 +26,8 @@ The agency owner can update their portal in Settings from the main app or their
 own active agency portal. Client and ordinary staff accounts cannot change the
 agency's branding. Decisionate marketing signup and preferences are not displayed
 inside hosted portals; transactional emails and scheduled reports are unchanged.
-The separate Workspace branding form is available only to Professional and
-Standard Branded Agency owners, not either white-label subscription tier.
+The separate Workspace branding form is available only to Professional owners
+in the default application. Independent frontends retain their existing settings.
 
 Only sign-in is promoted on the public branded welcome page. Invited clients can
 choose **Create your login** after opening their workspace invitation.
@@ -58,9 +63,10 @@ custom-domain setup. The switch defaults to **Off** and is persisted in the
 requires confirmation and an up-to-date revision; the administrator, old/new
 values, timestamp and optional API-supplied reason are audited.
 
-Off hides new customer setup links and blocks saving a setup, connecting Stripe,
+Off hides the customer plan, pricing, setup links and admin price/inventory rows
+(the enable switch remains available), and blocks saving a setup, connecting Stripe,
 preparation and launch through the API. Existing drafts and credentials remain
-stored. Existing portal owners retain a management link. Live registrations are
+stored. Direct maintenance remains supported. Live registrations are
 not suspended, deleted or removed from CORS. Operator-managed maintenance remains
 available. Re-enabling the switch restores the existing workflow subject to its
 separate technical readiness checks.

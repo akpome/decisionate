@@ -614,7 +614,7 @@ function BillingPageContent() {
                   {t(billingHeading(current))}
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  {access.activeWorkspace?.name} · {current.plan_name}
+                  {access.activeWorkspace?.name} · {current.plan === "agency_custom_domain" && !current.plan_options.some(option => option.plan === "agency_custom_domain") ? "Agency" : current.plan_name}
                 </p>
               </div>
               {managing && (
@@ -810,9 +810,7 @@ function BillingPageContent() {
                           option.billing_model === "agency"
                             ? option.plan === "agency_custom_domain"
                               ? "Your branded portal on your own domain."
-                              : option.plan === "agency_subdomain"
-                                ? "Your branded portal at agency.decisionate.app."
-                                : "Client workspaces on the Decisionate-branded application."
+                              : "Your branded portal at agency.decisionate.app."
                             : "Datasets, dashboards, decisions and outcome tracking."
                         )}
                       </p>

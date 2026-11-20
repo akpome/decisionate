@@ -19,11 +19,11 @@ type Availability = {
   hosted_subdomain_portals?: { id: string; hostname: string; status: string; revision: number; last_error: string | null }[]
 }
 const offerings = [
-  { key: "hosted_subdomain", name: "Decisionate-hosted white label", address: "agency.decisionate.app" },
+  { key: "hosted_subdomain", name: "Agency hosted portals", address: "agency.decisionate.app" },
   { key: "custom_domain", name: "Custom-domain white label", address: "analytics.agency.com" },
 ] as const
 
-export function WhiteLabelAvailabilityPanel({ userId }: { userId: string }) {
+export function WhiteLabelAvailabilityPanel({ userId, onCustomDomainChange }: { userId: string; onCustomDomainChange?: (enabled: boolean) => void }) {
   const [data, setData] = useState<Availability | null>(null)
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
@@ -43,9 +43,11 @@ export function WhiteLabelAvailabilityPanel({ userId }: { userId: string }) {
     if (!window.confirm(`${enabled ? "Open" : "Close"} ${name} for new subscriptions and setup? Existing live portals will not be suspended or deleted.`)) return
     setPending(true); setError("")
     try {
-      setData(await whiteLabelAvailabilityRequest<Availability>(userId, {
+      const next = await whiteLabelAvailabilityRequest<Availability>(userId, {
         method: "PUT", body: JSON.stringify({ offering, enabled, revision: data.revision, confirmation: "CHANGE AVAILABILITY" }),
-      }))
+      })
+      setData(next)
+      if (offering === "custom_domain") onCustomDomainChange?.(next.custom_domain_enabled)
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not change availability") }
     finally { setPending(false) }
   }
@@ -108,7 +110,7 @@ export function WhiteLabelAvailabilityPanel({ userId }: { userId: string }) {
           </div></td></tr>)}</tbody></table>
       </div>}
       {events && <details open className="mt-4 text-sm"><summary className="cursor-pointer font-medium">{events.hostname}: history</summary><ul className="mt-3 space-y-2">{events.items.map((item, index) => <li key={index} className="break-words">{new Date(item.created_at).toLocaleString()} / {item.action} / {item.actor}{item.reason && ` / ${item.reason}`}</li>)}</ul></details>}
-      <h3 className="mt-7 font-semibold">Custom-domain portals ({data.custom_domain_portal_count})</h3>
+      {data.custom_domain_enabled && <><h3 className="mt-7 font-semibold">Custom-domain portals ({data.custom_domain_portal_count})</h3>
       <p className="mt-1 text-sm text-gray-500">{data.custom_domain_live_count} live</p>
       {data.custom_domain_portal_count > data.custom_domain_portals.length && <p className="mt-1 text-sm text-gray-500">Showing the 200 most recently created portals.</p>}
       {!data.custom_domain_portals.length ? <p className="mt-2 text-sm text-gray-500">No custom-domain portals.</p> :
@@ -116,7 +118,7 @@ export function WhiteLabelAvailabilityPanel({ userId }: { userId: string }) {
           <table className="w-full text-left text-sm"><thead><tr className="border-b border-gray-200"><th className="py-3 pr-4">Domain</th><th className="px-4">Status</th><th className="pl-4">Agency workspace</th></tr></thead>
             <tbody>{data.custom_domain_portals.map(portal => <tr key={portal.id} className="border-b border-gray-200"><td className="py-3 pr-4">{portal.hostname}</td><td className="px-4">{portal.status}</td><td className="break-all pl-4 text-xs text-gray-600">{portal.owner_workspace_id}</td></tr>)}</tbody>
           </table>
-        </div>}
+        </div>}</>}
     </>}
   </section>
 }

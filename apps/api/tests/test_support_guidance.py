@@ -44,7 +44,7 @@ def configured(key="test-key"):
 
 class GuidanceTests(unittest.TestCase):
     def test_knowledge_links_accept_root_application_pages_but_reject_unsafe_destinations(self):
-        for route in ("/connections", "/decisions/6", "/business-analysis/returns", "/weekly-reports", "/help", "/dashboard/reports", "/privacy"):
+        for route in ("/connections", "/decisions/6", "/business-analysis/returns", "/weekly-reports", "/help", "/hosted-portal", "/dashboard/reports", "/privacy"):
             self.assertIsNotNone(knowledge.KNOWLEDGE_ROUTE.fullmatch(route), route)
         for route in ("/reports-fake", "/platform-admin", "/api/portal-health", "/business-analysis?workspace=other", "/decisions/../admin", "//other.test", "https://other.test/business-analysis"):
             self.assertIsNone(knowledge.KNOWLEDGE_ROUTE.fullmatch(route), route)

@@ -145,9 +145,9 @@ function HostedSubdomainEditor({ userId, embedded }: { userId: string; embedded:
     {data && <>
       <section className="border-b border-gray-200 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Subheading className="font-semibold">White Label Subdomain Agency</Subheading><span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "White-label subscription required"}</span>
+          <Subheading className="font-semibold">Agency</Subheading><span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "Agency subscription required"}</span>
         </div>
-        {!data.entitled && <Link href="/billing" className="mt-3 inline-block text-sm text-blue-700 underline">Choose a white-label plan</Link>}
+        {!data.entitled && <Link href="/billing" className="mt-3 inline-block text-sm text-blue-700 underline">Choose the Agency plan</Link>}
         {!data.commercially_available && !data.portal?.published && <p className="mt-3 text-sm text-gray-600">New hosted portals are not available yet.</p>}
       </section>
       {data.portal && <section aria-label="Portal address" className="flex flex-wrap items-center gap-3 border-b border-gray-200 py-5">

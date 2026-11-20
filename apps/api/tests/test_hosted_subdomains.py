@@ -284,7 +284,7 @@ class HostedSubdomainTests(unittest.TestCase):
         with self.Session() as db:
             db.get(WorkspaceSubscription, 1).plan = "agency"
             db.commit()
-        self.assertEqual(self.client.get(self.base + "/availability", headers=self.headers(), params={"slug": "north-star"}).status_code, 403)
+        self.assertEqual(self.client.get(self.base + "/availability", headers=self.headers(), params={"slug": "north-star"}).status_code, 200)
 
     def test_same_verified_identity_and_membership_required_on_hosted_origins(self):
         self.publish()
@@ -429,7 +429,7 @@ class HostedSubdomainTests(unittest.TestCase):
 
     def test_other_plans_cannot_enable_hosted_access_even_with_billing_bypass(self):
         with patch.dict(os.environ, {"BILLING_ENFORCEMENT_ENABLED": "false"}):
-            for plan in ("professional", "free", "agency"):
+            for plan in ("professional", "free"):
                 with self.Session() as db:
                     db.get(WorkspaceSubscription, 1).plan = plan
                     db.commit()

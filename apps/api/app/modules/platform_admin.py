@@ -165,6 +165,7 @@ class PlatformAdminOverviewResponse(BaseModel):
 
 
 class PlatformAdminAccessResponse(BaseModel):
+    custom_domain_enabled: bool = False
     allowed: bool
     full_access: bool = False
     permissions: list[str] = Field(default_factory=list)
@@ -802,8 +803,10 @@ async def get_platform_admin_access(
             db,
             auth_context.user_id,
         )
+        from app.modules.white_label_availability import availability
         return PlatformAdminAccessResponse(
             allowed=True,
+            custom_domain_enabled=availability(db)["custom_domain_enabled"],
             full_access=full_access,
             permissions=sorted(
                 platform_admin_permission_set(
@@ -2210,7 +2213,7 @@ def platform_admin_ai_credit_limit(
     )
     monthly_included_credits = int(
         resolved_allocations.get(
-            plan,
+            "agency" if is_agency_plan(plan) else plan,
             resolved_allocations.get("free", 0),
         )
     )

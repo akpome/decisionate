@@ -284,7 +284,7 @@ class BillingServiceTests(unittest.TestCase):
                 "BILLING_PROVIDER": "stripe",
                 "STRIPE_API_URL": "https://api.stripe.test",
                 "STRIPE_SECRET_KEY": "sk_test",
-                "STRIPE_AGENCY_PRICE_ID": "price_agency_test",
+                "STRIPE_AGENCY_SUBDOMAIN_PRICE_ID": "price_agency_test",
                 "STRIPE_CLIENT_WORKSPACE_ADDON_PRICE_ID": "price_workspace_test",
                 "DECISIONATE_WEB_APP_URL": "https://app.test",
             },
@@ -292,7 +292,7 @@ class BillingServiceTests(unittest.TestCase):
         ), patch(
             "app.modules.billing.service.urlopen",
             return_value=FakeResponse(json.dumps(response).encode()),
-        ) as mocked_urlopen:
+        ) as mocked_urlopen, patch("app.modules.billing.service.plan_available", return_value=True):
             create_checkout_session(
                 workspace_id="workspace_1",
                 owner_user_id="user_1",

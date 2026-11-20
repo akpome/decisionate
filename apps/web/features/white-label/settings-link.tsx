@@ -34,7 +34,7 @@ function CustomSettingsLink({ userId }: { userId: string }) {
       .catch(() => { if (!controller.signal.aborted) setState(null) })
     return () => controller.abort()
   }, [userId])
-  if (!state || (!state.commercially_available && !state.portal)) return null
+  if (!state?.commercially_available) return null
   return <Link href="/white-label" className="text-sm font-medium text-blue-700 underline underline-offset-4">
     {state.portal ? "Manage custom-domain portal" : "Set up a custom-domain portal"}
   </Link>

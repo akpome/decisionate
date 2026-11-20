@@ -102,6 +102,7 @@ AI_CREDIT_ALLOCATION_COLUMNS = {
     AGENCY_PLAN: "agency_ai_credits",
     "additional_client_workspace": "additional_client_workspace_ai_credits",
 }
+# Keep retired provider-price keys recognizable; the customer catalog is filtered below.
 PUBLIC_BILLING_PLANS = (
     PROFESSIONAL_PLAN,
     AGENCY_PLAN,
@@ -129,7 +130,7 @@ BILLING_PLAN_DEFINITIONS = {
         "annual_price_config_key": "professional_annual_price_id",
     },
     AGENCY_PLAN: {
-        "name": "Standard Branded Agency",
+        "name": "Agency",
         "billing_model": "agency",
         "monthly_price_cents": 19900,
         "annual_price_cents": 199000,
@@ -139,7 +140,7 @@ BILLING_PLAN_DEFINITIONS = {
         "annual_price_config_key": "agency_annual_price_id",
     },
     AGENCY_SUBDOMAIN_PLAN: {
-        "name": "White Label Subdomain Agency",
+        "name": "Agency",
         "billing_model": "agency",
         "included_client_workspaces": 10,
         "ai_credit_limit": 25000,
@@ -401,7 +402,16 @@ def get_billing_period_ai_credit_limit(
 def get_billing_plan_options(db=None) -> list[dict]:
     config = get_billing_config(db)
     options = []
+    from app.modules.white_label_availability import availability
+    with (SessionLocal() if db is None else nullcontext(db)) as session:
+        custom_domain_enabled = get_application().is_default and availability(session)["custom_domain_enabled"]
     for plan in PUBLIC_BILLING_PLANS:
+        if get_application().is_default and plan == AGENCY_PLAN:
+            continue
+        if not get_application().is_default and plan == AGENCY_SUBDOMAIN_PLAN:
+            continue
+        if plan == AGENCY_CUSTOM_DOMAIN_PLAN and not custom_domain_enabled:
+            continue
         definition = BILLING_PLAN_DEFINITIONS[plan]
         if plan == FREE_PLAN:
             continue
@@ -433,6 +443,7 @@ def plan_price_keys() -> tuple[str, ...]:
 
 
 def plan_available(plan: str, db=None) -> bool:
+    plan = normalize_billing_plan(plan)
     if plan not in (AGENCY_SUBDOMAIN_PLAN, AGENCY_CUSTOM_DOMAIN_PLAN):
         return True
     if not get_application().is_default:
@@ -864,6 +875,8 @@ def normalize_billing_plan(value: str | None) -> str:
     clean_value = str(value or "").strip().lower()
     if clean_value == "standard":
         return PROFESSIONAL_PLAN
+    if get_application().is_default and (clean_value == AGENCY_PLAN or clean_value in LEGACY_PLAN_ALIASES):
+        return AGENCY_SUBDOMAIN_PLAN
     if clean_value in LEGACY_PLAN_ALIASES:
         return LEGACY_PLAN_ALIASES[clean_value]
     if clean_value in BILLING_PLAN_DEFINITIONS:

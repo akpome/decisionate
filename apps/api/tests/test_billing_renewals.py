@@ -98,7 +98,7 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
         remote["items"]["data"].insert(0, {"id": "si_legacy", "price": {"id": "price_legacy_hosted", "recurring": {"interval": "month"}}, "quantity": 1})
         with patch.object(service, "stripe_request", side_effect=AssertionError("Subscription events must not create charges")):
             subscription = self.apply(remote)
-        self.assertEqual(subscription.plan, "agency")
+        self.assertEqual(subscription.plan, "agency_subdomain")
         self.assertEqual(subscription.price_id, "price_agency")
         self.assertEqual(subscription.provider_subscription_id, "sub_owner")
 
@@ -239,7 +239,7 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
         remote["items"]["data"][0]["price"]["id"] = "price_agency_year"
         subscription = self.apply(remote)
         self.assertEqual(subscription.billing_interval, "year")
-        self.assertEqual(subscription.plan, "agency")
+        self.assertEqual(subscription.plan, "agency_subdomain")
 
     def test_white_label_base_prices_override_stale_metadata_on_upgrade_and_renewal(self):
         self.seed()

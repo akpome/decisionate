@@ -112,21 +112,23 @@ test("Agency, Professional and converted Professional owners retain full Setting
   }
 })
 
-test("hosted subdomain owners get inline portal settings instead of standard workspace branding", () => {
+test("current and legacy Agency owners get inline portal settings instead of workspace branding", () => {
   const workspace = { id: 1, name: "Agency", owner_user_id: "agency", role: "owner", is_managed_client: false }
-  const Settings = components(workspace, {}, { billingStatus: { plan: "agency_subdomain", billing_model: "agency" } }).Settings
-  const html = render(Settings, { userId: "agency", fullName: "Agency Owner", emailAddress: "owner@example.test" })
-  assert.match(html, /data-hosted-settings="true"/)
-  assert.match(html, /Hosted portal settings/)
-  assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|href="\/hosted-portal"/)
-  assert.match(html, /Client Workspaces/)
-  assert.match(html, /Workspace Members/)
-  assert.match(html, /workspace-deletion-title/)
+  for (const plan of ["agency", "agency_subdomain"]) {
+    const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: "agency" } }).Settings
+    const html = render(Settings, { userId: "agency", fullName: "Agency Owner", emailAddress: "owner@example.test" })
+    assert.match(html, /data-hosted-settings="true"/)
+    assert.match(html, /Hosted portal settings/)
+    assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|href="\/hosted-portal"/)
+    assert.match(html, /Client Workspaces/)
+    assert.match(html, /Workspace Members/)
+    assert.match(html, /workspace-deletion-title/)
+  }
 })
 
-test("only Professional and Standard Branded Agency owners have workspace branding controls", () => {
+test("only Professional owners have the default application's workspace branding controls", () => {
   const workspace = { id: 1, name: "Owner workspace", owner_user_id: "owner", role: "owner", is_managed_client: false }
-  for (const plan of ["professional", "agency"]) {
+  for (const plan of ["professional"]) {
     const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "professional" ? "direct" : "agency" } }).Settings
     const html = render(Settings, { userId: "owner", fullName: "Owner", emailAddress: "owner@example.test" })
     assert.match(html, /Workspace Name/)

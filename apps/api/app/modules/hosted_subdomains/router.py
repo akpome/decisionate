@@ -61,7 +61,7 @@ def require_sales(db):
 
 def require_entitlement(db, agency):
     if not entitled(db, agency):
-        raise HTTPException(403, "A White Label Subdomain Agency subscription is required for your hosted portal.")
+        raise HTTPException(403, "An Agency subscription is required for your hosted portal.")
 
 
 def reserved_address(db, slug):

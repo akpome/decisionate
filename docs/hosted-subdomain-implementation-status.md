@@ -8,9 +8,13 @@ preview/publication, central sign-in, workspace isolation and admin lifecycle
 controls. Both commercial switches default **Off**. Live Vercel, Clerk, Stripe,
 Resend and connector acceptance checks have **not** been performed.
 
-The four alternative base plans are Professional, Standard Branded Agency,
-White Label Subdomain Agency and Custom Domain White Label Agency. The hosted
-portal requires one of the white-label tiers, not Standard Branded Agency.
+The standard plans are Professional and Agency. Agency includes the hosted
+portal; its technical key remains `agency_subdomain` and its prices remain the
+existing hosted price settings. The old branded Agency offering is retired.
+Startup upgrades its plan reference in place, preserving all agency/client
+workspaces and provider subscription details without repricing through Stripe.
+Independently registered application subscriptions are excluded from the upgrade.
+Custom Domain White Label Agency is shown only when enabled in Platform Admin.
 Normal trial, renewal, cancellation and grace-period rules apply. There is no
 additional portal subscription item. Custom-domain signup stays Off by default.
 
@@ -56,12 +60,13 @@ Audit findings and differences from the original handoff:
 - Workers restore current portal context from workspace ownership without changing
   the application credentials. Context is reset after each operation.
 - The new modules use `hosted_subdomains`; the old `hosted_portals` naming remains
-  for backward compatibility. No identities, subscriptions or data are migrated.
+  for backward compatibility. No identities or data are moved; only legacy
+  default-application subscription plan keys are upgraded.
 
 ## Agency workflow
 
 1. Agency owner opens Settings on the main application and uses Hosted portal settings.
-2. Choose White Label Subdomain Agency through Billing when available. If it is
+2. Choose Agency through Billing when available. If it is
    inactive, restore it through Billing; portal setup does not add another charge.
 3. Enter the subdomain, name, support address, colors, optional images and welcome
    message. A debounced, authenticated availability check shows whether the name
@@ -71,12 +76,12 @@ Audit findings and differences from the original handoff:
 5. Open/copy the URL and manage client invitations using existing Settings.
    Signup alone never grants membership in an agency or client workspace.
 
-For White Label Subdomain Agency owners, Settings embeds the hosted portal
+For Agency owners, Settings embeds the hosted portal
 editor in place of standard workspace branding. It is not hidden behind a
 setup link. Both the embedded editor and the existing direct setup route hide
 the subdomain input after saving a draft; the reserved address is displayed with
 copy and, when active, open controls. Workspace branding is explicitly limited
-to Professional and Standard Branded Agency owners; other or unrecognized plans
+to Professional owners in the default application; other or unrecognized plans
 do not fall back to that form. Custom-domain portal configuration is unchanged. Client ownership, team and
 deletion controls are unchanged.
 

@@ -113,6 +113,25 @@ test("preparation stops on DNS waiting, readiness or unmount without launching a
   }
 })
 
+test("disabled custom-domain setup stays hidden even when a portal draft exists", () => {
+  const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
+  for (const enabled of [false, true]) {
+    const { CustomSettingsLink } = load(source("../features/white-label/settings-link.tsx").replace("function CustomSettingsLink", "export function CustomSettingsLink"), {
+      process: { env: {} },
+      require: name => ({
+        "react/jsx-runtime": require("react/jsx-runtime"),
+        react: { ...React, useState: () => [{ commercially_available: enabled, portal: { id: "existing" } }, () => {}], useEffect() {} },
+        "next/link": { default: props => React.createElement("a", props) },
+        "@/lib/api": {},
+        "@/features/hosted-subdomains/provider": {},
+        "@/lib/use-active-workspace": {},
+      })[name],
+    })
+    const html = renderToStaticMarkup(React.createElement(CustomSettingsLink, { userId: "agency" }))
+    assert.equal(html.includes("/white-label"), enabled)
+  }
+})
+
 test("duplicate clicks are ignored and failures leave setup retryable", async () => {
   const working = { current: false }, busy = [], errors = []
   const { run } = load(`export ${extract(setup, "run", "HostedPortalSetup")}`, {

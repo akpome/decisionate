@@ -43,17 +43,19 @@ class SubscriptionPlanTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         return value
 
-    def test_four_alternative_plans_keep_existing_prices_and_capacity(self):
+    def test_catalog_retires_branded_agency_and_hides_disabled_custom_domain(self):
         with self.Session() as db:
             plans = service.get_billing_plan_options(db)
-        self.assertEqual([plan["plan"] for plan in plans], ["professional", "agency", "agency_subdomain", "agency_custom_domain"])
-        self.assertEqual([plan["monthly_price_cents"] for plan in plans], [7900, 19900, 0, 0])
-        self.assertEqual([plan["available"] for plan in plans], [True, True, False, False])
+        self.assertEqual([plan["plan"] for plan in plans], ["professional", "agency_subdomain"])
+        self.assertEqual([plan["name"] for plan in plans], ["Professional", "Agency"])
+        self.assertEqual([plan["monthly_price_cents"] for plan in plans], [7900, 0])
+        self.assertEqual([plan["available"] for plan in plans], [True, False])
         for plan in service.AGENCY_PLANS:
             self.assertTrue(service.is_agency_plan(plan))
             self.assertEqual(service.get_client_workspace_limit(plan, 2), 12)
             self.assertEqual(service.get_billing_plan_definition(plan)["ai_credit_limit"], 25000)
-        self.assertEqual(service.normalize_billing_plan("agency_growth"), "agency")
+        self.assertEqual(service.normalize_billing_plan("agency_growth"), "agency_subdomain")
+        self.assertEqual(service.normalize_billing_plan("agency"), "agency_subdomain")
 
     def test_additive_migration_preserves_current_prices_and_is_repeatable(self):
         engine = create_engine("sqlite://")
@@ -89,10 +91,10 @@ class SubscriptionPlanTests(unittest.TestCase):
         self.assertEqual(result.headers["Cache-Control"], "no-store")
         self.assertNotIn("price_id", result.text)
         self.assertNotIn("secret_key", result.text)
-        for index, option in enumerate(result.json()["plans"], start=1):
-            self.assertEqual(option["monthly_price_cents"], index * 1000)
+        for option in result.json()["plans"]:
+            self.assertEqual(option["monthly_price_cents"], payload[f"{option['plan']}_monthly_price_cents"])
             self.assertTrue(option["monthly_configured"])
-            self.assertEqual(option["annual_price_cents"], index * 10000)
+            self.assertEqual(option["annual_price_cents"], payload[f"{option['plan']}_annual_price_cents"])
             if option["billing_model"] == "agency":
                 self.assertEqual(option["ai_credit_limit"], 31000)
         negative = self.client.patch("/admin/credit-settings", json={"agency_custom_domain_monthly_price_cents": -1})
@@ -101,14 +103,34 @@ class SubscriptionPlanTests(unittest.TestCase):
     def test_custom_domain_stays_closed_until_admin_enables_it(self):
         with self.Session() as db:
             self.assertFalse(service.plan_available(service.AGENCY_CUSTOM_DOMAIN_PLAN, db))
+            self.assertNotIn(service.AGENCY_CUSTOM_DOMAIN_PLAN, [plan["plan"] for plan in service.get_billing_plan_options(db)])
         response = self.client.put("/admin/white-label-availability", json={"offering": "custom_domain", "enabled": True,
             "revision": 0, "confirmation": "CHANGE AVAILABILITY"})
         self.assertEqual(response.status_code, 200, response.text)
         with self.Session() as db:
             self.assertTrue(service.plan_available(service.AGENCY_CUSTOM_DOMAIN_PLAN, db))
             self.assertFalse(service.plan_available(service.AGENCY_SUBDOMAIN_PLAN, db))
+            self.assertIn(service.AGENCY_CUSTOM_DOMAIN_PLAN, [plan["plan"] for plan in service.get_billing_plan_options(db)])
         with patch.object(hosted_portals, "platform_blockers", return_value=["Not ready"]), self.Session() as db:
             self.assertFalse(service.plan_available(service.AGENCY_CUSTOM_DOMAIN_PLAN, db))
+
+    def test_admin_access_exposes_current_custom_domain_visibility(self):
+        with patch.object(platform_admin, "get_auth_context", return_value=SimpleNamespace(user_id="operator")), patch.object(
+            platform_admin, "get_platform_admin_user_ids", return_value={"operator"}
+        ), patch.object(platform_admin, "platform_admin_is_full_access", return_value=True), patch.object(
+            platform_admin, "platform_admin_permission_set", return_value=set()
+        ):
+            self.assertFalse(self.client.get("/admin/access").json()["custom_domain_enabled"])
+            enabled = self.client.put("/admin/white-label-availability", json={"offering": "custom_domain", "enabled": True,
+                "revision": 0, "confirmation": "CHANGE AVAILABILITY"})
+            self.assertEqual(enabled.status_code, 200, enabled.text)
+            self.assertTrue(self.client.get("/admin/access").json()["custom_domain_enabled"])
+            closed = self.client.put("/admin/white-label-availability", json={"offering": "custom_domain", "enabled": False,
+                "revision": 1, "confirmation": "CHANGE AVAILABILITY"})
+            self.assertEqual(closed.status_code, 200, closed.text)
+            self.assertFalse(self.client.get("/admin/access").json()["custom_domain_enabled"])
+            catalog = self.client.get("/api/v2/application/plans").json()["plans"]
+            self.assertNotIn("agency_custom_domain", [plan["plan"] for plan in catalog])
 
     def test_hosted_plan_opens_without_manual_flags_and_preserves_admin_control(self):
         with patch.dict(os.environ, {"CLERK_SECRET_KEY": "test_only"}, clear=True):
@@ -132,13 +154,13 @@ class SubscriptionPlanTests(unittest.TestCase):
         self.assertEqual(result.status_code, 409, result.text)
         checkout.assert_not_called()
 
-    def test_hosted_portal_requires_white_label_not_standard_agency(self):
+    def test_existing_agency_gets_hosted_entitlement_without_a_new_subscription(self):
         with self.Session() as db:
             agency = Organization(owner_user_id="owner", name="Agency")
             subscription = WorkspaceSubscription(workspace_id="owner", status="active", plan="agency", current_period_end=utc_now() + timedelta(days=30))
             db.add_all([agency, subscription])
             db.commit()
-            self.assertFalse(context.entitled(db, agency))
+            self.assertTrue(context.entitled(db, agency))
             for plan in ("agency_subdomain", "agency_custom_domain"):
                 subscription.plan = plan
                 db.flush()

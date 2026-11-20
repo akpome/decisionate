@@ -518,6 +518,11 @@ def ensure_platform_billing_columns():
 
 ensure_platform_billing_columns()
 
+from app.modules.billing.agency_upgrade import upgrade_agency_subscriptions
+
+with engine.begin() as _agency_upgrade_connection:
+    upgrade_agency_subscriptions(_agency_upgrade_connection)
+
 
 def ensure_ai_usage_event_columns():
     with engine.begin() as connection:

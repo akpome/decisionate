@@ -122,7 +122,7 @@ export function AgencySection() {
   const workflow = [
     {
       title: "Create and brand your agency",
-      description: "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding."
+      description: "Choose Agency during workspace setup, then publish your branded portal from Settings. Invite clients to their own workspaces under your agency's name, logo and colours."
     },
     {
       title: "Create workspaces and invite clients",
@@ -277,21 +277,10 @@ export function PricingSection({ catalog }: { catalog?: PublicPlanCatalog | null
       ]
     },
     {
-      id: "agency",
-      name: "Standard Branded Agency",
-      description: "For an agency working across client businesses.",
-      items: [
-        "Agency workspace and 10 client workspaces",
-        "Separate client access",
-        "Decisionate-branded application",
-        "All Professional features",
-      ]
-    },
-    {
       id: "agency_subdomain",
-      name: "White Label Subdomain Agency",
+      name: "Agency",
       description: "Your brand on a Decisionate-hosted portal.",
-      items: ["All Standard Branded Agency features", "Your logo, colours and welcome screen", "Your portal at agency.decisionate.app"],
+      items: ["All Professional features", "Agency workspace and 10 client workspaces", "Separate client access", "Your logo, colours and welcome screen", "Your portal at agency.decisionate.app"],
     },
     {
       id: "agency_custom_domain",
@@ -299,7 +288,7 @@ export function PricingSection({ catalog }: { catalog?: PublicPlanCatalog | null
       description: "Your branded portal on your own domain.",
       items: ["All agency workspace features", "Your portal at analytics.agency.com", "Your branding and billing setup"],
     },
-  ]
+  ].filter(plan => plan.id !== "agency_custom_domain" || catalog?.plans.some(option => option.plan === plan.id))
   return (
     <section id="pricing" className="landing-section border-y border-neutral-200 bg-neutral-50">
       <div className="landing-container">
@@ -339,7 +328,7 @@ export function PricingSection({ catalog }: { catalog?: PublicPlanCatalog | null
             const configured = annual ? option?.annual_configured : option?.monthly_configured
             const amount = annual ? option?.annual_price_cents : option?.monthly_price_cents
             const hasPrice = amount != null && (amount > 0 || configured)
-            const available = option?.available ?? (plan.id === "professional" || plan.id === "agency")
+            const available = option?.available ?? plan.id === "professional"
             return (
             <article
               key={plan.name}

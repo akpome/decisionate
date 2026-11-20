@@ -1252,6 +1252,7 @@ export type PlatformAdminPermissionDefinition = {
 }
 
 export type PlatformAdminAccessDetails = {
+  custom_domain_enabled?: boolean
   allowed: boolean
   full_access: boolean
   permissions: string[]

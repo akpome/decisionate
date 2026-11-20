@@ -36,6 +36,8 @@
       ],
       "sources": [
         "apps/api/app/modules/hosted_portals.py",
+        "apps/api/app/modules/billing/agency_upgrade.py",
+        "apps/api/app/modules/billing/service.py",
         "apps/api/app/modules/hosted_portal_providers.py",
         "apps/web/features/white-label/hosted-setup.tsx",
         "apps/web/features/hosted-subdomains/setup.tsx",
@@ -1321,6 +1323,7 @@
       ],
       "sources": [
         "apps/api/app/modules/billing/renewals.py",
+        "apps/api/app/modules/billing/agency_upgrade.py",
         "apps/api/app/modules/billing/router.py",
         "apps/api/app/modules/billing/service.py",
         "apps/api/app/modules/platform_admin.py",

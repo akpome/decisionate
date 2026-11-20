@@ -21,8 +21,8 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.":
     "Agency comprend votre espace d'agence et jusqu'à 10 espaces clients, toutes les fonctionnalités Professional et une allocation partagée de crédits IA. Des espaces supplémentaires payants accompagnent la croissance de votre agence.",
   "Create and brand your agency": "Créez votre agence et son image de marque",
-  "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding.":
-    "Choisissez Agency lors de la configuration de l'espace, puis ajoutez le nom, le logo et les couleurs de votre agence. Les espaces clients reprennent votre image de marque.",
+  "Choose Agency during workspace setup, then publish your branded portal from Settings. Invite clients to their own workspaces under your agency's name, logo and colours.":
+    "Choisissez Agency lors de la configuration, puis publiez votre portail depuis les paramètres. Invitez vos clients dans leurs propres espaces aux couleurs de votre agence.",
   "Create workspaces and invite clients": "Créez les espaces et invitez les clients",
   "Your agency creates a separate workspace for each client and invites their client owner. Each workspace supports one client owner and one client user, with role-based access.":
     "Votre agence crée un espace distinct pour chaque client et invite son propriétaire client. Chaque espace accueille un propriétaire client et un utilisateur client, avec des accès par rôle.",
@@ -159,13 +159,10 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Start with a file or connection. Build from there.":
     "Commencez par un fichier ou une connexion. Continuez à partir de là.",
   "Footer navigation": "Navigation du pied de page",
-  "Standard Branded Agency": "Agence avec marque Decisionate",
-  "White Label Subdomain Agency": "Agence en marque blanche sur sous-domaine",
   "Custom Domain White Label Agency": "Agence en marque blanche sur domaine personnalisé",
   "Your brand on a Decisionate-hosted portal.": "Votre marque sur un portail hébergé par Decisionate.",
   "Your branded portal on your own domain.": "Votre portail de marque sur votre propre domaine.",
   "Decisionate-branded application": "Application à la marque Decisionate",
-  "All Standard Branded Agency features": "Toutes les fonctions du forfait Agence avec marque Decisionate",
   "Your logo, colours and welcome screen": "Votre logo, vos couleurs et votre écran d'accueil",
   "Your portal at agency.decisionate.app": "Votre portail sur agence.decisionate.app",
   "All agency workspace features": "Toutes les fonctions des espaces d'agence",

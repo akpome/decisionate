@@ -10,7 +10,7 @@ from pathlib import Path
 CORPUS = Path(__file__).with_name("knowledge") / "customer.jsonl"
 KNOWLEDGE_ROUTE = re.compile(
     r"/(?:(?:dashboard|action-needed|alerts|billing|budget-planner|business-impact|business-analysis|"
-    r"connections|dashboards|datasets|decisions|entity-matching|forecasts|help|insights|"
+    r"connections|dashboards|datasets|decisions|entity-matching|forecasts|help|hosted-portal|insights|"
     r"relationships|reports|settings|weekly-reports|white-label)(?:/[a-z0-9-]+)*|privacy|terms|security)"
 )
 STOP_WORDS = frozenset(["a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "could", "did", "do", "does", "for", "from", "had", "has", "have", "how", "i", "if", "in", "is", "it", "its", "me", "my", "of", "on", "or", "our", "please", "should", "so", "than", "that", "the", "their", "them", "there", "these", "they", "this", "to", "use", "using", "was", "we", "what", "when", "where", "which", "why", "will", "with", "would", "you", "your"])

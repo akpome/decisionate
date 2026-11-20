@@ -312,8 +312,8 @@ export function SettingsClient({
   const canManageClientWorkspaces =
     billingStatus?.billing_model === "agency" &&
     canConfigureWorkspace
-  const hostedPortalSettings = billingStatus?.plan === "agency_subdomain" && !process.env.NEXT_PUBLIC_PORTAL_ID
-  const canEditWorkspaceBranding = canConfigureWorkspace && ["professional", "agency"].includes(billingStatus?.plan || "")
+  const hostedPortalSettings = ["agency", "agency_subdomain"].includes(billingStatus?.plan || "") && !process.env.NEXT_PUBLIC_PORTAL_ID
+  const canEditWorkspaceBranding = canConfigureWorkspace && (billingStatus?.plan === "professional" || Boolean(process.env.NEXT_PUBLIC_PORTAL_ID && billingStatus?.plan === "agency"))
 
   useEffect(() => {
     let ignoreResult = false

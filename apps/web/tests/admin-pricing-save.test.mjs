@@ -12,10 +12,10 @@ const save = page.body.statements.find(node => ts.isFunctionDeclaration(node) &&
 
 function harness(send) {
   const state = { saving: false, error: "", message: "", settings: null, prevented: false, calls: [] }
-  const creditForm = { free_ai_credits: "0", professional_monthly_price_cents: "8900", agency_subdomain_monthly_price_cents: "32900", professional_price_id: " price_updated " }
+  const creditForm = { free_ai_credits: "0", professional_monthly_price_cents: "8900", agency_subdomain_monthly_price_cents: "32900", professional_price_id: " price_updated ", agency_monthly_price_cents: "19900", agency_custom_domain_monthly_price_cents: "59900", agency_custom_domain_price_id: "price_hidden" }
   const context = { Error, Math, Object, Number, user: { id: "operator" }, creditForm,
-    creditSettingFields: [{ key: "free_ai_credits" }], billingPriceSettingFields: [{ key: "professional_monthly_price_cents" }, { key: "agency_subdomain_monthly_price_cents" }],
-    billingStripePriceFields: [{ key: "professional_price_id" }],
+    creditSettingFields: [{ key: "free_ai_credits" }], visiblePriceFields: [{ key: "professional_monthly_price_cents" }, { key: "agency_subdomain_monthly_price_cents" }],
+    visibleStripeFields: [{ key: "professional_price_id" }],
     setCreditSettingsSaving: value => { state.saving = value }, setCreditSettingsError: value => { state.error = value },
     setCreditSettingsMessage: value => { state.message = value }, setCreditSettings: value => { state.settings = value },
     updatePlatformAdminCreditSettings: async (...args) => { state.calls.push(args); return send(...args) },

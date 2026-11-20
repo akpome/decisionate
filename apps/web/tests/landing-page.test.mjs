@@ -199,7 +199,7 @@ test("agency plan, permissions and four-step workflow are described in both lang
     "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.",
     "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.",
     "Create and brand your agency",
-    "Choose Agency during workspace setup, then add your agency name, logo and brand colours. Client workspaces carry your branding.",
+    "Choose Agency during workspace setup, then publish your branded portal from Settings. Invite clients to their own workspaces under your agency's name, logo and colours.",
     agencySummary,
     "Create workspaces and invite clients",
     "Your agency creates a separate workspace for each client and invites their client owner. Each workspace supports one client owner and one client user, with role-based access.",
@@ -346,21 +346,25 @@ test("walkthrough preserves deferred playback, caption assets, chapter seeking a
   assert.equal(poster.height, Number(demo.match(/height=\{(\d+)\}/)[1]))
 })
 
-test("pricing shows four distinct admin-priced plans and keeps custom-domain signup closed", () => {
+test("pricing offers Professional and hosted Agency, with custom domains hidden until enabled", () => {
   const catalog = { currency: "CAD", plans: [
     { plan: "professional", monthly_price_cents: 12345, annual_price_cents: 123450, monthly_configured: true, annual_configured: true, available: true },
     { plan: "agency", monthly_price_cents: 23456, annual_price_cents: 234560, monthly_configured: true, annual_configured: true, available: true },
     { plan: "agency_subdomain", monthly_price_cents: 34567, annual_price_cents: 345670, monthly_configured: true, annual_configured: true, available: true },
-    { plan: "agency_custom_domain", monthly_price_cents: 45678, annual_price_cents: 456780, monthly_configured: true, annual_configured: true, available: false },
   ] }
   const html = renderSections("en", catalog)
-  for (const name of ["Professional", "Standard Branded Agency", "White Label Subdomain Agency", "Custom Domain White Label Agency"]) assert.ok(html.includes(name))
-  for (const amount of ["123.45", "234.56", "345.67", "456.78"]) assert.ok(html.includes(amount))
+  for (const name of ["Professional", "Agency"]) assert.ok(html.includes(name))
+  for (const name of ["Standard Branded Agency", "White Label Subdomain Agency", "Custom Domain White Label Agency"]) assert.ok(!html.includes(name))
+  for (const amount of ["123.45", "345.67"]) assert.ok(html.includes(amount))
+  assert.ok(!html.includes("234.56"))
   const pricing = html.slice(html.indexOf('id="pricing"'), html.indexOf('id="questions"'))
-  assert.equal((pricing.match(/Start trial/g) || []).length, 3)
-  assert.match(pricing, /Not open for new subscriptions yet/)
+  assert.equal((pricing.match(/Start trial/g) || []).length, 2)
+  const enabled = renderSections("en", { ...catalog, plans: [...catalog.plans, { plan: "agency_custom_domain", monthly_price_cents: 45678, annual_price_cents: 456780, monthly_configured: true, annual_configured: true, available: true }] })
+  assert.match(enabled, /Custom Domain White Label Agency/)
+  assert.match(enabled, /456.78/)
+  assert.doesNotMatch(renderSections(), /Custom Domain White Label Agency/)
   assert.doesNotMatch(renderSections(), /\$0\.00/)
-  for (const name of ["Standard Branded Agency", "White Label Subdomain Agency", "Custom Domain White Label Agency"]) assert.ok(refreshedLandingFrench[name])
+  assert.ok(refreshedLandingFrench["Custom Domain White Label Agency"])
 })
 
 test("industry links select the corresponding demo dashboard and pricing retains translation", () => {

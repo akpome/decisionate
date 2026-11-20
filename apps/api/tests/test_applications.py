@@ -184,9 +184,7 @@ class ApplicationIsolationTests(unittest.TestCase):
         catalog = result.json()
         self.assertEqual(catalog["currency"], "USD")
         self.assertEqual(catalog["plans"][0]["monthly_price_cents"], 4200)
-        self.assertEqual(len(catalog["plans"]), 4)
-        self.assertFalse(catalog["plans"][2]["available"])
-        self.assertFalse(catalog["plans"][3]["available"])
+        self.assertEqual([plan["plan"] for plan in catalog["plans"]], ["professional", "agency"])
         self.assertNotIn("price_id", result.text)
         self.assertNotIn("secret_key", result.text)
 

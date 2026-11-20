@@ -263,10 +263,8 @@ const creditSettingFields = [
 const billingPriceSettingFields = [
   { key: "professional_monthly_price_cents", label: "Professional monthly price (CAD cents)" },
   { key: "professional_annual_price_cents", label: "Professional annual price (CAD cents)" },
-  { key: "agency_monthly_price_cents", label: "Agency monthly price (CAD cents)" },
-  { key: "agency_annual_price_cents", label: "Agency annual price (CAD cents)" },
-  { key: "agency_subdomain_monthly_price_cents", label: "White Label Subdomain Agency monthly price (CAD cents)" },
-  { key: "agency_subdomain_annual_price_cents", label: "White Label Subdomain Agency annual price (CAD cents)" },
+  { key: "agency_subdomain_monthly_price_cents", label: "Agency monthly price (CAD cents)" },
+  { key: "agency_subdomain_annual_price_cents", label: "Agency annual price (CAD cents)" },
   { key: "agency_custom_domain_monthly_price_cents", label: "Custom Domain White Label Agency monthly price (CAD cents)" },
   { key: "agency_custom_domain_annual_price_cents", label: "Custom Domain White Label Agency annual price (CAD cents)" },
   {
@@ -284,10 +282,8 @@ const billingPriceSettingFields = [
 const billingStripePriceFields = [
   { key: "professional_price_id", label: "Professional monthly Stripe price ID" },
   { key: "professional_annual_price_id", label: "Professional annual Stripe price ID" },
-  { key: "agency_price_id", label: "Agency monthly Stripe price ID" },
-  { key: "agency_annual_price_id", label: "Agency annual Stripe price ID" },
-  { key: "agency_subdomain_price_id", label: "White Label Subdomain Agency monthly Stripe price ID" },
-  { key: "agency_subdomain_annual_price_id", label: "White Label Subdomain Agency annual Stripe price ID" },
+  { key: "agency_subdomain_price_id", label: "Agency monthly Stripe price ID" },
+  { key: "agency_subdomain_annual_price_id", label: "Agency annual Stripe price ID" },
   { key: "agency_custom_domain_price_id", label: "Custom Domain White Label Agency monthly Stripe price ID" },
   { key: "agency_custom_domain_annual_price_id", label: "Custom Domain White Label Agency annual Stripe price ID" },
   {
@@ -304,8 +300,7 @@ const billingStripePriceFields = [
 
 const subscriptionPriceRows = [
   { key: "professional", name: "Professional" },
-  { key: "agency", name: "Standard Branded Agency" },
-  { key: "agency_subdomain", name: "White Label Subdomain Agency" },
+  { key: "agency_subdomain", name: "Agency" },
   { key: "agency_custom_domain", name: "Custom Domain White Label Agency" },
 ] as const
 
@@ -552,6 +547,12 @@ export default function PlatformAdminPage() {
   const availableSections = visibleAdminSections(adminAccess)
   const activeSection = availableSections.find(section => section.id === selectedSection)?.id
     ?? availableSections[0]?.id ?? "overview"
+  const customDomainEnabled = adminAccess?.custom_domain_enabled === true
+  const visibleSubscriptionPriceRows = subscriptionPriceRows.filter(plan => plan.key !== "agency_custom_domain" || customDomainEnabled)
+  const visiblePriceFields = billingPriceSettingFields.filter(field => !field.key.startsWith("agency_custom_domain_") || customDomainEnabled)
+  const visibleStripeFields = billingStripePriceFields.filter(field => !field.key.startsWith("agency_custom_domain_") || customDomainEnabled)
+  const planLabel = (plan: string) => ["agency", "agency_subdomain"].includes(plan) || (plan === "agency_custom_domain" && !customDomainEnabled)
+    ? "Agency" : subscriptionPriceRows.find(item => item.key === plan)?.name || formatAdminLabel(plan)
   const [organizationSearch, setOrganizationSearch] =
     useState("")
   const [customerSearch, setCustomerSearch] =
@@ -1190,13 +1191,13 @@ export default function PlatformAdminPage() {
         user.id,
         {
           ...Object.fromEntries(
-            [...creditSettingFields, ...billingPriceSettingFields].map(field => [
+            [...creditSettingFields, ...visiblePriceFields].map(field => [
               field.key,
               Math.max(Number(creditForm[field.key]) || 0, 0),
             ])
           ),
           ...Object.fromEntries(
-            billingStripePriceFields.map(field => [
+            visibleStripeFields.map(field => [
               field.key,
               creditForm[field.key].trim(),
             ])
@@ -1364,7 +1365,7 @@ export default function PlatformAdminPage() {
       organization => organization.id === organizationId
     )
     if (selectedOrganization) {
-      setBillingPlan(selectedOrganization.plan)
+      setBillingPlan(selectedOrganization.plan === "agency" ? "agency_subdomain" : selectedOrganization.plan)
       setBillingExpiresAt(
         dateInputValue(selectedOrganization.billing_expires_at)
       )
@@ -2027,9 +2028,9 @@ export default function PlatformAdminPage() {
   const selectedOrganizationIsClient =
     selectedOrganization?.plan === "client" ||
     selectedOrganization?.owner_user_id.includes(":client:") === true
-  const planChart = ["free", ...subscriptionPriceRows.map(plan => plan.key), "client"].map(plan => ({
-    label: subscriptionPriceRows.find(item => item.key === plan)?.name ?? (plan === "free" ? "Free" : "Client"),
-    value: organizations.filter(organization => organization.plan === plan).length,
+  const planChart = ["free", ...visibleSubscriptionPriceRows.map(plan => plan.key), "client"].map(plan => ({
+    label: planLabel(plan),
+    value: organizations.filter(organization => planLabel(organization.plan) === planLabel(plan)).length,
   }))
   const maxPlanCount = Math.max(...planChart.map(item => item.value), 1)
   const operationalChart = [
@@ -2155,7 +2156,7 @@ export default function PlatformAdminPage() {
         {!loading && !adminAccessLoading && !error && adminAccess?.allowed && (
           <>
             {adminAccess.full_access && activeSection === "white_label" && <>
-              <WhiteLabelAvailabilityPanel userId={user.id} />
+              <WhiteLabelAvailabilityPanel userId={user.id} onCustomDomainChange={enabled => setAdminAccess(current => current ? { ...current, custom_domain_enabled: enabled } : current)} />
               <details className="mt-8 border-t border-gray-200 pt-5" onToggle={event => { if (event.currentTarget.open) setOperatorSetupOpen(true) }}>
                 <summary className="cursor-pointer text-sm font-semibold">Operator-managed applications</summary>
                 {operatorSetupOpen && <WhiteLabelSetup userId={user.id} onNavigationChange={setOperatorNavigation} />}
@@ -2365,7 +2366,7 @@ export default function PlatformAdminPage() {
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
                   >
                     <option value="free">Free evaluation</option>
-                    {subscriptionPriceRows.map(plan => <option key={plan.key} value={plan.key}>{plan.name}</option>)}
+                    {visibleSubscriptionPriceRows.map(plan => <option key={plan.key} value={plan.key}>{plan.name}</option>)}
                   </select>
                 </label>
                 <label className="text-xs font-medium text-gray-700">
@@ -2427,7 +2428,7 @@ export default function PlatformAdminPage() {
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="font-semibold">Billing and AI credit pricing</h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Set monthly and annual prices for four alternative plans. Existing subscriptions keep their Stripe prices. White-label availability is controlled under White label.
+                  Set monthly and annual prices for Professional and Agency. Existing subscriptions keep their Stripe prices. Additional plans appear only when enabled under White label.
                 </p>
               </div>
 
@@ -2452,9 +2453,9 @@ export default function PlatformAdminPage() {
                 >
                   <div>
                     <h3 className="text-sm font-semibold">Subscription plans</h3>
-                    <p className="mt-1 text-xs text-gray-500">Amounts are in CAD cents. Select matching recurring prices from Stripe. Custom-domain white label stays unavailable until enabled under White label.</p>
+                    <p className="mt-1 text-xs text-gray-500">Amounts are in CAD cents. Select matching recurring prices from Stripe.</p>
                     <div className="mt-4 divide-y divide-gray-200 border-y border-gray-200">
-                      {subscriptionPriceRows.map(plan => (
+                      {visibleSubscriptionPriceRows.map(plan => (
                         <div key={plan.key} className="grid min-w-0 gap-4 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                           <h4 className="text-sm font-medium">{plan.name}</h4>
                           <div className="grid min-w-0 gap-4 sm:grid-cols-2">
@@ -2508,7 +2509,7 @@ export default function PlatformAdminPage() {
                     <h3 className="text-sm font-semibold text-gray-900">Additional workspace and AI bundle prices</h3>
                     <p className="mt-1 text-xs text-gray-500">Enter amounts in CAD cents. The monthly AI pack renews with the subscription; the one-time top-up does not.</p>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {billingPriceSettingFields.filter(field => !subscriptionPriceRows.some(plan => field.key.startsWith(`${plan.key}_`))).map((field) => (
+                      {visiblePriceFields.filter(field => !subscriptionPriceRows.some(plan => field.key.startsWith(`${plan.key}_`))).map((field) => (
                         <label
                           key={field.key}
                           className="text-xs font-medium text-gray-600"
@@ -2534,7 +2535,7 @@ export default function PlatformAdminPage() {
                     <h3 className="text-sm font-semibold text-gray-900">Stripe price IDs</h3>
                     <p className="mt-1 text-xs text-gray-500">Create or select the matching Stripe prices first, then save their IDs here so checkout charges the configured amount.</p>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {billingStripePriceFields.filter(field => !subscriptionPriceRows.some(plan => field.key.startsWith(`${plan.key}_`))).map((field) => (
+                      {visibleStripeFields.filter(field => !subscriptionPriceRows.some(plan => field.key.startsWith(`${plan.key}_`))).map((field) => (
                         <label
                           key={field.key}
                           className="text-xs font-medium text-gray-600"
@@ -3557,7 +3558,7 @@ export default function PlatformAdminPage() {
                           <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${customerStatusClasses(accountStatus)}`}>
                             {formatCustomerStatus(accountStatus)}
                           </span>
-                          <p className="mt-2 font-medium">{formatAdminLabel(customer.plan)}</p>
+                          <p className="mt-2 font-medium">{planLabel(customer.plan)}</p>
                           <p className="mt-1 text-xs text-gray-500">
                             {formatAdminLabel(customer.subscription_status)}
                           </p>
@@ -3716,7 +3717,7 @@ export default function PlatformAdminPage() {
                           <AdminReference value={organization.owner_email || organization.owner_user_id} label="owner reference" />
                         </td>
                         <td className="whitespace-nowrap px-5 py-3 capitalize text-gray-700">
-                          {organization.plan}
+                          {planLabel(organization.plan)}
                         </td>
                         <td className="whitespace-nowrap px-5 py-3 text-gray-500">
                           {organization.billing_expires_at
@@ -4488,7 +4489,8 @@ export default function PlatformAdminPage() {
                       >
                         <option value="client">Client workspace</option>
                         <option value="free">Free evaluation</option>
-                        {subscriptionPriceRows.map(plan => <option key={plan.key} value={plan.key}>{plan.name}</option>)}
+                        {visibleSubscriptionPriceRows.map(plan => <option key={plan.key} value={plan.key}>{plan.name}</option>)}
+                        {billingPlan === "agency_custom_domain" && !customDomainEnabled && <option value="agency_custom_domain">Agency</option>}
                       </select>
                     </label>
                     <label className="text-xs font-medium text-gray-700">
