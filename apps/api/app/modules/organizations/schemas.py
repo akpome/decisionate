@@ -42,12 +42,19 @@ class OrganizationUpdate(BaseModel):
     report_display_name: str | None = None
 
 
+class HostedPortalColors(BaseModel):
+    primary_color: str
+    accent_color: str
+    background_color: str
+
+
 class OrganizationResponse(BaseModel):
     id: int
     name: str
     owner_user_id: str | None = None
     logo_url: str | None = None
     hosted_portal_logo_url: str | None = None
+    hosted_portal_colors: HostedPortalColors | None = None
     primary_color: str | None = None
     accent_color: str | None = None
     report_display_name: str | None = None

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react"
 import type {
   OrganizationRecord,
   OrganizationWorkspaceRecord,
@@ -25,6 +26,7 @@ export type WorkspaceBrand = {
   logoUrl: string
   primaryColor: string
   accentColor: string
+  backgroundColor?: string
 }
 
 export type WorkspaceBrandPayload = {
@@ -63,19 +65,21 @@ export function getWorkspaceBrand(
       return defaultWorkspaceBrand
     }
 
+    const hostedColors = organization.hosted_portal_colors
     return {
       name: fallbackName,
       logoUrl:
         organization.hosted_portal_logo_url?.trim() ??
         organization.logo_url?.trim() ?? "",
       primaryColor: getSafeBrandColor(
-        organization.primary_color,
+        hostedColors?.primary_color ?? organization.primary_color,
         defaultBrandPrimaryColor
       ),
       accentColor: getSafeBrandColor(
-        organization.accent_color,
+        hostedColors?.accent_color ?? organization.accent_color,
         defaultBrandAccentColor
       ),
+      backgroundColor: hostedColors?.background_color,
     }
   }
 
@@ -106,6 +110,43 @@ export function getWorkspaceBrand(
       defaultBrandAccentColor
     ),
   }
+}
+
+export function getWorkspaceThemeStyle({ primaryColor, accentColor, backgroundColor }: WorkspaceBrand): CSSProperties {
+  const primary = getSafeBrandColor(primaryColor, defaultBrandPrimaryColor)
+  const accent = getSafeBrandColor(accentColor, defaultBrandAccentColor)
+  const lightBackground = getReadableWorkspaceBackground(backgroundColor, "#F9FAFB", "#6B7280")
+  const darkBackground = getReadableWorkspaceBackground(backgroundColor, "#15171B", "#A6ADB6")
+  const darkTextSurface = getColorContrastRatio(darkBackground, "#FFFFFF") < getColorContrastRatio("#191B20", "#FFFFFF")
+    ? darkBackground : "#191B20"
+  return {
+    "--decisionate-brand-primary": primary,
+    "--decisionate-brand-primary-soft": getBrandColorWithAlpha(primary, "12"),
+    "--decisionate-brand-primary-ring": getBrandColorWithAlpha(primary, "33"),
+    "--decisionate-brand-primary-surface-text": getBrandSurfaceTextColor(primary),
+    "--decisionate-brand-accent": accent,
+    "--decisionate-brand-accent-soft": getBrandColorWithAlpha(accent, "12"),
+    "--decisionate-brand-accent-ring": getBrandColorWithAlpha(accent, "33"),
+    "--decisionate-workspace-primary-light": getReadableBrandTextColor(primary, primary, lightBackground),
+    "--decisionate-workspace-primary-dark": getReadableBrandTextColor(primary, primary, darkTextSurface),
+    "--decisionate-workspace-accent-light": getReadableBrandTextColor(accent, accent, lightBackground),
+    "--decisionate-workspace-accent-dark": getReadableBrandTextColor(accent, accent, darkTextSurface),
+    "--decisionate-workspace-background-light": lightBackground,
+    "--decisionate-workspace-background-dark": darkBackground,
+  } as CSSProperties
+}
+
+function getReadableWorkspaceBackground(color: string | undefined, neutral: string, text: string) {
+  const rgb = getRgbColor(color || "")
+  const neutralRgb = getRgbColor(neutral)
+  if (!rgb || !neutralRgb) return neutral
+
+  // Keep the chosen color where possible without overriding the viewer's theme.
+  for (let step = 0; step < 20; step++) {
+    const candidate = getHexColorFromRgb(blendRgbColors(rgb, neutralRgb, step / 20))
+    if (getColorContrastRatio(candidate, text) >= 4.5) return candidate
+  }
+  return neutral
 }
 
 export function getWorkspaceBrandFromPayload(
@@ -487,6 +528,8 @@ function getBestContrastTextColor(
       lightTextColor,
       backgroundColor
     )
+
+  if (Math.max(darkContrast, lightContrast) < 4.5) return "#000000"
 
   return darkContrast >= lightContrast
     ? darkTextColor

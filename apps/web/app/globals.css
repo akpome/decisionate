@@ -113,12 +113,25 @@ body {
   letter-spacing: 0;
 }
 
+.dashboard-shell-layout[data-workspace-brand] {
+  --decisionate-brand-primary-text: var(--decisionate-workspace-primary-light);
+  --decisionate-brand-accent-text: var(--decisionate-workspace-accent-light);
+  background-color: var(--decisionate-workspace-background-light);
+  accent-color: var(--decisionate-brand-primary);
+}
+
+:root[data-theme="dark"] .dashboard-shell-layout[data-workspace-brand] {
+  --decisionate-brand-primary-text: var(--decisionate-workspace-primary-dark);
+  --decisionate-brand-accent-text: var(--decisionate-workspace-accent-dark);
+  background-color: var(--decisionate-workspace-background-dark);
+}
+
 .dashboard-shell-layout :is(h1, h2, h3, p, span, button, label) {
   letter-spacing: 0;
 }
 
 .dashboard-shell-layout :is(a, button, input, select, textarea, summary):focus-visible {
-  outline: 2px solid var(--decisionate-brand-primary);
+  outline: 2px solid var(--decisionate-brand-primary-text);
   outline-offset: 3px;
 }
 

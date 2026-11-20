@@ -146,28 +146,44 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(db.get(Organization, 1).name, "Original agency")
             self.assertEqual(db.query(HostedSubdomainEvent).count(), 2)
 
-    def test_agency_profile_exposes_published_logo_without_replacing_standard_brand(self):
+    def test_agency_profile_exposes_published_brand_without_replacing_standard_brand(self):
         with self.Session() as db:
             agency = db.get(Organization, 1)
             agency.logo_url = "https://agency.test/standard.png"
+            agency.primary_color = "#ABCDEF"
             db.commit()
         self.brand["logo_url"] = "https://agency.test/published.png"
+        colors = {"primary_color": "#86198F", "accent_color": "#0F766E", "background_color": "#FFF1F2"}
+        self.brand.update(colors)
         published = self.publish()
         response = self.client.get("/organizations/me", headers=self.headers())
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["hosted_portal_logo_url"], self.brand["logo_url"])
         self.assertEqual(response.json()["logo_url"], "https://agency.test/standard.png")
         self.assertEqual(response.json()["name"], "Original agency")
+        self.assertEqual(response.json()["primary_color"], "#ABCDEF")
+        self.assertEqual(response.json()["hosted_portal_colors"], colors)
+        self.assertEqual(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["branding"]["background_color"], colors["background_color"])
         self.brand["logo_url"] = "https://agency.test/draft.png"
-        self.assertEqual(self.save(revision=published["revision"]).status_code, 200)
+        self.brand["accent_color"] = "#FB923C"
+        draft = self.save(revision=published["revision"])
+        self.assertEqual(draft.status_code, 200)
         profile = self.client.get("/organizations/me", headers=self.headers()).json()
         self.assertEqual(profile["hosted_portal_logo_url"], "https://agency.test/published.png")
+        self.assertEqual(profile["hosted_portal_colors"], colors)
         updated = self.client.patch("/organizations/me", headers=self.headers(),
             json={"name": "Agency renamed", "logo_url": "https://agency.test/changed-standard.png"})
         self.assertEqual(updated.status_code, 200, updated.text)
         self.assertEqual(updated.json()["hosted_portal_logo_url"], "https://agency.test/published.png")
+        self.assertEqual(updated.json()["hosted_portal_colors"], colors)
         with self.Session() as db:
             self.assertEqual(db.get(Organization, 1).logo_url, "https://agency.test/changed-standard.png")
+        with patch.object(portals, "ensure_satellite", return_value="domain_north"):
+            response = self.client.post(self.base + "/activate", headers=self.headers(),
+                json={"revision": draft.json()["revision"], "confirmation": "PUBLISH PORTAL"})
+        self.assertEqual(response.status_code, 200, response.text)
+        profile = self.client.get("/organizations/me", headers=self.headers()).json()
+        self.assertEqual(profile["hosted_portal_colors"], {**colors, "accent_color": "#FB923C"})
 
     def test_draft_and_other_workspaces_cannot_supply_the_agency_logo(self):
         self.brand["logo_url"] = "https://agency.test/draft.png"
@@ -175,6 +191,7 @@ class HostedSubdomainTests(unittest.TestCase):
         response = self.client.get("/organizations/me", headers=self.headers())
         self.assertEqual(response.status_code, 200, response.text)
         self.assertNotIn("hosted_portal_logo_url", response.json())
+        self.assertNotIn("hosted_portal_colors", response.json())
         with patch.object(portals, "ensure_satellite", return_value="domain_north"):
             self.assertEqual(self.client.post(self.base + "/activate", headers=self.headers(),
                 json={"revision": 1, "confirmation": "PUBLISH PORTAL"}).status_code, 200)
@@ -182,9 +199,11 @@ class HostedSubdomainTests(unittest.TestCase):
             response = self.client.get("/organizations/me", headers=headers)
             self.assertEqual(response.status_code, 200, response.text)
             self.assertNotIn("hosted_portal_logo_url", response.json())
+            self.assertNotIn("hosted_portal_colors", response.json())
         with patch.object(organizations, "get_application", return_value=SimpleNamespace(is_default=False)):
             response = self.client.get("/organizations/me", headers=self.headers())
             self.assertNotIn("hosted_portal_logo_url", response.json())
+            self.assertNotIn("hosted_portal_colors", response.json())
 
     def test_inactive_portals_do_not_supply_an_agency_logo(self):
         self.brand["logo_url"] = "https://agency.test/published.png"
@@ -197,6 +216,7 @@ class HostedSubdomainTests(unittest.TestCase):
                 response = self.client.get("/organizations/me", headers=self.headers())
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertNotIn("hosted_portal_logo_url", response.json())
+                self.assertNotIn("hosted_portal_colors", response.json())
         with self.Session() as db:
             db.query(HostedSubdomainPortal).one().status = "active"
             db.query(WorkspaceSubscription).filter_by(workspace_id="agency").one().plan = "professional"

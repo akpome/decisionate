@@ -523,7 +523,7 @@ function DashboardSelectionCard({
         className={`mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
           selected
             ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            : "bg-[var(--decisionate-brand-primary)] text-white hover:bg-[var(--decisionate-brand-primary-hover)] disabled:cursor-not-allowed disabled:bg-[var(--decisionate-brand-primary-ring)]"
+            : "bg-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-surface-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[var(--decisionate-brand-primary-ring)]"
         }`}
       >
         {selected

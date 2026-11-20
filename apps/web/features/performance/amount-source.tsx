@@ -11,7 +11,7 @@ import { blankAmount, type AmountSelection } from "./types"
 export const field = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950 disabled:opacity-50"
 const buttonBase = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
 export const command = `${buttonBase} border-gray-300 bg-white`
-export const primary = `${buttonBase} border-blue-700 bg-blue-700 text-white hover:bg-blue-800`
+export const primary = `${buttonBase} border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-surface-text)] hover:opacity-90`
 export type SourceContext = { userId: string; workspaceId?: string }
 type Catalog = { datasets: CatalogDataset[]; next_offset: number | null }
 

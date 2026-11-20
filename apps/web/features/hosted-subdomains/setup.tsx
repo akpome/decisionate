@@ -1,12 +1,14 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { Check, Copy, ExternalLink, Eye, LoaderCircle, Monitor, RefreshCw, Save, Smartphone, X } from "lucide-react"
 import { hostedSubdomainRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 import { getBrandSurfaceTextColor } from "@/lib/workspace-brand"
 import { getHostedLogo, isHostedLogoUrl, type HostedBrand } from "./types"
+import { useHostedPortal } from "./provider"
 
 type PortalRecord = { id: string; slug: string; hostname: string; revision: number; status: string; configuration: HostedBrand; url: string; published: boolean; last_error: string | null }
 type Setup = { portal: PortalRecord | null; entitled: boolean; commercially_available: boolean; blockers: string[]; defaults: Partial<HostedBrand> }
@@ -21,6 +23,8 @@ export function HostedSubdomainSetup({ userId, embedded = false }: { userId: str
 }
 
 function HostedSubdomainEditor({ userId, embedded }: { userId: string; embedded: boolean }) {
+  const router = useRouter()
+  const { portal: activePortal } = useHostedPortal()
   const [data, setData] = useState<Setup | null>(null)
   const [brand, setBrand] = useState<HostedBrand>(emptyBrand)
   const [slug, setSlug] = useState("")
@@ -213,6 +217,7 @@ function HostedSubdomainEditor({ userId, embedded }: { userId: string; embedded:
         <div className="flex justify-end"><button className={buttonClass} disabled={busy || data.blockers.length > 0 || data.portal.status === "suspended"} onClick={() => void perform(async () => {
           const portal = await hostedSubdomainRequest<PortalRecord>(userId, "/activate", { method: "POST", body: JSON.stringify({ revision: data.portal!.revision, confirmation: "PUBLISH PORTAL" }) })
           setData(value => value ? { ...value, portal } : value); setPreview(false); setNotice("Portal published.")
+          if (activePortal?.id === portal.id) router.refresh()
         })}><Check size={16} />{busy ? "Publishing..." : data.portal.published ? "Publish changes" : "Activate portal"}</button></div>
       </div>
     </dialog>}

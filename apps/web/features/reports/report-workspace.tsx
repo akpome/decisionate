@@ -43,7 +43,7 @@ import { ReportTakeaways } from "./report-takeaways"
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const command = "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
 const button = `${command} border-gray-300 bg-white`
-const primaryButton = `${command} border-blue-700 bg-blue-700 text-white`
+const primaryButton = `${command} border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-surface-text)]`
 type SavedReport = { report_id: string; name: string; created_at: string; history_kind?: string; window?: { start: string; end: string } }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Report unavailable. Your selections have been preserved."
 
@@ -632,11 +632,11 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
           event.preventDefault()
           const next = event.key === "Home" ? "explore" : event.key === "End" ? "report" : mode === "explore" ? "report" : "explore"
           setView(next); document.getElementById(`tab-${next}`)?.focus()
-        }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-blue-50 font-semibold text-blue-800" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? setupLabel : previewLabel)}</span></button>)}
+        }} className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded px-3 text-sm sm:flex-none ${view === mode ? "bg-[var(--decisionate-brand-primary-soft)] font-semibold text-[var(--decisionate-brand-primary-text)]" : "text-gray-600"}`}>{mode === "explore" ? <ChartNoAxesCombined size={16} aria-hidden="true" className="shrink-0" /> : <FileText size={16} aria-hidden="true" className="shrink-0" />}<span className="min-w-0 break-words">{t(mode === "explore" ? setupLabel : previewLabel)}</span></button>)}
       </div>
     </header>
     {!weekly && <AnalysisTools active={impactPage ? "impact" : "metrics"} />}
-    {!weekly && !impactPage && <nav aria-label="Analysis sources" className="flex flex-wrap gap-x-5 gap-y-3 text-sm print:hidden">{reportSourceTabs.map(item => <Link key={item.href} href={item.href} aria-current={pagePath === item.href ? "page" : undefined} className={`inline-flex min-h-10 items-center border-b-2 ${pagePath === item.href ? "border-blue-700 font-semibold text-blue-800" : "border-transparent text-gray-600"}`}>{t(item.label)}</Link>)}</nav>}
+    {!weekly && !impactPage && <nav aria-label="Analysis sources" className="flex flex-wrap gap-x-5 gap-y-3 text-sm print:hidden">{reportSourceTabs.map(item => <Link key={item.href} href={item.href} aria-current={pagePath === item.href ? "page" : undefined} className={`inline-flex min-h-10 items-center border-b-2 ${pagePath === item.href ? "border-[var(--decisionate-brand-primary)] font-semibold text-[var(--decisionate-brand-primary-text)]" : "border-transparent text-gray-600"}`}>{t(item.label)}</Link>)}</nav>}
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {weekly && !weeklySettings && <button type="button" className={button} onClick={() => window.location.reload()}><RefreshCw size={16} />Retry weekly settings</button>}
     {message && <p role="status" className="text-sm text-green-800">{t(message)}</p>}

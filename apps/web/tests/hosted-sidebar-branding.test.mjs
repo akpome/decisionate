@@ -36,11 +36,53 @@ test("the agency's main-app brand uses its published hosted logo while retaining
 })
 
 test("switching to a client or unknown workspace never borrows the owner's hosted logo", () => {
-  const organization = { name: "Agency", hosted_portal_logo_url: "https://agency.test/published.png" }
+  const organization = { name: "Agency", hosted_portal_logo_url: "https://agency.test/published.png",
+    hosted_portal_colors: { primary_color: "#A52154", accent_color: "#347850", background_color: "#FDF5F9" } }
   const client = { owner_user_id: "client", name: "Client", logo_url: "https://client.test/logo.png" }
-  assert.equal(brand.getWorkspaceBrand("client", "agency", organization, [client], "Owner").logoUrl, client.logo_url)
+  const own = brand.getWorkspaceBrand("agency", "agency", organization, [client], "Owner")
+  assert.equal(own.primaryColor, organization.hosted_portal_colors.primary_color)
+  assert.equal(own.accentColor, organization.hosted_portal_colors.accent_color)
+  assert.equal(own.backgroundColor, organization.hosted_portal_colors.background_color)
+  const clientBrand = brand.getWorkspaceBrand("client", "agency", organization, [client], "Owner")
+  assert.equal(clientBrand.logoUrl, client.logo_url)
+  assert.equal(clientBrand.backgroundColor, undefined)
+  assert.equal(clientBrand.primaryColor, brand.defaultBrandPrimaryColor)
   assert.equal(brand.getWorkspaceBrand("unknown", "agency", organization, [client], "Owner"), brand.defaultWorkspaceBrand)
   assert.equal(brand.getWorkspaceBrand("agency", undefined, organization, [client], "Owner"), brand.defaultWorkspaceBrand)
+})
+
+test("published colors drive branded controls and keep readable text on light and dark workspace canvases", () => {
+  const contrast = (a, b) => {
+    const luminance = color => color.slice(1).match(/../g).reduce((sum, item, index) => {
+      const value = parseInt(item, 16) / 255
+      return sum + [0.2126, 0.7152, 0.0722][index] * (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+    }, 0)
+    const foreground = luminance(a), background = luminance(b)
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)
+  }
+  const colors = { ...brand.defaultWorkspaceBrand, primaryColor: "#FEBA11", accentColor: "#762F7E", backgroundColor: "#FDF5F9" }
+  const style = brand.getWorkspaceThemeStyle(colors)
+  assert.equal(style["--decisionate-brand-primary"], colors.primaryColor)
+  assert.equal(style["--decisionate-brand-accent"], colors.accentColor)
+  assert.equal(style["--decisionate-brand-accent-soft"], `${colors.accentColor}12`)
+  assert.equal(style["--decisionate-workspace-background-light"], colors.backgroundColor)
+  assert.notEqual(style["--decisionate-workspace-background-dark"], colors.backgroundColor)
+  for (const backgroundColor of [colors.backgroundColor, "#A9467B", "#10134E", "#FFFFFF", "#000000"]) {
+    const theme = brand.getWorkspaceThemeStyle({ ...colors, backgroundColor })
+    assert.ok(contrast(theme["--decisionate-brand-primary-surface-text"], colors.primaryColor) >= 4.5)
+    for (const [mode, foreground, panel] of [["light", "#6B7280", "#FFFFFF"], ["dark", "#A6ADB6", "#191B20"]]) {
+      const canvas = theme[`--decisionate-workspace-background-${mode}`]
+      assert.ok(contrast(foreground, canvas) >= 4.5)
+      for (const token of ["primary", "accent"]) {
+        const text = theme[`--decisionate-workspace-${token}-${mode}`]
+        assert.ok(contrast(text, canvas) >= 4.5, `${mode} ${text} on ${canvas}`)
+        assert.ok(contrast(text, panel) >= 4.5, `${mode} ${text} on ${panel}`)
+      }
+    }
+  }
+  const fallback = brand.getWorkspaceThemeStyle({ ...colors, primaryColor: "not-a-color", backgroundColor: "url(unsupported)" })
+  assert.equal(fallback["--decisionate-brand-primary"], brand.defaultBrandPrimaryColor)
+  assert.equal(fallback["--decisionate-workspace-background-light"], "#F9FAFB")
 })
 
 test("sidebar logos use the existing proportional, transparent image renderer with a broken-image fallback", () => {
@@ -63,7 +105,9 @@ test("sidebar logos use the existing proportional, transparent image renderer wi
   assert.match(render("https://agency.test/replacement.png", logo), /<img/)
   const shell = read("../app/dashboard/dashboard-shell.tsx")
   assert.match(shell, /<WorkspaceBrandMark\s+name=\{displayBrand.name\}\s+logoUrl=\{displayBrand.logoUrl\}/)
-  assert.match(shell, /logoUrl: getHostedLogo\(portal.branding\)/)
+  assert.match(shell, /logoUrl: getHostedLogo\(portalBranding\)/)
+  assert.match(shell, /backgroundColor: portalBranding.background_color/)
+  assert.match(shell, /style=\{themeStyle\} data-workspace-brand/)
 })
 
 test("successful portal publication refreshes the agency brand once; drafts, failures and other operations do not", async () => {

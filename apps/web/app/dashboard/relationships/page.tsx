@@ -617,7 +617,7 @@ function RelationshipsWorkspace() {
             </select>
           </label>
           {!result.id && <button type="button" onClick={() => void handleSave()} disabled={busy || Boolean(issue)}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2.5 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] disabled:opacity-60">
             <Save size={16} />{t(busy && !updatingDirection ? "Saving..." : "Save relationship")}
           </button>}
         </>

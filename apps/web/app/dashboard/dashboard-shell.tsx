@@ -69,6 +69,7 @@ import {
 } from "@/lib/use-workspace-browser-brand"
 import {
   getWorkspaceBrand,
+  getWorkspaceThemeStyle,
 } from "@/lib/workspace-brand"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { ClientWorkspaceOwnership } from "@/features/settings/client-workspace-ownership"
@@ -766,9 +767,11 @@ export function DashboardShell({
     ) ??
     user?.fullName ??
     "Decisionate Workspace"
+  const portalBranding = portal?.active ? portal.branding : null
   const activeBrand =
-    portal?.branding ? { name: portal.branding.name, logoUrl: getHostedLogo(portal.branding),
-      primaryColor: portal.branding.primary_color, accentColor: portal.branding.accent_color } : getWorkspaceBrand(
+    portalBranding ? { name: portalBranding.name, logoUrl: getHostedLogo(portalBranding),
+      primaryColor: portalBranding.primary_color, accentColor: portalBranding.accent_color,
+      backgroundColor: portalBranding.background_color } : getWorkspaceBrand(
       activeWorkspaceId,
       user?.id,
       visibleOrganization,
@@ -801,6 +804,7 @@ export function DashboardShell({
     activeBrandReady
       ? workspaceName
       : "Loading workspace..."
+  const themeStyle = portalBranding || activeBrandReady ? getWorkspaceThemeStyle(activeBrand) : undefined
 
   useWorkspaceBrowserBrand(
     activeBrand.name,
@@ -900,7 +904,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="dashboard-shell-layout flex h-dvh overflow-hidden bg-gray-50">
+    <div className="dashboard-shell-layout flex h-dvh overflow-hidden bg-gray-50" style={themeStyle} data-workspace-brand={themeStyle ? "" : undefined}>
       <a href="#workspace-content" className="workspace-skip-link dashboard-print-hidden rounded-lg bg-white px-4 py-3 text-sm font-medium shadow-lg">
         Skip to content
       </a>
@@ -1348,7 +1352,7 @@ function SubscriptionRequiredPanel({
         {canManageBilling && !isClientWorkspaceContext ? (
             <Link
               href="/billing"
-              className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              className="inline-flex items-center gap-2 rounded-lg bg-[var(--decisionate-brand-primary)] px-4 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-surface-text)] hover:opacity-90"
             >
               <CreditCard size={16} aria-hidden="true" />
               {t(access.raw_status === "trialing" ? "Choose a plan" : "Open billing")}
@@ -1503,6 +1507,6 @@ function getNavLinkClass(
   return `flex min-h-10 items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm font-medium transition ${
     active
       ? "border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
-      : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+      : "border-transparent text-gray-600 hover:bg-[var(--decisionate-brand-accent-soft)] hover:text-[var(--decisionate-brand-accent-text)]"
   }`
 }

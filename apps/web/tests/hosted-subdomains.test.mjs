@@ -241,6 +241,8 @@ function renderSetup({ entitled = true, available = true, slug = "", addressChec
     "react/jsx-runtime": require("react/jsx-runtime"),
     react: { ...React, useState: initial => [index < states.length ? states[index++] : initial, () => {}], useEffect() {}, useRef: value => ({ current: value }) },
     "next/link": { default: props => React.createElement("a", props) }, "lucide-react": require("lucide-react"),
+    "next/navigation": { useRouter: () => ({ refresh: () => assert.fail("Only publishing can refresh the route") }) },
+    "./provider": { useHostedPortal: () => ({ portal: null }) },
     "@/lib/api": { hostedSubdomainRequest: () => assert.fail("Server render must not request a purchase") },
     "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: "agency" }) },
     "@/lib/workspace-brand": { getBrandSurfaceTextColor: () => "#ffffff" },

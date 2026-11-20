@@ -1861,6 +1861,11 @@ export type OrganizationRecord = {
   owner_user_id?: string | null
   logo_url?: string | null
   hosted_portal_logo_url?: string | null
+  hosted_portal_colors?: {
+    primary_color: string
+    accent_color: string
+    background_color: string
+  } | null
   primary_color?: string | null
   accent_color?: string | null
   report_display_name?: string | null

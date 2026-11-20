@@ -1005,6 +1005,10 @@ def build_organization_response(
         portal = portal_for_workspace(db, organization.owner_user_id)
         if portal:
             response["hosted_portal_logo_url"] = portal.branding["logo_url"]
+            response["hosted_portal_colors"] = {
+                key: portal.branding[key]
+                for key in ("primary_color", "accent_color", "background_color")
+            }
     return response
 
 
