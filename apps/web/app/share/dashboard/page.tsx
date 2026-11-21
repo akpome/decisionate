@@ -79,7 +79,7 @@ import {
 } from "@/features/dashboard/lib/chart-palette"
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import type { DimensionFilter, DatasetDimensionFilter } from "@/lib/api"
-import { demoDashboardProfile, demoDashboardProfiles } from "@/features/demo/lib/demo-dashboard-profiles"
+import { demoDashboardProfile, demoDashboardProfiles, demoKpiTarget } from "@/features/demo/lib/demo-dashboard-profiles"
 import {
   finalizeSummaryAggregation,
   getHistoricalDimensionWarning,
@@ -608,6 +608,10 @@ function SharedDashboardContent({
             legacyDashboardPreference.selectedMetrics,
             availableMetrics
           )
+        const exampleTarget = effectDemo && !effectDemoJoinDataset &&
+          resolvedDashboardKey === defaultDashboardKey
+          ? demoKpiTarget(datasetKey, availableMetrics)
+          : undefined
         const restoredSelectedMetrics =
           savedDashboardMetrics.length > 0
             ? savedDashboardMetrics
@@ -616,7 +620,7 @@ function SharedDashboardContent({
               : getSavedSelectedMetrics(
                 undefined,
                 availableMetrics,
-                preference.selected_metric
+                exampleTarget?.metric ?? preference.selected_metric
               )
         const safeAggregation =
           getSavedAggregation(
@@ -703,14 +707,15 @@ function SharedDashboardContent({
         setDateRange(dashboardDateRange(effectDemo
           ? { startDate: sampleDates[0], endDate: sampleDates.at(-1) }
           : dashboardPreference))
-        setTargets(
-          getSavedMetricTargets(
+        setTargets({
+          ...(exampleTarget ? { [exampleTarget.metric]: exampleTarget.value } : {}),
+          ...getSavedMetricTargets(
             preference.metric_targets?.[
               datasetKey
             ],
             availableMetrics
-          )
-        )
+          ),
+        })
       } catch (error) {
         if (isAbortError(error)) {
           return
@@ -1284,6 +1289,7 @@ function SharedDashboardContent({
               />
 
               <TargetKpiCard
+                sample={sharedDemo}
                 primaryMetric={targetMetric}
                 latestValue={latestValue}
                 selectedTarget={selectedTarget}
@@ -1297,6 +1303,7 @@ function SharedDashboardContent({
           <>
             <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
               <TargetKpiCard
+                sample={sharedDemo}
                 primaryMetric={targetMetric}
                 latestValue={latestValue}
                 selectedTarget={selectedTarget}
@@ -1759,12 +1766,14 @@ function MainChartCard({
 }
 
 function TargetKpiCard({
+  sample,
   primaryMetric,
   latestValue,
   selectedTarget,
   targetProgress,
   className = "xl:h-[640px]",
 }: {
+  sample?: boolean
   primaryMetric: string
   latestValue: number
   selectedTarget: number
@@ -1775,9 +1784,9 @@ function TargetKpiCard({
     <SharedCard className={`flex min-w-0 flex-col ${className}`}>
       <CardHeader
         title="Target KPI"
-        description={formatMetricName(
-          primaryMetric
-        )}
+        description={sample
+          ? `${formatMetricName(primaryMetric)} · Sample data`
+          : formatMetricName(primaryMetric)}
       />
 
       <div className="mt-6 flex justify-center">
@@ -1790,7 +1799,7 @@ function TargetKpiCard({
 
       <div className="mt-auto space-y-3 pt-6">
         <SnapshotRow
-          label="Current Value"
+          label={sample ? "Latest period" : "Current Value"}
           value={formatNumber(latestValue)}
         />
 
@@ -2637,6 +2646,7 @@ function MainChart({
       {showTarget && target > 0 && (
         <ReferenceLine
           y={target}
+          ifOverflow={demoMode ? "extendDomain" : "discard"}
           stroke="var(--decisionate-brand-primary)"
           strokeDasharray="4 4"
           label={{

@@ -100,7 +100,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
             width={1440}
             height={900}
             aria-label={t("Decisionate product walkthrough")}
-            className="landing-product-video scroll-mt-32 bg-white object-contain sm:scroll-mt-24"
+            className="landing-product-video scroll-mt-32 bg-white sm:scroll-mt-24"
             onLoadedMetadata={(event) => {
               if (pendingSeek.current !== null) {
                 event.currentTarget.currentTime = pendingSeek.current

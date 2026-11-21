@@ -33,7 +33,7 @@ function compile(path, globals = {}) {
 
 const cache = compile("../lib/api-read-cache.ts")
 const definitions = compile("../features/dashboards/dashboard-definitions.ts")
-const { demoDashboardProfiles, demoDashboardProfile } = compile("../features/demo/lib/demo-dashboard-profiles.ts")
+const { demoDashboardProfiles, demoDashboardProfile, demoKpiTarget } = compile("../features/demo/lib/demo-dashboard-profiles.ts")
 const { summarizeDemoSpend } = compile("../features/demo/lib/demo-spend.ts")
 
 test("curated dashboard examples have valid fields for all three charts", () => {
@@ -58,6 +58,18 @@ test("sample ad returns divide summed reported value by summed spend, not averag
   assert.equal(result.campaigns[1].returnPerDollar, 1.75)
   assert.ok(summarizeDemoSpend(fixtures["google-ads"].dataset.chart.data).campaigns.length > 1)
 })
+
+test("every sample dataset has a positive KPI goal for a metric it actually contains", () => {
+  for (const [key, fixture] of Object.entries(fixtures)) {
+    const metrics = fixture.dataset.metrics.map(({ column }) => column)
+    const target = demoKpiTarget(key, metrics)
+    assert.ok(target && Number.isFinite(target.value) && target.value > 0, key)
+    assert.ok(fixture.dataset.chart.data.some(row => row[target.metric] > 0), target.metric)
+  }
+  assert.equal(demoKpiTarget("google-analytics", ["revenue"]), undefined)
+  assert.equal(demoKpiTarget("unknown", ["sessions"]), undefined)
+})
+
 function loader(fetch) {
   return compile("../features/demo/lib/demo-data.ts", {
     fetch,

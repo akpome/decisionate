@@ -3155,7 +3155,7 @@ function DashboardCategoricalChart({
           layout={useVerticalBars ? "horizontal" : "vertical"}
           margin={{
             top: 6,
-            right: 10,
+            right: demoMode && !useVerticalBars ? 92 : 10,
             bottom: useVerticalBars ? 54 : 6,
             left: 8,
           }}

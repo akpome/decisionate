@@ -277,6 +277,7 @@
   height: auto;
   max-width: 100%;
   aspect-ratio: 8 / 5;
+  object-fit: contain;
   object-position: center;
 }
 .landing-product-video::cue {

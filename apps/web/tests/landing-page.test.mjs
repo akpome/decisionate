@@ -298,6 +298,8 @@ test("desktop columns and stacked mobile content use normal flow rather than CTA
   assert.equal(values(".landing-hero-cta")["margin-top"], "28px")
   assert.equal(values(".landing-hero-note")["margin-top"], "8px")
   assert.equal(values(".landing-product-video")["aspect-ratio"], "8 / 5")
+  assert.equal(values(".landing-product-video")["object-fit"], "contain")
+  assert.equal(values(".landing-product-video")["object-position"], "center")
   assert.equal(values(".landing-product-video").width, "100%")
   assert.equal(values(".landing-demo-chapters")["grid-template-columns"], "repeat(4, minmax(0, 1fr))")
   assert.equal(values(".landing-page svg.lucide").color, "var(--landing-brand-accent)")

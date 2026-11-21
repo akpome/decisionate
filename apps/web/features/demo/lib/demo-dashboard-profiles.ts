@@ -34,3 +34,24 @@ export function demoDashboardProfile(dashboard: string | undefined, dataset: str
   const profile = dashboard ? demoDashboardProfiles[dashboard] : undefined
   return profile?.dataset === dataset ? profile : undefined
 }
+
+// Illustrative monthly goals for the General Business Overview samples.
+const demoKpiTargets: Partial<Record<string, { metric: string; value: number }>> = {
+  "google-analytics": { metric: "sessions", value: 50_000 },
+  "google-ads": { metric: "conversions", value: 5_000 },
+  stripe: { metric: "payments", value: 2_000 },
+  shopify: { metric: "orders", value: 1_600 },
+  quickbooks: { metric: "invoices", value: 1_500 },
+  freshbooks: { metric: "invoices", value: 1_200 },
+  sage: { metric: "invoices", value: 1_400 },
+  xero: { metric: "invoices", value: 1_800 },
+  "zoho-books": { metric: "transactions", value: 1_700 },
+  hubspot: { metric: "leads", value: 3_500 },
+  salesforce: { metric: "lead_count", value: 400 },
+  "meta-ads": { metric: "leads", value: 2_000 },
+}
+
+export function demoKpiTarget(dataset: string, availableMetrics: readonly string[]) {
+  const target = demoKpiTargets[dataset]
+  return target && availableMetrics.includes(target.metric) ? target : undefined
+}
