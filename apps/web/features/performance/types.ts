@@ -7,7 +7,7 @@ export type AmountSelection = {
 export type PerformanceItem = { name: string; revenue: AmountSelection; costs: AmountSelection[] }
 export type PerformanceDefinition = {
   kind: "return" | "profit"; currency: string; date_range: { start: string; end: string }
-  items: PerformanceItem[]; group_column: string | null
+  items: PerformanceItem[]; group_column: string | null; group_filter?: DimensionFilter | null
   revenue_basis: "assigned_sales" | "platform_reported"; amounts_confirmed: boolean
 }
 export type PerformanceRow = {

@@ -28,9 +28,11 @@ const sources = load("../features/performance/amount-source.tsx", {
 })
 const setupSources = { ...sources, useAmountDataset: () => ({ dataset: null, error: "" }),
   DatasetChoice: () => null, SourceDetails: () => null }
+const GroupFilter = () => null
 const { SingleDatasetSetup } = load("../features/performance/performance-setup.tsx", {
   "./types": types,
   "./amount-source": setupSources,
+  "@/features/datasets/components/dimension-filter": { DatasetDimensionFilter: GroupFilter },
 })
 const { GrowthSetup } = load("../features/performance/growth-setup.tsx", {
   react: hooks,
@@ -40,14 +42,19 @@ const { GrowthSetup } = load("../features/performance/growth-setup.tsx", {
 })
 const context = { userId: "owner", workspaceId: "workspace" }
 const render = node => renderToStaticMarkup(node)
-function findGrouping(tree) {
-  let grouping
+function findControl(tree, type) {
+  let control
   function visit(node) {
     if (!node || typeof node !== "object") return
-    if (node.type === sources.GroupChoice) grouping = node
+    if (node.type === type) control = node
     React.Children.forEach(node.props?.children, visit)
   }
   visit(tree)
+  return control
+}
+
+function findGrouping(tree) {
+  const grouping = findControl(tree, sources.GroupChoice)
   assert.ok(grouping)
   return grouping
 }
@@ -80,6 +87,34 @@ test("renaming the field preserves saved categories and clearing restores the ov
       assert.deepEqual(changes.at(-1).items, definition.items)
     }
   }
+})
+
+test("the grouped Return on spend filter restores saved values and preserves other dataset filters", () => {
+  const definition = types.newPerformance("return")
+  definition.items[0].revenue.dataset_id = 7
+  definition.items[0].revenue.dimension_filter = { column: "region", values: ["East"] }
+  assert.equal(findControl(SingleDatasetSetup({ definition, context, onChange() {} }), GroupFilter), undefined)
+  definition.group_column = "channel"
+  definition.group_filter = { column: "channel", values: ["Search"] }
+  const changes = []
+  const tree = SingleDatasetSetup({ definition, context, onChange: value => changes.push(value) })
+  const filter = findControl(tree, GroupFilter)
+  assert.equal(filter.props.fixedColumn, "channel")
+  assert.equal(filter.props.datasetId, 7)
+  assert.deepEqual(filter.props.value, definition.group_filter)
+
+  const selected = { column: "channel", values: ["Search", "Display"] }
+  filter.props.onChange(selected)
+  assert.deepEqual(changes.at(-1).group_filter, selected)
+  assert.deepEqual(changes.at(-1).items, definition.items)
+  filter.props.onChange(undefined)
+  assert.equal(changes.at(-1).group_filter, undefined)
+  assert.equal(changes.at(-1).group_column, "channel")
+  findGrouping(tree).props.onChange("product")
+  assert.equal(changes.at(-1).group_filter, undefined)
+  assert.equal(changes.at(-1).group_column, "product")
+  const profit = { ...definition, kind: "profit", group_filter: undefined }
+  assert.equal(findControl(SingleDatasetSetup({ definition: profit, context, onChange() {} }), GroupFilter), undefined)
 })
 
 test("Sales conversion uses the same result grouping wording and preserves saved choices", () => {

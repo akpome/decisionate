@@ -138,7 +138,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
           ]} onChange={value => {
             const next = value as typeof layout
             if (definition.items.some(item => item.revenue.metric_key || item.costs.some(cost => cost.metric_key)) && !window.confirm(`Change the source selection and clear your selected revenue and ${returns ? "spending" : "costs"}?`)) return
-            setLayout(next); change({ ...definition, group_column: null, items: next === "one" ? [blankItem("Business")] : [blankItem("Comparison 1"), blankItem("Comparison 2")] })
+            setLayout(next); change({ ...definition, group_column: null, group_filter: undefined, items: next === "one" ? [blankItem("Business")] : [blankItem("Comparison 1"), blankItem("Comparison 2")] })
           }} /></div>
           <label className="text-xs font-medium text-gray-600">From<input className={field} type="date" required value={definition.date_range.start} onChange={event => change({ ...definition, date_range: { ...definition.date_range, start: event.target.value } })} /></label>
           <label className="text-xs font-medium text-gray-600">To<input className={field} type="date" required min={definition.date_range.start} value={definition.date_range.end} onChange={event => change({ ...definition, date_range: { ...definition.date_range, end: event.target.value } })} /></label>

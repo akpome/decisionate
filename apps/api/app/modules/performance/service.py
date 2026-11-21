@@ -111,18 +111,22 @@ def calculate(frames, definition: PerformanceDefinition):
         dataset, frame = frames[item.revenue.dataset_id]
         if definition.group_column not in {entry["column"] for entry in dimension_columns(dataset, frame)}:
             raise HTTPException(422, "Choose an available column to compare groups.")
-        if item.revenue.dimension_filter:
-            try:
-                frame = apply_dimension_filter(dataset, frame, item.revenue.dimension_filter.model_dump(), metrics=[s.metric_key for s in references(definition)])
-            except DimensionFilterError as error:
-                raise HTTPException(422, str(error)) from error
-        if item.revenue.date_column not in frame:
-            raise HTTPException(422, "Choose an available date column.")
-        dates = _parse_dates(normalize_dates(frame[item.revenue.date_column], reporting_timezone()))
-        if dates.isna().any() or forecast_dates_need_year(frame[item.revenue.date_column]):
-            raise HTTPException(422, "The date column needs complete dates, including a year.")
-        mask = dates.between(pd.Timestamp(definition.date_range.start), pd.Timestamp(definition.date_range.end) + pd.Timedelta(days=1), inclusive="left")
-        values = list(dict.fromkeys(frame.loc[mask, definition.group_column].map(dimension_value)))
+        if definition.group_filter:
+            # Keep selected groups without matching records visible as incomplete results.
+            values = definition.group_filter.values
+        else:
+            if item.revenue.dimension_filter:
+                try:
+                    frame = apply_dimension_filter(dataset, frame, item.revenue.dimension_filter.model_dump(), metrics=[s.metric_key for s in references(definition)])
+                except DimensionFilterError as error:
+                    raise HTTPException(422, str(error)) from error
+            if item.revenue.date_column not in frame:
+                raise HTTPException(422, "Choose an available date column.")
+            dates = _parse_dates(normalize_dates(frame[item.revenue.date_column], reporting_timezone()))
+            if dates.isna().any() or forecast_dates_need_year(frame[item.revenue.date_column]):
+                raise HTTPException(422, "The date column needs complete dates, including a year.")
+            mask = dates.between(pd.Timestamp(definition.date_range.start), pd.Timestamp(definition.date_range.end) + pd.Timedelta(days=1), inclusive="left")
+            values = list(dict.fromkeys(frame.loc[mask, definition.group_column].map(dimension_value)))
         if len(values) > 100:
             raise HTTPException(422, "This comparison has more than 100 groups. Apply a filter or choose a broader grouping.")
         tasks = [("Missing value" if value is None else "Empty value" if value == "" else value, item,

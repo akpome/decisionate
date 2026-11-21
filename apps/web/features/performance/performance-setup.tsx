@@ -1,6 +1,7 @@
 "use client"
 
 import { Plus, RefreshCw, Trash2 } from "lucide-react"
+import { DatasetDimensionFilter } from "@/features/datasets/components/dimension-filter"
 import { AmountChoice, AmountSource, command, DatasetChoice, field, GroupChoice, SourceDetails, type SourceContext, useAmountDataset } from "./amount-source"
 import { blankAmount, blankItem, type AmountSelection, type PerformanceDefinition, type PerformanceItem } from "./types"
 
@@ -14,10 +15,18 @@ export function SingleDatasetSetup({ definition, onChange, context }: {
     update({ ...item, revenue: source, costs: item.costs.map(cost => ({ ...source, metric_key: cost.metric_key })) })
   }
   return <section className="space-y-5" aria-label="Comparison data">
-    <div className="grid gap-4 md:grid-cols-2"><DatasetChoice {...context} label="Dataset" value={item.revenue.dataset_id} selectedLabel={dataset?.dataset_label} onChange={dataset_id => {
+    <div className="grid items-start gap-4 md:grid-cols-2"><DatasetChoice {...context} label="Dataset" value={item.revenue.dataset_id} selectedLabel={dataset?.dataset_label} onChange={dataset_id => {
       const source = { ...blankAmount(), dataset_id }
-      onChange({ ...definition, group_column: null, items: [{ ...blankItem("Business"), revenue: source, costs: [{ ...source }] }] })
-    }} /><GroupChoice context={context} datasetId={item.revenue.dataset_id} value={definition.group_column} onChange={group_column => onChange({ ...definition, group_column })} /></div>
+      onChange({ ...definition, group_column: null, group_filter: undefined, items: [{ ...blankItem("Business"), revenue: source, costs: [{ ...source }] }] })
+    }} /><div className="min-w-0 space-y-3">
+      <GroupChoice context={context} datasetId={item.revenue.dataset_id} value={definition.group_column} onChange={group_column => onChange({ ...definition, group_column, group_filter: undefined })} />
+      {definition.kind === "return" && item.revenue.dataset_id > 0 && definition.group_column && (
+        <DatasetDimensionFilter key={`${item.revenue.dataset_id}:${definition.group_column}`} embedded
+          {...context} datasetId={item.revenue.dataset_id} fixedColumn={definition.group_column}
+          value={definition.group_filter ?? undefined}
+          onChange={group_filter => onChange({ ...definition, group_filter })} />
+      )}
+    </div></div>
     <div className="grid items-start gap-4 md:grid-cols-2">
       <AmountChoice label="Revenue amount" value={item.revenue.metric_key} dataset={dataset} onChange={metric_key => {
         const date_column = item.revenue.date_column || dataset?.date_columns[0] || ""

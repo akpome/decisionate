@@ -39,6 +39,7 @@ class PerformanceDefinition(StrictModel):
     currency: str = Field(pattern=r"^[A-Z]{3}$")
     items: list[PerformanceItem] = Field(min_length=1, max_length=6)
     group_column: str | None = Field(default=None, min_length=1, max_length=200)
+    group_filter: DimensionFilter | None = None
     revenue_basis: Literal["assigned_sales", "platform_reported"] = "assigned_sales"
     amounts_confirmed: bool = False
 
@@ -48,6 +49,8 @@ class PerformanceDefinition(StrictModel):
             raise ValueError("Choose up to three years for this comparison.")
         if len({item.name.casefold() for item in self.items}) != len(self.items):
             raise ValueError("Give each comparison a different name.")
+        if self.group_filter and (self.kind != "return" or self.group_filter.column != self.group_column):
+            raise ValueError("Filter values must come from the column selected for grouping in Return on spend.")
         if self.group_column:
             if len(self.items) != 1:
                 raise ValueError("Choose one dataset when comparing its groups.")

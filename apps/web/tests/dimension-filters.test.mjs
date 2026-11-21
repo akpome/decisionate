@@ -56,6 +56,36 @@ test("unique values use a dropdown with a search field instead of a checkbox lis
   assert.doesNotMatch(html, /type="checkbox"|role="checkbox"|<select[^>]*multiple/)
 })
 
+test("a fixed grouping column starts unfiltered and does not ask the user to choose the column again", () => {
+  const html = render({ fixedColumn: "campaign" })
+  assert.equal((html.match(/<select/g) || []).length, 1)
+  assert.match(html, /Filter values \(optional\)/)
+  assert.match(html, /<option value="" selected="">All values<\/option>/)
+  assert.match(html, /Search unique values/)
+  assert.doesNotMatch(html, /Dimension column|No dimension values selected|Clear dimension filter/)
+})
+
+test("removing the last value from a fixed column clears the optional filter", () => {
+  const hooks = { ...React, useEffect() {}, useId: () => "dimension", useRef: () => ({ current: null }),
+    useState: initial => [typeof initial === "function" ? initial() : initial, () => {}] }
+  const { DatasetDimensionFilter: Control } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"), {
+    require: name => name === "react" ? hooks : name === "@/app/use-decisionate-language" ? { useDecisionateText: () => ({ t: value => value }) } : name === "@/lib/api" ? {} : name === "@/components/searchable-select" ? { SearchableSelect } : require(name),
+  })
+  const changes = []
+  const tree = Control({ datasetId: 7, userId: "owner", fixedColumn: "campaign",
+    value: { column: "campaign", values: ["Search"] }, onChange: value => changes.push(value) })
+  function visit(node) {
+    if (!React.isValidElement(node)) return
+    if (node.props.id === "dimension-values") node.props.onChange({ target: { value: JSON.stringify("Display") } })
+    if (node.props["aria-label"] === "Remove value: Search") node.props.onClick()
+    React.Children.forEach(node.props.children, visit)
+  }
+  visit(tree)
+  assert.deepEqual(JSON.parse(JSON.stringify(changes[0])), { column: "campaign", values: ["Search", "Display"] })
+  assert.equal(changes.length, 2)
+  assert.equal(changes[1], undefined)
+})
+
 test("single-value comparisons show their selected value directly without multi-selection chips", () => {
   for (const value of ["East", null, "", "null"]) {
     const html = render({ singleValue: true, value: { column: "region", values: [value] } })

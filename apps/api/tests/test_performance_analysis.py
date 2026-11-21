@@ -177,6 +177,38 @@ class PerformanceCalculationTests(unittest.TestCase):
         payload = definition(group_column="channel", items=[dict(name="Channels", revenue=selection(), costs=[selection(metric="ad_spend")])])
         self.assertEqual([row["name"] for row in calculate(source, payload)["rows"]], ["A"])
 
+    def test_group_filter_limits_both_amounts_and_respects_the_existing_dimension_filter(self):
+        source = frames()
+        east = source[1][1].assign(channel="Search", region="East")
+        west = source[1][1].assign(channel="Search", region="West")
+        other = source[2][1].assign(channel="Display", region="East")
+        source[1] = source[1][0], pd.concat([east, west, other], ignore_index=True)
+        region = {"column": "region", "values": ["East"]}
+        payload = definition(group_column="channel", group_filter={"column": "channel", "values": ["Search"]},
+            items=[dict(name="Channels", revenue=selection(dimension_filter=region),
+                        costs=[selection(metric="ad_spend", dimension_filter=region)])])
+        result = calculate(source, payload)
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["definition"]["group_filter"], {"column": "channel", "values": ["Search"]})
+        self.assertEqual([(row["name"], row["revenue"], row["costs"]) for row in result["rows"]], [("Search", 900, 150)])
+
+        payload.group_filter.values.append("Not in these dates")
+        partial = calculate(source, payload)
+        self.assertEqual(partial["status"], "partial")
+        self.assertIsNone(partial["winner"])
+        self.assertFalse(next(row for row in partial["rows"] if row["name"] == "Not in these dates")["ready"])
+
+    def test_group_filter_must_match_the_column_and_contain_at_least_one_value(self):
+        base = {"items": [dict(name="Channels", revenue=selection(), costs=[selection(metric="ad_spend")])]}
+        for changes in [
+            {"group_filter": {"column": "channel", "values": ["Search"]}},
+            {"group_column": "channel", "group_filter": {"column": "region", "values": ["East"]}},
+            {"group_column": "channel", "group_filter": {"column": "channel", "values": []}},
+            {"group_column": "channel", "group_filter": {"column": "channel", "values": ["Search"]}, "kind": "profit"},
+        ]:
+            with self.subTest(changes=changes), self.assertRaises(ValidationError):
+                definition(**(base | changes))
+
 
 class PerformanceRoutesTests(unittest.TestCase):
     def setUp(self):
