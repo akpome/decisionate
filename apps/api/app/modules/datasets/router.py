@@ -325,6 +325,7 @@ CONNECTOR_ANALYSIS_PENDING = "pending"
 CONNECTOR_ANALYSIS_RUNNING = "running"
 CONNECTOR_ANALYSIS_COMPLETE = "complete"
 CONNECTOR_ANALYSIS_FAILED = "failed"
+CONNECTOR_ADDED_KEY = "_workspace_connector_added"
 DATASET_DETAILS_FULL_CHART_MAX_ROWS = 10000
 ACTIVE_INGESTION_JOB_STATUSES = {
     INGESTION_JOB_QUEUED,
@@ -2410,6 +2411,22 @@ def has_config_value(
     return True
 
 
+def connection_setup_started(connection):
+    config = parse_source_connection_config(connection.connection_config)
+    if (
+        config.get(CONNECTOR_ADDED_KEY) is True
+        or connection.status == "connected"
+        or getattr(connection, "last_synced_at", None)
+        or getattr(connection, "authorization_error_at", None)
+        or has_config_value(config.get(STRIPE_ENCRYPTED_API_KEY_CONFIG))
+    ):
+        return True
+    return any(
+        has_config_value(config.get(key))
+        for key in get_source_connection_config_keys(get_dataset_source(connection.source_type))
+    )
+
+
 def get_source_connection_config_status(
     source,
     parsed_config,
@@ -2908,13 +2925,16 @@ def filter_source_connections_for_workspace(
     user_id: str,
     workspace_id: str,
 ):
-    return or_(
-        DataSourceConnection.workspace_id == workspace_id,
-        and_(
-            DataSourceConnection.workspace_id.is_(None),
-            DataSourceConnection.user_id == user_id,
-        ),
+    legacy_personal = and_(
+        DataSourceConnection.workspace_id.is_(None),
+        DataSourceConnection.user_id == user_id,
     )
+    if workspace_id is None:
+        return legacy_personal
+    workspace_scope = DataSourceConnection.workspace_id == workspace_id
+    if workspace_id == user_id:
+        return or_(workspace_scope, legacy_personal)
+    return workspace_scope
 
 
 def get_owned_source_connection(
@@ -5361,31 +5381,33 @@ async def get_source_connections(
             )
             .all()
         )
+        # A legacy empty placeholder isn't an opt-in. Keep authorized, configured
+        # and previously synced connections without requiring customers to re-add them.
+        visible_ids = {connection.id for connection in connections if connection_setup_started(connection)}
         for connection in connections:
-            recover_orphaned_oauth_initial_import(db, connection)
-        db.expire_all()
-        connection_ids = [connection.id for connection in connections]
-        (
-            latest_ingestion_jobs,
-            latest_analysis_jobs,
-            ingestion_children,
-        ) = get_latest_connection_jobs(
-            db,
-            connection_ids,
-        )
-
+            if connection.id in visible_ids and recover_orphaned_oauth_initial_import(db, connection):
+                db.refresh(connection)
         source_types = {
             connection.source_type
             for connection in connections
         }
+        legacy_source_types = {connection.source_type for connection in connections if connection.workspace_id is None}
         dataset_query = db.query(Dataset).filter(
-            Dataset.workspace_id == workspace_id,
             Dataset.source_type.in_(source_types),
         )
         if workspace_id is None:
             dataset_query = dataset_query.filter(
+                Dataset.workspace_id.is_(None),
                 Dataset.user_id == user_id,
             )
+        elif legacy_source_types:
+            dataset_query = dataset_query.filter(or_(
+                Dataset.workspace_id == workspace_id,
+                and_(Dataset.workspace_id.is_(None), Dataset.user_id == user_id,
+                     Dataset.source_type.in_(legacy_source_types)),
+            ))
+        else:
+            dataset_query = dataset_query.filter(Dataset.workspace_id == workspace_id)
         connector_datasets = (
             dataset_query
             .order_by(
@@ -5403,6 +5425,17 @@ async def get_source_connections(
             )
             if connections
             else {}
+        )
+
+        visible_ids.update(connection_id for connection_id, datasets in datasets_by_connection.items() if datasets)
+        unconfigured_ids = [connection.id for connection in connections if connection.id not in visible_ids]
+        if unconfigured_ids:
+            visible_ids.update(connection_id for (connection_id,) in db.query(OAuthCredential.connection_id).filter(
+                OAuthCredential.connection_id.in_(unconfigured_ids),
+            ))
+        connections = [connection for connection in connections if connection.id in visible_ids]
+        latest_ingestion_jobs, latest_analysis_jobs, ingestion_children = get_latest_connection_jobs(
+            db, [connection.id for connection in connections],
         )
 
         return [
@@ -5466,9 +5499,11 @@ async def create_source_connection(
         source,
         payload.connection_config,
     )
+    incoming_config = parse_source_connection_config(connection_config)
+    incoming_config[CONNECTOR_ADDED_KEY] = True
     connection_config = protect_source_connection_config(
         source_type,
-        connection_config,
+        incoming_config,
     )
 
     db = SessionLocal()
@@ -5487,20 +5522,10 @@ async def create_source_connection(
         )
 
         if existing_connection:
-            incoming_config = parse_source_connection_config(
-                connection_config
-            )
-            if incoming_config:
-                existing_config = parse_source_connection_config(
-                    existing_connection.connection_config
-                )
-                existing_config.update(incoming_config)
-                existing_connection.connection_config = (
-                    protect_source_connection_config(
-                        source_type,
-                        existing_config,
-                    )
-                )
+            previous_config = parse_source_connection_config(existing_connection.connection_config)
+            next_config = {**previous_config, **parse_source_connection_config(connection_config)}
+            if next_config != previous_config:
+                existing_connection.connection_config = protect_source_connection_config(source_type, next_config)
                 db.commit()
                 db.refresh(existing_connection)
             return build_source_connection_response(
@@ -10249,6 +10274,8 @@ def queue_due_source_connection(
     from app.modules.workspace_lifecycle import workspace_is_paused
     if workspace_is_paused(db, connection.workspace_id or connection.user_id):
         return {"connection_id": connection.id, "status": "skipped", "detail": "Client workspace is paused"}
+    if not connection_setup_started(connection):
+        return None
     source = get_dataset_source(connection.source_type)
     if (
         source

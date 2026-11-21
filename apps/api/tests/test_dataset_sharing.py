@@ -11,13 +11,13 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql.elements import BooleanClauseList
 
 from app.db.models import DataSourceConnection
 from app.db.models import Dataset
 from app.db.models import OAuthConnectionState
 from app.db.models import OAuthCredential
 from app.modules.datasets.router import (
+    CONNECTOR_ADDED_KEY,
     build_dataset_upload_path,
     build_dataset_share_result,
     build_dataset_share_status,
@@ -31,7 +31,6 @@ from app.modules.datasets.router import (
     create_source_connection,
     delete_source_connection,
     ensure_dataset_share_token,
-    filter_source_connections_for_workspace,
     generate_share_token,
     get_dataset_upload_dir,
     has_source_connection_config,
@@ -1323,6 +1322,7 @@ class DatasetSharingTests(unittest.TestCase):
             self.assertEqual(
                 saved_config,
                 {
+                    CONNECTOR_ADDED_KEY: True,
                     "domain_prefix": "demo-store",
                     "resource_types": "sales",
                 },
@@ -2462,17 +2462,6 @@ class DatasetSharingTests(unittest.TestCase):
         )
         self.assertIsNone(
             payload.connection_config,
-        )
-
-    def test_filter_source_connections_for_workspace_returns_clause(self):
-        clause = filter_source_connections_for_workspace(
-            "user-1",
-            "workspace-1",
-        )
-
-        self.assertIsInstance(
-            clause,
-            BooleanClauseList,
         )
 
     def test_remove_dataset_preference_entry_removes_matching_dataset(self):

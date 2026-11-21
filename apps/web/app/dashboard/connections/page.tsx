@@ -172,6 +172,7 @@ function getCustomerFacingConnectionError(
 export default function ConnectionsPage() {
   const { t } = useDecisionateText()
   const { user } = useUser()
+  const { activeWorkspaceId } = useActiveWorkspace(user?.id)
   const {
     canConfigureWorkspace,
     canViewConnections,
@@ -211,6 +212,8 @@ export default function ConnectionsPage() {
 
   return (
     <ConnectionsPageContent
+      key={JSON.stringify([user?.id, activeWorkspaceId])}
+      activeWorkspaceId={activeWorkspaceId}
       canConfigureWorkspace={canConfigureWorkspace}
       canViewConnections={canViewConnections}
       loadingWorkspaceAccess={loadingWorkspaceAccess}
@@ -219,10 +222,12 @@ export default function ConnectionsPage() {
 }
 
 function ConnectionsPageContent({
+  activeWorkspaceId,
   canConfigureWorkspace,
   canViewConnections,
   loadingWorkspaceAccess,
 }: {
+  activeWorkspaceId: string
   canConfigureWorkspace: boolean
   canViewConnections: boolean
   loadingWorkspaceAccess: boolean
@@ -265,11 +270,6 @@ function ConnectionsPageContent({
   const [loadRetryKey, setLoadRetryKey] =
     useState(0)
   const { user } = useUser()
-  const {
-    activeWorkspaceId,
-    workspaceVersion,
-  } =
-    useActiveWorkspace(user?.id)
   const hasActiveIngestion =
     sourceConnections.some((connection) =>
       ["pending", "initial", "backfill"].includes(
@@ -858,7 +858,6 @@ function ConnectionsPageContent({
     activeWorkspaceId,
     canConfigureWorkspace,
     canViewConnections,
-    workspaceVersion,
     loadRetryKey,
   ])
 

@@ -17,6 +17,7 @@ from app.db.models import OAuthCredential
 from app.modules.auth_context import get_auth_context
 from app.modules.datasets.router import (
     build_source_connection_response,
+    filter_source_connections_for_workspace,
     get_dataset_source,
     get_source_connection_config_status,
     mark_connection_authorization_failed,
@@ -412,13 +413,7 @@ def get_workspace_connection(db, connection_id: int, auth_context):
         db.query(DataSourceConnection)
         .filter(
             DataSourceConnection.id == connection_id,
-            (
-                (DataSourceConnection.workspace_id == auth_context.workspace_id)
-                | (
-                    DataSourceConnection.workspace_id.is_(None)
-                    & (DataSourceConnection.user_id == auth_context.user_id)
-                )
-            ),
+            filter_source_connections_for_workspace(auth_context.user_id, auth_context.workspace_id),
         )
         .first()
     )

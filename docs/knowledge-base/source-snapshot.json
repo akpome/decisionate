@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "4f916f21eb7c9384725e322fabbdaab24615bb48",
+  "base_git_revision": "e32dad43038024599c54f772099f8ac3dca605a2",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/features/datasets/components/csv-upload.tsx"
+    "apps/api/app/modules/datasets/router.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -36,7 +36,7 @@
     "apps/api/app/modules/correlation/defaults.py": "6f835bc95725d263bec8d1ec296529b6c3500a372e6b37d7c22651ed2feb0f08",
     "apps/api/app/modules/correlation/direction.py": "31ac71f6c0dbc03fab8054c97b02dd84b1ab265683d4b0d8aea6514289973f1b",
     "apps/api/app/modules/correlation/engine.py": "ad042891837b6b7a1e7bc54dea96ca73feef53af0fc4bef797332af0df86eecf",
-    "apps/api/app/modules/datasets/router.py": "1a90339b8a2dc020043e2f897577bf47421d41c40a4c2f98285f8e3faf01eb2e",
+    "apps/api/app/modules/datasets/router.py": "692df28abbb14e75ab2bab7227108dc70fb445c1e97741e2327fc776bc117089",
     "apps/api/app/modules/datasets/schemas.py": "e431fb38f9fd0336c6ca89a6d907b402b92d40a024db6d04df8eda72165ead83",
     "apps/api/app/modules/datasets/services/connector_history.py": "855d0e0d7a218b5819b09965859c51a689a0ec29dfe8c12ef372bd15ba9084df",
     "apps/api/app/modules/datasets/services/connector_range_sync.py": "231bba5e0aff328e1cdfa9c93f9a1bbc7164075e9f78f1f8a75022fee6025e02",
