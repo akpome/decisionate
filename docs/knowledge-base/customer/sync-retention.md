@@ -23,10 +23,12 @@ by the connector retention flow. Records with unusable dates cannot safely be
 classified as old and may be retained. A historical summary cannot recreate
 discarded transaction-level details.
 
-The anomaly model's three-year lookback only excludes older observations from a
-fit; it does not itself delete rows. Uploaded files, subscription expiry and
-backup copies have separate retention rules. Do not extend the connector rule
-into a promise about every data type or immediate deletion from all backups.
+Disconnecting a provider does not stop retention on its stored dataset.
+The anomaly model's three-year lookback only limits what is used in a calculation.
+Uploaded files expire as whole files based on upload date. Saved reports,
+decisions and other workspace history expire based on when the records were
+saved or created. The rolling limit does not close the workspace. Subscription
+expiry and backup copies still have separate rules.
 
 ## If a sync is incomplete
 

@@ -189,11 +189,19 @@ def run_worker(script, once=False):
                 job_id = next_queued_job()
                 if time.monotonic() - last_retention >= 3600:
                     from app.modules.datasets import router as routes
+                    from app.modules.workspace_record_retention import sweep_workspace_record_retention
                     def maintenance_heartbeat():
                         connection.execute(text("SELECT 1"))
                         connection.commit()
                         record_heartbeat()
                     routes.sweep_connector_retention(heartbeat=maintenance_heartbeat)
+                    try:
+                        result = sweep_workspace_record_retention(heartbeat=maintenance_heartbeat)
+                        if any(result.values()):
+                            logger.info("Workspace retention removed datasets=%s records=%s and pruned detached connectors=%s",
+                                        result["datasets"], result["records"], result["detached_connectors"])
+                    except Exception:
+                        logger.exception("Workspace record retention failed; ingestion remains available")
                     last_retention = time.monotonic()
                 if job_id is not None:
                     supervise_job(job_id, connection, script)

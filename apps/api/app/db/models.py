@@ -790,6 +790,13 @@ class IngestionWorkerHeartbeat(Base):
     job_id = Column(Integer, nullable=True)
 
 
+class ExpiredDatasetObject(Base):
+    __tablename__ = "expired_dataset_objects"
+
+    reference = Column(String, primary_key=True)
+    next_attempt_at = Column(DateTime, nullable=False, default=utc_now, index=True)
+
+
 class DataIngestionJob(Base):
     """Durable state for connector ingestion performed after the API response."""
 

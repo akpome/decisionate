@@ -545,10 +545,12 @@ class ObjectStorage:
                         for item in page.get("Contents", [])
                     ]
                     if objects:
-                        client.delete_objects(
+                        result = client.delete_objects(
                             Bucket=bucket,
                             Delete={"Objects": objects},
                         )
+                        if result.get("Errors"):
+                            raise ObjectStorageUnavailable("Object storage reported an incomplete directory deletion.")
                     if not page.get("IsTruncated"):
                         break
                     continuation = page.get("NextContinuationToken")

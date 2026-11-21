@@ -160,9 +160,12 @@ export default function SecurityPage() {
       <PolicySection title="7. Retention and deletion">
         <p>
           Connector data is kept for three years, then deleted. The live retention
-          window covers a rolling three calendar years, enforced during
-          sync and scheduled maintenance. This rule does not automatically delete
-          manually uploaded datasets, decisions, or account settings.
+          window covers a rolling three calendar years, enforced during sync
+          and scheduled maintenance. Maintenance also expires manually uploaded
+          datasets by upload date and saved reports, decisions, and workspace
+          history by their record dates. Files that cannot be removed on the first
+          attempt are queued for retry. Workspace access and active settings are
+          not removed by this rule.
         </p>
         <p>
           Finished analysis-job records are eligible for cleanup after seven days,

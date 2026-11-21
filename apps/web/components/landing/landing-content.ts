@@ -111,6 +111,12 @@ export const faqs = [
     link: { href: "/privacy", label: "Privacy Policy" }
   },
   {
+    question: "Do workspaces expire after three years?",
+    answer:
+      "No. The rolling three-year limit applies to data, not the workspace. Uploaded files expire from the upload date, and saved reports and decisions expire from their record dates. Export anything you need before expiry.",
+    link: { href: "/privacy", label: "Privacy Policy" }
+  },
+  {
     question: "Can I delete my workspace?",
     answer:
       "Workspace owners can start permanent deletion from Settings. Export what you need first, cancel any active paid subscription, and remove or unlink managed client workspaces. See the Privacy Policy for details and how to make a personal information request.",

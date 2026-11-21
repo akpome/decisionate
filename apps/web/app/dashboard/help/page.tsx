@@ -288,7 +288,7 @@ const referenceChapters: ReferenceChapter[] = [
           "The worker then backfills up to a rolling three years of available source history in checkpointed chunks. Background history chunks are at most 30 days, and provider limits or permissions can reduce the history returned.",
           "Manual date ranges longer than 90 days are also split into chunks. Choose a range within the supported three-year history rather than submitting repeated overlapping full imports.",
           "Review connection progress and dataset coverage while the backfill is running. A recent dataset appearing does not mean all historical chunks are complete.",
-          "Connector data older than the rolling three-year retention boundary is deleted. This connector policy is separate from uploaded-file and subscription retention rules.",
+          "Connector records older than three years are removed by source date where available, even after you disconnect. Uploaded files expire as whole files three years from upload, not the dates written in the file.",
         ],
       },
       {
@@ -865,7 +865,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Uploaded and connector data are handled through the configured storage and analytics providers of the deployment.",
           "Connector ingestion imports recent data first, backfills older history in checkpointed chunks, and can use partitioned and summarized storage paths so analysis does not require an unbounded single file.",
           "Historical summaries preserve analytical aggregates and relevant low-cardinality grouping dimensions; row-level detail removed by summarization cannot be recovered from the summary.",
-          "Connector datasets use a rolling three-year retention window, with older connector data deleted. Read subscription-expiry retention, uploaded-file retention, backups, and provider policies together with the current Privacy and Terms pages.",
+          "Uploaded files, saved reports, decisions and other workspace history expire on a rolling three-year basis, based on when they were uploaded, saved or recorded. The workspace stays open. Export anything you need before expiry; related reports and links may disappear sooner if their source expires. See Privacy and Terms for exceptions and backups.",
           "Request deletion or export through an authorized support request when self-service behavior does not cover the required scope.",
         ],
       },

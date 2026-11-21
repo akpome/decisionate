@@ -174,9 +174,12 @@ export default function TermsPage() {
         <p>
           Connector data is kept for three years, then deleted from live analytical
           storage through sync and maintenance processing. The window is a rolling
-          three calendar years, using the source date where available. This connector rule
-          does not automatically delete manually uploaded datasets, decisions, or
-          workspace configuration.
+          three calendar years, using the source date where available. Manually
+          uploaded datasets expire as whole files based on upload date. Saved
+          reports, decisions, and other history age from when they were saved or
+          recorded. Expiry does not close the workspace. Dependent records and
+          links may stop working earlier when their source expires. Export what
+          you need before the deadline.
         </p>
         <p>
           After a trial or subscription expires, analytical dataset storage becomes

@@ -24,11 +24,12 @@ submit its form.
 
 ## Retention distinctions
 
-Connector imports use rolling three-year retention. Model lookback is a separate
-limit on the history used for calculation. Uploaded files, saved evidence,
-subscription expiry, exports and backups have separate policies and lifecycle
-controls. A removed source row cannot be reconstructed from a historical summary
-unless the necessary detail was retained elsewhere.
+The rolling three-year limit applies to connector records by source date where
+available, whole uploaded files by upload date, and saved reports, decisions,
+and other history by their save or record date. The workspace itself stays open.
+Related results and links can be removed when their source expires. Model
+lookback only limits the data used in calculations. Subscription expiry, backups,
+provider records and previously exported copies have separate rules.
 
 ## Marketing versus service email
 

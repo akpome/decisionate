@@ -312,7 +312,8 @@ class ProductionQueueTests(unittest.TestCase):
             authorization_error="Access revoked", authorization_error_at=None,
         )
         dataset = SimpleNamespace(id=1, source_config="{}")
-        def persist(*args):
+        def persist(*args, retention_dataset):
+            self.assertIs(retention_dataset, dataset)
             connection.status = "connected"
             connection.authorization_error = None
             connection.connection_config = "{}"

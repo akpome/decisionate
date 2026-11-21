@@ -7159,8 +7159,9 @@ def write_connector_monthly_partitions(
     connection,
     report_config: dict,
     existing_summary=None,
+    partition_dir=None,
 ):
-    partition_dir = build_connector_partition_dir(
+    partition_dir = partition_dir or build_connector_partition_dir(
         connection,
     )
     staging_dir = f"{partition_dir}.tmp-{uuid.uuid4().hex}"
@@ -8175,6 +8176,7 @@ def persist_connector_dataframe(
     report_config,
     *,
     heartbeat=None,
+    retention_dataset=None,
 ):
     file_path = None
     staged_partition_dir = None
@@ -8187,7 +8189,7 @@ def persist_connector_dataframe(
             or report_config.get("object_type")
             or ""
         ).strip().lower() or None
-        existing_dataset = find_connector_dataset(
+        existing_dataset = retention_dataset if retention_dataset is not None else find_connector_dataset(
             db,
             connection,
             resource_type=sync_resource,
@@ -8294,7 +8296,12 @@ def persist_connector_dataframe(
         )
         try:
             if storage_result is None:
-                storage_result = write_connector_monthly_partitions(merged_dataframe, connection, report_config, existing_summary=existing_summary)
+                revision_dir = None
+                if retention_dataset is not None and not storage.is_remote:
+                    revision_dir = f"{build_connector_partition_dir(connection)}.revision-{uuid.uuid4().hex}"
+                storage_result = write_connector_monthly_partitions(
+                    merged_dataframe, connection, report_config, existing_summary=existing_summary, partition_dir=revision_dir,
+                )
         except ImportError as error:
             raise ConnectorUnavailable(
                 "Connector dataset storage requires the pyarrow package"
@@ -8322,10 +8329,12 @@ def persist_connector_dataframe(
                 f"{detail_suffix}"
             ) from error
         local_partition_dir = storage_result["partition_dir"]
-        file_path = storage.put_directory(
-            local_partition_dir,
-            key_prefix=build_connector_storage_prefix(connection),
-        )
+        if retention_dataset is not None and not storage.is_remote:
+            # The new partition directory is already unique. Copying it into
+            # its own subtree and removing staging would remove the live data.
+            file_path = local_partition_dir
+        else:
+            file_path = storage.put_directory(local_partition_dir, key_prefix=build_connector_storage_prefix(connection))
         storage_provider = (
             storage.config.provider
             if storage.is_remote
@@ -8632,6 +8641,7 @@ def purge_expired_connector_dataset(
             pd.DataFrame(),
             source_config,
             **({"heartbeat": heartbeat} if heartbeat else {}),
+            retention_dataset=dataset,
         )
     )
     # Retention maintenance is not a source sync and must not move the

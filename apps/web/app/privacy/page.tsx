@@ -224,10 +224,16 @@ export default function PrivacyPage() {
           Connector data is kept for three years, then deleted. The retention
           window is a rolling three calendar years, using the source date where available.
           Sync and scheduled maintenance remove expired connector records and
-          partitions from live analytical storage. Records without a usable source
-          date are aged using their ingestion partition month. This rule does not
-          automatically delete manually uploaded datasets, decisions, account
-          information, or workspace configuration.
+          partitions from live analytical storage, including data from disconnected
+          sources. When only a stored month is available, the month is used.
+        </p>
+        <p>
+          The same rolling limit applies to manually uploaded datasets, saved reports,
+          decisions, and other workspace history by when they were uploaded, saved,
+          or recorded. Files expire as a whole; we do not infer a retention date for
+          each row of an uploaded file. Related records or share links may be removed
+          earlier when their source expires. This does not close your workspace or
+          remove the current access, connection, or billing settings needed to run it.
         </p>
         <p>
           Saving a report stores its settings and a snapshot of the generated

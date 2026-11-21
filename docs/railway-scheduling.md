@@ -98,8 +98,11 @@ an HTTP healthcheck or cron schedule. Use API `/ready` to check queue-owner
 readiness. See [Railway deployment teardown](https://docs.railway.com/deployments/deployment-teardown).
 
 The worker executes queued jobs in isolated, deadline-limited processes and
-independently sweeps three-year connector retention hourly, including revoked
-and sync-disabled connections. API `/ready` returns `503` when its heartbeat
+independently applies rolling three-year retention hourly to connector rows
+(including disconnected and sync-disabled imports), whole uploaded datasets,
+saved reports, decisions and workspace history. Busy workspaces are retried
+for dataset cleanup, and storage failures are retried from a durable deletion
+queue. This does not close workspaces or cancel subscriptions. API `/ready` returns `503` when its heartbeat
 is missing or stale. A successful cron response only confirms that work was
 queued; confirm the ingestion job's terminal result too.
 
