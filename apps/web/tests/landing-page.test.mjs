@@ -39,7 +39,7 @@ const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
 const headline = "Decisionate"
 const promise = "Decide what to change this week. See whether it helped."
 const productSummary = "Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result."
-const demoQuestion = "Should we change our ad budget? Compare spending with customer numbers, choose what to test and set a date to review the result."
+const demoQuestion = "Which ads earned more per dollar? See the numbers, choose one change to test, and decide when to review it."
 const agencySummary = "Give each client a private workspace in a portal carrying your agency's name and logo. With their permission, review the numbers together, agree on the next step and revisit the result at your next meeting."
 
 function renderHero(language = "en") {
@@ -62,6 +62,7 @@ function renderSections(language = "en", catalog) {
       useLandingText: () => ({ language, t: text => language === "fr" ? refreshedLandingFrench[text] || text : text }),
     },
     "@/features/dashboards/dashboard-definitions": load("../features/dashboards/dashboard-definitions.ts"),
+    "@/features/demo/lib/demo-dashboard-profiles": load("../features/demo/lib/demo-dashboard-profiles.ts"),
     "./landing-content": { integrationGroups, faqs },
   }
   const sections = load("../components/landing/landing-sections.tsx", overrides)
@@ -146,6 +147,7 @@ test("all public sign-in and trial links point to the app host", () => {
     "next/image": { default: props => React.createElement("img", Object.fromEntries(Object.entries(props).filter(([key]) => key !== "priority"))) },
     "@/app/use-decisionate-language": { useLandingText: () => ({ t: text => text }) },
     "@/features/dashboards/dashboard-definitions": load("../features/dashboards/dashboard-definitions.ts"),
+    "@/features/demo/lib/demo-dashboard-profiles": load("../features/demo/lib/demo-dashboard-profiles.ts"),
     "./landing-content": { integrationGroups, faqs },
     "./landing.css": {},
   }
@@ -239,13 +241,13 @@ test("agency workflow assigns data connections and management to the client", ()
 test("landing explains cross-dataset Reports and selected evidence rather than a separate Insights workspace", () => {
   const about = faqs.find(item => item.question === "What is Decisionate?").answer
   const multi = faqs.find(item => item.question === "Can I combine data from more than one dataset?").answer
-  assert.match(about, /Reports brings selected metrics, relationships and unusual changes together/)
-  assert.match(about, /dashboards inspect individual datasets/)
-  for (const pattern of [/two or more datasets/, /date column and dimension filters/, /shared baseline of 100/, /individual metric pairs/, /not proof of causation/, /does not automatically record a business action/]) {
+  assert.match(about, /Business Analysis to compare metrics, check ad returns and profitability/)
+  assert.match(about, /Dashboards help you monitor performance/)
+  for (const pattern of [/Compare metrics, then Multi-dataset report/, /two or more datasets/, /date column and dimension filters/, /shared baseline of 100/, /individual metric pairs/, /not proof of causation/, /does not automatically record a business action/]) {
     assert.match(multi, pattern)
   }
   const html = renderSections()
-  assert.match(html, /Bring selected report evidence into Decisions/)
+  assert.match(html, /Save the evidence with your decision, set a review date/)
   assert.doesNotMatch(html, /explore AI-assisted insights|A view you can question/)
   const metadata = read("../app/layout.tsx")
   assert.match(metadata, /Analyze business performance across datasets/)
@@ -276,9 +278,9 @@ test("every landing FAQ answer and updated feature is available in French", () =
   for (const language of ["en", "fr"]) {
     const html = renderSections(language)
     for (const text of [
-      "Analysis across your datasets",
-      "Choose metrics, date columns and dimension values from different datasets. Compare indexed trends, investigate relationships and check unusual changes in one report.",
-      "Bring selected report evidence into Decisions. Record the action and expected result, set a review date, then capture the outcome and lesson.",
+      "See what earns its keep",
+      "Compare the sales recorded for each dollar spent, see what's left after costs, and check which metrics move together. Keep the comparison separate from what you decide to test.",
+      "Save the evidence with your decision, set a review date, and record what happened. Get a weekly email when the latest report has enough data.",
       "Where supported, initial imports cover 90 days. Older available history is loaded in background chunks, up to three years. Provider permissions and history limits apply.",
       "Do reports and forecasts account for seasonality?",
       "What is included in a weekly report?",
@@ -310,7 +312,7 @@ test("demo introduction, chapter controls and supplemental link remain accessibl
   assert.match(html, /<h2[^>]*id="landing-demo-heading"/)
   assert.match(html, /See Decisionate in action/)
   assert.ok(html.includes(demoQuestion))
-  for (const [label, time] of [["Connect", 0], ["Analyze", 10], ["Decide", 24], ["Review", 38]]) {
+  for (const [label, time] of [["Trends", 0], ["Ad returns", 10], ["Decide", 24], ["Review", 38]]) {
     assert.ok(html.includes(`aria-label="${label}, jump to ${time} seconds"`))
   }
   assert.match(html, /aria-current="step"/)

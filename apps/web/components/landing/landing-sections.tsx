@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { demoDashboardProfiles } from "@/features/demo/lib/demo-dashboard-profiles"
 import {
   ArrowRight,
   BarChart3,
@@ -28,15 +29,15 @@ export function FeaturesSection() {
     },
     {
       icon: BarChart3,
-      title: "Analysis across your datasets",
+      title: "See what earns its keep",
       description:
-        "Choose metrics, date columns and dimension values from different datasets. Compare indexed trends, investigate relationships and check unusual changes in one report."
+        "Compare the sales recorded for each dollar spent, see what's left after costs, and check which metrics move together. Keep the comparison separate from what you decide to test."
     },
     {
       icon: Target,
       title: "A decision you can follow up",
       description:
-        "Bring selected report evidence into Decisions. Record the action and expected result, set a review date, then capture the outcome and lesson."
+        "Save the evidence with your decision, set a review date, and record what happened. Get a weekly email when the latest report has enough data."
     }
   ]
   return (
@@ -95,7 +96,7 @@ export function BusinessSection() {
           </p>
           <div className="grid gap-x-6 sm:grid-cols-2">
             {dashboardDefinitions
-              .filter((item) => item.key !== "decision-performance")
+              .filter((item) => demoDashboardProfiles[item.key])
               .map((item) => (
                 <Link
                   key={item.key}

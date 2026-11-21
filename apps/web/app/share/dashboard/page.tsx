@@ -79,6 +79,7 @@ import {
 } from "@/features/dashboard/lib/chart-palette"
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import type { DimensionFilter, DatasetDimensionFilter } from "@/lib/api"
+import { demoDashboardProfile, demoDashboardProfiles } from "@/features/demo/lib/demo-dashboard-profiles"
 import {
   finalizeSummaryAggregation,
   getHistoricalDimensionWarning,
@@ -540,6 +541,9 @@ function SharedDashboardContent({
         const resolvedDashboardKey =
           effectSelectedDashboard ??
           defaultDashboardKey
+        const demoProfile = effectDemo && !effectDemoJoinDataset
+          ? demoDashboardProfile(resolvedDashboardKey, datasetKey)
+          : undefined
         const legacyDashboardPreference =
           preference.dashboard_preferences?.[
             datasetKey
@@ -687,12 +691,18 @@ function SharedDashboardContent({
           )
         )
         setDashboardMetricMapping(
-          sharedDashboardMetricMapping
+          demoProfile?.mapping ?? sharedDashboardMetricMapping
         )
         setDashboardChartTitles(
-          sharedDashboardChartTitles
+          demoProfile?.titles ?? sharedDashboardChartTitles
         )
-        setDateRange(dashboardDateRange(effectDemo ? {} : dashboardPreference))
+        const sampleDates = effectDemo
+          ? (data.chart?.data ?? []).map(row => String(row[data.chart?.x_key ?? "date"] ?? "").slice(0, 10))
+            .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort()
+          : []
+        setDateRange(dashboardDateRange(effectDemo
+          ? { startDate: sampleDates[0], endDate: sampleDates.at(-1) }
+          : dashboardPreference))
         setTargets(
           getSavedMetricTargets(
             preference.metric_targets?.[
@@ -939,6 +949,10 @@ function SharedDashboardContent({
 
     const url = new URL(window.location.href)
     url.searchParams.set(key, value)
+    if (key === "dashboard" && demoDashboardProfiles[value]) {
+      url.searchParams.set("dataset", demoDashboardProfiles[value].dataset)
+      setDemoJoinDataset("")
+    }
     window.history.replaceState(null, "", url.toString())
     setSearchParamString(url.search.slice(1))
     setDemoNotice("")
@@ -2981,7 +2995,7 @@ function getSharedDashboardConfig(
     demo: demoMode,
     demoDataset:
       demoMode
-        ? params.get("dataset")?.trim() || "google-analytics"
+        ? params.get("dataset")?.trim() || demoDashboardProfiles[selectedDashboard ?? ""]?.dataset || "google-analytics"
         : undefined,
     datasetId,
     dashboardTemplate:

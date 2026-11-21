@@ -33,6 +33,31 @@ function compile(path, globals = {}) {
 
 const cache = compile("../lib/api-read-cache.ts")
 const definitions = compile("../features/dashboards/dashboard-definitions.ts")
+const { demoDashboardProfiles, demoDashboardProfile } = compile("../features/demo/lib/demo-dashboard-profiles.ts")
+const { summarizeDemoSpend } = compile("../features/demo/lib/demo-spend.ts")
+
+test("curated dashboard examples have valid fields for all three charts", () => {
+  for (const [dashboard, profile] of Object.entries(demoDashboardProfiles)) {
+    assert.ok(definitions.isDashboardKey(dashboard))
+    assert.ok(fixtures[profile.dataset])
+    if (!profile.mapping) continue
+    const rows = fixtures[profile.dataset].dataset.chart.data
+    for (const [role, field] of Object.entries(profile.mapping)) {
+      assert.ok(rows.some(row => role === "primary" || role === "operationsValue" ? row[field] > 0 : typeof row[field] === "string"), field)
+    }
+    assert.ok(profile.mapping.stage && profile.mapping.operationsValue && profile.titles.operations)
+  }
+  assert.equal(demoDashboardProfile("sales-performance", "google-analytics"), undefined)
+})
+
+test("sample ad returns divide summed reported value by summed spend, not average ratios", () => {
+  const campaign = (name, cost, conversions_value) => ({ campaign_name: name, date: "2026-11-21", cost, conversions_value })
+  const result = summarizeDemoSpend([campaign("A", 100, 400), campaign("A", 300, 300), campaign("B", 0, 0), campaign("C", 20, 50)])
+  assert.equal(result.campaigns.length, 2)
+  assert.equal(result.campaigns[0].campaign, "C")
+  assert.equal(result.campaigns[1].returnPerDollar, 1.75)
+  assert.ok(summarizeDemoSpend(fixtures["google-ads"].dataset.chart.data).campaigns.length > 1)
+})
 function loader(fetch) {
   return compile("../features/demo/lib/demo-data.ts", {
     fetch,

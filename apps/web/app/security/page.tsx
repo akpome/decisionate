@@ -13,7 +13,7 @@ export default function SecurityPage() {
       eyebrow="Trust"
       title="Security"
       description="The application controls in place today, their limits, and how to report a concern."
-      updated="October 23, 2026"
+      updated="November 21, 2026"
     >
       <PolicySection title="1. Accounts and authentication">
         <p>
@@ -46,11 +46,12 @@ export default function SecurityPage() {
           Selected unique values, labels, and small groups can identify people.
         </p>
         <p>
-          Owners control member access and sharing. An intentionally enabled public
-          dashboard link is an exception to private sign-in: anyone with a valid
-          link can view its shared information. Revoke links that are no longer
-          needed. The public live demo and recorded walkthrough contain prepared
-          sample data, not customer workspace records.
+          Owners control member access and sharing. Anyone with a valid shared link
+          can view its shared dashboard or saved report without signing in. Public
+          dashboard responses are limited to the selected view and exclude private
+          source configuration. Revoke individual emailed links when they are no
+          longer needed; revocation does not recall copies already downloaded.
+          The live demo and walkthrough use prepared sample data, not customer records.
         </p>
       </PolicySection>
 
@@ -84,7 +85,9 @@ export default function SecurityPage() {
           encryption-key configuration, HTTPS application and API URLs, explicit
           allowed web origins, PostgreSQL, remote S3-compatible object storage,
           and error-monitoring configuration. It refuses to start if those checks
-          fail. Development configurations are not production guarantees.
+          fail. Hosted requests cannot substitute an unverified identity header
+          when token verification is unavailable. Development configurations are
+          not production guarantees.
         </p>
         <p>
           Dataset files use configured object storage and database records use
@@ -146,7 +149,8 @@ export default function SecurityPage() {
         </p>
         <p>
           Automated tests cover authentication, workspace permissions, credential
-          protection, retention, and production configuration. These checks are
+          protection, retention, and production configuration. Scheduled advisory
+          checks also monitor pinned API and web dependencies. These checks are
           not a security certification, an independent penetration-test report, or
           a guarantee that no vulnerability exists. Security also depends on
           deployment settings, provider access, and ongoing operational review.
@@ -183,8 +187,9 @@ export default function SecurityPage() {
         <p>
           Authorized workspace deletion removes supported live workspace records
           and files. Backups, replicas, provider source records, and records needed
-          for legal or service purposes can have different retention cycles.
-          Details are in the <Link href="/privacy">Privacy Policy</Link> and
+          for legal or service purposes can have different retention cycles. Workspace
+          owners start permanent deletion in Settings &gt; Delete workspace.
+          Details and exceptions are in the <Link href="/privacy">Privacy Policy</Link> and
           {" "}<Link href="/terms">Terms of Service</Link>.
         </p>
       </PolicySection>

@@ -1862,7 +1862,7 @@ function IndustryDashboard({
         <DashboardChartCard
           title={resolvedChartTitles.trend}
           dataLabel={dashboardConfig.trendDataLabel}
-          description={dashboardConfig.trendDescription}
+          description={demoMode && chartTitles?.trend && !dashboardConfig.trendStatus ? "" : dashboardConfig.trendDescription}
           status={dashboardConfig.trendStatus}
           canFullscreen={dashboardConfig.trendData.length > 0}
           exportMode={exportMode}
@@ -1941,7 +1941,7 @@ function IndustryDashboard({
         <DashboardChartCard
           title={resolvedChartTitles.mix}
           dataLabel={dashboardConfig.mixDataLabel}
-          description={dashboardConfig.mixDescription}
+          description={demoMode && chartTitles?.mix && !dashboardConfig.mixStatus ? "" : dashboardConfig.mixDescription}
           status={dashboardConfig.mixStatus}
           className="dashboard-export-donut-card"
           canFullscreen={dashboardMixData.length > 0}
@@ -1984,7 +1984,7 @@ function IndustryDashboard({
         <DashboardChartCard
           title={resolvedChartTitles.operations}
           dataLabel={dashboardConfig.operationsDataLabel}
-          description={dashboardConfig.operationsDescription}
+          description={demoMode && chartTitles?.operations && !dashboardConfig.operationsStatus ? "" : dashboardConfig.operationsDescription}
           status={dashboardConfig.operationsStatus}
           className="xl:!h-full"
           canFullscreen={dashboardConfig.operationsData.length > 0}

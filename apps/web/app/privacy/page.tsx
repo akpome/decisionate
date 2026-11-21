@@ -24,7 +24,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       description="What information we handle, why we use it, how long we keep it, and how to request access, correction, or deletion."
-      updated="October 23, 2026"
+      updated="November 21, 2026"
     >
       <PolicySection title="1. Scope and responsibility">
         <p>
@@ -256,12 +256,22 @@ export default function PrivacyPage() {
           when you no longer want those retained.
         </p>
         <p>
-          Authorized workspace deletion removes supported live workspace records
-          and data files. Account, billing, security, and support records may need
-          to be retained for their service purpose, legal obligations, or disputes.
-          Backups, replicas, and storage versioning can have separate retention
-          cycles. Deleting live data is not a promise of immediate erasure of every
-          backup copy, and provider source records remain subject to the provider&apos;s terms.
+          A workspace owner can start permanent deletion from Settings &gt; Delete
+          workspace. Export anything you need first. If a paid subscription is active,
+          cancel it in Billing and wait for it to end. Agency owners unlink or remove
+          client workspaces first; paused client owners unlink from the agency first.
+          Deleting one workspace does not delete other workspaces or your Clerk
+          sign-in. To request deletion of personal information outside a workspace,
+          contact us even if you no longer have access to the app.
+        </p>
+        <p>
+          Deletion removes supported live workspace records, files, and share links.
+          Billing, security, or support records may be kept where needed for legal
+          obligations, disputes, or other stated service purposes. Backups, replicas,
+          and versioned storage copies
+          follow their separate retention cycles, and the original records at your
+          connected providers are not changed. Deletion does not recall emails or
+          downloads that recipients already have.
         </p>
       </PolicySection>
 

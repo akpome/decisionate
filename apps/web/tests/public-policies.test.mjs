@@ -51,7 +51,7 @@ test("all policies match connector and expiry retention constants", () => {
   assert.match(expiry, /SUBSCRIPTION_EXPIRY_DATA_PURGE_DAYS = 89/)
   assert.match(expiry, /SUBSCRIPTION_CANCELLATION_DATA_PURGE_DAYS = 90/)
   for (const { name, source } of policies) {
-    assert.ok(source.includes('updated="October 23, 2026"'), name)
+    assert.ok(source.includes('updated="November 21, 2026"'), name)
     assert.match(source, /three years, then deleted/, name)
     assert.match(source, /three calendar years/, name)
     assert.doesNotMatch(source, /preceding 35 months/, name)
@@ -62,6 +62,17 @@ test("all policies match connector and expiry retention constants", () => {
     assert.match(source, /Backups, replicas/, name)
     assert.doesNotMatch(source, /yearly historical summary partitions|kept raw for 24 months|permanent historical analysis/, name)
   }
+})
+
+test("policies and Help identify owner-led workspace deletion without promising immediate backup erasure", () => {
+  for (const { name, source } of policies) {
+    assert.match(source, /Settings.*Delete workspace/, name)
+  }
+  assert.match(policies[0].source, /does not delete other workspaces or your Clerk sign-in/)
+  assert.match(policies[0].source, /follow their separate retention cycles/)
+  const help = read("../app/dashboard/help/page.tsx")
+  assert.match(help, /type the workspace name, then choose Permanently delete/)
+  assert.match(help, /Do not send the token or a working share URL/)
 })
 
 test("policies distinguish private workspaces, public shares, and prepared demo data", () => {

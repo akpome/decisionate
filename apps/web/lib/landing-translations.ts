@@ -5,8 +5,15 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result.":
     "Vos ventes augmentent. Et vos bénéfices ? Rapprochez vos chiffres de vente, de marketing et de comptabilité pour répondre à ce type de question. Notez ce que vous allez essayer et la date à laquelle vous ferez le point.",
   "See Decisionate in action": "Découvrez Decisionate en action",
-  "Should we change our ad budget? Compare spending with customer numbers, choose what to test and set a date to review the result.":
-    "Faut-il revoir notre budget publicitaire ? Comparez les dépenses et le nombre de clients, choisissez ce que vous voulez tester et fixez une date pour faire le bilan.",
+  "See what earns its keep": "Voyez ce qui rapporte vraiment",
+  "Compare the sales recorded for each dollar spent, see what's left after costs, and check which metrics move together. Keep the comparison separate from what you decide to test.":
+    "Comparez les ventes enregistrées par dollar dépensé, voyez ce qui reste après les coûts et repérez les indicateurs qui évoluent ensemble. Distinguez la comparaison de ce que vous décidez de tester.",
+  "Save the evidence with your decision, set a review date, and record what happened. Get a weekly email when the latest report has enough data.":
+    "Associez les résultats à votre décision, fixez une date de révision et notez ce qui s'est passé. Recevez un courriel hebdomadaire lorsque le dernier rapport dispose de suffisamment de données.",
+  "Which ads earned more per dollar? See the numbers, choose one change to test, and decide when to review it.":
+    "Quelles publicités rapportent le plus par dollar ? Examinez les chiffres, choisissez un changement à tester et fixez une date de révision.",
+  "Trends": "Tendances",
+  "Ad returns": "Rendement publicitaire",
   "For agencies": "Pour les agences",
   "For businesses": "Pour les entreprises",
   "Which products are worth promoting?":
@@ -128,14 +135,14 @@ export const refreshedLandingFrench: Record<string, string> = {
   "A few practical questions.": "Quelques questions pratiques.",
   "How long is connector data kept?":
     "Combien de temps les données des connecteurs sont-elles conservées ?",
-  "Decisionate analyzes business performance across datasets. Reports brings selected metrics, relationships and unusual changes together; dashboards inspect individual datasets, Forecasts projects selected time series, and Decisions tracks the actions you choose and their outcomes.":
-    "Decisionate analyse la performance entre jeux de données. Rapports réunit les mesures choisies, les relations et les variations inhabituelles ; les tableaux de bord examinent chaque jeu de données, Prévisions projette les séries temporelles choisies et Décisions suit les actions retenues et leurs résultats.",
+  "Use Business Analysis to compare metrics, check ad returns and profitability, or assess a change you made. Dashboards help you monitor performance, Forecasts shows what might come next, and Decisions keeps track of what you tried and what happened.":
+    "Dans Analyse d'entreprise, comparez les indicateurs, mesurez le rendement publicitaire et la rentabilité, ou évaluez un changement. Les tableaux de bord suivent la performance, Prévisions indique ce qui pourrait suivre, et Décisions consigne les essais et leurs résultats.",
   "The integrations above reflect the current connector catalog. Sage Cloud Accounting and Zoho Books are supported. Connecting a provider requires an authorized account and any required provider approvals. Google Business Profile is pending provider approval.":
     "Les intégrations ci-dessus reflètent le catalogue actuel. Sage Cloud Accounting et Zoho Books sont pris en charge. Une connexion nécessite un compte autorisé et les approbations du fournisseur. Google Business Profile attend l'approbation du fournisseur.",
   "Yes. Upload CSV, Excel, JSON or Parquet files, then choose metrics and a date column. Filter by selected unique values in a dimension column, such as a channel or product category, where those fields are available. You do not need to connect an external service to get started.":
     "Oui. Importez des fichiers CSV, Excel, JSON ou Parquet, puis choisissez les mesures et une colonne de dates. Filtrez par les valeurs uniques choisies dans une colonne de dimension, comme un canal ou une catégorie de produits, si ces champs sont disponibles. Aucun service externe n'est nécessaire pour commencer.",
-  "Yes. In Reports, select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Compare indexed trends on a shared baseline of 100 and set timing directions for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action.":
-    "Oui. Dans Rapports, choisissez des mesures de deux jeux de données ou plus, les colonnes de dates et filtres de dimension de chaque source, puis alignez leurs périodes. Comparez les tendances indexées sur une base commune de 100 et définissez le sens temporel de chaque paire de mesures. Les relations montrent des associations, pas une preuve de causalité. Créer un rapport ne consigne pas automatiquement une action professionnelle.",
+  "Yes. In Business Analysis, choose Compare metrics, then Multi-dataset report. Select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Indexed trends use a shared baseline of 100. Turn on relationship analysis to check timing for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action.":
+    "Oui. Dans Analyse d'entreprise, choisissez Comparer les indicateurs, puis Rapport multi-jeux de données. Choisissez des mesures de deux jeux de données ou plus, les colonnes de dates et filtres de dimension de chaque source, puis alignez leurs périodes. Les tendances indexées utilisent une base commune de 100. Activez l'analyse des relations pour vérifier le décalage de chaque paire d'indicateurs. Une association ne prouve pas une causalité. Un rapport ne consigne pas automatiquement une action.",
   "Forecasts use your selected metric, date column, dimension filters and aggregation settings. Reports can include AI-assisted interpretation of analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome.":
     "Les prévisions utilisent la mesure, la colonne de dates, les filtres de dimension et l'agrégation choisis. Les rapports peuvent inclure une interprétation assistée par IA des résumés analytiques et de l'historique pertinent des décisions. Aucun résultat n'est garanti.",
   "Do reports and forecasts account for seasonality?":
@@ -152,8 +159,11 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Oui. Les propriétaires d'agence gèrent les espaces clients distincts, la marque et les accès. Les clients voient les données et actions permises par leur rôle dans leur propre espace.",
   "Where supported, imports start with 90 days and load older available history in background chunks, up to three years. Provider permissions and history limits can reduce coverage. Connector data is kept for three years, then deleted on a rolling basis. Deleting a saved report does not delete its source datasets or linked decisions; see the Privacy Policy for details.":
     "Lorsque la source le permet, les imports commencent par 90 jours, puis chargent l'historique disponible par lots en arrière-plan, jusqu'à trois ans. Les autorisations et limites du fournisseur peuvent réduire la couverture. Les données des connecteurs sont conservées trois ans, puis supprimées selon une fenêtre glissante. Supprimer un rapport enregistré ne supprime ni ses données sources ni les décisions liées ; consultez la politique de confidentialité.",
-  "Yes. Explore the dashboards without signing in using prepared sample datasets. The public demo is read-only; it does not allow uploads, deletions or creating decisions.":
-    "Oui. Explorez les tableaux de bord sans connexion avec des données de démonstration. La démo publique est en lecture seule : aucun import, suppression ou création de décision.",
+  "Can I delete my workspace?": "Puis-je supprimer mon espace de travail ?",
+  "Workspace owners can start permanent deletion from Settings. Export what you need first, cancel any active paid subscription, and remove or unlink managed client workspaces. See the Privacy Policy for details and how to make a personal information request.":
+    "Les propriétaires peuvent lancer la suppression définitive depuis les paramètres. Exportez d'abord ce dont vous avez besoin, annulez tout abonnement payant actif et retirez ou dissociez les espaces clients gérés. Consultez la politique de confidentialité pour les détails et les demandes relatives aux renseignements personnels.",
+  "Yes. Explore dashboards, compare sample ad returns, and see the decision those numbers could support. The demo is read-only and uses sample data; it does not change a workspace or place ads.":
+    "Oui. Explorez les tableaux de bord, comparez le rendement publicitaire fictif et voyez quelle décision ces chiffres pourraient éclairer. La démo est en lecture seule : elle ne modifie aucun espace et ne diffuse aucune publicité.",
   "Contact support@decisionate.ca or use Help & Support in the application. You can report an issue, request a feature or review the product guide.":
     "Contactez support@decisionate.ca ou utilisez Aide et soutien dans l'application. Signalez un problème, demandez une fonctionnalité ou consultez le guide du produit.",
   "Bring your next decision into focus.": "Clarifiez votre prochaine décision.",

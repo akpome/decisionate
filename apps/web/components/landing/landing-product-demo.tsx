@@ -9,11 +9,11 @@ import { useLandingText } from "@/app/use-decisionate-language"
 export const productDemoChapters = [
   {
     time: 0,
-    label: "Connect"
+    label: "Trends"
   },
   {
     time: 10,
-    label: "Analyze"
+    label: "Ad returns"
   },
   {
     time: 24,
@@ -87,7 +87,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
             {t("See Decisionate in action")}
           </h2>
           <p className="landing-demo-summary text-neutral-600">
-            {t("Should we change our ad budget? Compare spending with customer numbers, choose what to test and set a date to review the result.")}
+            {t("Which ads earned more per dollar? See the numbers, choose one change to test, and decide when to review it.")}
           </p>
         </div>
         <div className="landing-demo-frame">
@@ -166,7 +166,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
                 <span className="mb-1 block text-xs font-normal tabular-nums text-neutral-500">
                   0:{String(item.time).padStart(2, "0")}
                 </span>
-                <span className="block whitespace-nowrap">{t(item.label)}</span>
+                <span className="block">{t(item.label)}</span>
               </button>
             ))}
           </div>

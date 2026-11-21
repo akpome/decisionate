@@ -13,15 +13,15 @@ export default function TermsPage() {
       eyebrow="Legal"
       title="Terms of Service"
       description="The rules for using Decisionate, including your data, workspace permissions, paid services, and retention."
-      updated="October 23, 2026"
+      updated="November 21, 2026"
     >
       <PolicySection title="1. Using Decisionate">
         <p>
           These terms apply to the Decisionate website, web application, and
           related services (&quot;Decisionate&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
-          Decisionate helps businesses and agencies connect data, analyze
-          performance across datasets in Reports, inspect individual datasets,
-          generate forecasts, record decisions, and review outcomes. By creating an
+          Decisionate helps businesses and agencies connect data, compare
+          performance in Business Analysis, review weekly changes, plan budgets,
+          record decisions, and check their outcomes. By creating an
           account or using the service, you agree to these terms. If you act for
           an organization, you must have authority to do so.
         </p>
@@ -199,7 +199,13 @@ export default function TermsPage() {
           does not recall previously downloaded files or delivered emails.
         </p>
         <p>
-          Authorized workspace deletion removes supported live records and files.
+          Workspace owners can start permanent deletion in Settings under
+          <strong> Delete workspace</strong>. You must confirm the workspace name,
+          cancel any active paid subscription and wait for it to end, and remove or
+          unlink any client workspaces you manage. A paused client owner must
+          first unlink the workspace from their agency. An agency cannot delete
+          an accepted client-owned workspace on the client&apos;s behalf.
+          Workspace deletion removes supported live records, files, and share links.
           Backups, replicas, provider source records, and records required for legal
           or service purposes can have different retention periods. Available
           exports follow workspace permissions; supported decision exports are

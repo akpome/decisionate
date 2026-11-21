@@ -62,7 +62,7 @@ export const faqs = [
   {
     question: "What is Decisionate?",
     answer:
-      "Decisionate analyzes business performance across datasets. Reports brings selected metrics, relationships and unusual changes together; dashboards inspect individual datasets, Forecasts projects selected time series, and Decisions tracks the actions you choose and their outcomes."
+      "Use Business Analysis to compare metrics, check ad returns and profitability, or assess a change you made. Dashboards help you monitor performance, Forecasts shows what might come next, and Decisions keeps track of what you tried and what happened."
   },
   {
     question: "Which connectors are available?",
@@ -77,7 +77,7 @@ export const faqs = [
   {
     question: "Can I combine data from more than one dataset?",
     answer:
-      "Yes. In Reports, select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Compare indexed trends on a shared baseline of 100 and set timing directions for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action."
+      "Yes. In Business Analysis, choose Compare metrics, then Multi-dataset report. Select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Indexed trends use a shared baseline of 100. Turn on relationship analysis to check timing for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action."
   },
   {
     question: "How do AI recommendations and forecasts work?",
@@ -111,9 +111,15 @@ export const faqs = [
     link: { href: "/privacy", label: "Privacy Policy" }
   },
   {
+    question: "Can I delete my workspace?",
+    answer:
+      "Workspace owners can start permanent deletion from Settings. Export what you need first, cancel any active paid subscription, and remove or unlink managed client workspaces. See the Privacy Policy for details and how to make a personal information request.",
+    link: { href: "/privacy", label: "Privacy Policy" }
+  },
+  {
     question: "Is there a live demo?",
     answer:
-      "Yes. Explore the dashboards without signing in using prepared sample datasets. The public demo is read-only; it does not allow uploads, deletions or creating decisions.",
+      "Yes. Explore dashboards, compare sample ad returns, and see the decision those numbers could support. The demo is read-only and uses sample data; it does not change a workspace or place ads.",
     link: { href: "/demo", label: "Open the live demo" }
   },
   {

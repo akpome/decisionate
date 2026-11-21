@@ -55,15 +55,15 @@ action.
 Any active workspace subscription must finish cancellation in Billing first;
 scheduling cancellation for a future date is not enough. Agency owners must
 remove or unlink their client workspaces before deleting their agency workspace.
-Accepted clients retain their own workspaces and data. Linked client owners must
-unlink their agency first, then use their existing Delete workspace option.
+Accepted clients retain their own workspaces and data. A paused client owner
+first unlinks from the agency, then uses the Delete workspace option.
 Running imports, analysis or AI requests must finish before deletion can proceed.
 
 Deletion permanently removes the selected workspace's datasets, connections,
 reports, decisions, access and shared links. Other workspaces are not deleted.
-After success you are signed out; an internal app account with no other workspaces
-is removed. Your external sign-in provider account is not deleted by this action.
-This does not make a separate assurance about provider records or backup policies.
+After success you are signed out. Your external sign-in provider account is not
+deleted by this action. Provider data and copies already emailed or downloaded
+are not recalled, and backups follow their separate retention cycles.
 
 Use authorized support for an export, deletion or privacy request that is not
 covered by self-service controls. Do not send credentials or unnecessary customer
