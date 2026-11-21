@@ -139,7 +139,7 @@ test("connector guidance matches the current 90-day initial request and bounded 
   assert.match(text, /rolling three years/)
   assert.match(text, /at most 30 days/)
   assert.match(text, /Manual date ranges longer than 90 days/)
-  assert.match(text, /older than the rolling three-year retention boundary is deleted/)
+  assert.match(text, /Connector records older than three years are removed by source date where available, even after you disconnect/)
   assert.match(read("../../api/app/modules/datasets/router.py"), /INITIAL_CONNECTOR_SYNC_DAYS = 90/)
   assert.match(read("../../api/app/modules/datasets/router.py"), /INITIAL_CONNECTOR_BACKFILL_MONTHS = 36/)
 })

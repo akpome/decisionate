@@ -26,6 +26,17 @@ export type DataSourceConnectionFeedback = {
   token: number
 }
 
+const noticeColor = {
+  error: "text-red-700",
+  no_data: "text-amber-700",
+  success: "text-green-700",
+  progress: "text-blue-700",
+}
+
+function connectionNoticeKey(message: string) {
+  return message.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "").toLowerCase()
+}
+
 export const REQUIRED_CONNECTION_CONFIG_KEYS: Record<
   string,
   string[]
@@ -628,60 +639,37 @@ function DataSourceConnectionRow({
   ].includes(connection.initial_sync_status ?? "")
   const historicalImportInProgress =
     connection.initial_sync_status === "backfill"
-  const ingestionJobIsActive = [
-    "queued",
-    "running",
-  ].includes(connection.ingestion_job?.status ?? "")
+  const job = connection.ingestion_job
+  const ingestionInProgress =
+    ["queued", "running"].includes(job?.status ?? "") &&
+    job?.job_type !== "connector_analysis"
   const initialImportInProgress =
     initialImportPhase &&
-    ingestionJobIsActive &&
+    ingestionInProgress &&
     !connection.authorization_error &&
     !connection.initial_sync_message
-  const initialSyncInProgress =
-    initialImportInProgress || historicalImportInProgress
-  const initialSyncCompleted =
-    connection.initial_sync_status === "complete" ||
-    (!connection.initial_sync_status &&
-      Boolean(connection.last_synced_at))
-  const ingestionInProgress = [
-    "queued",
-    "running",
-  ].includes(connection.ingestion_job?.status ?? "") &&
-    connection.ingestion_job?.job_type !==
-      "connector_analysis"
   const analysisInProgress = [
     "pending",
     "running",
   ].includes(connection.analysis_status ?? "")
-  // Initial import summaries and job results can contain the same message.
-  // Put failures first so a repeated warning cannot hide an error.
-  const syncNotices = [
-    {
-      error: true,
-      message: connection.initial_sync_status === "failed"
-        ? connection.initial_sync_error?.trim()
-        : undefined,
-    },
-    {
-      error: true,
-      message: connection.ingestion_job?.status === "failed"
-        ? connection.ingestion_job.error_message?.trim()
-        : undefined,
-    },
-    { error: false, message: connection.initial_sync_message?.trim() },
-    {
-      error: false,
-      message: connection.ingestion_job?.status === "no_data"
-        ? connection.ingestion_job.job_type === "connector_range_sync"
-          ? t("No data was returned for the latest import chunk.")
-          : connection.ingestion_job.error_message?.trim() ||
-            `No ${connection.source_label} data was found for the selected period.`
-        : undefined,
-    },
-  ].filter((notice, index, notices) =>
-    notice.message &&
-    notices.findIndex(candidate => candidate.message === notice.message) === index
-  )
+  let progressMessage: string | undefined
+  if (initialImportInProgress) {
+    progressMessage = t(
+      `Initial import is running. The most recent ${connection.initial_sync_days ?? 90} days will appear first, followed by historical data in the background.`
+    )
+  } else if (historicalImportInProgress || (ingestionInProgress && job?.job_type === "initial_connector_backfill")) {
+    progressMessage = t(
+      "Initial import is complete. Additional historical data is being imported in the background."
+    )
+  } else if (ingestionInProgress) {
+    progressMessage = job?.status === "queued"
+      ? t("Data ingestion is queued and will run in the background.")
+      : t("Data ingestion is running in the background.")
+  } else if (analysisInProgress) {
+    progressMessage = t(
+      "Historical data is ready. Dataset analysis is running in the background."
+    )
+  }
   const isSageConnector =
     connection.source_type === "sage"
   const requiresOAuthAccountSelection =
@@ -755,21 +743,22 @@ function DataSourceConnectionRow({
     (!showOAuthAccountSelection ||
       hasSelectedOAuthAccount) &&
     Boolean(onSyncConnection)
-  const canShowAdvancedDateRange =
-    canSyncConnector &&
-    initialSyncCompleted &&
-    !ingestionInProgress
-  const canUseAdvancedDateRange =
-    canShowAdvancedDateRange &&
-    source?.status === "available" &&
-    stripeKeyConfigured &&
-    hasRequiredConnectionConfig &&
-    (source?.connection_type !== "oauth" ||
-      connection.status === "connected") &&
-    (!hasResourceSelection ||
-      selectedResourceTypes.length > 0) &&
-    (!showOAuthAccountSelection ||
-      hasSelectedOAuthAccount)
+  const canShowAdvancedDateRange = Boolean(onSyncConnection)
+  const importBusy =
+    initialImportPhase || historicalImportInProgress || ingestionInProgress ||
+    syncingConnectionId === connection.id
+  const canSubmitSync =
+    canSyncConnector && !importBusy && updatingConnectionId !== connection.id
+  const advancedSyncNote =
+    !advancedDateRangeSupported || source?.status !== "available"
+      ? t("Manual sync is unavailable for this connection.")
+      : !canSyncConnector
+        ? t("Complete this connection's setup before syncing.")
+        : importBusy
+          ? t("Wait for the current import to finish.")
+          : updatingConnectionId === connection.id
+            ? t("Wait for the connection settings to finish saving.")
+            : t("Manual recovery can cover the initial import history.")
   const canStartOAuth =
     source?.connection_type === "oauth" &&
     source.status === "available" &&
@@ -782,11 +771,46 @@ function DataSourceConnectionRow({
     source?.connection_type === "oauth" &&
     connection.status === "connected" &&
     Boolean(onCancelOAuthAuthorization)
+  const authorizationError = connection.authorization_error?.trim()
   const isShopifyProtectedCustomerDataError =
     connection.source_type === "shopify" &&
     /protected customer data|not approved to access (rest endpoints|order object|customer object)/i.test(
-      connection.authorization_error ?? ""
+      authorizationError ?? ""
     )
+  const authorizationMessage = isShopifyProtectedCustomerDataError
+    ? t("Shopify has not approved this app to access protected customer data.")
+    : authorizationError
+  const initialSyncMessage = connection.initial_sync_message?.trim()
+  const noDataMessage = job?.status === "no_data"
+    ? job.error_message?.trim() || (!initialSyncMessage
+      ? job.job_type === "connector_range_sync"
+        ? t("No data was returned for the latest import chunk.")
+        : `No ${connection.source_label} data was found for the selected period.`
+      : undefined)
+    : undefined
+  const feedbackMessage = connectionFeedback?.message
+  const noticeCandidates: [keyof typeof noticeColor, string | null | undefined][] = [
+    ["error", connection.initial_sync_status === "failed" ? connection.initial_sync_error : undefined],
+    ["error", job?.status === "failed" ? job.error_message : undefined],
+    ["error", connectionFeedback?.tone === "error" ? feedbackMessage : undefined],
+    ["no_data", initialSyncMessage],
+    ["no_data", noDataMessage],
+    ["no_data", connectionFeedback?.tone === "no_data" ? feedbackMessage : undefined],
+    ["success", connectionFeedback?.tone === "success" ? feedbackMessage : undefined],
+    ["progress", progressMessage],
+  ]
+  // Show each notice once, preferring the authorization alert and then errors.
+  const seenNotices = new Set([authorizationError, authorizationMessage].map(
+    (message) => connectionNoticeKey(message ?? "")
+  ))
+  const notices = noticeCandidates.flatMap(([tone, rawMessage]) => {
+    const message = rawMessage?.trim()
+    if (!message) return []
+    const key = connectionNoticeKey(message)
+    if (seenNotices.has(key)) return []
+    seenNotices.add(key)
+    return [{ key, message, tone }]
+  })
   const canSchedule =
     source?.sync_modes?.includes("scheduled") === true &&
     Boolean(onUpdateSchedule) &&
@@ -821,6 +845,7 @@ function DataSourceConnectionRow({
   }
 
   function syncConnection(advancedDateRange = false) {
+    if (!canSubmitSync) return
     if (advancedDateRange) {
       const bounds = getAdvancedSyncDateBounds(connection)
       if (!advancedStartDate || !advancedEndDate) {
@@ -1024,61 +1049,17 @@ function DataSourceConnectionRow({
           )}
         </p>
 
-        {initialImportInProgress && (
+        {notices.map(({ key, message, tone }) => (
           <p
-            className="mt-2 break-words text-xs text-blue-700"
-            role="status"
+            key={key}
+            className={`mt-2 break-words text-xs ${noticeColor[tone]}`}
+            role={tone === "error" ? "alert" : "status"}
           >
-            {t(
-              `Initial import is running. The most recent ${connection.initial_sync_days ?? 90} days will appear first, followed by historical data in the background.`
-            )}
+            {message}
           </p>
-        )}
+        ))}
 
-        {ingestionInProgress && (
-          <p
-            className="mt-2 break-words text-xs text-blue-700"
-            role="status"
-          >
-            {connection.ingestion_job?.job_type ===
-              "initial_connector_backfill"
-              ? t(
-                  "Initial import is complete. Additional historical data is being imported in the background."
-                )
-              : connection.ingestion_job?.status === "queued"
-                ? t("Data ingestion is queued and will run in the background.")
-                : t("Data ingestion is running in the background.")}
-          </p>
-        )}
-
-        {analysisInProgress && (
-          <p
-            className="mt-2 break-words text-xs text-blue-700"
-            role="status"
-          >
-            {t(
-              "Historical data is ready. Dataset analysis is running in the background."
-            )}
-          </p>
-        )}
-
-        {syncNotices.map(notice => {
-          const isError = notice.error || (
-            connectionFeedback?.tone === "error" &&
-            connectionFeedback.message.trim() === notice.message
-          )
-          return (
-            <p
-              key={notice.message}
-              className={`mt-2 break-words text-xs ${isError ? "text-red-700" : "text-amber-700"}`}
-              role={isError ? "alert" : "status"}
-            >
-              {notice.message}
-            </p>
-          )
-        })}
-
-        {connection.authorization_error && (
+        {authorizationMessage && (
           <div
             role="alert"
             className="mt-3 min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
@@ -1089,11 +1070,7 @@ function DataSourceConnectionRow({
                 : t("Authorization requires attention")}
             </p>
             <p className="mt-1 break-words">
-              {isShopifyProtectedCustomerDataError
-                ? t(
-                    "Shopify has not approved this app to access protected customer data."
-                  )
-                : connection.authorization_error}
+              {authorizationMessage}
             </p>
             {canStartOAuth && (
               <p className="mt-1">
@@ -1159,14 +1136,7 @@ function DataSourceConnectionRow({
                   onClick={() =>
                     syncConnection()
                   }
-                  disabled={
-                    syncingConnectionId ===
-                      connection.id ||
-                    updatingConnectionId ===
-                      connection.id ||
-                    initialSyncInProgress ||
-                    ingestionInProgress
-                  }
+                  disabled={!canSubmitSync}
                   className="rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {syncingConnectionId ===
@@ -1258,7 +1228,7 @@ function DataSourceConnectionRow({
                         </label>
                       </div>
                       <p className="mt-2 text-xs text-gray-500">
-                        {t("Manual recovery can cover the initial import history.")}
+                        {advancedSyncNote}
                       </p>
                       {advancedDateError && (
                         <p className="mt-2 text-xs text-red-700" role="alert">
@@ -1268,13 +1238,7 @@ function DataSourceConnectionRow({
                       <button
                         type="button"
                         onClick={() => syncConnection(true)}
-                        disabled={
-                          syncingConnectionId === connection.id ||
-                          updatingConnectionId === connection.id ||
-                          initialSyncInProgress ||
-                          ingestionInProgress ||
-                          !canUseAdvancedDateRange
-                        }
+                        disabled={!canSubmitSync}
                         className="mt-3 w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {syncingConnectionId === connection.id
@@ -1803,24 +1767,6 @@ function DataSourceConnectionRow({
           </div>
         )}
 
-      {connectionFeedback && !syncNotices.some(notice => notice.message === connectionFeedback.message.trim()) && (
-        <div
-          role={
-            connectionFeedback.tone === "error"
-              ? "alert"
-              : "status"
-          }
-          className={
-            connectionFeedback.tone === "success"
-              ? "min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
-              : connectionFeedback.tone === "no_data"
-                ? "min-w-0 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800"
-                : "min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-          }
-        >
-          {connectionFeedback.message}
-        </div>
-      )}
     </article>
   )
 }

@@ -175,6 +175,7 @@ export default function ConnectionsPage() {
   const { activeWorkspaceId } = useActiveWorkspace(user?.id)
   const {
     canConfigureWorkspace,
+    canManageWorkspaceData,
     canViewConnections,
     loadingWorkspaceAccess,
   } = useWorkspaceAccess(user?.id)
@@ -215,6 +216,7 @@ export default function ConnectionsPage() {
       key={JSON.stringify([user?.id, activeWorkspaceId])}
       activeWorkspaceId={activeWorkspaceId}
       canConfigureWorkspace={canConfigureWorkspace}
+      canSyncConnections={canManageWorkspaceData}
       canViewConnections={canViewConnections}
       loadingWorkspaceAccess={loadingWorkspaceAccess}
     />
@@ -224,11 +226,13 @@ export default function ConnectionsPage() {
 function ConnectionsPageContent({
   activeWorkspaceId,
   canConfigureWorkspace,
+  canSyncConnections,
   canViewConnections,
   loadingWorkspaceAccess,
 }: {
   activeWorkspaceId: string
   canConfigureWorkspace: boolean
+  canSyncConnections: boolean
   canViewConnections: boolean
   loadingWorkspaceAccess: boolean
 }) {
@@ -256,8 +260,6 @@ function ConnectionsPageContent({
     setSyncingConnectionId,
   ] = useState<number | null>(null)
   const [connectionError, setConnectionError] =
-    useState("")
-  const [connectionNotice, setConnectionNotice] =
     useState("")
   const [connectionFeedback, setConnectionFeedback] =
     useState<
@@ -367,7 +369,6 @@ function ConnectionsPageContent({
 
     setCreatingSourceType(source.type)
     setConnectionError("")
-    setConnectionNotice("")
 
     try {
       const connection =
@@ -415,7 +416,7 @@ function ConnectionsPageContent({
 
     setDeletingConnectionId(connection.id)
     setConnectionError("")
-    setConnectionNotice("")
+    clearConnectionFeedback(connection.id)
 
     try {
       await deleteDataSourceConnection(
@@ -477,11 +478,10 @@ function ConnectionsPageContent({
     connection: DataSourceConnection,
     payload: DataSourceConnectionSyncPayload
   ) {
-    if (!user?.id) return
+    if (!user?.id || !canSyncConnections) return
 
     setSyncingConnectionId(connection.id)
     setConnectionError("")
-    setConnectionNotice("")
     clearConnectionFeedback(connection.id)
 
     try {
@@ -494,11 +494,6 @@ function ConnectionsPageContent({
         )
 
       if (result.status === "queued" && result.job_id) {
-        showConnectionFeedback(
-          connection.id,
-          "success",
-          `${connection.source_label} sync queued. Data will appear when processing completes.`
-        )
         await loadConnections()
         return
       }
@@ -582,7 +577,7 @@ function ConnectionsPageContent({
 
     setOAuthConnectionId(connection.id)
     setConnectionError("")
-    setConnectionNotice("")
+    clearConnectionFeedback(connection.id)
     try {
       const result = await startOAuthConnection(
         connection.id,
@@ -610,20 +605,24 @@ function ConnectionsPageContent({
 
     setUpdatingConnectionId(connection.id)
     setConnectionError("")
-    setConnectionNotice("")
+    clearConnectionFeedback(connection.id)
     try {
       await cancelOAuthAuthorization(
         connection.id,
         user.id,
         activeWorkspaceId
       )
-      setConnectionNotice(
-        `Authorization cancelled for ${connection.display_name}.`
-      )
       await loadConnections()
+      showConnectionFeedback(
+        connection.id,
+        "success",
+        t("Authorization cancelled.")
+      )
     } catch (error) {
-      setConnectionError(
-        getErrorMessage(
+      showConnectionFeedback(
+        connection.id,
+        "error",
+        getCustomerFacingConnectionError(
           error,
           "Could not cancel connector authorization."
         )
@@ -699,6 +698,7 @@ function ConnectionsPageContent({
     if (!user?.id) return
     setUpdatingConnectionId(connection.id)
     setConnectionError("")
+    clearConnectionFeedback(connection.id)
     try {
       const updatedConnection =
         await updateDataSourceConnectionSchedule(
@@ -721,8 +721,10 @@ function ConnectionsPageContent({
         )
       )
     } catch (error) {
-      setConnectionError(
-        getErrorMessage(
+      showConnectionFeedback(
+        connection.id,
+        "error",
+        getCustomerFacingConnectionError(
           error,
           "Could not update connector schedule."
         )
@@ -742,6 +744,7 @@ function ConnectionsPageContent({
 
     setUpdatingConnectionId(connection.id)
     setConnectionError("")
+    clearConnectionFeedback(connection.id)
 
     try {
       const updatedConnection =
@@ -765,8 +768,10 @@ function ConnectionsPageContent({
 
       await loadConnections()
     } catch (error) {
-      setConnectionError(
-        getErrorMessage(
+      showConnectionFeedback(
+        connection.id,
+        "error",
+        getCustomerFacingConnectionError(
           error,
           fallbackMessage
         )
@@ -949,15 +954,6 @@ function ConnectionsPageContent({
         </div>
       )}
 
-      {canConfigureWorkspace && connectionNotice && (
-        <div
-          role="status"
-          className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
-        >
-          {connectionNotice}
-        </div>
-      )}
-
       {!loadingWorkspaceAccess &&
         canConfigureWorkspace && (
         <section aria-labelledby="data-sources-heading">
@@ -1009,7 +1005,9 @@ function ConnectionsPageContent({
           <p className="mb-4 mt-2 text-sm text-gray-500">
             {canConfigureWorkspace
               ? "Finish setup for added connectors by providing the account, query, or authorization details needed for dataset pulls."
-              : "Review the external data source connections available to this workspace. Configuration and synchronization are managed by the business owner."}
+              : canSyncConnections
+                ? "Review and sync the connections available to this workspace."
+                : "Review the external data source connections available to this workspace."}
           </p>
 
           <DataSourceConnections
@@ -1044,7 +1042,7 @@ function ConnectionsPageContent({
                 : undefined
             }
             onSyncConnection={
-              canConfigureWorkspace
+              canSyncConnections
                 ? handleSyncSourceConnection
                 : undefined
             }

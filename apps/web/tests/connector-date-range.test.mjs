@@ -141,8 +141,10 @@ test("identical initial-import and job warnings are shown only once", () => {
 })
 
 test("duplicate notices are compared after trimming whitespace", () => {
-  const view = harness("meta_ads", { initial_sync_message: ` ${noMetaData}\n`, ingestion_job: { status: "no_data", error_message: `\n${noMetaData} ` } })
+  const variant = noMetaData.replace("returned no records", "returned   no records").slice(0, -1)
+  const view = harness("meta_ads", { initial_sync_message: ` ${noMetaData}\n`, ingestion_job: { status: "no_data", error_message: `\n${variant} ` } })
   assert.equal(view.statuses().filter(message => message === noMetaData).length, 1)
+  assert.equal(view.statuses().length, 1)
 })
 
 test("different date-range warnings remain visible", () => {
@@ -192,6 +194,41 @@ test("repeated temporary error feedback retains its alert severity", () => {
 test("range-sync and missing-detail no-data fallbacks remain available", () => {
   assert.ok(harness("meta_ads", { ingestion_job: { status: "no_data", job_type: "connector_range_sync" } }).statuses().includes("No data was returned for the latest import chunk."))
   assert.ok(harness("meta_ads", { ingestion_job: { status: "no_data" } }).statuses().includes("No meta_ads data was found for the selected period."))
+})
+
+test("a range-sync job displays the actual warning rather than repeating it as a generic warning", () => {
+  for (const error_message of [noMetaData, undefined]) {
+    const view = harness("meta_ads", { initial_sync_message: noMetaData, ingestion_job: { status: "no_data", job_type: "connector_range_sync", error_message } })
+    assert.deepEqual(view.statuses(), [noMetaData])
+  }
+})
+
+test("a reconnect error repeated by the job and action is displayed only as the authorization alert", () => {
+  const message = "Access expired. Reconnect to import more data."
+  const view = harness("meta_ads", {
+    authorization_error: message,
+    initial_sync_status: "failed",
+    initial_sync_error: message,
+    initial_sync_message: message,
+    ingestion_job: { status: "failed", error_message: message },
+  }, { connectionFeedback: { 1: { tone: "error", message } } })
+  assert.equal(view.alerts().length, 1)
+  assert.equal(elements(view.alerts()[0], node => node.props.children === message).length, 1)
+  assert.equal(view.statuses().length, 0)
+})
+
+test("the card shows only the current stage of import or analysis", () => {
+  const view = harness("meta_ads", {
+    initial_sync_status: "initial", analysis_status: "running",
+    ingestion_job: { status: "running", job_type: "initial_connector_sync" },
+  })
+  assert.equal(view.statuses().length, 1)
+  assert.match(view.statuses()[0], /Initial import is running/)
+  view.connection.initial_sync_status = "complete"
+  view.connection.ingestion_job = { status: "queued", job_type: "manual_connector_sync" }
+  assert.deepEqual(view.statuses(), ["Data ingestion is queued and will run in the background."])
+  view.connection.ingestion_job = { status: "running", job_type: "connector_analysis" }
+  assert.deepEqual(view.statuses(), ["Historical data is ready. Dataset analysis is running in the background."])
 })
 
 test("polling replaces the old job message without retaining duplicate notices", () => {
@@ -268,6 +305,15 @@ for (const sourceType of connectorTypes) {
     assert.deepEqual(view.fields().map(field => field.props.value), dates)
   })
 
+  test(`${sourceType}: a configured connector can sync a range without a successful first import`, () => {
+    const view = harness(sourceType, { initial_sync_status: "failed" })
+    view.open()
+    assert.equal(view.submit().props.disabled, false)
+    view.submit().props.onClick()
+    assert.equal(view.calls.length, 1)
+    assert.equal(view.calls[0].payload.advanced_date_range, true)
+  })
+
   test(`${sourceType}: submitting a valid range closes immediately without waiting for the sync`, () => {
     const view = harness(sourceType)
     view.open()
@@ -286,6 +332,83 @@ for (const sourceType of connectorTypes) {
     assert.deepEqual(view.fields().map(field => field.props.value), [from, to])
   })
 }
+
+test("an active import does not hide the range or allow another sync to start", () => {
+  for (const state of [
+    { initial_sync_status: "pending" },
+    { initial_sync_status: "initial" },
+    { initial_sync_status: "backfill" },
+    { ingestion_job: { status: "queued", job_type: "manual_connector_sync" } },
+  ]) {
+    const view = harness("meta_ads", state)
+    view.open()
+    assert.equal(view.submit().props.disabled, true)
+    view.submit().props.onClick()
+    assert.equal(view.calls.length, 0)
+  }
+})
+
+test("an unconfigured or unavailable connector can open the date range but cannot sync it", () => {
+  const views = [
+    harness("meta_ads", { status: "needs_setup", has_config: false }),
+    harness("lightspeed_k", {}, { sources: [{ type: "lightspeed_k", status: "planned", connection_type: "oauth" }] }),
+  ]
+  for (const view of views) {
+    view.open()
+    assert.equal(view.fields().length, 2)
+    assert.equal(view.submit().props.disabled, true)
+    view.submit().props.onClick()
+    assert.equal(view.calls.length, 0)
+  }
+})
+
+test("a viewer without sync permission has no advanced date range action", () => {
+  assert.equal(harness("meta_ads", {}, { onSyncConnection: undefined }).trigger(), undefined)
+})
+
+test("Connections uses the workspace data permission for sync without granting setup access", async () => {
+  const page = readFileSync(new URL("../app/dashboard/connections/page.tsx", import.meta.url), "utf8")
+  const compiled = ts.transpileModule(page, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
+  }).outputText
+  const loaded = { exports: {} }
+  const ConnectionList = () => null
+  const calls = []
+  let access
+  const stubs = {
+    react: { ...React, useState: initial => [initial, () => {}], useEffect: () => {} },
+    "@clerk/nextjs": { useUser: () => ({ user: { id: "test-user" } }) },
+    "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: "test-workspace" }) },
+    "@/lib/use-workspace-access": { useWorkspaceAccess: () => access },
+    "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
+    "@/features/dashboard/components/dashboard-page-header": { DashboardPageHeader: () => null },
+    "@/features/datasets/components/data-source-connections": { DataSourceConnections: ConnectionList },
+    "@/features/datasets/components/data-source-panel": { DataSourcePanel: () => null },
+    "@/lib/api": {
+      syncDataSourceConnection: async (...args) => {
+        calls.push(args)
+        return { status: "queued", job_id: "test-job" }
+      },
+      getDataSourceConnections: async () => [],
+    },
+  }
+  vm.runInNewContext(compiled, {
+    module: loaded, exports: loaded.exports, require: name => stubs[name] ?? require(name),
+  })
+  for (const canConfigureWorkspace of [true, false]) {
+    access = { canConfigureWorkspace, canManageWorkspaceData: true, canViewConnections: true }
+    const content = loaded.exports.default()
+    const [list] = elements(content.type(content.props), node => node.type === ConnectionList)
+    assert.equal(typeof list.props.onSyncConnection, "function")
+    assert.equal(Boolean(list.props.onConfigureConnection), canConfigureWorkspace)
+    await list.props.onSyncConnection({ id: 1 }, { advanced_date_range: true })
+    assert.deepEqual(calls.at(-1), [1, "test-user", "test-workspace", { advanced_date_range: true }])
+  }
+  access = { canConfigureWorkspace: false, canManageWorkspaceData: false, canViewConnections: true }
+  const content = loaded.exports.default()
+  const [list] = elements(content.type(content.props), node => node.type === ConnectionList)
+  assert.equal(list.props.onSyncConnection, undefined)
+})
 
 test("initial import progress respects an explicit server window during rolling deployment", () => {
   const view = harness("meta_ads", { initial_sync_status: "initial", initial_sync_days: 60, ingestion_job: { status: "running", job_type: "initial_connector_sync" } })
