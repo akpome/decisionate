@@ -176,11 +176,12 @@
   flex-direction: column;
   gap: 16px;
 }
-.landing-hero-copy {
-  font-size: 18px;
+.landing-hero-promise {
+  font-size: 24px;
   line-height: 28px;
+  text-wrap: balance;
 }
-.landing-hero-automation {
+.landing-hero-copy {
   font-size: 16px;
   line-height: 24px;
 }
@@ -326,11 +327,11 @@
     font-size: 36px;
     line-height: 1.15;
   }
-  .landing-hero-copy {
-    font-size: 16px;
+  .landing-hero-promise {
+    font-size: 20px;
     line-height: 25px;
   }
-  .landing-hero-automation {
+  .landing-hero-copy {
     font-size: 15px;
     line-height: 23px;
   }

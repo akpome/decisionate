@@ -9,12 +9,6 @@ import { DECISIONATE_AUTH_LINKS } from "@/lib/decisionate-domains"
 
 export function LandingHero() {
   const { t } = useLandingText()
-  const productSummary = t(
-    "Analyze accounting, sales and marketing data together. Compare selected metrics across datasets, investigate relationships and unusual changes, then track the action you choose."
-  )
-  const automationSummary = t(
-    "Save a cross-dataset report for weekly reviews. Enable weekly report delivery and KPI alerts by email when you are ready."
-  )
   return (
     <section id="product" className="landing-hero border-b border-neutral-200 bg-white">
       <div className="landing-container">
@@ -24,11 +18,11 @@ export function LandingHero() {
               <h1 className="landing-hero-title font-semibold text-neutral-950">
                 {t("Decisionate")}
               </h1>
-              <p className="landing-hero-copy max-w-lg text-neutral-600">
-                {productSummary}
+              <p className="landing-hero-promise max-w-lg font-semibold text-neutral-950">
+                {t("Decide what to change this week. See whether it helped.")}
               </p>
-              <p className="landing-hero-automation max-w-lg text-neutral-600">
-                {automationSummary}
+              <p className="landing-hero-copy max-w-lg text-neutral-600">
+                {t("Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result.")}
               </p>
             </div>
             <div className="landing-hero-cta">

@@ -1,23 +1,24 @@
 export const refreshedLandingFrench: Record<string, string> = {
   Decisionate: "Decisionate",
-  "Analyze accounting, sales and marketing data together. Compare selected metrics across datasets, investigate relationships and unusual changes, then track the action you choose.":
-    "Analysez ensemble vos données comptables, commerciales et marketing. Comparez les mesures choisies entre jeux de données, étudiez les relations et les variations inhabituelles, puis suivez l'action retenue.",
-  "Save a cross-dataset report for weekly reviews. Enable weekly report delivery and KPI alerts by email when you are ready.":
-    "Enregistrez un rapport multijeu de données pour vos bilans hebdomadaires. Activez l'envoi des rapports hebdomadaires et des alertes KPI par courriel lorsque vous le souhaitez.",
+  "Decide what to change this week. See whether it helped.":
+    "Décidez quoi changer cette semaine. Voyez si cela a porté ses fruits.",
+  "Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result.":
+    "Vos ventes augmentent. Et vos bénéfices ? Rapprochez vos chiffres de vente, de marketing et de comptabilité pour répondre à ce type de question. Notez ce que vous allez essayer et la date à laquelle vous ferez le point.",
   "See Decisionate in action": "Découvrez Decisionate en action",
-  "From connecting your data to making decisions and reviewing outcomes.":
-    "De la connexion de vos données à la prise de décisions et au suivi des résultats.",
+  "Should we change our ad budget? Compare spending with customer numbers, choose what to test and set a date to review the result.":
+    "Faut-il revoir notre budget publicitaire ? Comparez les dépenses et le nombre de clients, choisissez ce que vous voulez tester et fixez une date pour faire le bilan.",
   "For agencies": "Pour les agences",
   "For businesses": "Pour les entreprises",
-  "One workspace for your business.": "Un seul espace pour votre entreprise.",
-  "Connect your business tools or upload files. Use Reports to compare marketing, sales and financial performance across datasets, with the date fields and dimension filters that fit your question.":
-    "Connectez vos outils professionnels ou importez des fichiers. Utilisez Rapports pour comparer les performances marketing, commerciales et financières entre jeux de données, avec les champs de date et filtres de dimension adaptés à votre question.",
+  "Which products are worth promoting?":
+    "Quels produits mettre en avant ?",
+  "Your bestseller may not be your most profitable product. Compare sales and costs by product before choosing what to promote. After the promotion, check whether the extra sales were worth the discount.":
+    "Votre meilleure vente n'est pas forcément votre produit le plus rentable. Comparez les ventes et les coûts par produit avant de choisir lequel mettre en avant. Après la promotion, vérifiez si les ventes supplémentaires ont compensé la remise.",
   "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.":
     "Professional comprend un espace d'entreprise, tous les tableaux de bord sectoriels et la gestion des décisions. Rassemblez les données, rapports, actions et dates de révision de votre équipe.",
-  "Help every client move from data to action.":
-    "Aidez chaque client à passer des données à l'action.",
-  "Create branded workspaces for your clients. Clients connect and manage their own data; your agency helps them understand performance, coordinate actions and track results with client-approved access.":
-    "Créez des espaces à votre image pour vos clients. Les clients connectent et gèrent leurs propres données ; avec leur autorisation, votre agence les aide à comprendre leur performance, à coordonner leurs actions et à suivre les résultats.",
+  "Make the next decision with your client.":
+    "Prenez la prochaine décision avec votre client.",
+  "Give each client a private workspace in a portal carrying your agency's name and logo. With their permission, review the numbers together, agree on the next step and revisit the result at your next meeting.":
+    "Offrez à chaque client un espace privé dans un portail au nom et au logo de votre agence. Avec son accord, examinez les chiffres ensemble, décidez de la suite et faites le point lors de votre prochaine rencontre.",
   "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.":
     "Agency comprend votre espace d'agence et jusqu'à 10 espaces clients, toutes les fonctionnalités Professional et une allocation partagée de crédits IA. Des espaces supplémentaires payants accompagnent la croissance de votre agence.",
   "Create and brand your agency": "Créez votre agence et son image de marque",
@@ -143,8 +144,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Activez le paramètre d'activité saisonnière lorsque les cycles saisonniers sont pertinents. Les rapports vérifient les variations inhabituelles de chaque mesure choisie et n'utilisent l'analyse saisonnière que si un historique suffisant et adapté permet sa validation. Les prévisions prennent aussi en charge la saisonnalité. Un historique incomplet, les jours fériés et les promotions peuvent limiter les résultats ; ce paramètre ne garantit pas leur exactitude.",
   "What is included in a weekly report?":
     "Que contient un rapport hebdomadaire ?",
-  "Choose a saved cross-dataset report as the weekly template, then configure recipients and enable delivery in Alerts. Weekly analysis uses the latest complete week and up to three years of available history, retaining the template's metrics, date fields, dimension filters and seasonal setting. It includes metric changes, relationship findings and unusual-change checks. Manual report dates do not restrict the weekly history window.":
-    "Choisissez un rapport multijeu de données enregistré comme modèle hebdomadaire, puis configurez les destinataires et activez l'envoi dans Alertes. L'analyse porte sur la dernière semaine complète et jusqu'à trois ans d'historique disponible, en conservant les mesures, champs de date, filtres de dimension et paramètre saisonnier du modèle. Elle comprend les variations des mesures, les relations et les contrôles des changements inhabituels. Les dates du rapport manuel ne limitent pas l'historique hebdomadaire.",
+  "The report covers the last complete week, with up to three years of available history for comparison. It shows what changed in your chosen metrics and flags unusual results when those checks are on. Preview and save it in Weekly Reports. By default, the owner gets it by email when there is enough data. Use Scheduled email to add recipients or pause delivery.":
+    "Le rapport couvre la dernière semaine complète et s'appuie sur un historique pouvant aller jusqu'à trois ans. Il montre l'évolution des indicateurs choisis et signale les résultats inhabituels si ces contrôles sont activés. Dans Rapports hebdomadaires, prévisualisez le rapport puis enregistrez-le. Par défaut, le propriétaire le reçoit par courriel si les données sont suffisantes. Dans Envoi programmé, vous pouvez ajouter des destinataires ou suspendre les envois.",
   "Start a 30-day Professional or Agency trial without a credit card. Professional supports one business workspace; Agency includes an agency workspace and up to 10 client workspaces. Choose your plan during workspace setup.":
     "Commencez un essai de 30 jours Professional ou Agency sans carte de crédit. Professional offre un espace d'entreprise ; Agency comprend un espace d'agence et jusqu'à 10 espaces clients. Choisissez le forfait à la configuration.",
   "Yes. Agency owners manage separate client workspaces, branding and access. Client users see the data and actions allowed by their role within their own workspace.":

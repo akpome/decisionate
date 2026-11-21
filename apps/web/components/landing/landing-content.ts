@@ -92,7 +92,7 @@ export const faqs = [
   {
     question: "What is included in a weekly report?",
     answer:
-      "Choose a saved cross-dataset report as the weekly template, then configure recipients and enable delivery in Alerts. Weekly analysis uses the latest complete week and up to three years of available history, retaining the template's metrics, date fields, dimension filters and seasonal setting. It includes metric changes, relationship findings and unusual-change checks. Manual report dates do not restrict the weekly history window."
+      "The report covers the last complete week, with up to three years of available history for comparison. It shows what changed in your chosen metrics and flags unusual results when those checks are on. Preview and save it in Weekly Reports. By default, the owner gets it by email when there is enough data. Use Scheduled email to add recipients or pause delivery."
   },
   {
     question: "What does the free trial include?",

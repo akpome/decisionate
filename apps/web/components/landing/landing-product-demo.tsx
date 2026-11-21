@@ -87,7 +87,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
             {t("See Decisionate in action")}
           </h2>
           <p className="landing-demo-summary text-neutral-600">
-            {t("From connecting your data to making decisions and reviewing outcomes.")}
+            {t("Should we change our ad budget? Compare spending with customer numbers, choose what to test and set a date to review the result.")}
           </p>
         </div>
         <div className="landing-demo-frame">

@@ -37,9 +37,10 @@ const domains = load("../lib/decisionate-domains.ts")
 const connectors = integrationGroups.flatMap(group => group.items)
 const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
 const headline = "Decisionate"
-const productSummary = "Analyze accounting, sales and marketing data together. Compare selected metrics across datasets, investigate relationships and unusual changes, then track the action you choose."
-const automationSummary = "Save a cross-dataset report for weekly reviews. Enable weekly report delivery and KPI alerts by email when you are ready."
-const agencySummary = "Create branded workspaces for your clients. Clients connect and manage their own data; your agency helps them understand performance, coordinate actions and track results with client-approved access."
+const promise = "Decide what to change this week. See whether it helped."
+const productSummary = "Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result."
+const demoQuestion = "Should we change our ad budget? Compare spending with customer numbers, choose what to test and set a date to review the result."
+const agencySummary = "Give each client a private workspace in a portal carrying your agency's name and logo. With their permission, review the numbers together, agree on the next step and revisit the result at your next meeting."
 
 function renderHero(language = "en") {
   const overrides = {
@@ -92,26 +93,26 @@ test("hero renders one brand headline and one copy instance in both languages", 
     const html = renderHero(language)
     const translated = text => language === "fr" ? refreshedLandingFrench[text] : text
     assert.equal((html.match(/<h1\b/g) || []).length, 1)
-    for (const copy of [headline, productSummary, automationSummary]) {
+    for (const copy of [headline, promise, productSummary, demoQuestion]) {
       assert.ok(refreshedLandingFrench[copy], `Missing French translation: ${copy}`)
       const expected = renderToStaticMarkup(React.createElement(React.Fragment, null, translated(copy)))
       assert.ok(html.includes(expected), `Missing ${language} copy: ${copy}`)
     }
     assert.equal((html.match(/landing-hero-copy /g) || []).length, 1)
-    assert.equal((html.match(/landing-hero-automation /g) || []).length, 1)
+    assert.equal((html.match(/landing-hero-promise /g) || []).length, 1)
     assert.doesNotMatch(html, /Insights from existing|Decisions from Data|landing-hero-more|landing-hero-team/)
     assert.ok(html.indexOf("landing-hero-intro") < html.indexOf("landing-product-demo"))
     assert.equal((html.match(/<video\b/g) || []).length, 1)
   }
 })
 
-test("trial wording matches no-card onboarding and emails remain opt-in", () => {
+test("trial wording matches no-card onboarding and the hero focuses on the decision", () => {
   assert.match(read("../../api/app/modules/billing/service.py"), /TRIAL_PERIOD_DAYS = 30/)
   assert.match(read("../../api/app/modules/organizations/router.py"), /trial_start \+ timedelta\(days=TRIAL_PERIOD_DAYS\)/)
-  assert.match(read("../../api/app/modules/alerts/router.py"), /enabled=False/)
   const html = renderHero()
   assert.match(html, /Start your 30-day trial/)
-  assert.match(html, /Enable weekly report delivery and KPI alerts by email when you are ready/)
+  assert.ok(html.indexOf(promise) < html.indexOf("Start your 30-day trial"))
+  assert.doesNotMatch(html, /KPI alerts|email delivery/i)
   assert.match(html, /No credit card required\./)
   assert.ok(html.indexOf("landing-hero-note") > html.indexOf("Explore live demo"))
   assert.match(html, /href="https:\/\/app\.decisionate\.ca\/sign-up"/)
@@ -169,7 +170,7 @@ test("business and agency sections precede the evidence and action section", () 
   const sections = read("../components/landing/landing-sections.tsx")
   assert.match(sections, /Keep the evidence close to the action\./)
   assert.ok(sections.includes(agencySummary))
-  assert.match(sections, /Help every client move from data to action\./)
+  assert.ok(sections.includes("Make the next decision with your client."))
   assert.ok(refreshedLandingFrench[agencySummary])
   assert.doesNotMatch(sections, /audience ===|Workspace type|Manage your agency and client workspaces separately/)
   const page = read("../app/page.tsx")
@@ -194,8 +195,8 @@ test("business and agency sections are explicitly labelled and all content bands
 
 test("agency plan, permissions and four-step workflow are described in both languages", () => {
   const copy = [
-    "One workspace for your business.",
-    "Connect your business tools or upload files. Use Reports to compare marketing, sales and financial performance across datasets, with the date fields and dimension filters that fit your question.",
+    "Which products are worth promoting?",
+    "Your bestseller may not be your most profitable product. Compare sales and costs by product before choosing what to promote. After the promotion, check whether the extra sales were worth the discount.",
     "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.",
     "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.",
     "Create and brand your agency",
@@ -250,14 +251,14 @@ test("landing explains cross-dataset Reports and selected evidence rather than a
   assert.match(metadata, /Analyze business performance across datasets/)
 })
 
-test("landing explains source filtering, seasonal validation and explicitly enabled weekly reports", () => {
+test("landing explains source filtering, seasonal validation and default owner delivery below the hero", () => {
   const upload = faqs.find(item => item.question === "Can I upload files?").answer
   const seasonal = faqs.find(item => item.question === "Do reports and forecasts account for seasonality?").answer
   const weekly = faqs.find(item => item.question === "What is included in a weekly report?").answer
   assert.match(upload, /selected unique values in a dimension column/)
   assert.match(seasonal, /enough suitable history supports validation/)
   assert.match(seasonal, /does not guarantee an accurate result/)
-  for (const pattern of [/enable delivery in Alerts/, /latest complete week/, /three years of available history/, /dimension filters and seasonal setting/, /unusual-change checks/, /Manual report dates do not restrict/]) {
+  for (const pattern of [/last complete week/, /three years of available history/, /Preview and save it in Weekly Reports/, /owner gets it by email when there is enough data/, /add recipients or pause delivery/]) {
     assert.match(weekly, pattern)
   }
   const retention = faqs.find(item => item.question === "How long is connector data kept?").answer
@@ -308,7 +309,7 @@ test("demo introduction, chapter controls and supplemental link remain accessibl
   const html = renderHero()
   assert.match(html, /<h2[^>]*id="landing-demo-heading"/)
   assert.match(html, /See Decisionate in action/)
-  assert.match(html, /From connecting your data to making decisions and reviewing outcomes\./)
+  assert.ok(html.includes(demoQuestion))
   for (const [label, time] of [["Connect", 0], ["Analyze", 10], ["Decide", 24], ["Review", 38]]) {
     assert.ok(html.includes(`aria-label="${label}, jump to ${time} seconds"`))
   }

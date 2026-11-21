@@ -73,10 +73,10 @@ export function BusinessSection() {
         <div>
           <p className="landing-eyebrow">{t("For businesses")}</p>
           <h2 id="landing-business-heading" className="landing-heading mt-3">
-            {t("One workspace for your business.")}
+            {t("Which products are worth promoting?")}
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
-            {t("Connect your business tools or upload files. Use Reports to compare marketing, sales and financial performance across datasets, with the date fields and dimension filters that fit your question.")}
+            {t("Your bestseller may not be your most profitable product. Compare sales and costs by product before choosing what to promote. After the promotion, check whether the extra sales were worth the discount.")}
           </p>
           <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
             {t("Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.")}
@@ -143,10 +143,10 @@ export function AgencySection() {
         <div>
           <p className="landing-eyebrow">{t("For agencies")}</p>
           <h2 id="landing-agency-heading" className="landing-heading mt-3">
-            {t("Help every client move from data to action.")}
+            {t("Make the next decision with your client.")}
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-neutral-600">
-            {t("Create branded workspaces for your clients. Clients connect and manage their own data; your agency helps them understand performance, coordinate actions and track results with client-approved access.")}
+            {t("Give each client a private workspace in a portal carrying your agency's name and logo. With their permission, review the numbers together, agree on the next step and revisit the result at your next meeting.")}
           </p>
           <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
             {t("Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.")}
