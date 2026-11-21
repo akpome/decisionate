@@ -405,6 +405,25 @@ class ShareEmailTests(unittest.TestCase):
                     "metric_column": "spend", "label": "sales.csv · spend", "column_type": "numeric"}],
                 "rows": [{"period": "2024-01-01", "sales.csv · spend": 999}], "dimension_filters": []}
 
+    def test_unfiltered_share_is_scoped_to_the_named_view(self):
+        shared, sibling = "sales-performance", "retail-performance"
+        titles = {shared: {"trend": "Sales trend"}, sibling: {"trend": "Sibling chart"}}
+        with self.Session() as db:
+            db.add(UserPreference(clerk_user_id="owner", workspace_id="owner", selected_metric="other_dataset_only",
+                metric_targets=json.dumps({"1": {"other_dataset_only": 100}}),
+                dashboard_preferences=json.dumps({"1": {"title": "Default dashboard", "chartTitles": titles}}),
+                dashboard_views=json.dumps({"1": {shared: {"title": "Sales", "chartTitles": titles},
+                                                   sibling: {"title": "Other workspace view"}}})))
+            db.commit()
+        self.assertEqual(self.send(self.dashboard(dashboard=shared)).status_code, 200)
+        result = self.public_dashboard(self.emailed_token(), shared)
+        self.assertNotIn("source_config", result["dataset"])
+        prefs = result["preference"]
+        self.assertEqual(prefs["dashboard_preferences"], {"1": {"chartTitles": {shared: titles[shared]}}})
+        self.assertEqual(prefs["dashboard_views"], {"1": {shared: {"title": "Sales", "chartTitles": {shared: titles[shared]}}}})
+        self.assertIsNone(prefs["selected_metric"])
+        self.assertIsNone(prefs["metric_targets"])
+
     def test_shared_source_does_not_restore_an_unrelated_join_from_cache_or_preferences(self):
         import pandas as pd
         self.frames[1] = (self.frames[1][0], pd.DataFrame({"date": ["2026-11-01", "2026-11-02"], "spend": [100, 120]}))
@@ -428,10 +447,13 @@ class ShareEmailTests(unittest.TestCase):
     def test_shared_joined_dataset_restores_only_its_own_cache_without_source_membership(self):
         joined = self.saved_join(1)
         joined["dataset_ids"] = [2, 3]
+        stored = {**joined, "derived_dataset": {"id": 1, "source_config": "internal", "workspace_id": "owner"},
+                  "rows": [{**joined["rows"][0], "unlisted_column": 100}],
+                  "datasets": [{**joined["datasets"][0], "internal_notes": "private"}]}
         with self.Session() as db:
             db.get(Dataset, 1).source_type = "joined"
             db.add(DatasetJoinCache(user_id="owner", workspace_id="owner", dashboard_key="general-business",
-                dataset_ids="[2, 3]", definition="{}", result=json.dumps(joined), source_fingerprint="fixture"))
+                dataset_ids="[2, 3]", definition="{}", result=json.dumps(stored), source_fingerprint="fixture"))
             db.commit()
         self.send()
         result = self.public_dashboard(self.emailed_token(), "general-business")

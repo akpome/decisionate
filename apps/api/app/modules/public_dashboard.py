@@ -38,7 +38,6 @@ from app.modules.organizations.router import (
     DEFAULT_SELECTED_DASHBOARD,
     VALID_SELECTED_DASHBOARDS,
     clean_dashboard_preferences,
-    clean_dashboard_views,
     clean_metric_targets,
     find_user_preference,
 )
@@ -125,6 +124,27 @@ def get_clean_dataset_preference_entry(
     )
 
 
+def shared_view_settings(preference, dataset_id, dashboard_key):
+    key = str(dataset_id)
+    def entry(field):
+        value = (parse_json_object_preference(getattr(preference, field, None)) or {}).get(key)
+        return value if isinstance(value, dict) else {}
+
+    def clean(raw, *, maps_only=False):
+        if not isinstance(raw, dict):
+            return {}
+        fields = {} if maps_only else raw.copy()
+        for name in ("metricMappings", "chartTitles"):
+            mapping = raw.get(name)
+            fields[name] = {dashboard_key: mapping[dashboard_key]} if isinstance(mapping, dict) and dashboard_key in mapping else {}
+        return clean_dashboard_preferences({key: fields})[key]
+
+    return (
+        clean(entry("dashboard_preferences"), maps_only=dashboard_key != DEFAULT_SELECTED_DASHBOARD),
+        clean(entry("dashboard_views").get(dashboard_key)),
+    )
+
+
 def is_public_join_result_for_dataset(result, dataset):
     if getattr(dataset, "source_type", None) != "joined" or not isinstance(result, dict):
         return False
@@ -133,6 +153,25 @@ def is_public_join_result_for_dataset(result, dataset):
     if derived_id is None and isinstance(derived, dict):
         derived_id = derived.get("id")
     return result.get("join_version") == JOIN_RESULT_VERSION and derived_id == dataset.id
+
+
+def shared_join_data(result, dataset_id):
+    # Cached joins also contain an authenticated dataset summary. Never return
+    # that object (or future additions to it) from a bearer-link endpoint.
+    public = {key: result[key] for key in ("join_version", "primary_dataset_id", "dataset_ids") if key in result}
+    public["derived_dataset_id"] = dataset_id
+    fields = ("dataset_id", "file_name", "date_column", "metric_column", "label", "column_type")
+    public["datasets"] = [
+        {key: column[key] for key in fields if key in column}
+        for column in result.get("datasets", []) if isinstance(column, dict)
+    ]
+    labels = {"period", *(column["label"] for column in public["datasets"] if isinstance(column.get("label"), str))}
+    public["rows"] = [{key: value for key, value in row.items() if key in labels} for row in result["rows"]]
+    public["dimension_filters"] = [
+        {key: item[key] for key in ("dataset_id", "column", "values") if key in item}
+        for item in result.get("dimension_filters", [])
+    ]
+    return public
 
 
 def get_public_join_cache_result(
@@ -393,7 +432,7 @@ def normalize_share_token(
 
     normalized_token = token.strip()
 
-    return normalized_token or None
+    return normalized_token if normalized_token and normalized_token.isascii() else None
 
 
 def clean_public_dashboard_key(
@@ -450,12 +489,12 @@ def build_public_dashboard_dataset_response(
     dataframe,
     date_column=None,
 ):
+    source = build_dataset_source_metadata(dataset)
     return {
         "file_name": connector_dataset_display_name(dataset),
         "row_count": dataset.row_count,
-        **build_dataset_source_metadata(
-            dataset
-        ),
+        "source_type": source["source_type"],
+        "source_label": source["source_label"],
         "preview": [],
         "metrics": generate_metrics(dataframe),
         "chart": generate_chart_data(
@@ -614,93 +653,45 @@ def get_public_shared_dashboard(
             if preference
             else None
         )
-        dashboard_preferences = (
-            get_clean_dataset_preference_entry(
-                preference.dashboard_preferences,
-                dataset_id,
-                clean_dashboard_preferences,
-            )
-            if preference
-            else None
-        )
-        dashboard_views = (
-            get_clean_dataset_preference_entry(
-                preference.dashboard_views,
-                dataset_id,
-                clean_dashboard_views,
-            )
-            if preference
-            else None
-        )
+        legacy, view = shared_view_settings(preference, dataset_id, dashboard_key)
+        saved_joins = (view.pop("joinedDatasetResult", None), legacy.pop("joinedDatasetResult", None))
         joined_dataset_result = get_public_join_cache_result(
             db,
             dataset,
             dashboard_key,
         )
         if joined_dataset_result is None:
-            dashboard_view = (
-                dashboard_views or {}
-            ).get(str(dataset.id), {}).get(
-                dashboard_key,
-                {},
-            )
-            legacy_dashboard_preference = (
-                dashboard_preferences or {}
-            ).get(str(dataset.id), {})
-            for candidate in (
-                dashboard_view.get(
-                    "joinedDatasetResult"
-                ),
-                legacy_dashboard_preference.get(
-                    "joinedDatasetResult"
-                ),
-            ):
+            for candidate in saved_joins:
                 if is_public_join_result_for_dataset(candidate, dataset):
                     joined_dataset_result = candidate
                     break
-        # Old source-level preferences must not expose or restore another dataset's join.
-        saved_preferences = [
-            (dashboard_preferences or {}).get(str(dataset.id), {}),
-            *((dashboard_views or {}).get(str(dataset.id), {}).values()),
-        ]
-        for saved in saved_preferences:
-            if not is_public_join_result_for_dataset(saved.get("joinedDatasetResult"), dataset):
-                saved.pop("joinedDatasetResult", None)
-        decision_summary = (
-            build_public_decision_summary(
-                db,
-                dataset,
-            )
-            if dashboard_key == "decision-performance"
-            else None
-        )
-
-        view = (dashboard_views or {}).get(str(dataset.id), {}).get(dashboard_key, {})
-        legacy = (dashboard_preferences or {}).get(str(dataset.id), {}) if dashboard_key == DEFAULT_SELECTED_DASHBOARD else {}
         saved_view = {**legacy, **view}
         date_column = saved_view.get("metricMappings", {}).get(dashboard_key, {}).get("date")
         from app.modules.datasets.router import normalize_dataset_details_dataframe
         dataframe = normalize_dataset_details_dataframe(dataframe)
         dimension_filter = view.get("dimensionFilter", legacy.get("dimensionFilter"))
-        if dimension_filter is not None and dashboard_key != "decision-performance":
+        if dashboard_key == "decision-performance" and (dimension_filter is not None or (joined_dataset_result or {}).get("dimension_filters")):
+            raise HTTPException(422, "A decision summary cannot be shared with a dimension filter.")
+        if dimension_filter is not None:
             try:
                 dimension_filter = DimensionFilter.model_validate(dimension_filter).model_dump()
                 if joined_dataset_result is not None:
                     raise DimensionFilterError("This shared view has incompatible saved joined data.")
-                dataframe = apply_dimension_filter(dataset, normalize_dataset_details_dataframe(dataframe), dimension_filter)
+                dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter)
             except ValueError as error:
                 raise HTTPException(422, "The shared dashboard dimension filter is unavailable. Ask the owner to update the saved view.") from error
 
-        joined_filters = (joined_dataset_result or {}).get("dimension_filters", [])
         if joined_dataset_result is not None:
+            joined_dataset_result = shared_join_data(joined_dataset_result, dataset.id)
             dataframe = pd.DataFrame(joined_dataset_result["rows"])
             date_column = "period"
+        joined_filters = (joined_dataset_result or {}).get("dimension_filters", [])
         if joined_dataset_result is None:
             dataframe = filter_dataframe_to_selected_metrics(dataset, dataframe)
-        if dimension_filter is not None or joined_filters:
-            dashboard_preferences = {str(dataset.id): {**legacy, "joinedDatasetResult": joined_dataset_result}}
-            dashboard_views = {str(dataset.id): {dashboard_key: {**view, "joinedDatasetResult": joined_dataset_result}}}
         public_dataset = build_public_dashboard_dataset_response(dataset, dataframe, date_column=date_column)
+        public_metrics = {metric["column"] for metric in public_dataset["metrics"]}
+        key = str(dataset.id)
+        targets = {name: value for name, value in (metric_targets or {}).get(key, {}).items() if name in public_metrics}
         public_dataset.update(dimension_filter=dimension_filter, dimension_filters=joined_filters)
         if dimension_filter is not None or joined_dataset_result is not None:
             public_dataset["row_count"] = len(dataframe)
@@ -714,15 +705,15 @@ def get_public_shared_dashboard(
             "preference": {
                 "selected_metric": (
                     preference.selected_metric
-                    if preference
+                    if preference and preference.selected_metric in public_metrics
                     else None
                 ),
-                "metric_targets": metric_targets,
-                "dashboard_preferences": dashboard_preferences,
-                "dashboard_views": dashboard_views,
+                "metric_targets": {key: targets} if targets else None,
+                "dashboard_preferences": {key: legacy} if legacy else None,
+                "dashboard_views": {key: {dashboard_key: view}} if view else None,
                 "joined_dataset_result": joined_dataset_result,
             },
-            "decision_summary": decision_summary,
+            "decision_summary": build_public_decision_summary(db, dataset) if dashboard_key == "decision-performance" else None,
         }
 
     finally:

@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "c2b6d5a952440896692921549770ff266d435cf9",
+  "base_git_revision": "248d01b3e7069cadd09076211b523fd09516f46b",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/features/reports/report-workflow.ts",
-    "apps/web/features/reports/report-workspace.tsx"
+    "apps/api/app/modules/auth_context.py",
+    "apps/api/app/modules/public_dashboard.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -23,7 +23,7 @@
     "apps/api/app/modules/alerts/email_delivery.py": "16671afbee611988bb32e80289e07d18a6f56a9f009bb5ae1b99b51ed0982bc5",
     "apps/api/app/modules/alerts/router.py": "aedb9d14c37146808c5baaf3026fcf7ea7ce92ce6d3c1addfc19abfb3d5cb01c",
     "apps/api/app/modules/applications.py": "9d31e1e8b44173dd9d46fb8b3e3aa502b0ab90f0de8e201cf248b0f2775127eb",
-    "apps/api/app/modules/auth_context.py": "82cbbb6cd4acb983584334b9191618559d8d49158fcd282334833cdc48700e80",
+    "apps/api/app/modules/auth_context.py": "bf8a48e9bb5ed488cd0c474bdc01334e16e90271e5a295bcd0d8ad395a3c6350",
     "apps/api/app/modules/billing/agency_upgrade.py": "c85a3c7ac8007ed5874549947bf5662cc5f5a8507543c06a17f2aff0192ae048",
     "apps/api/app/modules/billing/lifecycle.py": "ab38ffd774c7518524707a560a1bce54bc09cfb79264a9aa72e1ca30d71fa494",
     "apps/api/app/modules/billing/notifications.py": "c1b6fc03a495ade2e3f360455a175ae46a3d060eb6acf75f27b4e3140a747e47",
@@ -83,7 +83,7 @@
     "apps/api/app/modules/performance/schemas.py": "b47dcb9904d528e38f8cbe1f4c34fe4a59d12594985d66f5f47c82217c6a9c47",
     "apps/api/app/modules/performance/service.py": "84c89c802e989c9e3ac9ad0a4c0e2015002808f26bfb59eb48fff1ce2571d310",
     "apps/api/app/modules/platform_admin.py": "58f4dfafb3db830c39d2d476304d1629551b35b8c9177a7d6ec01ef76e14ac60",
-    "apps/api/app/modules/public_dashboard.py": "4093f712b6945ed3cdde3b7bb234a1cf5e6f77b890b36984fbc0dcb406178fed",
+    "apps/api/app/modules/public_dashboard.py": "12541579d19255b64cc6beb40b9d0bbf70ca208ff765e8268388af4806c3c382",
     "apps/api/app/modules/reports/anomalies.py": "72599a42cc57b51a4ecc4326b841da7ad5b3c31c89c11275f22e48910660c324",
     "apps/api/app/modules/reports/catalog.py": "01d7bd8cc09e43e5757dbf943b7e16dd3c01749d8c618e5420c5394a44cc8051",
     "apps/api/app/modules/reports/cleanup.py": "87c9b20b7c321b6082a39db073923cd2d73574b243ed45726e56b13252b4e38a",

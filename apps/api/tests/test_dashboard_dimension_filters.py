@@ -226,6 +226,7 @@ class FilteredPublicDashboardTests(unittest.TestCase):
     def test_filtered_joined_public_view_contains_only_the_joined_filtered_rows(self):
         self.preference.dashboard_views = None
         joined = {"dimension_filters": [{"dataset_id": 1, "column": "region", "values": ["East"]}],
+            "datasets": [{"label": "Sales revenue", "column_type": "numeric"}],
             "rows": [{"period": "2026-01-01", "Sales revenue": 10}, {"period": "2026-02-01", "Sales revenue": 20}]}
         with patch.object(public_dashboard, "get_public_join_cache_result", return_value=joined):
             result = public_dashboard.get_public_shared_dashboard(1, Response(), "token")

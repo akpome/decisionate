@@ -34,6 +34,14 @@ jobs:
       DECISIONATE_TEST_POSTGRES_URL: postgresql+psycopg://decisionate:test-only-password@127.0.0.1:5432/decisionate_test
     steps:
       - uses: actions/checkout@v4
+      - name: Keep local databases out of releases
+        working-directory: .
+        run: |
+          files=$(git ls-files -- '*.db' '*.db-*' '*.sqlite' '*.sqlite-*' '*.sqlite3' '*.sqlite3-*')
+          if [ -n "$files" ]; then
+            printf 'Local database artifacts must not be tracked:\n%s\n' "$files"
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

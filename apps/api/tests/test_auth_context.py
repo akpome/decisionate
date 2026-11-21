@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine
@@ -60,6 +61,26 @@ class AuthContextTests(unittest.TestCase):
             ),
             "",
         )
+
+    def test_development_identity_is_not_a_hosted_authentication_fallback(self):
+        contexts = [
+            ("production", True, None, "", {}),
+            ("staging", True, None, "", {}),
+            ("preview", True, None, "", {}),
+            ("development", True, None, "hosted", {}),
+            ("development", False, None, "", {}),
+            ("development", True, object(), "", {}),
+            ("development", True, None, "", {"Authorization": "Bearer local-fixture"}),
+        ]
+        for env, default, portal, railway, headers in contexts:
+            with self.subTest(env=env, default=default, hosted=bool(portal), railway=railway, bearer=bool(headers)), \
+                 patch.object(auth_context, "get_auth_jwks_url", return_value=None), \
+                 patch.object(auth_context, "get_runtime_configuration", return_value=SimpleNamespace(app_env=env)), \
+                 patch.object(auth_context, "get_application", return_value=SimpleNamespace(is_default=default)), \
+                 patch.object(auth_context, "current_portal", return_value=portal), \
+                 patch.dict("os.environ", {"RAILWAY_ENVIRONMENT_ID": railway}), self.assertRaises(HTTPException) as error:
+                auth_context.get_verified_user_identity(FakeRequest({"X-User-Id": "fixture", **headers}))
+            self.assertEqual(error.exception.status_code, 503)
 
     def test_missing_jwt_email_is_verified_with_clerk_before_creating_a_profile(self):
         with patch.object(auth_context, "get_auth_jwks_url", return_value="https://clerk.example/.well-known/jwks.json"), \

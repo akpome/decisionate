@@ -25,7 +25,7 @@ botocore==1.43.109
     # via
     #   boto3
     #   s3transfer
-certifi==2026.7.22
+certifi==2026.10.18
     # via
     #   curl-cffi
     #   httpcore
@@ -138,7 +138,7 @@ numpy==2.4.6
     #   statsmodels
 openpyxl==3.1.5
     # via -r requirements.txt
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
     # via google-api-core
 packaging==26.3
     # via
@@ -170,7 +170,7 @@ psycopg-binary==3.3.4
     # via psycopg
 pyarrow==25.0.0
     # via -r requirements.txt
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth
@@ -182,7 +182,7 @@ pydantic==2.14.0
     #   svix
 pydantic-core==2.50.0
     # via pydantic
-pyjwt==2.13.0
+pyjwt==2.15.1
     # via -r requirements.txt
 pymssql==2.4.3
     # via -r requirements.txt

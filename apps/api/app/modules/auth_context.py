@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 import re
 
 import jwt
@@ -8,6 +9,7 @@ from jwt import PyJWKClient
 from app.db.database import SessionLocal
 from app.configuration import get_runtime_configuration
 from app.application_context import get_application, identity_provider
+from app.modules.hosted_subdomains.context import current_portal
 from app.db.models import (
     Organization,
     OrganizationMember,
@@ -189,6 +191,13 @@ def get_verified_user_identity(
             status_code=401,
             detail="Missing authorization token",
         )
+
+    # Header identities are a local development convenience, not a backup
+    # authentication mechanism for hosted or misconfigured deployments.
+    if (get_runtime_configuration().app_env not in {"development", "test"}
+            or os.getenv("RAILWAY_ENVIRONMENT_ID") or not get_application().is_default
+            or current_portal() is not None or authorization is not None):
+        raise HTTPException(503, "Authentication verification is not configured.")
 
     user_id = request.headers.get(
         "X-User-Id",

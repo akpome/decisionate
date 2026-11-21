@@ -305,7 +305,7 @@ class PublicDashboardTests(unittest.TestCase):
             "workspace-1",
         )
 
-    def test_public_dataset_response_includes_source_metadata(self):
+    def test_public_dataset_response_exposes_only_display_metadata(self):
         dataset = SimpleNamespace(
             file_name="sales.json",
             row_count=1,
@@ -338,10 +338,7 @@ class PublicDashboardTests(unittest.TestCase):
             response["source_label"],
             "JSON",
         )
-        self.assertEqual(
-            response["source_config"],
-            '{"ingestion_mode": "upload"}',
-        )
+        self.assertNotIn("source_config", response)
         self.assertEqual(
             response["metrics"][0]["column"],
             "revenue",
