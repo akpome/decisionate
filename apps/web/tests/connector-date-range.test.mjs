@@ -110,7 +110,7 @@ function harness(sourceType = "meta_ads", connectionOverrides = {}, propsOverrid
   const submit = () => buttons().find(button => button.props.children === "Sync selected range")
   const fields = () => elements(render(), node => node.type === "input" && node.props.type === "date")
   return {
-    calls, panel, trigger, submit, fields, connection,
+    calls, panel, trigger, submit, fields, connection, render,
     open: () => trigger().props.onClick(),
     close: () => buttons().find(button => button.props["aria-label"] === "Close advanced date range"),
     focusCount: () => focusCount,
@@ -118,6 +118,19 @@ function harness(sourceType = "meta_ads", connectionOverrides = {}, propsOverrid
     statuses: () => elements(render(), node => node.props.role === "status").map(node => node.props.children),
   }
 }
+
+test("automatic sync stays available without expanding every saved connection by default", () => {
+  const view = harness("meta_ads", { sync_enabled: true }, {
+    sources: [{ type: "meta_ads", status: "available", connection_type: "oauth", sync_modes: ["scheduled"] }],
+    onUpdateSchedule: () => {},
+  })
+  const card = view.render()
+  assert.equal(card.type, "article")
+  const [schedule] = elements(card, node => node.type === "details")
+  assert.equal(schedule.props.open, undefined)
+  assert.match(schedule.props.children[0].props.children.join(" "), /Automatic sync/)
+  assert.ok(elements(schedule, node => node.type === "button" && node.props.children === "Save schedule").length)
+})
 
 const noMetaData = "Meta Ads returned no records from 2023-11-07 through 2023-11-23. Verify that the connected account contains data in this range."
 

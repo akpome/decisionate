@@ -960,12 +960,17 @@ function ConnectionsPageContent({
 
       {!loadingWorkspaceAccess &&
         canConfigureWorkspace && (
-        <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
-          <h2 className="mb-4 text-xl font-semibold">
-            {t("Data Sources")}
-          </h2>
+        <section aria-labelledby="data-sources-heading">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+            <h2 id="data-sources-heading" className="text-xl font-semibold">{t("Data Sources")}</h2>
+            {sourceConnections.length > 0 && (
+              <a href="#saved-connections" className="text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:underline">
+                {t("Manage connections")}
+              </a>
+            )}
+          </div>
 
-          <p className="mb-6 text-sm text-gray-500">
+          <p className="mb-4 mt-2 text-sm text-gray-500">
             {t("Add an external connector, then configure its account details and authorize it before syncing data into a dataset. File uploads are available from Datasets.")}
           </p>
 
@@ -978,7 +983,7 @@ function ConnectionsPageContent({
             onCreateConnection={handleCreateSourceConnection}
             onRemoveConnection={handleDeleteSourceConnection}
           />
-        </div>
+        </section>
       )}
 
       {loadingWorkspaceAccess ? (
@@ -994,8 +999,8 @@ function ConnectionsPageContent({
           Connection access is not available to workspace members.
         </div>
       ) : (
-        <div id="saved-connections" className="scroll-mt-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
-          <h2 className="text-xl font-semibold">
+        <section id="saved-connections" aria-labelledby="saved-connections-heading" className="scroll-mt-6 border-t border-gray-200 pt-5">
+          <h2 id="saved-connections-heading" className="text-xl font-semibold">
             {canConfigureWorkspace
               ? "Configure Added Connections"
               : "Available Connections"}
@@ -1064,7 +1069,7 @@ function ConnectionsPageContent({
                 : undefined
             }
           />
-        </div>
+        </section>
       )}
     </div>
   )

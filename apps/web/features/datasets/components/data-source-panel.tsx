@@ -77,7 +77,7 @@ export function DataSourcePanel({
               {t(formatSourceCategory(category))}
             </h3>
 
-            <div className="mt-3 divide-y rounded-xl border">
+            <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3">
               {categorySources.map(
                 (source) => {
                   const isAvailable =
@@ -114,24 +114,28 @@ export function DataSourcePanel({
                   return (
                     <div
                       key={source.type}
-                      className="grid min-w-0 grid-cols-1 gap-3 bg-white p-4 first:rounded-t-xl last:rounded-b-xl sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-start sm:gap-4"
+                      className="@container flex min-w-0 flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3"
                     >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                        <h4 className="min-w-0 break-words font-medium">{source.label}</h4>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                            isAvailable
+                              ? "bg-green-50 text-green-700"
+                              : needsSetup
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {isAvailable ? t("Available") : needsSetup ? t("Setup needed") : t("Planned")}
+                        </span>
+                      </div>
                       <div className="min-w-0 w-full">
-                        <h4 className="break-words font-medium">
-                          {source.label}
-                        </h4>
-
-                        <p className="mt-1 break-words text-sm text-gray-500">
+                        <p className="break-words text-sm leading-5 text-gray-600">
                           {
                             source.description
                           }
                         </p>
-
-                        {source.status === "planned" && (
-                          <p className="mt-2 break-words text-xs font-medium text-gray-400">
-                            {t("This connector is not enabled on the server yet.")}
-                          </p>
-                        )}
 
                         <p className="mt-2 break-words text-xs font-medium uppercase text-gray-400">
                           {formatSourceConnection(
@@ -160,35 +164,10 @@ export function DataSourcePanel({
                             compact
                           />
                         )}
-
-                        {canCreateDraft &&
-                          (hasConfigKeys ||
-                            hasEnvironmentKeys) && (
-                          <p className="mt-1 break-words text-xs text-gray-400">
-                            Required details are collected after this connection is added.
-                          </p>
-                        )}
                       </div>
 
-                      <div className="flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
-                        <span
-                          className={
-                            isAvailable
-                              ? "rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700"
-                              : needsSetup
-                                ? "rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700"
-                              : "rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600"
-                          }
-                        >
-                          {isAvailable
-                            ? t("Available")
-                            : needsSetup
-                              ? t("Setup needed")
-                              : t("Planned")}
-                        </span>
-
-                        {canCreateDraft && (
-                          <>
+                      {canCreateDraft && (
+                        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-gray-100">
                             <div className="flex min-h-10 min-w-28 flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="text-xs font-medium text-gray-600" role="status">
                                 {pendingLabel ? (
@@ -221,9 +200,8 @@ export function DataSourcePanel({
                                 {t("Manage connections")}
                               </a>
                             )}
-                          </>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )
                 }

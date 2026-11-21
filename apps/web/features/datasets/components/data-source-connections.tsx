@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import {
   CalendarDays,
+  ChevronDown,
   Database,
   Eye,
   EyeOff,
@@ -309,7 +310,7 @@ export function DataSourceConnections({
   }
 
   return (
-    <div className="divide-y rounded-xl border">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,24rem),1fr))] items-start gap-3">
       {connections.map((connection) => (
         <DataSourceConnectionRow
           key={connection.id}
@@ -926,7 +927,7 @@ function DataSourceConnectionRow({
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-4 bg-white p-4 first:rounded-t-xl last:rounded-b-xl lg:grid-cols-2 lg:items-start">
+    <article className="@container grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4">
       <div className="min-w-0 flex-1">
         {isEditing ? (
           <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -981,14 +982,17 @@ function DataSourceConnectionRow({
             </button>
           </div>
         ) : (
-          <h3 className="break-words font-medium">
-            {connection.display_name}
-          </h3>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+            <h3 className="min-w-0 break-words font-medium">{connection.display_name}</h3>
+            <span className={getConnectionStatusClassName(connection.status)}>
+              {formatConnectionStatus(connection.status)}
+            </span>
+          </div>
         )}
 
-        <p className="mt-1 break-words text-sm text-gray-500">
-          {connection.source_label}
-        </p>
+        {connection.source_label !== connection.display_name && (
+          <p className="mt-1 break-words text-sm text-gray-500">{connection.source_label}</p>
+        )}
 
         {connection.availability_note && (
           <p className="mt-1 break-words text-xs text-amber-700">
@@ -1139,18 +1143,7 @@ function DataSourceConnectionRow({
 
       </div>
 
-      <div className="flex w-full min-w-0 shrink-0 flex-col items-start gap-2 lg:ml-auto lg:max-w-xl lg:items-end">
-        <span
-          className={getConnectionStatusClassName(
-            connection.status
-          )}
-        >
-          {formatConnectionStatus(
-            connection.status
-          )}
-        </span>
-
-        {!isEditing &&
+      {!isEditing &&
           (onRenameConnection ||
             onDeleteConnection ||
             canConfigure ||
@@ -1159,7 +1152,7 @@ function DataSourceConnectionRow({
             canRefreshSageBusinesses ||
             canStartOAuth ||
             canCancelOAuth) && (
-            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {canSyncConnector && (
                 <button
                   type="button"
@@ -1174,7 +1167,7 @@ function DataSourceConnectionRow({
                     initialSyncInProgress ||
                     ingestionInProgress
                   }
-                  className="w-full rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  className="rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {syncingConnectionId ===
                   connection.id
@@ -1184,7 +1177,7 @@ function DataSourceConnectionRow({
               )}
 
               {canShowAdvancedDateRange && (
-                <div className="w-full min-w-0 sm:w-auto">
+                <div className={showAdvancedDateRange ? "w-full min-w-0" : "min-w-0"}>
                   <button
                     type="button"
                     ref={advancedDateRangeButtonRef}
@@ -1196,7 +1189,7 @@ function DataSourceConnectionRow({
                     }}
                     aria-expanded={showAdvancedDateRange}
                     aria-controls={`connection-date-range-${connection.id}`}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CalendarDays size={14} />
                     {showAdvancedDateRange
@@ -1215,7 +1208,7 @@ function DataSourceConnectionRow({
                           closeAdvancedDateRange()
                         }
                       }}
-                      className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-left sm:min-w-[21rem]"
+                      className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-left"
                     >
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <h4
@@ -1234,7 +1227,7 @@ function DataSourceConnectionRow({
                           <X size={16} aria-hidden="true" />
                         </button>
                       </div>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-2 @min-[21rem]:grid-cols-2">
                         <label className="min-w-0 text-xs font-medium text-gray-700">
                           {t("From")}
                           <input
@@ -1294,7 +1287,7 @@ function DataSourceConnectionRow({
               )}
 
               {datasetIds.length > 0 && (
-                <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto">
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                   {datasetIds.length === 1 ? (
                     <>
                       <span className="whitespace-nowrap text-xs text-gray-500">
@@ -1331,7 +1324,7 @@ function DataSourceConnectionRow({
                             )
                           }
                         }}
-                        className="h-8 max-w-48 min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-xs text-gray-700"
+                      className="h-8 w-48 max-w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 text-xs text-gray-700"
                       >
                         <option value="">Go to dataset</option>
                         {datasetIds.map((datasetId, index) => (
@@ -1467,10 +1460,9 @@ function DataSourceConnectionRow({
               )}
             </div>
           )}
-      </div>
 
       {isConfiguring && (
-        <div className="h-full min-w-0 lg:col-start-2 lg:row-start-2">
+        <div className="min-w-0">
           <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
               {hasResourceSelection
@@ -1567,8 +1559,13 @@ function DataSourceConnectionRow({
       )}
 
       {canSchedule && (
-        <div className="h-full min-w-0 rounded-xl border bg-gray-50 p-3 lg:col-start-1 lg:row-start-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <details className="group min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 text-xs font-medium text-gray-700 [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={14} className="shrink-0 -rotate-90 group-open:rotate-0" aria-hidden="true" />
+            {t("Automatic sync")}
+            <span className="ml-auto text-gray-500">{t(connection.sync_enabled ? "On" : "Off")}</span>
+          </summary>
+          <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-gray-200 pt-3">
             <label className="inline-flex h-9 items-center gap-2 text-xs font-medium text-gray-700">
               <input
                 type="checkbox"
@@ -1657,16 +1654,16 @@ function DataSourceConnectionRow({
           <p className="mt-2 text-xs text-gray-500">
             Syncs follow this local time in {scheduleTimezone || "your local timezone"}.
           </p>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 pb-3 text-xs text-gray-500">
             Connector data is retained for 3 years, then deleted.
           </p>
-        </div>
+        </details>
       )}
 
       {showConnectionSettingsCard && (
           <div
             id={`connection-settings-${connection.id}`}
-            className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
+            className="min-w-0"
           >
             <div className="h-full rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-3">
               {connectionSettingsConfigKeys.length > 0 ? (
@@ -1761,9 +1758,7 @@ function DataSourceConnectionRow({
         )}
 
       {showOAuthAccountSelection && (
-        <div
-          className="h-full min-w-0 lg:col-start-2 lg:row-start-2"
-        >
+        <div className="min-w-0">
           <ConnectionAccountSelector
             label={
               connection.source_type === "sage"
@@ -1789,14 +1784,7 @@ function DataSourceConnectionRow({
       )}
 
       {showResourceSelection && (
-          <div
-            className={`h-full min-w-0 lg:col-start-2 ${
-              showConnectionSettingsCard ||
-              showOAuthAccountSelection
-                ? "lg:row-start-3"
-                : "lg:row-start-2"
-            }`}
-          >
+          <div className="min-w-0">
             <ConnectionResourceSelector
               key={`${connection.id}-${configuredResourceKey}`}
               sourceType={connection.source_type}
@@ -1824,16 +1812,16 @@ function DataSourceConnectionRow({
           }
           className={
             connectionFeedback.tone === "success"
-              ? "min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 lg:col-span-2"
+              ? "min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
               : connectionFeedback.tone === "no_data"
-                ? "min-w-0 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 lg:col-span-2"
-                : "min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 lg:col-span-2"
+                ? "min-w-0 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800"
+                : "min-w-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
           }
         >
           {connectionFeedback.message}
         </div>
       )}
-    </div>
+    </article>
   )
 }
 
@@ -2137,7 +2125,7 @@ function ConnectionResourceSelector({
       <legend className="px-1 text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
         {getResourceSelectionTitle(sourceType)}
       </legend>
-      <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 @min-[21rem]:grid-cols-2 @min-[39rem]:grid-cols-3">
         {options.map((option) => (
           <label
             key={option.value}
@@ -2493,7 +2481,7 @@ export function ConnectionSetupGuide({
             <p className="font-semibold text-gray-800">
               {t("Enter in this connection")}
             </p>
-            <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
+            <div className="mt-2 grid min-w-0 gap-2 @min-[21rem]:grid-cols-2">
               {fieldGuides.map((field) => (
                 <div
                   key={field.configKey}
@@ -2572,7 +2560,7 @@ function ConnectionConfigFieldGroup({
         {t(title)}
       </p>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 @min-[27rem]:grid-cols-2">
         {configKeys.map((configKey) => (
           <ConnectionConfigField
             key={configKey}

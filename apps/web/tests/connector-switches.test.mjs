@@ -79,3 +79,12 @@ test("planned and upload-only sources have no switch, and a failed catalog read 
   assert.equal(view.switchFor("CSV"), undefined)
   assert.match(view.html(), /Unavailable/)
 })
+
+test("providers remain grouped in a responsive catalog with their own switches", () => {
+  const view = panel({ sources: [shopify, { ...shopify, type: "square", label: "Square" }, google] })
+  const html = view.html()
+  assert.equal((html.match(/grid-cols-\[repeat\(auto-fill,minmax\(min\(100%,15rem\),1fr\)\)\]/g) ?? []).length, 2)
+  assert.ok(view.switchFor("Shopify"))
+  assert.ok(view.switchFor("Square"))
+  assert.ok(view.switchFor("Google Ads"))
+})
