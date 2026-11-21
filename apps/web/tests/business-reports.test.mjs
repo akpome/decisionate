@@ -123,7 +123,7 @@ test("new reports automatically include findings without checkbox selection", ()
   assert.equal(editableDefinition({ included_findings: null }).included_findings, null)
 })
 
-test("a fresh preview includes findings automatically and keeps the returned selection for saving", async () => {
+test("a fresh preview uses the custom question and keeps automatically included findings for saving", async () => {
   const source = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
   const ast = ts.createSourceFile("report-workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let declaration
@@ -134,6 +134,7 @@ test("a fresh preview includes findings automatically and keeps the returned sel
   visit(ast)
   assert.ok(declaration)
   const original = editableDefinition({ included_findings: [],
+    business_question: "  What changed in sales compared with spend?  ",
     metrics: [{ dataset_id: 1, metric_key: "spend", date_column: "date", aggregation: "sum" }],
     dimension_filters: [{ dataset_id: 1, column: "region", values: ["East"] }, { dataset_id: 2, column: "channel", values: [] }],
   })
@@ -152,8 +153,10 @@ test("a fresh preview includes findings automatically and keeps the returned sel
     },
     request: async (path, options) => {
       assert.equal(path, "/jobs")
-      assert.equal(JSON.parse(options.body).included_findings, null)
-      assert.deepEqual(JSON.parse(options.body).dimension_filters, [{ dataset_id: 1, column: "region", values: ["East"] }])
+      const payload = JSON.parse(options.body)
+      assert.equal(payload.business_question, "What changed in sales compared with spend?")
+      assert.equal(payload.included_findings, null)
+      assert.deepEqual(payload.dimension_filters, [{ dataset_id: 1, column: "region", values: ["East"] }])
       return { job_id: "job-1", status: "queued" }
     },
     setDefinition: value => { savedDefinition = value }, setReport: value => { report = value }, setView: value => { view = value },

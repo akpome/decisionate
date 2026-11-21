@@ -719,6 +719,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
             decisionPicker={<ImpactDecisionPicker key={JSON.stringify([userId, workspaceId])} userId={userId} workspaceId={workspaceId} decisionId={definition.impact.decision_id} readiness={currentImpactContext?.readiness} disabled={!canEditDecisions || busy} onChoose={identity => void chooseReviewDecision(identity)} />}
             actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
+          {!weekly && reportDetails}
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <ReportMetricPicker key={single ? `single-${singleDatasetId ?? "none"}` : "multi"} userId={userId} workspaceId={workspaceId} selectedDatasetId={singleDatasetId} onDatasetChange={chooseSingleDataset} onDatasetSearch={searchSingleDatasets} selectionDisabled={busy} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
@@ -757,7 +758,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
               {previewButton}
             </section>
           </div>
-          <details className="space-y-4 border-b border-gray-200 pb-5"><summary className="cursor-pointer text-sm font-medium">Report details</summary>{reportDetails}</details>
+          {weekly && <details className="space-y-4 border-b border-gray-200 pb-5"><summary className="cursor-pointer text-sm font-medium">Report details</summary>{reportDetails}</details>}
           </>}
         </fieldset>
         {weekly && !canManage && <button type="submit" className={primaryButton} disabled={previewDisabled}><Play size={16} />Preview weekly report</button>}

@@ -1,9 +1,10 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-20",
-  "base_git_revision": "e32dad43038024599c54f772099f8ac3dca605a2",
+  "base_git_revision": "c2b6d5a952440896692921549770ff266d435cf9",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/datasets/router.py"
+    "apps/web/features/reports/report-workflow.ts",
+    "apps/web/features/reports/report-workspace.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -207,8 +208,8 @@
     "apps/web/features/reports/report-page.tsx": "94f00ff8ad890b04ae1aaa6c6da873795bba2ea3b5861432bf5b8be67b980f07",
     "apps/web/features/reports/report-pair-directions.tsx": "e00bbb3fc04f12905c910a7ca3d9427b79a3af1b735fe1fd86e67deac763a37e",
     "apps/web/features/reports/report-takeaways.tsx": "12a3451cb69fe38670f834e7807c9e1ae468a56fdebe091809b80cd5b95029aa",
-    "apps/web/features/reports/report-workflow.ts": "5fc37025080def5a1da637ac2fed5b92e365b466ee57437c4b5718279f31513f",
-    "apps/web/features/reports/report-workspace.tsx": "498e12e1df2827d26d6ee9e92a7a144ab497bf29f9d9a0b28b3ebdf7000c6263",
+    "apps/web/features/reports/report-workflow.ts": "4ef151a9b5ed4971933c3bcee4e465ccd317b6e04d507347ce1d9532bcd75cbb",
+    "apps/web/features/reports/report-workspace.tsx": "fcfe544486aa6dd846688b2817097142f108bb81e6933b13ceb4639ee2938094",
     "apps/web/features/reports/types.ts": "423c00eed8655c0ba2dc34e285baebb5c2355a8c5657846c3c44b0d4f2bd1299",
     "apps/web/features/reports/weekly-decision-update.tsx": "818e381a93883c9bd269341c36f48766ce59e4dd641295a779e1cbd2bfe74600",
     "apps/web/features/reports/weekly-intelligence.tsx": "7269eec883846e65690a66e5b40ce61399f161cfcba4706da27e490afe3a80c1",
@@ -255,7 +256,7 @@
     "customer/time-aggregation.md": "57172293cd096a908344b7e2814928e08f3840cf4219cdd9361069c4495cf1d2",
     "customer/dimension-filters.md": "e82e70271b2f7bd0f6cdb28115459d79644b546aaae507697284a9aab3479c17",
     "customer/dashboards.md": "afb54ba9f9f60e0543f2bd1b958f0b919cd807ecb1cde59919d0e85040927c19",
-    "customer/reports-build.md": "99595e9d378d591ddebaa780a54ef816bdd0fb70424d9f4e23a6398967d73c86",
+    "customer/reports-build.md": "1ea1da84177eccebf8ed2f3b303831ae1ca1a8004cef7b5948babe97b2dfb78c",
     "customer/reports-read-save.md": "12c2fd6196db01f46cbb579a072356d9724f9897fc2267c3b116ef0c8cbd9f51",
     "customer/relationship-evidence.md": "076f4271dd0a7d949cc8429406d1f37be472981333ff51b6b2c1902fdf635539",
     "customer/lag-observations.md": "45a4c5bd8c8cac9c24752eb0df885cca0a6ecbdea6de3a712845ebf972e97c21",

@@ -9,7 +9,7 @@ export function defaultReportQuestion(definition: ReportDefinition, weekly: bool
 }
 
 export function reportMetadataIssue(definition: ReportDefinition) {
-  if (!definition.name.trim()) return "Enter a report name in Report details."
+  if (!definition.name.trim()) return "Enter a report name."
   const question = definition.business_question.trim()
   if (question && question.length < 8) return "Add a little more detail to the business question, or leave it blank."
   return ""
