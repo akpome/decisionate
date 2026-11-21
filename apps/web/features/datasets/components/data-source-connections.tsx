@@ -298,21 +298,6 @@ export function DataSourceConnections({
     stopConfiguring()
   }
 
-  function confirmDeleteConnection(
-    connection: DataSourceConnection
-  ) {
-    const confirmed =
-      window.confirm(
-        `Remove ${connection.display_name}? This connection will be removed from Configure Added Connections. Dataset files already uploaded will remain, but this source will need to be added and configured again before future pulls.`
-      )
-
-    if (!confirmed) {
-      return
-    }
-
-    onDeleteConnection?.(connection)
-  }
-
   if (!connections.length) {
     return (
       <div className="rounded-xl border bg-white p-4 text-sm text-gray-500">
@@ -351,9 +336,7 @@ export function DataSourceConnections({
           startEditing={startEditing}
           stopEditing={stopEditing}
           saveEditing={saveEditing}
-          onDeleteConnection={
-            confirmDeleteConnection
-          }
+          onDeleteConnection={onDeleteConnection}
           onRenameConnection={
             onRenameConnection
           }

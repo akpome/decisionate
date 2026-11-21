@@ -270,11 +270,6 @@ function ConnectionsPageContent({
     workspaceVersion,
   } =
     useActiveWorkspace(user?.id)
-  const savedSourceTypes =
-    sourceConnections.map(
-      (connection) =>
-        connection.source_type
-    )
   const hasActiveIngestion =
     sourceConnections.some((connection) =>
       ["pending", "initial", "backfill"].includes(
@@ -368,7 +363,7 @@ function ConnectionsPageContent({
   async function handleCreateSourceConnection(
     source: DatasetSourceOption
   ) {
-    if (!user?.id) return
+    if (!user?.id || !canConfigureWorkspace || connectionLoadError || creatingSourceType || deletingConnectionId !== null) return
 
     setCreatingSourceType(source.type)
     setConnectionError("")
@@ -413,7 +408,10 @@ function ConnectionsPageContent({
   async function handleDeleteSourceConnection(
     connection: DataSourceConnection
   ) {
-    if (!user?.id) return
+    if (!user?.id || !canConfigureWorkspace || creatingSourceType || deletingConnectionId !== null) return
+    if (!window.confirm(
+      `Remove ${connection.display_name}? This connection will be removed from Configure Added Connections. Dataset files already uploaded will remain, but this source will need to be added and configured again before future pulls.`
+    )) return
 
     setDeletingConnectionId(connection.id)
     setConnectionError("")
@@ -974,15 +972,12 @@ function ConnectionsPageContent({
 
           <DataSourcePanel
             sources={configurableSources}
-            savedSourceTypes={
-              savedSourceTypes
-            }
-            creatingSourceType={
-              creatingSourceType
-            }
-            onCreateConnection={
-              handleCreateSourceConnection
-            }
+            connections={sourceConnections}
+            creatingSourceType={creatingSourceType}
+            deletingConnectionId={deletingConnectionId}
+            loadError={Boolean(connectionLoadError)}
+            onCreateConnection={handleCreateSourceConnection}
+            onRemoveConnection={handleDeleteSourceConnection}
           />
         </div>
       )}
@@ -1000,7 +995,7 @@ function ConnectionsPageContent({
           Connection access is not available to workspace members.
         </div>
       ) : (
-        <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
+        <div id="saved-connections" className="scroll-mt-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-8">
           <h2 className="text-xl font-semibold">
             {canConfigureWorkspace
               ? "Configure Added Connections"

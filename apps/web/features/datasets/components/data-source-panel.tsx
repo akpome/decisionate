@@ -1,19 +1,22 @@
 "use client"
 
 import {
+  type DataSourceConnection,
   type DatasetSourceOption,
 } from "@/lib/api"
+import { LoaderCircle } from "lucide-react"
 
 import { ConnectionSetupGuide } from "@/features/datasets/components/data-source-connections"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 
 interface DataSourcePanelProps {
   sources: DatasetSourceOption[]
-  savedSourceTypes?: string[]
+  connections: DataSourceConnection[]
   creatingSourceType?: string | null
-  onCreateConnection?: (
-    source: DatasetSourceOption
-  ) => void
+  deletingConnectionId?: number | null
+  loadError?: boolean
+  onCreateConnection: (source: DatasetSourceOption) => void
+  onRemoveConnection: (connection: DataSourceConnection) => void
 }
 
 const SOURCE_CATEGORY_ORDER = [
@@ -30,17 +33,15 @@ const SOURCE_CATEGORY_ORDER = [
 
 export function DataSourcePanel({
   sources,
-  savedSourceTypes = [],
+  connections,
   creatingSourceType,
+  deletingConnectionId,
+  loadError,
   onCreateConnection,
+  onRemoveConnection,
 }: DataSourcePanelProps) {
   const { t } = useDecisionateText()
-  const savedSourceTypeSet =
-    new Set(
-      savedSourceTypes.map(
-        normalizeSourceType
-      )
-    )
+  const mutationPending = creatingSourceType != null || deletingConnectionId != null
   const groupedSources =
     sources.reduce<
       Record<string, DatasetSourceOption[]>
@@ -90,15 +91,14 @@ export function DataSourcePanel({
                       "upload" &&
                     source.status !==
                       "planned"
-                  const isSaved =
-                    savedSourceTypeSet.has(
-                      normalizeSourceType(
-                        source.type
-                      )
-                    )
-                  const isCreating =
-                    creatingSourceType ===
-                    source.type
+                  const savedConnections = connections.filter(connection =>
+                    normalizeSourceType(connection.source_type) === normalizeSourceType(source.type)
+                  )
+                  const isSaved = savedConnections.length > 0
+                  const hasMultiple = savedConnections.length > 1
+                  const isCreating = creatingSourceType === source.type
+                  const isRemoving = savedConnections.some(connection => connection.id === deletingConnectionId)
+                  const pendingLabel = isCreating ? "Adding..." : isRemoving ? "Removing..." : ""
                   const hasConfigKeys =
                     Boolean(
                       source.config_keys
@@ -187,27 +187,42 @@ export function DataSourcePanel({
                               : t("Planned")}
                         </span>
 
-                        {canCreateDraft &&
-                          onCreateConnection && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onCreateConnection(
-                                  source
-                                )
-                              }
-                              disabled={
-                                isCreating ||
-                                isSaved
-                              }
-                              className="w-full rounded-lg border px-3 py-1.5 text-center text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                            >
-                              {t(getSourceActionLabel(
-                                isCreating,
-                                isSaved
-                              ))}
-                            </button>
-                          )}
+                        {canCreateDraft && (
+                          <>
+                            <div className="flex min-h-10 min-w-28 flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="text-xs font-medium text-gray-600" role="status">
+                                {pendingLabel ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                                    {t(pendingLabel)}
+                                  </span>
+                                ) : t(loadError ? "Unavailable" : isSaved ? "On" : "Off")}
+                              </span>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-label={source.label}
+                                aria-checked={isSaved}
+                                title={t(hasMultiple ? "Manage connections individually" : isSaved ? "Remove connection" : "Add connection")}
+                                disabled={mutationPending || hasMultiple || loadError}
+                                onClick={() => {
+                                  if (isSaved) onRemoveConnection(savedConnections[0])
+                                  else onCreateConnection(source)
+                                }}
+                                className="order-first flex h-10 w-12 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--decisionate-brand-primary)] disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                <span aria-hidden="true" className={`inline-flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors motion-reduce:transition-none ${isSaved ? "justify-end border-transparent bg-[var(--decisionate-brand-primary)]" : "justify-start border-gray-500 bg-gray-600"}`}>
+                                  <span className="size-4 rounded-full bg-white shadow-sm" />
+                                </span>
+                              </button>
+                            </div>
+                            {hasMultiple && (
+                              <a href="#saved-connections" className="text-xs font-medium text-[var(--decisionate-brand-primary-text)] underline">
+                                {t("Manage connections")}
+                              </a>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   )
@@ -291,19 +306,4 @@ function formatSyncModes(
         )
     )
     .join(", ")
-}
-
-function getSourceActionLabel(
-  isCreating: boolean,
-  isSaved: boolean
-) {
-  if (isCreating) {
-    return "Saving..."
-  }
-
-  if (isSaved) {
-    return "Added"
-  }
-
-  return "Add connection"
 }
