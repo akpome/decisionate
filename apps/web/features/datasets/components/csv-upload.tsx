@@ -7,7 +7,7 @@ import {
   uploadDataset,
 } from "@/lib/api"
 import { useUser } from "@clerk/nextjs"
-import { CircleCheck, LoaderCircle, Upload } from "lucide-react"
+import { LoaderCircle, Upload } from "lucide-react"
 import {
   useActiveWorkspace,
 } from "@/lib/use-active-workspace"
@@ -16,12 +16,12 @@ import { useDecisionateText } from "@/app/use-decisionate-language"
 interface CsvUploadProps {
   sources?: DatasetSourceOption[]
   busy: boolean
-  onStatusChange: (status: DatasetUploadStatus) => void
+  onStatusChange: (status: DatasetUploadStatus | null) => void
   onUploadSuccess: () => void | Promise<void>
 }
 
 export type DatasetUploadStatus =
-  | { phase: "uploading" | "processing" | "complete"; fileName: string }
+  | { phase: "uploading" | "processing"; fileName: string }
   | { phase: "error"; fileName: string; message: string }
 
 export function isDatasetUploadBusy(status: DatasetUploadStatus | null) {
@@ -31,25 +31,20 @@ export function isDatasetUploadBusy(status: DatasetUploadStatus | null) {
 export function DatasetUploadNotice({ status }: { status: DatasetUploadStatus | null }) {
   const { t } = useDecisionateText()
   const notice = status?.phase !== "error" ? status : null
-  const busy = isDatasetUploadBusy(notice)
-  const label = t(notice?.phase === "uploading" ? "Uploading data file..." : notice?.phase === "processing" ? "Preparing your dataset..." : "Uploaded File")
+  const label = t(notice?.phase === "uploading" ? "Uploading data file..." : "Preparing your dataset...")
   return (
     <>
       <div role="status" aria-atomic="true" className={notice ? "min-w-0 rounded-lg border border-[var(--decisionate-brand-primary)] bg-[var(--decisionate-brand-primary-soft)] px-4 py-3" : "sr-only"}>
         {notice && (
           <>
             <div className="flex items-start gap-3">
-              {busy ? (
-                <LoaderCircle size={22} strokeWidth={2.5} className="shrink-0 animate-spin text-[var(--decisionate-brand-primary-text,#1d4ed8)] motion-reduce:animate-none" aria-hidden="true" />
-              ) : (
-                <CircleCheck size={22} className="shrink-0 text-[var(--decisionate-brand-primary-text,#1d4ed8)]" aria-hidden="true" />
-              )}
+              <LoaderCircle size={22} strokeWidth={2.5} className="shrink-0 animate-spin text-[var(--decisionate-brand-primary-text,#1d4ed8)] motion-reduce:animate-none" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{label}</p>
                 <p className="break-all text-sm text-gray-600">{notice.fileName}</p>
               </div>
             </div>
-            {busy && <progress aria-label={label} className="mt-2 block h-1.5 w-full accent-[var(--decisionate-brand-primary)] motion-reduce:hidden" />}
+            <progress aria-label={label} className="mt-2 block h-1.5 w-full accent-[var(--decisionate-brand-primary)] motion-reduce:hidden" />
           </>
         )}
       </div>
@@ -178,7 +173,7 @@ export function CsvUpload({
         )
       }
       await onUploadSuccess()
-      onStatusChange({ phase: "complete", fileName })
+      onStatusChange(null)
     } catch (error) {
       onStatusChange({ phase: "error", fileName, message: error instanceof Error ? error.message : t("Upload failed") })
     } finally {

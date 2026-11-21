@@ -77,8 +77,13 @@ export default function DatasetsPage() {
   const uploadScope = JSON.stringify([user?.id, activeWorkspaceId])
   const uploadStatus = fileUploads[uploadScope] ?? null
 
-  function updateUploadStatus(status: DatasetUploadStatus) {
-    setFileUploads(current => ({ ...current, [uploadScope]: status }))
+  function updateUploadStatus(status: DatasetUploadStatus | null) {
+    setFileUploads(current => {
+      if (status) return { ...current, [uploadScope]: status }
+      const next = { ...current }
+      delete next[uploadScope]
+      return next
+    })
   }
 
   async function loadDatasets() {

@@ -186,16 +186,16 @@ test("upload progress remains visible through transfer, processing and refresh, 
   assert.match(component.html(), /Preparing your dataset/)
   refresh.resolve()
   await pending
-  assert.doesNotMatch(component.html(), /animate-spin|<progress|type="file" disabled/)
-  assert.match(component.html(), /Uploaded File/)
+  assert.doesNotMatch(component.html(), /animate-spin|<progress|type="file" disabled|shopify\.csv|Uploaded File/)
+  assert.match(component.html(), /<div role="status" aria-atomic="true" class="sr-only"><\/div>/)
 })
 
-test("a fast upload still leaves a visible confirmation", async () => {
+test("a fast upload does not leave a banner behind", async () => {
   const component = view(async () => ({ status: "queued", job_id: 7 }), async () => ({ status: "succeeded" }))
   await component.start(new File(["a\n1"], "sales.csv"))
   component.hidePicker()
-  assert.match(component.html(), /role="status".*Uploaded File.*sales\.csv.*<section hidden=""/)
-  assert.doesNotMatch(component.html(), /<progress/)
+  assert.match(component.html(), /<div role="status" aria-atomic="true" class="sr-only"><\/div><section hidden=""/)
+  assert.doesNotMatch(component.html(), /<progress|sales\.csv|Uploaded File/)
 })
 
 test("the Datasets page renders upload feedback outside the collapsible import tools", () => {
