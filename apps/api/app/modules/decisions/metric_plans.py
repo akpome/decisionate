@@ -231,10 +231,13 @@ def refresh(db, decision, *, on_open=False):
     decision.next_metric_check = now + (timedelta(hours=24) if review["status"] == "ready" else timedelta(minutes=15))
 
 
-def run_next_review(db):
+def run_next_review(db, identity=None):
+    from app.infrastructure.analysis_worker import due_reviews
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    decision = db.query(Decision).filter(Decision.status.in_(OPEN), Decision.next_metric_check <= now
-        ).order_by(Decision.next_metric_check, Decision.id).with_for_update(skip_locked=True).first()
+    query = due_reviews(db)
+    if identity is not None:
+        query = query.filter(Decision.id == identity)
+    decision = query.order_by(Decision.next_metric_check, Decision.id).with_for_update(skip_locked=True).first()
     if decision is not None:
         try:
             with db.begin_nested(), workspace_application_scope(decision.workspace_id, db):

@@ -275,16 +275,31 @@ def next_job():
         return job.id if job else None
 
 
-def supervise_job(identity, connection, script):
+def due_reviews(db):
+    from app.modules.decisions.models import Decision
+    return db.query(Decision).filter(Decision.status.in_(("planned", "in_progress")), Decision.next_metric_check <= utc_now())
+
+
+def defer_review(identity):
+    from app.modules.decisions.models import Decision
+    with SessionLocal() as db:
+        due_reviews(db).filter(Decision.id == identity).update({Decision.next_metric_check: utc_now() + timedelta(minutes=15)})
+        db.commit()
+
+
+def supervise_job(identity, connection, script, *, decision_review=False):
     timeout = max(30, min(int(os.getenv("ANALYSIS_JOB_TIMEOUT_SECONDS", "900")), 7200))
     memory_budget = memory_budget_bytes()
     try:
-        child = subprocess.Popen([sys.executable, "-B", script, "--job-id", identity, "--parent-pid", str(os.getpid())],
+        child = subprocess.Popen([sys.executable, "-B", script, "--decision-id" if decision_review else "--job-id", str(identity), "--parent-pid", str(os.getpid())],
                                  start_new_session=True, env=child_environment())
     except OSError:
         logger.exception("Report analysis child could not start: job_id=%s", identity)
-        recover_interrupted_jobs(identity, retry=False,
-                                 reason="Analysis could not start. Your selections have been preserved. Please try again.")
+        if decision_review:
+            defer_review(identity)
+        else:
+            recover_interrupted_jobs(identity, retry=False,
+                                     reason="Analysis could not start. Your selections have been preserved. Please try again.")
         return
     deadline = time.monotonic() + timeout
     timed_out = False
@@ -305,10 +320,11 @@ def supervise_job(identity, connection, script):
             connection.execute(text("SELECT 1"))
             connection.commit()
             record_heartbeat()
-            with SessionLocal() as db:
-                row = db.get(ReportAnalysisJob, identity)
-                if row is None or row.status == "cancelled":
-                    break
+            if not decision_review:
+                with SessionLocal() as db:
+                    row = db.get(ReportAnalysisJob, identity)
+                    if row is None or row.status == "cancelled":
+                        break
             if time.monotonic() >= deadline:
                 timed_out = True
                 break
@@ -320,16 +336,21 @@ def supervise_job(identity, connection, script):
             except ProcessLookupError:
                 pass
         returncode = child.wait()
-        with SessionLocal() as db:
-            row = db.get(ReportAnalysisJob, identity)
-            if row is not None and row.status in ACTIVE:
-                logger.error("Report analysis child stopped: job_id=%s returncode=%s timed_out=%s phase=%s attempts=%s memory_exceeded=%s peak_rss_bytes=%s peak_virtual_bytes=%s max_threads=%s resident_limit_bytes=%s",
-                             identity, returncode, timed_out, row.phase, row.attempts, memory_exceeded,
-                             peak_rss, peak_virtual, max_threads, memory_budget)
-        reason = ("Analysis exceeded its memory budget. Your selections have been preserved. Try fewer selected metrics."
-                  if memory_exceeded else "Analysis exceeded its execution limit. Reduce the selected metrics or reporting window."
-                  if timed_out else "Analysis was interrupted before it finished. Your selections have been preserved. Please try again.")
-        recover_interrupted_jobs(identity, retry=not (timed_out or memory_exceeded), reason=reason)
+        if decision_review:
+            if returncode != 0:
+                logger.warning("Decision review interrupted: decision_id=%s returncode=%s", identity, returncode)
+                defer_review(identity)
+        else:
+            with SessionLocal() as db:
+                row = db.get(ReportAnalysisJob, identity)
+                if row is not None and row.status in ACTIVE:
+                    logger.error("Report analysis child stopped: job_id=%s returncode=%s timed_out=%s phase=%s attempts=%s memory_exceeded=%s peak_rss_bytes=%s peak_virtual_bytes=%s max_threads=%s resident_limit_bytes=%s",
+                                 identity, returncode, timed_out, row.phase, row.attempts, memory_exceeded,
+                                 peak_rss, peak_virtual, max_threads, memory_budget)
+            reason = ("Analysis exceeded its memory budget. Your selections have been preserved. Try fewer selected metrics."
+                      if memory_exceeded else "Analysis exceeded its execution limit. Reduce the selected metrics or reporting window."
+                      if timed_out else "Analysis was interrupted before it finished. Your selections have been preserved. Please try again.")
+            recover_interrupted_jobs(identity, retry=not (timed_out or memory_exceeded), reason=reason)
 
 
 def run_worker(script, once=False):
@@ -368,10 +389,12 @@ def run_worker(script, once=False):
                 if identity:
                     supervise_job(identity, connection, script)
                 if time.monotonic() - last_metric_check >= 10:
-                    from app.modules.decisions.metric_plans import run_next_review
                     try:
+                        from app.modules.decisions.models import Decision
                         with SessionLocal() as db:
-                            run_next_review(db)
+                            pending = due_reviews(db).with_entities(Decision.id).order_by(Decision.next_metric_check, Decision.id).first()
+                        if pending:
+                            supervise_job(pending.id, connection, script, decision_review=True)
                     except Exception:
                         logger.exception("Automatic decision review queue unavailable; report processing continues")
                     last_metric_check = time.monotonic()

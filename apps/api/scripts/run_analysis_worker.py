@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--once", action="store_true")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--job-id", help=argparse.SUPPRESS)
+    mode.add_argument("--decision-id", type=int, help=argparse.SUPPRESS)
     mode.add_argument("--bootstrap", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -24,7 +25,7 @@ def main():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from app.infrastructure.analysis_resources import NATIVE_ENVIRONMENT, child_environment
     os.environ.update(NATIVE_ENVIRONMENT)
-    if args.job_id or args.bootstrap:
+    if args.job_id or args.decision_id or args.bootstrap:
         if not sys.platform.startswith("linux") or not args.parent_pid:
             raise RuntimeError("Isolated analysis jobs require the Linux supervisor.")
         if ctypes.CDLL(None).prctl(1, signal.SIGKILL) != 0:
@@ -34,11 +35,17 @@ def main():
     if args.bootstrap:
         import_module("app.main")
         return
-    if args.job_id:
+    if args.job_id or args.decision_id:
         from app.security.config import validate_production_security_configuration
         from app.infrastructure.monitoring import configure_error_monitoring
         validate_production_security_configuration()
         configure_error_monitoring()
+        if args.decision_id:
+            from app.db.database import SessionLocal
+            from app.modules.decisions.metric_plans import run_next_review
+            with SessionLocal() as db:
+                run_next_review(db, args.decision_id)
+            return
         from app.infrastructure.analysis_worker import execute_job
         execute_job(args.job_id)
     else:

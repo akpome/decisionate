@@ -34,6 +34,46 @@ def worker_environment(url):
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "The isolated worker uses Linux process protection")
 class AnalysisWorkerSubprocessTests(unittest.TestCase):
+    def test_due_decision_review_runs_in_isolated_child(self):
+        from datetime import datetime
+        from app.modules.decisions.metric_plans import preview, store_review
+        from app.modules.decisions.schemas import MetricPlan
+
+        with tempfile.TemporaryDirectory() as directory:
+            url = "sqlite:///" + str(Path(directory) / "decisions.db")
+            engine = create_engine(url)
+            self.addCleanup(engine.dispose)
+            Decision.metadata.create_all(engine)
+            sessions = sessionmaker(bind=engine)
+            path = Path(directory) / "shop.csv"
+            frame = pd.DataFrame({"date": pd.date_range("2025-01-01", periods=14),
+                                  "spend": [100] * 7 + [110] * 7, "orders": [20] * 7 + [24] * 7})
+            frame.iloc[:-1].to_csv(path, index=False)
+            with sessions() as db:
+                db.add(Dataset(id=1, user_id="shop", workspace_id="shop", file_name=path.name,
+                               file_path=str(path), source_type="csv", row_count=14, column_count=3,
+                               source_config=json.dumps({"selected_metric_columns": ["spend", "orders"]})))
+                db.commit()
+                plan = MetricPlan(start="2025-01-08", review="2025-01-15",
+                    input={"dataset_id": 1, "metric_key": "spend", "direction": "increase", "unit": "percent", "change": 10},
+                    output={"dataset_id": 1, "metric_key": "orders", "direction": "increase", "unit": "amount", "change": 15})
+                review, _ = preview(db, "shop", "shop", plan)
+                self.assertEqual(review["status"], "waiting")
+                decision = Decision(dataset_id=1, clerk_user_id="shop", workspace_id="shop", title="Test spend")
+                store_review(decision, review)
+                decision.next_metric_check = datetime(2025, 1, 15)
+                db.add(decision); db.commit()
+                identity = decision.id
+            frame.to_csv(path, index=False)
+            child = subprocess.run([sys.executable, "-B", "scripts/run_analysis_worker.py", "--decision-id", str(identity),
+                                    "--parent-pid", str(os.getpid())], cwd=API_ROOT, env=worker_environment(url),
+                                   capture_output=True, text=True, timeout=180)
+            self.assertEqual(child.returncode, 0, child.stderr[-4000:])
+            with sessions() as db:
+                decision = db.get(Decision, identity)
+                self.assertEqual((decision.status, decision.metric_review["status"], decision.outcome_measured_value),
+                                 ("planned", "ready", 168))
+
     def test_real_child_completes_budget_plan_without_api_process_or_ai(self):
         from tests.test_budget_planner import observations, definition
         from datetime import date, timedelta
