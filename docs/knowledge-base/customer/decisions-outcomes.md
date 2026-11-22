@@ -26,6 +26,32 @@ identity and relevant limitations, not expand to every metric in its datasets.
 An outcome metric is a measurement choice within the supported evidence scope,
 not a reason to include unrelated source columns.
 
+## How do I check whether spending more brought the orders I wanted?
+
+In Create decision, use **Measure an action and a result**. For example, choose
+ad spend as the action, Increase, Percentage, 10. Choose orders as the result,
+Increase, Amount, 20. Enter the day the change starts and the date to review it.
+Choose **Preview targets** to see the actual baseline, target and dates for
+each metric. A baseline of 100 orders gives a target of 120 orders in this
+example. A percentage target needs a nonzero baseline; use an amount instead
+when starting from zero. If a comparable decision has already been measured in
+this workspace, the preview links to its result before you commit to a new one.
+
+You can choose metrics directly or use a saved report. Report-linked plans
+keep its date columns, calculations, filters and timezone. If its earlier
+relationship analysis supports a delay between this action and result, the
+result window starts after that delay. Review compares each window with the
+same number of days immediately before the change. The review date itself is
+not counted: the last measurement day is the day before review.
+
+Open decisions are checked on or after the review date, both in the background
+and when opened. Missing days are not counted as zero. Each target is shown
+separately: spending can reach its target even if orders do not. Complete
+results appear in Action Needed and in matching weekly reports with a decision
+link. The owner can close the decision to keep the last assessment. Meeting a
+target does not prove that the action caused the change. Choose **Review
+manually** for qualitative decisions or where daily records aren't available.
+
 ## Updates and duplicate-looking drafts
 
 Edit an existing decision to update that record; do not create a new one merely
@@ -58,7 +84,7 @@ Compare before and after is the older simple metric comparison, not the
 cross-dataset impact model. Its percentage change is not a causal impact estimate.
 Keep that distinction when recording what actually happened.
 
-At review time, record the actual outcome, its status and a specific lesson.
+For a manual decision, record the actual outcome, its status and a specific lesson at review time.
 Document confounding factors instead of claiming a change was caused by the
 decision solely because it followed it. Historical learning uses recorded
 workspace evidence; it is not automatic retraining of the model.

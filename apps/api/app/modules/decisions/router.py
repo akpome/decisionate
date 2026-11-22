@@ -1027,11 +1027,10 @@ def has_overdue_review(today_start):
 
 
 def has_required_attention(today_start):
-    return or_(
-        has_pending_outcome(),
-        has_pending_learning(),
-        has_overdue_review(today_start),
-    )
+    return or_(and_(Decision.metric_review_json.is_(None), or_(
+        has_pending_outcome(), has_pending_learning(), has_overdue_review(today_start))),
+        and_(Decision.metric_review_json.isnot(None), Decision.status.in_(("planned", "in_progress")),
+             Decision.outcome_measured_at.isnot(None)))
 
 
 def get_decision_count_map(
@@ -1171,6 +1170,13 @@ async def create_decision(
     ),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=1, max_length=120)] = None,
 ):
+    if payload.metric_plan:
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(_create_decision, payload, x_user_id, x_workspace_id, idempotency_key)
+    return _create_decision(payload, x_user_id, x_workspace_id, idempotency_key)
+
+
+def _create_decision(payload, x_user_id, x_workspace_id, idempotency_key):
     db = SessionLocal()
     clean_user_id = get_active_user_id(
         x_user_id
@@ -1297,14 +1303,29 @@ async def create_decision(
                 separators=(",", ":"),
             ).encode()).hexdigest()
             decision.creation_payload_hash = sha256(json.dumps(
-                payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"),
+                payload.model_dump(mode="json", exclude={"metric_plan"} if not payload.metric_plan else set()), sort_keys=True, separators=(",", ":"),
             ).encode()).hexdigest()
             existing = get_replayed_decision(db, decision)
             if existing is not None:
                 return existing
 
-        from app.modules.reports.intelligence_decisions import validate_adoption
-        existing = validate_adoption(db, decision, clean_user_id) or repeated_active_decision(db, decision)
+        from app.modules.reports.intelligence_decisions import context_of, validate_adoption
+        if payload.metric_plan and context_of(decision).get("report_id") != payload.metric_plan.report_id:
+            raise HTTPException(400, "Choose the same source report for the decision and its targets.")
+        existing = validate_adoption(db, decision, clean_user_id)
+        if payload.metric_plan and existing is None:
+            from .metric_plans import preview, store_review
+            plan = payload.metric_plan
+            if ((decision.outcome_dataset_id or decision.dataset_id, decision.metric_column) != (plan.output.dataset_id, plan.output.metric_key)
+                    or not {plan.input.dataset_id, plan.output.dataset_id}.issubset(evidence_dataset_ids)
+                    or not decision.review_date or decision.review_date.date() != plan.review):
+                raise HTTPException(400, "The decision and its metric plan must use the same evidence, result and review date.")
+            try:
+                review, _ = preview(db, clean_user_id, decision.workspace_id, plan)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            store_review(decision, review)
+        existing = existing or repeated_active_decision(db, decision)
         if existing is not None:
             if decision.creation_request_key:
                 db.add(DecisionCreationRequest(
@@ -2248,6 +2269,8 @@ async def update_decision(
                 decision,
                 request,
             )
+        elif decision.metric_review_json and clean_status in ("completed", "cancelled"):
+            require_decision_owner_or_workspace_owner(db, decision, request)
         else:
             require_decision_manager(request)
 
@@ -2341,6 +2364,8 @@ async def update_decision_overview(
                 decision.status,
                 clean_status,
             ):
+                if decision.metric_review_json and clean_status in ("completed", "cancelled"):
+                    require_decision_owner_or_workspace_owner(db, decision, request)
                 if clean_status == ARCHIVED_DECISION_STATUS:
                     require_decision_owner_or_workspace_owner(
                         db,
@@ -2416,6 +2441,8 @@ async def update_decision_overview(
                 decision.review_date,
                 clean_review_date,
             ):
+                if decision.metric_review_json:
+                    raise HTTPException(409, "The review date is part of the saved measurement plan.")
                 decision.review_date = clean_review_date
                 changed_fields.append(
                     REVIEW_DECISION_ACTIVITY,
@@ -2481,6 +2508,8 @@ async def update_decision_details(
 
         changed = False
         metric_changed = False
+        if decision.metric_review_json and payload.model_fields_set & {"outcome_dataset_id", "metric_column", "action"}:
+            raise HTTPException(409, "The metrics and action are part of the saved measurement plan.")
 
         if "outcome_dataset_id" in payload.model_fields_set:
             outcome_dataset_id = payload.outcome_dataset_id
@@ -2905,7 +2934,7 @@ async def get_decision_metric_options(
     "/{decision_id}",
     response_model=DecisionResponse,
 )
-async def get_decision(
+def get_decision(
     decision_id: int,
     x_user_id: str = Header(alias="X-User-Id"),
     x_workspace_id: str | None = Header(
@@ -2923,6 +2952,12 @@ async def get_decision(
             x_workspace_id,
         )
 
+        if decision.metric_review_json and decision.status in ("planned", "in_progress"):
+            from .metric_plans import refresh
+            db.refresh(decision, with_for_update=True)
+            refresh(db, decision, on_open=True)
+            db.commit()
+            db.refresh(decision)
         return decision
 
     finally:
@@ -3257,6 +3292,8 @@ async def update_decision_outcome(
         clean_expected_outcome = clean_optional_multiline_text(
             decision.expected_outcome,
         )
+        if decision.metric_review_json:
+            raise HTTPException(409, "This decision measures its outcome automatically. Use notes for your assessment.")
         clean_actual_outcome = clean_optional_multiline_text(
             decision.actual_outcome,
         )
@@ -3361,6 +3398,8 @@ async def measure_decision_outcome(
                 status_code=400,
                 detail="Expected outcome is required before measuring results",
             )
+        if decision.metric_review_json:
+            raise HTTPException(409, "Open the decision to see its automatic review.")
         dataset, dataframe = load_dataframe(
             db,
             decision.outcome_dataset_id or decision.dataset_id,
@@ -3512,6 +3551,8 @@ async def update_review_date(
             clean_review_date,
         )
 
+        if changed and decision.metric_review_json:
+            raise HTTPException(409, "The review date is part of the saved measurement plan.")
         decision.review_date = clean_review_date
 
         if changed:

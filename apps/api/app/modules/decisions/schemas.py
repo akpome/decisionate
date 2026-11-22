@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from re import escape
 from typing import Literal
 from typing import get_args
@@ -236,7 +236,24 @@ class DecisionEvidenceMetric(BaseModel):
     column_type: Literal["numeric", "categorical"] = "numeric"
 
 
+class MetricTarget(BaseModel, extra="forbid"):
+    dataset_id: int = Field(gt=0)
+    metric_key: str = Field(min_length=1, max_length=200)
+    direction: Literal["increase", "decrease"]
+    unit: Literal["percent", "amount"]
+    change: float = Field(gt=0, le=1e15, allow_inf_nan=False)
+
+
+class MetricPlan(BaseModel, extra="forbid"):
+    start: date = Field(ge=date(1900, 1, 1), le=date(2100, 12, 31))
+    review: date = Field(ge=date(1900, 1, 1), le=date(2100, 12, 31))
+    input: MetricTarget
+    output: MetricTarget
+    report_id: str | None = Field(default=None, max_length=100)
+
+
 class DecisionCreate(BaseModel):
+    metric_plan: MetricPlan | None = None
     dataset_id: int
     metric_column: str | None = None
     outcome_dataset_id: int | None = None
@@ -297,6 +314,7 @@ class DecisionDetailsUpdate(BaseModel):
 # =========================
 
 class DecisionResponse(BaseModel):
+    metric_review: dict | None = None
     id: int
     workspace_id: str | None = None
     owner_user_id: str | None = None

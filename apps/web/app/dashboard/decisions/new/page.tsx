@@ -55,6 +55,7 @@ import {
 import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-page-header"
 import { CreateDecisionButton } from "@/features/decisions/components/create-decision-action"
 import { DecisionReportEvidence, useDecisionReportEvidence } from "@/features/decisions/components/decision-report-evidence"
+import { MetricPlanForm } from "@/features/decisions/components/metric-plan-form"
 import { decisionCreationKey } from "@/features/decisions/lib/creation-request"
 import { decisionDraftId, defaultDecisionTitle } from "@/features/decisions/lib/default-decision-title"
 
@@ -237,6 +238,7 @@ function NewDecisionContent() {
     const [createDecisionError, setCreateDecisionError] =
         useState("")
     const [reportOutcome, setReportOutcome] = useState("")
+    const [reviewMode, setReviewMode] = useState(initialTemplateSlug ? "manual" : "automatic")
     const reportEvidence = useDecisionReportEvidence(
         user?.id, activeWorkspaceId, !loadingWorkspaceAccess && canCreateDecisions,
         searchParams.get("report") || ""
@@ -798,11 +800,31 @@ function NewDecisionContent() {
             />
 
             <DashboardCard>
+                <label className="mb-4 block max-w-xs text-sm font-medium">Review method
+                    <select className="mt-1 block h-10 w-full rounded-md border bg-white px-2" value={reviewMode} onChange={event => setReviewMode(event.target.value)}>
+                        <option value="automatic">Measure an action and a result</option><option value="manual">Review manually</option>
+                    </select>
+                </label>
 
                 {loadingDatasets ? (
                     <p className="text-sm text-gray-500">
                         Loading datasets...
                     </p>
+                ) : decisionDatasets.length > 0 && reviewMode === "automatic" && user?.id && canCreateDecisions ? (
+                    <>
+                      <label className="block text-sm">Source report
+                        <select className="mt-1 block h-10 w-full rounded-md border bg-white px-2" value={reportEvidence.reportId} onChange={e => reportEvidence.select(e.target.value)}>
+                          <option value="">Choose metrics from my datasets</option>
+                          {reportEvidence.reports.map(r => <option key={r.report_id} value={r.report_id}>{r.name}</option>)}
+                        </select>
+                      </label>
+                      {reportEvidence.loadingReport ? <p role="status">Loading report...</p> : reportEvidence.reportError ? <p role="alert">{reportEvidence.reportError} <button onClick={reportEvidence.retry}>Retry</button></p>
+                        : findingDraft?.existingDecisionId ? <Link href={`/decisions/${findingDraft.existingDecisionId}`}>View existing decision</Link>
+                        : reportEvidence.reportId && (reportEvidence.report?.status !== "ready" || reportEvidence.report.metrics.filter(m => m.value !== null).length < 2 || (selectedFindingId && !findingDraft)) ? <p className="mt-3 text-sm">This report does not have two available metrics for this plan. Choose another source or review manually.</p>
+                        : <MetricPlanForm key={JSON.stringify([user.id, activeWorkspaceId, reportEvidence.reportId, selectedFindingId])} userId={user.id} workspace={activeWorkspaceId}
+                            datasets={decisionDatasets} initialDataset={initialDatasetId} initialMetric={initialMetric} report={reportEvidence.report} reportId={reportEvidence.reportId}
+                            findingId={selectedFindingId} lockedOutcome={findingDraft?.outcome} />}
+                    </>
                 ) : decisionDatasets.length > 0 ? (
                     <form
                         onSubmit={handleCreateDecision}

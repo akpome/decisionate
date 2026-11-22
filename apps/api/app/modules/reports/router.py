@@ -20,6 +20,7 @@ from app.modules.datasets.services.dataset_loader import load_dataframe_from_dat
 from app.modules.datasets.services.dimension_filters import DimensionFilterError
 from app.modules.forecasting.services import prepare_forecast_dataframe
 from app.modules.decisions.metric_scope import selected_report_metrics
+from app.modules.decisions.schemas import MetricPlan
 from .decision_drafts import is_report_decision_draft
 from .models import BusinessReport, CurrentWeeklyReport
 from .catalog import prepare_report_source, report_metric_catalog, require_report_sources
@@ -41,6 +42,19 @@ logger = logging.getLogger(__name__)
 def database():
     with SessionLocal() as db:
         yield db
+
+
+@router.post("/metric-plans/preview")
+def preview_metric_plan(request: Request, payload: MetricPlan, db=Depends(database)):
+    from app.modules.decisions.metric_plans import preview
+    from app.modules.decisions.router import require_decision_manager
+    require_decision_manager(request)
+    user, workspace = identity(request)
+    try:
+        review, previous = preview(db, user, workspace, payload)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"review": review, "previous": previous}
 
 
 def identity(request):

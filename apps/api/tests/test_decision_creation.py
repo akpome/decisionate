@@ -77,6 +77,33 @@ class DecisionCreationTests(unittest.TestCase):
             self.assertEqual(db.query(Decision).count(), 1)
             self.assertEqual(db.query(Decision).one().action, payload()["action"])
 
+    def test_measure_two_targets_save_replay_and_reopen_with_corrected_data(self):
+        import pandas as pd
+        from app.modules.decisions import metric_plans
+
+        with self.Session() as db:
+            db.get(Dataset, 1).source_config = '{"selected_metric_columns":["spend","orders"]}'
+            db.commit()
+        frame = pd.DataFrame({"date": pd.date_range("2025-01-01", periods=14),
+                              "spend": [100] * 7 + [110] * 7, "orders": [20] * 7 + [21] * 7})
+        body = payload(metric_column="orders", review_date="2025-01-15T00:00:00", metric_plan={
+            "start": "2025-01-08", "review": "2025-01-15",
+            "input": {"dataset_id": 1, "metric_key": "spend", "direction": "increase", "unit": "percent", "change": 10},
+            "output": {"dataset_id": 1, "metric_key": "orders", "direction": "increase", "unit": "amount", "change": 10}})
+        with patch.object(metric_plans, "load_dataframe_from_dataset", return_value=frame):
+            created = self.create(body=body)
+            self.assertEqual(created.status_code, 200, created.text)
+            result = created.json()
+            checks = result["metric_review"]["checks"]
+            self.assertEqual((checks["input"]["status"], checks["output"]["status"]), ("met", "missed"))
+            self.assertEqual(self.create(body=body).json()["id"], result["id"])
+            frame.loc[13, "orders"] += 3
+            opened = self.client.get(f"/decisions/{result['id']}", headers={"X-User-Id": "owner", "X-Workspace-Id": "workspace"})
+            self.assertEqual(opened.status_code, 200, opened.text)
+            self.assertEqual(opened.json()["metric_review"]["checks"]["output"]["status"], "met")
+            denied = self.create(key="different-source", body={**body, "recommendation_context": '{"report_id":"other"}'})
+            self.assertEqual(denied.status_code, 400)
+
     def test_reopened_form_with_a_new_key_reuses_the_identical_active_decision(self):
         first, second = self.create(), self.create(key="another-submission")
         self.assertEqual(first.json()["id"], second.json()["id"])

@@ -17,6 +17,8 @@ def creation_content(decision):
     )}
     content["priority"] = decision.priority or DEFAULT_DECISION_PRIORITY
     content["category"] = decision.category or DEFAULT_DECISION_CATEGORY
+    if decision.metric_review:
+        content["metric_plan"] = decision.metric_review["plan"]
     content["review_date"] = decision.review_date.isoformat() if decision.review_date else None
     content["evidence_dataset_ids"] = sorted({decision.dataset_id, *(decision.evidence_dataset_ids or [])})
     content["evidence_metrics"] = sorted(

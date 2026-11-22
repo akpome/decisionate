@@ -942,6 +942,9 @@ def ensure_decision_optional_columns():
             ("outcome_measured_at", "TIMESTAMP"),
             ("creation_request_key", "VARCHAR(64)"),
             ("creation_payload_hash", "VARCHAR(64)"),
+            ("metric_review_json", "TEXT"),
+            ("metric_scope_hash", "VARCHAR(64)"),
+            ("next_metric_check", "TIMESTAMP"),
         ]:
             if column_name not in column_names:
                 connection.execute(
@@ -955,6 +958,10 @@ def ensure_decision_optional_columns():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_decisions_creation_request_key "
             "ON decisions (creation_request_key)"
         ))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_decisions_due_metric_check "
+                                "ON decisions(next_metric_check) WHERE next_metric_check IS NOT NULL"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_decisions_similar_plan "
+                                "ON decisions(metric_scope_hash) WHERE metric_scope_hash IS NOT NULL"))
 
         # Older decisions predate the explicit action field. Their title is
         # the safest migration value until the owner edits the action.

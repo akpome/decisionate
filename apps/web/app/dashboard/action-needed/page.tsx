@@ -37,9 +37,11 @@ import {
   formatMetricLabel,
 } from "@/features/dashboard/components/metric-selector"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { readMetricReview } from "@/features/decisions/components/metric-review"
 
 type ActionNeededFilter =
   | "all"
+  | "ready"
   | "overdue"
   | "outcome"
   | "learning"
@@ -79,12 +81,10 @@ export default function ActionNeededPage() {
     setActionNeededFilter,
   ] = useState<ActionNeededFilter>("all")
 
-  const overdueReviewDecisions =
-    decisions.filter(hasOverdueReview)
-  const outcomePendingDecisions =
-    decisions.filter(hasPendingOutcome)
-  const learningPendingDecisions =
-    decisions.filter(hasPendingLearning)
+  const manual = decisions.filter(d => !readMetricReview(d))
+  const overdueReviewDecisions = manual.filter(hasOverdueReview)
+  const outcomePendingDecisions = manual.filter(hasPendingOutcome)
+  const learningPendingDecisions = manual.filter(hasPendingLearning)
   const visibleDecisions =
     getVisibleActionNeededDecisions(
       decisions,
@@ -100,6 +100,7 @@ export default function ActionNeededPage() {
       label: "All",
       count: decisions.length,
     },
+    {key: "ready", label: "Results ready", count: decisions.length - manual.length},
     {
       key: "overdue",
       label: "Review overdue",
@@ -367,7 +368,7 @@ function ActionNeededDecisionCard({
           </h2>
 
           <p className="mt-1 break-words text-sm text-gray-500 line-clamp-2">
-            {decision.description ||
+            {readMetricReview(decision)?.summary || decision.description ||
               t("No description provided.")}
           </p>
 
@@ -430,7 +431,7 @@ function ActionNeededDecisionCard({
 
       <span className="mt-4 inline-flex max-w-full items-center gap-2 break-words text-sm font-medium text-[var(--decisionate-brand-primary-text)]">
         <Target size={15} className="shrink-0" />
-        {t("Resolve next action")} →
+        {t(readMetricReview(decision) ? "Review results" : "Resolve next action")} →
       </span>
     </Link>
   )
@@ -440,6 +441,9 @@ function getVisibleActionNeededDecisions(
   decisions: DecisionRecord[],
   filter: ActionNeededFilter
 ) {
+  if (filter === "all") return decisions
+  if (filter === "ready") return decisions.filter(d => readMetricReview(d)?.status === "ready")
+  decisions = decisions.filter(d => !readMetricReview(d))
   if (filter === "overdue") {
     return decisions.filter(hasOverdueReview)
   }
@@ -459,6 +463,7 @@ function getActionReasons(
   decision: DecisionRecord
 ) {
   const reasons: string[] = []
+  if (readMetricReview(decision)?.status === "ready") return ["Results ready to review"]
 
   if (hasOverdueReview(decision)) {
     reasons.push("Review overdue")

@@ -352,6 +352,7 @@ def run_worker(script, once=False):
             logger.info("Reports analysis worker acquired queue lock")
             recover_interrupted_jobs()
             last_cleanup = 0
+            last_metric_check = 0
             while True:
                 connection.execute(text("SELECT 1"))
                 connection.commit()
@@ -366,6 +367,14 @@ def run_worker(script, once=False):
                 identity = next_job()
                 if identity:
                     supervise_job(identity, connection, script)
+                if time.monotonic() - last_metric_check >= 10:
+                    from app.modules.decisions.metric_plans import run_next_review
+                    try:
+                        with SessionLocal() as db:
+                            run_next_review(db)
+                    except Exception:
+                        logger.exception("Automatic decision review queue unavailable; report processing continues")
+                    last_metric_check = time.monotonic()
                 if once:
                     return
                 time.sleep(1)

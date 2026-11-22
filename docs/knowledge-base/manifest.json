@@ -1245,8 +1245,15 @@
         "Why is a draft called Review joined evidence?",
         "Should a report always create three decisions?",
         "Why do unrelated metrics appear in a decision?",
-        "Does editing create a new decision?"
+        "Does editing create a new decision?",
+        "How do I check whether spending more brought the orders I wanted?"
       ],
+      "direct_questions": {
+        "How do I check whether spending more brought the orders I wanted?": [
+          "How do automatic decision reviews work?",
+          "How do I set targets for my action and outcome?"
+        ]
+      },
       "routes": [
         "/decisions",
         "/decisions/new"
@@ -1254,6 +1261,9 @@
       "sources": [
         "apps/api/app/modules/decisions/router.py",
         "apps/api/app/modules/decisions/metric_scope.py",
+        "apps/api/app/modules/decisions/metric_plans.py",
+        "apps/web/features/decisions/components/metric-plan-form.tsx",
+        "apps/web/features/decisions/components/metric-review.tsx",
         "apps/api/app/modules/decisions/duplicates.py",
         "apps/api/app/modules/reports/decision_drafts.py",
         "apps/web/features/decisions/components/decision-report-evidence.tsx",

@@ -81,12 +81,30 @@ def attach_continuity(report, db, workspace):
     records, active = [], {}
     for decision in db.query(Decision).filter(Decision.workspace_id == workspace,
             Decision.created_at <= as_of, Decision.status.notin_(("archived", "cancelled")), canonical_decisions()).order_by(Decision.review_date, Decision.id).yield_per(100):
-        if not set(decision.evidence_dataset_ids or [decision.dataset_id]).issubset(dataset_ids):
+        review = decision.metric_review
+        if not review and not set(decision.evidence_dataset_ids or [decision.dataset_id]).issubset(dataset_ids):
             continue
         key = f"{decision.outcome_dataset_id or decision.dataset_id}:{decision.metric_column}"
         metric = current_metrics.get(key)
         if not metric:
             continue
+        if review:
+            definition = report["definition"]
+            if definition.get("reporting_timezone") != review["plan"]["timezone"]:
+                continue
+            def in_scope(target):
+                ref = next((m for m in definition["metrics"] if m["dataset_id"] == target["dataset_id"]
+                            and m["metric_key"] == target["metric_key"]), None)
+                selection = next((f for f in definition.get("dimension_filters", []) if f["dataset_id"] == target["dataset_id"]), None)
+                original = target["filter"]
+                same_filter = (selection is None and original is None) or (
+                    selection and original and selection["column"] == original["column"]
+                    and set(selection["values"]) == set(original["values"]))
+                current = current_metrics.get(f"{target['dataset_id']}:{target['metric_key']}")
+                return (ref and current and current.get("currency") == target["currency"]
+                        and ref["date_column"] == target["date_column"] and ref["aggregation"] == target["aggregation"] and same_filter)
+            if not all(in_scope(review["plan"][role]) for role in ("input", "output")):
+                continue
         context = context_of(decision)
         finding = context.get("intelligence_finding")
         finding_id = finding.get("id") if isinstance(finding, dict) else None
@@ -114,6 +132,9 @@ def attach_continuity(report, db, workspace):
                         "assessment": "Review overdue" if overdue else "Outcome recorded" if decision.actual_outcome or measured_at else "Awaiting outcome review" if decision.status == "completed" else "In progress" if decision.status == "in_progress" else "Planned",
                         "recorded_outcome": decision.actual_outcome, "outcome_status": decision.outcome_status,
                         "limitation": "Observed movement is not attributable impact. Recorded outcomes are user assessments, not automatic proof of success."})
+        records[-1]["workspace_id"] = workspace
+        if review and (not decision.outcome_measured_at or measured_at):
+            records[-1].update(assessment=review["summary"], automatic=True)
     for item in intelligence["findings"]:
         old = prior.get(item["id"])
         if old:
@@ -126,6 +147,7 @@ def attach_continuity(report, db, workspace):
     for action in intelligence["recommendations"]:
         action["related_decision_id"] = active.get(action["finding_id"])
         action["follow_up"] = bool(action["related_decision_id"])
+    records.sort(key=lambda item: not (item.get("automatic") and item["recorded_at"]))
     intelligence["decisions"] = records[:20]
     from app.db.models import AppUser
     owners = {item.id: item.display_name or " ".join(filter(None, [item.first_name, item.last_name])) or item.email

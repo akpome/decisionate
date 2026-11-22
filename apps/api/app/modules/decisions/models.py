@@ -53,6 +53,13 @@ class Decision(Base):
 
     creation_request_key = Column(String(64), nullable=True)
     creation_payload_hash = Column(String(64), nullable=True)
+    metric_review_json = Column(Text, nullable=True)
+    metric_scope_hash = Column(String(64), nullable=True)
+    next_metric_check = Column(DateTime, nullable=True)
+
+    @property
+    def metric_review(self):
+        return json.loads(self.metric_review_json) if self.metric_review_json else None
 
     id = Column(
         Integer,

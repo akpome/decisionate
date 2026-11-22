@@ -1,4 +1,5 @@
 "use client"
+import { MetricReviewSummary, readMetricReview } from "@/features/decisions/components/metric-review"
 
 import {
   useEffect,
@@ -598,6 +599,7 @@ export default function DecisionPage() {
   const outcomeAnalysisStatusAndMetric =
     `${decision?.outcome_status ?? ""}\u001f${metricColumn}\u001f${decision?.outcome_measured_at ?? ""}`
 
+  const isAutomaticReview = Boolean(decision && readMetricReview(decision))
   useEffect(() => {
     const expectedOutcome =
       decision?.expected_outcome?.trim()
@@ -611,6 +613,7 @@ export default function DecisionPage() {
       !user?.id ||
       !decision?.id ||
       !expectedOutcome ||
+      isAutomaticReview ||
       (!actualOutcome && !outcomeStatus && !decision?.outcome_measured_at)
     ) {
       queueMicrotask(() => {
@@ -665,6 +668,7 @@ export default function DecisionPage() {
   }, [
     activeWorkspaceId,
     decision?.actual_outcome,
+    isAutomaticReview,
     decision?.expected_outcome,
     decision?.id,
     decision?.outcome_measured_at,
@@ -1768,6 +1772,8 @@ export default function DecisionPage() {
         : aiRecommendationSource
   const recommendationText = decisionNarrativeText(decision.recommendation_text)
   const decisionDescription = decisionNarrativeText(decision.description)
+  const automatic = readMetricReview(decision)
+  const MoreDetails = automatic ? "details" : "div"
 
   return (
     <div className="space-y-6">
@@ -1786,7 +1792,25 @@ export default function DecisionPage() {
         className="rounded-xl"
       />
 
-      <DashboardCard>
+      {automatic && <section className="space-y-4">
+        <h1 className="text-2xl font-semibold">{decision.title}</h1>
+        <p className="text-sm text-gray-600">{decision.status === "completed" ? "Closed" : formatDecisionLabel(decision.status)} · Review date: {automatic.plan.review}</p>
+        <MetricReviewSummary review={automatic}/>
+        {automatic.plan.report_id && <Link className="block text-sm text-blue-700 underline" href={"/business-analysis?report=" + encodeURIComponent(automatic.plan.report_id)}>View source report</Link>}
+        {(decision.status === "planned" || decision.status === "in_progress") && !decisionIsReadOnly && (lifecycleAccess?.is_decision_owner || lifecycleAccess?.is_workspace_owner) && <button type="button" disabled={!!savingSection} className="rounded-md border bg-white px-4 py-2 text-sm" onClick={async () => {
+          if (!user?.id) return
+          setSavingSection(overviewDecisionActivity)
+          try {
+            const closed = await updateDecisionOverview(decision.id, {status: "completed"}, user.id, activeWorkspaceId)
+            setDecision(closed); syncOverviewFormFromDecision(closed)
+          } catch { setSaveError({section: overviewDecisionActivity, message: "The decision could not be closed. Try again."}) }
+          finally { setSavingSection(null) }
+        }}>Close decision</button>}
+        {saveError && <p role="alert">{saveError.message}</p>}
+      </section>}
+      <MoreDetails className="space-y-6">
+      {automatic && <summary className="cursor-pointer text-sm font-medium">Evidence, notes and decision history</summary>}
+      {!automatic && <DashboardCard>
         {/* =========================
             Decision Detail Header With Status Dataset And Review Badges
         ========================= */}
@@ -1884,6 +1908,7 @@ export default function DecisionPage() {
         </div>
       </DashboardCard>
 
+      }
       {(decision.recommendation_text || decision.recommendation_context ||
         decisionDescription !== (decision.description ?? "") || selectedEvidenceMetrics.length > 0) && (
         <DashboardCard>
@@ -2028,7 +2053,7 @@ export default function DecisionPage() {
           Decision Details Editable Title And Description Section
       ========================= */}
 
-      <DashboardCard>
+      {!automatic && <><DashboardCard>
         {/* =========================
             Decision Details Form Inputs And Save Action
         ========================= */}
@@ -2374,12 +2399,13 @@ export default function DecisionPage() {
         </div>
       </DashboardCard>
 
+      </>}
       <DashboardCard>
         <DecisionImpactReviews key={`${user?.id}:${activeWorkspaceId}:${decision.id}:${decision.updated_at || ""}`} decision={decision} userId={user!.id} workspaceId={activeWorkspaceId}
           canReview={!decisionIsReadOnly && !isArchivedDecision && decision.status !== "cancelled" && !isLegacyEvidencePlaceholder(decision)} />
       </DashboardCard>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      {!automatic && <><div className="grid gap-6 xl:grid-cols-2">
         <DashboardCard className="flex h-full flex-col">
           <CardHeader
             title="Outcome Tracking"
@@ -2820,6 +2846,7 @@ export default function DecisionPage() {
           applyRecommendationLabel="Add recommendation to learning"
         />
       )}
+      </>}
 
       {/* =========================
           Decision Notes And Learning Capture Cards
@@ -3020,6 +3047,7 @@ export default function DecisionPage() {
           )}
         </div>
       </DashboardCard>
+      </MoreDetails>
     </div>
   )
 }

@@ -499,6 +499,16 @@ def format_anomaly_number(value):
     return f"{value:.4e}" if value is not None and 0 < abs(value) < .01 else format_digest_number(value)
 
 
+def weekly_decision_link(digest, item):
+    from urllib.parse import urlencode, urlsplit
+    url = clean_email_logo_url(digest.review_url)
+    if not url or not item.get("workspace_id") or not isinstance(item.get("id"), int):
+        return None
+    origin = urlsplit(url)
+    path = f"/decisions/{item['id']}?" + urlencode({"workspace_id": item["workspace_id"]})
+    return f"{origin.scheme}://{origin.netloc}/auth/redirect?" + urlencode({"redirect_url": path})
+
+
 def weekly_intelligence_email_sections(digest):
     intelligence = digest.cross_dataset_report["intelligence"]
     findings = intelligence["findings"][:3]
@@ -509,7 +519,7 @@ def weekly_intelligence_email_sections(digest):
             *([("Selected data", filters)] if filters else []),
             ("Priority findings", [item["observation"] for item in findings] or ["No supported priority changes to highlight."]),
             ("Recommended investigations", [(f"Follow up Decision #{item['related_decision_id']}: " if item.get("related_decision_id") else "") + item["action"] for item in actions] or ["No new action recommended."]),
-            ("Decisions and outcomes", [f"{item['title']}: {item['assessment']}." for item in intelligence["decisions"][:3]] or ["No relevant decision progress recorded."]),
+            ("Decisions and outcomes", [f"{item['title']}: {item['assessment']}".rstrip(".") + "." for item in intelligence["decisions"]] or ["No relevant decision progress recorded."]),
             ("Data limitations", intelligence["quality"][:3])]
 
 
@@ -519,9 +529,14 @@ def weekly_intelligence_email_html(digest):
     header = (f'<img src="{escape_html(logo_url, quote=True)}" alt="{escape_html(digest.brand_name)}" width="160" style="max-width:160px;height:auto;">'
               if digest.is_managed_client and logo_url else
               f'<p style="font-weight:bold;">{escape_html(digest.agency_name or digest.brand_name)}</p>' if digest.is_managed_client else build_decisionate_email_header())
-    sections = "".join(f'<h2 style="font-size:18px;margin:24px 0 12px;">{escape_html(title)}</h2>'
-                       + "".join(f'<p style="font-size:14px;line-height:1.6;overflow-wrap:anywhere;">{escape_html(line)}</p>' for line in lines)
-                       for title, lines in weekly_intelligence_email_sections(digest))
+    sections = ""
+    decisions = digest.cross_dataset_report["intelligence"]["decisions"]
+    for title, lines in weekly_intelligence_email_sections(digest):
+        sections += f'<h2 style="font-size:18px;margin:24px 0 12px;">{escape_html(title)}</h2>'
+        for index, line in enumerate(lines):
+            href = weekly_decision_link(digest, decisions[index]) if title == "Decisions and outcomes" and decisions else None
+            action = f' <a href="{escape_html(href, quote=True)}">View decision</a>' if href else ""
+            sections += f'<p style="font-size:14px;line-height:1.6;overflow-wrap:anywhere;">{escape_html(line)}{action}</p>'
     url = clean_email_logo_url(digest.review_url)
     link = f'<p><a href="{escape_html(url, quote=True)}" style="color:{primary};font-weight:bold;">Read the full report</a></p>' if url else ""
     return ('<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -538,6 +553,12 @@ def build_weekly_report_email_text(
 ) -> str:
     if (digest.cross_dataset_report or {}).get("intelligence"):
         sections = weekly_intelligence_email_sections(digest)
+        for title, lines in sections:
+            if title == "Decisions and outcomes":
+                for index, item in enumerate(digest.cross_dataset_report["intelligence"]["decisions"]):
+                    url = weekly_decision_link(digest, item)
+                    if url:
+                        lines[index] += "\nView decision: " + url
         return "\n\n".join([digest.subject, *(title + "\n" + "\n".join(lines) for title, lines in sections),
                               "Read the full report: " + (digest.review_url or ""),
                               f"Prepared for {digest.workspace_name or digest.brand_name} by {digest.agency_name or digest.brand_name}."])
