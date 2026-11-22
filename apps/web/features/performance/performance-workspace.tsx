@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowLeft, Check, LoaderCircle, Play, Plus, Save, Target, Trash2, X } from "lucide-react"
 import { SearchableSelect } from "@/components/searchable-select"
 import { correlationRequest } from "@/lib/api"
+import { AnalysisActionForm } from "@/features/decisions/components/analysis-action-form"
 import { AnalysisTools } from "@/features/reports/analysis-tools"
 import { AnalysisFailedError, AnalysisUnavailableError, analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "@/features/reports/analysis-jobs"
 import { command, field, primary, WrappingSelect } from "./amount-source"
@@ -15,7 +16,13 @@ import { GrowthResults } from "./growth-results"
 import { blankItem, isMoneyDefinition, missingSetup, newPerformance, performancePath, sameDatasetLayout, toolLabels, type ToolDefinition, type ToolKind, type ToolResult as PerformanceResult, type PerformanceDefinition } from "./types"
 
 type History = { analyses: { analysis_id: string; name: string; created_at: string }[]; next_offset: number | null }
-type DecisionDraft = { title: string; action: string; expected_outcome: string; review_date: string }
+const decisionExamples: Record<ToolKind, readonly [string, string]> = {
+  return: ["For example, test a smaller campaign budget.", "Maintain sales per dollar spent."],
+  profit: ["For example, test a new price on one product.", "Keep more of each sale after costs."],
+  retention: ["For example, send a reminder after the first purchase.", "More customers return for a second purchase."],
+  conversion: ["For example, simplify the checkout form.", "More shoppers who start checkout finish it."],
+  cashflow: ["For example, collect overdue invoices this week.", "Keep the cash balance above our reserve."],
+}
 
 export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canManage, canDecide }: {
   kind: ToolKind; userId: string; workspaceId?: string; canSave: boolean; canManage: boolean; canDecide: boolean
@@ -30,7 +37,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
   const [busy, setBusy] = useState(false)
   const [phase, setPhase] = useState("")
   const [jobId, setJobId] = useState<string | null>(null)
-  const [decision, setDecision] = useState<DecisionDraft | null>(null)
+  const [decision, setDecision] = useState(false)
   const active = useRef<AbortController | null>(null), mounted = useRef(true), pending = useRef(false), requestKey = useRef<string | null>(null)
   const request = useCallback(<T,>(path: string, init?: RequestInit) => correlationRequest<T>(userId, `/performance-analyses${path}`, init, workspaceId), [userId, workspaceId])
   const loadHistory = useCallback(async (offset = 0) => {
@@ -64,7 +71,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
   function change(value: ToolDefinition, { preserveConfirmation = false } = {}) {
     active.current?.abort(); requestKey.current = null
     setDefinition(preserveConfirmation ? value : { ...value, amounts_confirmed: false })
-    setResult(null); setJobId(null); setDecision(null); setError("")
+    setResult(null); setJobId(null); setDecision(false); setError("")
     window.history.replaceState(null, "", performancePath(kind))
   }
   async function preview() {
@@ -92,13 +99,26 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
       setError(failure instanceof Error ? failure.message : "The comparison could not be completed.")
     } } finally { if (!controller.signal.aborted) { pending.current = false; setBusy(false) } }
   }
-  async function action(work: () => Promise<void>) {
+  async function action(work: () => Promise<void>, inlineError = false) {
     if (pending.current) return
     pending.current = true; setBusy(true); setError(""); setPhase("")
-    try { await work() } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : "The request could not be completed.") }
+    try { await work() } catch (failure) {
+      if (inlineError) throw failure
+      if (mounted.current) setError(failure instanceof Error ? failure.message : "The request could not be completed.")
+    }
     finally { pending.current = false; if (mounted.current) setBusy(false) }
   }
   function reset() { change(newPerformance(kind)); setLayout("one"); setView("setup") }
+  async function saveComparison() {
+    if (result?.analysis_id) return result
+    if (!canSave || !jobId || !result?.rows.some(row => row.ready)) throw new Error("Preview a complete result first.")
+    const data = await request<PerformanceResult>(`/jobs/${jobId}/save`, { method: "POST" })
+    if (!mounted.current) throw new Error("Comparison closed.")
+    setResult(data)
+    window.history.replaceState(null, "", `${performancePath(kind)}?comparison=${data.analysis_id}`)
+    void loadHistory()
+    return data
+  }
   const setupIssue = missingSetup(definition), returns = kind === "return", context = { userId, workspaceId }
   const sourceQuestion = `Where are your revenue and ${returns ? "spending" : "costs"} figures stored?`
   return <div className="min-w-0 space-y-5" aria-busy={busy}>
@@ -112,7 +132,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
         onChange={id => void action(async () => {
           const data = await request<PerformanceResult>(`/${encodeURIComponent(id)}`)
           if (!mounted.current) return
-          setResult(data); setDefinition(data.definition); setLayout(sameDatasetLayout(data.definition) ? "one" : "separate"); setJobId(null); setDecision(null); setView("results"); requestKey.current = null
+          setResult(data); setDefinition(data.definition); setLayout(sameDatasetLayout(data.definition) ? "one" : "separate"); setJobId(null); setDecision(false); setView("results"); requestKey.current = null
           window.history.replaceState(null, "", `${performancePath(kind)}?comparison=${encodeURIComponent(id)}`)
         })} footer={history.next_offset !== null && <button type="button" disabled={busy} className={command} onClick={() => void loadHistory(history.next_offset!)}>Load more</button>} /></div>
       {result?.analysis_id && canManage && <button className={command} disabled={busy} title="Delete saved comparison" aria-label="Delete saved comparison" onClick={() => {
@@ -181,27 +201,15 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
       {"highlights" in result ? <GrowthResults result={result} /> : <PerformanceResults result={result} />}
       <div className="flex flex-wrap items-center gap-3 print:hidden">
         <button className={command} disabled={busy} onClick={() => { change(definition, { preserveConfirmation: true }); setView("setup") }}><ArrowLeft size={16} />Edit comparison</button>
-        {canSave && !result.analysis_id && result.rows.some(row => row.ready) && <button className={primary} disabled={busy || !jobId} onClick={() => void action(async () => {
-          setPhase("")
-          const data = await request<PerformanceResult>(`/jobs/${jobId}/save`, { method: "POST" })
-          if (!mounted.current) return
-          setResult(data); window.history.replaceState(null, "", `${performancePath(kind)}?comparison=${data.analysis_id}`); await loadHistory()
-        })}><Save size={16} />Save comparison</button>}
+        {canSave && !result.analysis_id && result.rows.some(row => row.ready) && <button className={command} disabled={busy || !jobId} onClick={() => void action(async () => { await saveComparison() })}><Save size={16} />Save comparison</button>}
         {result.analysis_id && <span className="inline-flex items-center gap-2 text-sm text-emerald-800"><Check size={16} />Saved</span>}
-        {result.decision_id ? <Link className={command} href={`/decisions/${result.decision_id}`}>Open decision</Link> : result.analysis_id && canDecide && !decision && <button className={command} disabled={busy} onClick={() => setDecision({ title: "", action: "", expected_outcome: "", review_date: "" })}><Target size={16} />Create decision</button>}
+        {result.decision_id ? <Link className={command} href={`/decisions/${result.decision_id}`}>Open decision</Link> : canSave && canDecide && (result.analysis_id || jobId) && result.rows.some(row => row.ready) && !decision && <button className={primary} disabled={busy} onClick={() => setDecision(true)}><Target size={16} />Create decision</button>}
       </div>
-      {decision && <form className="space-y-4 border-t border-gray-200 pt-5" onSubmit={event => { event.preventDefault(); void action(async () => {
-        const data = await request<{ decision_id: number }>(`/${result.analysis_id}/decision`, { method: "POST", body: JSON.stringify(decision) })
-        if (mounted.current) { setResult({ ...result, decision_id: data.decision_id }); setDecision(null) }
-      }) }}><h3 className="text-lg font-semibold">Create decision</h3>
-        <fieldset disabled={busy} className="grid min-w-0 gap-4 sm:grid-cols-2">
-          <label className="text-xs font-medium text-gray-600">Decision name<input className={field} required minLength={3} maxLength={200} value={decision.title} onChange={event => setDecision({ ...decision, title: event.target.value })} /></label>
-          <label className="text-xs font-medium text-gray-600">Review date<input className={field} type="date" required value={decision.review_date} onChange={event => setDecision({ ...decision, review_date: event.target.value })} /></label>
-          <label className="text-xs font-medium text-gray-600">Action to take<textarea className={field} required minLength={8} maxLength={5000} value={decision.action} onChange={event => setDecision({ ...decision, action: event.target.value })} /></label>
-          <label className="text-xs font-medium text-gray-600">Expected result<textarea className={field} required minLength={8} maxLength={3000} value={decision.expected_outcome} onChange={event => setDecision({ ...decision, expected_outcome: event.target.value })} /></label>
-          <div className="flex flex-wrap gap-3"><button className={primary} type="submit"><Target size={16} />Create decision</button><button className={command} type="button" onClick={() => setDecision(null)}><X size={16} />Cancel</button></div>
-        </fieldset>
-      </form>}
+      {decision && canDecide && canSave && <AnalysisActionForm evidence={result.headline} examples={decisionExamples[kind]} disabled={busy} onCancel={() => setDecision(false)} onSave={draft => action(async () => {
+        const saved = await saveComparison()
+        const data = saved.decision_id ? saved : await request<{ decision_id: number }>(`/${saved.analysis_id}/decision`, { method: "POST", body: JSON.stringify(draft) })
+        if (mounted.current) { setResult({ ...saved, decision_id: data.decision_id }); setDecision(false) }
+      }, true)} />}
     </>}
   </div>
 }

@@ -1252,6 +1252,10 @@
         "How do I check whether spending more brought the orders I wanted?": [
           "How do automatic decision reviews work?",
           "How do I set targets for my action and outcome?"
+        ],
+        "Where can I create a decision?": [
+          "How do I create a decision from Business Analysis?",
+          "Do I need to save my comparison before creating a decision?"
         ]
       },
       "routes": [
@@ -1263,6 +1267,8 @@
         "apps/api/app/modules/decisions/metric_scope.py",
         "apps/api/app/modules/decisions/metric_plans.py",
         "apps/web/features/decisions/components/metric-plan-form.tsx",
+        "apps/web/features/decisions/components/analysis-action-form.tsx",
+        "apps/web/features/decisions/components/report-decision-composer.tsx",
         "apps/web/features/decisions/components/metric-review.tsx",
         "apps/api/app/modules/decisions/duplicates.py",
         "apps/api/app/modules/reports/decision_drafts.py",

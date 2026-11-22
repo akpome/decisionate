@@ -134,6 +134,18 @@ test("impact reports link back to the same decision instead of exposing another 
   assert.match(html, /\/decisions\/7#business-impact-review/)
   assert.match(html, /Assessment attached/)
   assert.doesNotMatch(html, /Decision draft|Create decision/)
+  const assessment = { report_id: "r7", status: "ready", definition: { metrics: [], impact: { decision_id: 7 } },
+    review_decision: { id: 7, title: "Improve staffing", action: context.decision.action },
+    decision_review_id: "assessment-1", decisions: [], impact_analysis: { status: "estimated" } }
+  const renderAssessment = (report, props) => renderToStaticMarkup(React.createElement(ReportDecisions, {
+    report, businessAnalysis: true, onOpenDraft: async () => {}, ...props,
+  }))
+  assert.match(renderAssessment(assessment), /Create follow-up decision/)
+  assert.doesNotMatch(renderAssessment(assessment, { onOpenDraft: undefined }), /Create follow-up decision/)
+  assert.doesNotMatch(renderAssessment({ ...assessment, impact_analysis: { status: "not_ready" } }), /Create follow-up decision/)
+  const linked = renderAssessment({ ...assessment, decisions: [{ id: 8, title: "Extend store hours", is_draft: false, report_id: "r7" }] })
+  assert.match(linked, /href="\/decisions\/8"/)
+  assert.doesNotMatch(linked, /Create follow-up decision/)
 })
 
 test("decision detail and the report builder share the linked review entry and explicit assessment save", () => {

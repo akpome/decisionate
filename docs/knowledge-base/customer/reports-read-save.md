@@ -10,7 +10,7 @@ source and cautions keeps provider/fallback details and risks available.
 These are evidence-based suggestions, not measured profit or proof of causation.
 
 Decisions and outcomes appears beside this review flow. Create decision opens
-the central form with the report evidence; it does not implement the action or
+the decision form on the Business Analysis result with the report evidence; it does not implement the action or
 save a completed decision automatically. Existing decisions and unfinished
 drafts remain accessible. Preview only / Not saved distinguishes an unsaved
 calculation from a saved report. Saving, deciding and emailing remain separate actions.
@@ -49,10 +49,10 @@ changes and metric movements, not a second correlation analysis. Relationship
 findings are available under Compare metrics > Multi-dataset report with correlation enabled instead. Older impact snapshots
 also omit their old relationship findings when displayed, without changing the
 stored snapshot. These results support the main answer rather than replacing
-it. Decisions and outcomes remains the place to open the central
-decision workflow with this report's evidence.
-Create decision opens the central decision form; it does not record a decision
-until that form is submitted. Continue decision opens an existing unfinished
+it. A saved impact estimate can support a separate follow-up action without
+replacing the assessed decision. In Compare metrics, Create decision opens the
+form in the preview; it does not record a decision until submitted.
+Continue decision opens an existing unfinished
 decision instead of creating another. The action is a highlighted button when
 available. If report coverage is incomplete, the disabled action states which
 dates lack usable dataset values. Saving a report does not make missing data

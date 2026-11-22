@@ -250,7 +250,7 @@ function draftHandoff(overrides = {}) {
   const handler = vm.runInNewContext(ts.transpileModule(`${declaration}\nopenDecisionDraft`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, URLSearchParams, pagePath: "/business-analysis",
+    canEditDecisions: true, canSave: true, busy: false, openingDraft, report: null, weekly: false, setComposingReport: id => calls.push(["inline", id]), URLSearchParams, pagePath: "/business-analysis",
     execute: async action => { try { await action() } catch (error) { errors.push(error.message) } },
     saveSnapshot: async () => { calls.push("save"); return { report_id: "report-1" } },
     request: async (path, init) => { calls.push([path, init.method]); return { decision_id: 4 } },
@@ -274,15 +274,22 @@ test("double clicking the draft cannot submit multiple handoffs or create a deci
   assert.equal(calls.filter(item => Array.isArray(item)).length, 1)
 })
 
-test("a prepared draft opens the central form with this report without inserting a decision", async () => {
+test("a business analysis opens an inline decision with the exact saved snapshot", async () => {
   const { handler, calls } = draftHandoff()
   await handler()
+  assert.deepEqual(calls, ["save", ["inline", "report-1"]])
+})
+
+test("a weekly report retains the finding and return route in its decision handoff", async () => {
+  const { handler, calls } = draftHandoff({ weekly: true, pagePath: "/weekly-reports" })
+  await handler(undefined, "orders-down")
   assert.equal(calls.length, 2)
   assert.equal(calls[0], "save")
   const url = new URL(calls[1], "https://decisionate.test")
   assert.equal(url.pathname, "/decisions/new")
   assert.equal(url.searchParams.get("report"), "report-1")
-  assert.equal(url.searchParams.get("returnTo"), "/business-analysis?report=report-1")
+  assert.equal(url.searchParams.get("returnTo"), "/weekly-reports?report=report-1")
+  assert.equal(url.searchParams.get("finding"), "orders-down")
 })
 
 test("an existing weekly-template draft keeps its original report instead of rebinding its evidence", async () => {

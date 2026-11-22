@@ -51,6 +51,7 @@ const MetricTrends = dynamic(() => import("./report-metric-trends").then(module 
   loading: () => <div role="status" className="flex min-h-80 items-center justify-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} className="animate-spin" />Loading charts...</div>,
 })
 const ImpactChart = dynamic(() => import("./impact-chart").then(module => module.ImpactChart), { ssr: false })
+const ReportDecisionComposer = dynamic(() => import("@/features/decisions/components/report-decision-composer").then(module => module.ReportDecisionComposer))
 
 async function hydrateCatalog(userId: string, workspaceId: string | undefined, current: CatalogDataset[], value: ReportDefinition, signal: AbortSignal) {
   let result = current
@@ -80,6 +81,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   const { t } = useDecisionateText()
   const router = useRouter()
   const openingDraft = useRef(false)
+  const [composingReport, setComposingReport] = useState<string | null>(null)
   const analysisSubmission = useRef(false)
   const draftName = useRef("")
   const managementAction = useRef(false)
@@ -522,6 +524,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         const linkedReportId = decisionId === undefined ? null : report?.decision_drafts?.find(item => item.id === decisionId)?.report_id
         const snapshot = linkedReportId ? { report_id: linkedReportId } : await saveSnapshot()
         if (decisionId === undefined) {
+          if (!weekly) {
+            setComposingReport(snapshot.report_id!)
+            return
+          }
           const query = new URLSearchParams({ report: snapshot.report_id!, returnTo: `${pagePath}?report=${snapshot.report_id}` })
           if (findingId) query.set("finding", findingId)
           router.push(`/decisions/new?${query}`)
@@ -623,6 +629,20 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
   </div>
   const catalogFooter = nextOffset !== null && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} onClick={() => { setCatalogBusy(true); setCatalogError(false); setCatalogOffset(nextOffset) }}>Load more datasets</button>
   if (loading) return <div className="min-w-0 w-full space-y-5"><h1 className="text-2xl font-semibold">{t(pageTitle)}</h1><p role="status" className="py-8 text-sm text-gray-600">{t(weekly ? "Loading weekly reports..." : "Loading analysis...")}</p></div>
+  const composer = !weekly && canEditDecisions && canSave && report?.report_id && composingReport === report.report_id
+    ? <ReportDecisionComposer key={report.report_id} report={report} userId={userId} workspaceId={workspaceId}
+      onCancel={() => setComposingReport(null)} onCreated={decision => {
+        const id = report.report_id
+        setReport(current => current?.report_id !== id || !current ? current : { ...current, decisions: [
+          { id: decision.id, report_id: id, title: decision.title, action: decision.action, is_draft: false,
+            owner_user_id: decision.owner_user_id || userId, status: decision.status || "planned", review_date: decision.review_date || null,
+            expected_outcome: decision.expected_outcome || null, actual_outcome: decision.actual_outcome || null,
+            outcome_status: decision.outcome_status || null, baseline: decision.outcome_baseline_value ?? null,
+            measured_value: decision.outcome_measured_value ?? null, change_percent: decision.outcome_delta_percent ?? null },
+          ...current.decisions.filter(item => item.id !== decision.id),
+        ] })
+        setComposingReport(current => current === id ? null : current)
+      }} /> : null
   return <div className="min-w-0 w-full space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 print:hidden">
       <h1 className="text-2xl font-semibold">{t(pageTitle)}</h1>
@@ -775,7 +795,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         <SupportingEvidence collapsed={!weekly && Boolean(report.impact_analysis)}>
         <ReportOverview report={report} />
         <ReportTakeaways report={report} />
-        {!report.impact_analysis && <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}
+        {!report.impact_analysis && <ReportDecisions report={report} businessAnalysis={!weekly} composer={composer} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}
         {(report.definition.dimension_filters || []).map(selection => <p key={selection.dataset_id} className="break-words text-sm text-gray-600"><span className="font-medium">{report.metrics.find(metric => metric.dataset_id === selection.dataset_id)?.dataset_label || `Dataset ${selection.dataset_id}`}</span> / {dimensionFilterLabel(selection)}</p>)}
         <MetricTrends report={report} />
         {report.weekly_anomaly_analysis && <ReportAnomalies analysis={report.weekly_anomaly_analysis} title="Whole-week assessment" enabled={report.definition.include_anomalies !== false} />}
@@ -791,7 +811,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
         }} />}
         <details className="space-y-2 border-t border-gray-200 pt-5"><summary className="cursor-pointer text-sm font-medium">More about the evidence</summary><p className="text-xs text-gray-500">Calculated from your selected data{relationships && !report.impact_analysis && <> / Earlier relationships: {report.history_window.start} to {report.history_window.end}</>}</p><Statements statements={report.impact_analysis?.limitations || report.limitations} /></details>
         </SupportingEvidence>
-        {report.impact_analysis && <ReportDecisions report={report} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}
+        {report.impact_analysis && <ReportDecisions report={report} businessAnalysis={!weekly} composer={composer} onOpenDraft={canEditDecisions && canSave ? openDecisionDraft : undefined} busy={busy} />}
         </>}
       </>}
     </section>

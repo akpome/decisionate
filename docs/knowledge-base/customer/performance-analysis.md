@@ -22,8 +22,8 @@ for each dollar already spent.
    once under one channel and every channel uses the same tracking method. With ad-platform
    figures, acknowledge that the same sale may appear in more than one report.
 5. Choose Compare results. Review revenue per dollar, spending and any missing
-   data warnings. Choose Save comparison after reviewing the preview. Create
-   decision is then available if you want to record an action and review date.
+   data warnings. Choose Create decision to record an action right there, or
+   Save comparison to keep the evidence without making a decision.
 
 For example, 300 dollars of revenue divided by 100 dollars of spending gives
 3 dollars of revenue per dollar spent. This is revenue return, not profit.
@@ -51,8 +51,8 @@ Open Business Analysis and choose Profitability to see money left after costs.
 4. Check the confirmation list: dates and currency match, revenue has refunds,
    discounts and tax removed, and sales and costs are counted once. Choose Compare results. Read both money left and
    margin, along with any warnings about incomplete records.
-5. Review the preview before Save comparison. Create decision records an action
-   after saving; it does not change prices or source data.
+5. Choose Create decision on the results to record a price or cost change to test.
+   This saves the comparison as evidence; it does not change prices or source data.
 
 Money left is revenue minus the selected costs, not automatically net profit.
 Missing overhead, fees and other costs are not invented or allocated for you.
@@ -69,8 +69,8 @@ Open Business Analysis and choose Customer retention to check repeat purchases.
    the selected records meet the stated requirements.
 4. Choose Show results. Review repeat-purchase rates by first-purchase month
    and the customers marked Too early to tell.
-5. Choose Save comparison after reviewing the results. Create decision is
-   available afterward to record a follow-up action.
+5. Choose Create decision on the results to record a follow-up action, such as
+   testing a reminder before the next purchase.
 
 Only customers with the complete follow-up window enter the rate. The first
 purchase means first in the available filtered records, not necessarily
@@ -93,8 +93,8 @@ sales stop progressing.
    or opportunities, counted once per step under the same follow-up window.
 4. Choose Show results. Review the overall conversion rate and the step with
    the largest number of people who did not continue.
-5. Review the results before Save comparison, then Create decision if you want
-   to record an improvement to test.
+5. Choose Create decision on the results to record an improvement to test at
+   the step you identified.
 
 Use counts, not percentages or unrelated totals from different populations.
 A drop-off shows where to investigate, not why it happened or how many sales
@@ -120,8 +120,8 @@ against upcoming payments.
 5. Confirm that the schedules include the receipts and obligations you intend
    to plan. Choose Preview cash plan and review weekly cash, the lowest balance
    and any shortfall against your minimum.
-6. Choose Save comparison after reviewing the preview. Create decision can
-   then record an action and review date.
+6. Choose Create decision on the cash plan to record an action and review date,
+   or Save comparison to keep the scenario without taking action.
 
 Separate sources are totaled into the same planning weeks. Their payment dates
 do not have to match, and the records are not joined together. Both sources must
@@ -201,8 +201,10 @@ Compare results generates a preview using the analytics worker. Save comparison
 is available only after at least one complete result. Saved comparisons remain
 historical snapshots; changing a selection requires another preview and
 confirmation. Repeated saves of one preview do not create duplicate records.
-Create decision is available after saving and records the user's action,
-expected result and review date with the historical evidence. It does not change
+Create decision is available directly on a preview with at least one complete
+result. Enter what you will do, the result you expect and when you will review
+it. Submitting saves the comparison as evidence if needed, and Open decision
+links to the new record without requiring you to leave the result. It does not change
 advertising budgets or product prices. Deleting a comparison keeps its decision.
 
 Missing dates or amounts, incompatible currencies, unavailable columns and
@@ -227,8 +229,8 @@ or the workspace's current weekly report.
 
 A saved comparison is a snapshot. Edit inputs to make a new preview; you must
 confirm the records again before running it. New comparison starts a fresh setup.
-Save comparison follows a supported preview, and Create decision follows saving.
-Creating again from the same saved comparison opens its existing decision.
+Choose Save comparison or Create decision from a supported preview.
+When a comparison already has a linked decision, use Open decision.
 The delete button removes the saved comparison after confirmation when your role
 allows it. Linked decisions are kept. Saving never changes the original dataset.
 

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { correlationRequest, createDecision, type DecisionCreatePayload } from "@/lib/api"
+import { correlationRequest, createDecision, type DecisionCreatePayload, type DecisionRecord } from "@/lib/api"
 import { metricIdentity, type CatalogDataset, type CatalogMetric } from "@/features/relationships/types"
 import type { BusinessReport } from "@/features/reports/types"
 import { decisionCreationKey } from "../lib/creation-request"
@@ -20,9 +20,10 @@ function day(offset: number) {
 }
 function metricTarget(metric = ""): Target { return {metric, direction: "increase", unit: "percent", change: ""} }
 
-export function MetricPlanForm({userId, workspace, datasets, report, reportId, initialDataset, initialMetric, findingId, lockedOutcome}: {
+export function MetricPlanForm({userId, workspace, datasets, report, reportId, initialDataset, initialMetric, findingId, lockedOutcome, onCreated}: {
   userId: string; workspace?: string; datasets: Dataset[]; report: BusinessReport | null; reportId: string
   initialDataset?: number | null; initialMetric?: string; findingId?: string; lockedOutcome?: string
+  onCreated?: (decision: DecisionRecord) => void
 }) {
   const router = useRouter()
   const metrics = report?.metrics.filter(m => m.value !== null) ?? []
@@ -94,7 +95,8 @@ export function MetricPlanForm({userId, workspace, datasets, report, reportId, i
       }
       const payload = {...base, metric_plan: plan}
       const saved = await createDecision(payload, userId, workspace, await decisionCreationKey(JSON.stringify([userId, workspace, payload])))
-      router.replace("/decisions/" + saved.id)
+      if (onCreated) onCreated(saved)
+      else router.replace("/decisions/" + saved.id)
     } catch (err) { setError(err instanceof Error ? err.message : "Could not check the plan. Try again.") }
     finally { lock.current = false; setBusy(false) }
   }

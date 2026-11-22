@@ -4,15 +4,21 @@ A decision records a concrete action, its reasoning, expected result and later
 outcome. Reading a report, finding a correlation or generating an AI recommendation
 does not automatically create an accountable decision.
 
-## Central creation workflow
+## Where can I create a decision?
 
-Use Create decision from the reviewed Business Analysis or Weekly Reports result,
-or open Decisions and use its creation entry. A saved comparison or budget plan
-also offers Create decision after saving. Name the decision for the actual
-business action, replacing the generated unique starting label. Supply the
-required action and evidence, expected outcome and review information shown by
-the form. Attach a saved report when it provides the justification, or use the
-supported manual dataset-linked workflow.
+You can create a decision without leaving Business Analysis. On a completed
+Compare metrics report, choose Create decision. With two usable metrics, track
+two metric targets or choose to review the result yourself. With one usable
+metric, record your action, expected result and review date. The report keeps
+the link to the decision. On Return on spend, Profitability, Customer retention,
+Sales conversion and Cash flow planning, use Create decision on the results.
+The comparison is saved as evidence automatically when you submit.
+
+Business impact starts with an existing decision. Save an assessment to keep it
+with that decision. If the assessment produces an estimate and you want to take
+a different action, create a follow-up decision; this does not replace the first.
+Weekly Reports, saved budget plans and the Decisions page also have creation
+entries. Use the action you actually plan to take, not just the report name.
 
 The form shows the next missing requirement beside Create decision. A
 report-linked decision needs a ready report, an outcome metric, a meaningful

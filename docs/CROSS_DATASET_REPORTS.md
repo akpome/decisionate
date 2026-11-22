@@ -245,11 +245,13 @@ Users supply their action, reasoning, expected measurable outcome, outcome
 metric and review date. Existing decision permissions, ownership and outcome
 tracking remain authoritative.
 
-Decision creation is centralized under `/dashboard/decisions`: its one creation
-entry opens `/dashboard/decisions/new`. That form can attach a saved report and
-choose its outcome metric, or create a manual dataset-linked decision. Analysis
-pages display evidence and existing decisions, without creation buttons or
-one-click recommendation-to-decision handlers.
+Business Analysis supports explicit decision creation within each usable result.
+Compare metrics uses a saved report snapshot and supports automatic metric targets
+or manual review. Business impact attaches the assessment to the original decision
+and can record a separate follow-up action from an estimate. The five comparison
+tools save the preview as evidence and link one decision per comparison. Opening
+a form does not commit a decision. The standalone form at `/decisions/new`
+remains available.
 
 Single-dataset analysis remains at `/dashboard/reports/dataset`. The basic
 two-metric relationship monitors remain under Relationships. The separate

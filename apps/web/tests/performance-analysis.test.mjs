@@ -120,10 +120,27 @@ test("save and decision actions follow a completed preview; edits invalidate it"
   const source = read("../features/performance/performance-workspace.tsx")
   assert.match(source, /view === "results" && result/)
   assert.match(source, /!result.analysis_id && result.rows.some\(row => row.ready\)/)
-  assert.match(source, /result.analysis_id && canDecide/)
+  assert.match(source, /canSave && canDecide && \(result.analysis_id \|\| jobId\) && result.rows.some\(row => row.ready\)/)
   assert.match(source, /function change[\s\S]*?amounts_confirmed: false[\s\S]*?setResult\(null\)/)
   assert.match(source, /Idempotency-Key/)
   assert.match(source, /active.current\?\.abort\(\)/)
+})
+
+test("creating from a preview saves its evidence once and reuses that snapshot on retry", async () => {
+  const source = ts.createSourceFile("performance-workspace.tsx", read("../features/performance/performance-workspace.tsx"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const component = source.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === "PerformanceWorkspace")
+  const save = component.body.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === "saveComparison")
+  const saved = { analysis_id: "snapshot", rows: [{ ready: true }] }, calls = []
+  const state = { canSave: true, mounted: { current: true }, jobId: "preview", kind: "profit", performancePath,
+    result: { rows: [{ ready: false }] }, window: { history: { replaceState() {} } }, loadHistory() {},
+    request: async path => { calls.push(path); return saved }, setResult: value => { state.result = value },
+  }
+  const run = vm.runInNewContext(ts.transpileModule(save.getText(source) + "\nsaveComparison", { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, state)
+  await assert.rejects(run(), /complete result/)
+  state.result.rows[0].ready = true
+  assert.equal(await run(), saved)
+  assert.equal(await run(), saved)
+  assert.deepEqual(calls, ["/jobs/preview/save"])
 })
 
 test("optional grouping edits keep a confirmed comparison ready but changing dates requires confirmation again", () => {

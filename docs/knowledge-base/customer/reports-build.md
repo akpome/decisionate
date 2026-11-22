@@ -250,7 +250,10 @@ record the actual outcome and lessons yourself. Later reviews retain earlier
 assessments; changed actions or outcome metrics mark older results as historical.
 Archived decisions can show their history but cannot receive new assessments.
 Old standalone impact snapshots remain readable; new assessments require an
-existing decision.
+existing decision. When an estimate is available and you have a new action,
+choose Create follow-up decision on the assessment. For an unsaved assessment,
+choose Save assessment and plan a follow-up. Saving the assessment alone does
+not create the follow-up.
 
 ## Why is Business impact waiting for enough results?
 
@@ -384,6 +387,8 @@ The computed report does not require a successful external AI response. A saved 
 retains its original result; changing a filter, metric, date, pair selection or
 timing setting requires a new preview to calculate new evidence.
 
-Reports show evidence and linked decisions. Create a new business decision in
-the central Decisions workflow rather than expecting Preview analysis to execute
-an action or create a decision automatically.
+Single- and multi-dataset reports show evidence and linked decisions. In the
+preview, choose Create decision to act on that evidence without leaving the
+analysis. Choose a review date and either track two measurable targets or
+record a manually reviewed action. Generating the preview alone does not create
+a decision or execute the action.
