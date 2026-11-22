@@ -29,7 +29,7 @@ const sources = load("../features/performance/amount-source.tsx", {
 const setupSources = { ...sources, useAmountDataset: () => ({ dataset: null, error: "" }),
   DatasetChoice: () => null, SourceDetails: () => null }
 const GroupFilter = () => null
-const { SingleDatasetSetup } = load("../features/performance/performance-setup.tsx", {
+const { SingleDatasetSetup, SeparateDatasetSetup } = load("../features/performance/performance-setup.tsx", {
   "./types": types,
   "./amount-source": setupSources,
   "@/features/datasets/components/dimension-filter": { DatasetDimensionFilter: GroupFilter },
@@ -68,6 +68,16 @@ test("Return on spend and Profitability use explicit result grouping labels", ()
     assert.match(html, /<option value="" selected="">All records combined<\/option>/)
     assert.match(html, /<option value="channel">Channel<\/option>/)
     assert.doesNotMatch(html, /Compare by|Business total/)
+  }
+})
+
+test("Return on spend labels the revenue and spending selectors as columns in both source layouts", () => {
+  for (const Setup of [SingleDatasetSetup, SeparateDatasetSetup]) {
+    const html = render(React.createElement(Setup, { definition: types.newPerformance("return"), context, onChange() {} }))
+    assert.match(html, /<select aria-label="Revenue column"/)
+    assert.match(html, /<select aria-label="Spending column"/)
+    assert.match(html, /Choose a column/)
+    assert.doesNotMatch(html, /Revenue amount|Spending amount|Choose an amount/)
   }
 })
 

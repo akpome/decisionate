@@ -7,10 +7,11 @@ for each dollar already spent.
 
 1. Set From, To and Currency for the period you want to review.
 2. Answer Where are your revenue and spending figures stored? For Both in the same dataset, select the dataset,
-   Revenue amount and Spending amount. Under Show separate results for, choose
+   Revenue column and Spending column. Under Show separate results for, choose
    a column such as Channel for one result per channel, or All records combined
    for one overall result. For Revenue and spending in different datasets, name each
-   comparison and select its Revenue and Spending sources. Add comparison
+   comparison and select its Revenue dataset and Revenue column, then its
+   Spending dataset and Spending column. Add comparison
    adds another channel or business to compare.
 3. Review Date column and Records contain for each source. Choose a dimension
    filter when you want only a particular channel, product or location.
@@ -39,7 +40,7 @@ Open Business Analysis and choose Profitability to see money left after costs.
 
 1. Set From, To and Currency. Answer Where are your revenue and costs figures stored?
    Choose Both in the same dataset or Revenue and costs in different datasets.
-2. Select Revenue amount and the relevant Cost amount columns. Add another cost
+2. Select Revenue column and the relevant Cost column. Add another cost
    includes another non-overlapping total cost. Do not count a total and its
    components twice, or use unit cost as the total cost of all items sold.
 3. For one dataset, use Show separate results for to select a product, service

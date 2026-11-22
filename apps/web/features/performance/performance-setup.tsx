@@ -31,12 +31,12 @@ export function SingleDatasetSetup({ definition, onChange, context }: {
       )}
     </div></div>
     <div className="grid items-start gap-4 md:grid-cols-2">
-      <AmountChoice label="Revenue amount" value={item.revenue.metric_key} dataset={dataset} onChange={metric_key => {
+      <AmountChoice label="Revenue column" value={item.revenue.metric_key} dataset={dataset} onChange={metric_key => {
         const date_column = item.revenue.date_column || dataset?.date_columns[0] || ""
         update({ ...item, revenue: { ...item.revenue, metric_key, date_column }, costs: item.costs.map(cost => ({ ...cost, date_column })) })
       }} />
       <div className="space-y-3">{item.costs.map((cost, index) => <div key={index} className="flex items-end gap-2">
-        <div className="min-w-0 flex-1"><AmountChoice label={definition.kind === "return" ? "Spending amount" : `Cost amount${item.costs.length > 1 ? ` ${index + 1}` : ""}`} dataset={dataset} value={cost.metric_key}
+        <div className="min-w-0 flex-1"><AmountChoice label={definition.kind === "return" ? "Spending column" : `Cost column${item.costs.length > 1 ? ` ${index + 1}` : ""}`} dataset={dataset} value={cost.metric_key}
           onChange={metric_key => { const date_column = item.revenue.date_column || dataset?.date_columns[0] || ""; update({ ...item, revenue: { ...item.revenue, date_column }, costs: item.costs.map((current, at) => ({ ...current, date_column, metric_key: at === index ? metric_key : current.metric_key })) }) }} /></div>
         {item.costs.length > 1 && <button type="button" className={command} title={`Remove cost ${index + 1}`} aria-label={`Remove cost ${index + 1}`} onClick={() => update({ ...item, costs: item.costs.filter((_, at) => at !== index) })}><Trash2 size={16} /></button>}
       </div>)}
@@ -62,7 +62,8 @@ export function SeparateDatasetSetup({ definition, onChange, context }: {
       </div>
       <AmountSource label="Revenue" context={context} value={item.revenue} onChange={revenue => update(index, { ...item, revenue })} />
       {item.costs.map((cost, costIndex) => <div key={costIndex} className="space-y-2">
-        <AmountSource label={definition.kind === "return" ? "Spending" : `Cost ${costIndex + 1}`} context={context} value={cost} onChange={source => update(index, { ...item, costs: item.costs.map((current, at) => at === costIndex ? source : current) })} />
+        <AmountSource label={definition.kind === "return" ? "Spending" : "Cost"} number={definition.kind === "profit" && item.costs.length > 1 ? costIndex + 1 : undefined}
+          context={context} value={cost} onChange={source => update(index, { ...item, costs: item.costs.map((current, at) => at === costIndex ? source : current) })} />
         {item.costs.length > 1 && <button type="button" className={command} onClick={() => update(index, { ...item, costs: item.costs.filter((_, at) => at !== costIndex) })}><Trash2 size={16} />Remove cost {costIndex + 1}</button>}
       </div>)}
       {definition.kind === "profit" && item.costs.length < 4 && <button type="button" className={command} onClick={() => update(index, { ...item, costs: [...item.costs, blankAmount()] })}><Plus size={16} />Add another cost</button>}

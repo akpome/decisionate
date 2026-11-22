@@ -80,7 +80,7 @@ export function AmountChoice({ label, value, dataset, onChange }: {
 }) {
   const metrics = dataset?.metrics.filter(metric => ["currency", "number"].includes(metric.unit) && ["sum", "policy"].includes(metric.aggregation)) || []
   return <label className="block min-w-0 text-xs font-medium text-gray-600">{label}<select aria-label={label} required className={field} value={value} disabled={!dataset} onChange={event => onChange(event.target.value)}>
-    <option value="">{dataset && !metrics.length ? "No approved money amounts" : "Choose an amount"}</option>
+    <option value="">{dataset && !metrics.length ? "No eligible money columns" : "Choose a column"}</option>
     {metrics.map(metric => <option key={metric.metric_key} value={metric.metric_key}>{metric.label}</option>)}
   </select></label>
 }
@@ -102,13 +102,14 @@ export function SourceDetails({ value, dataset, onChange, context }: {
   </div>
 }
 
-export function AmountSource({ label, value, onChange, context }: {
-  label: string; value: AmountSelection; onChange: (value: AmountSelection) => void; context: SourceContext
+export function AmountSource({ label, number, value, onChange, context }: {
+  label: string; number?: number; value: AmountSelection; onChange: (value: AmountSelection) => void; context: SourceContext
 }) {
   const { dataset, error, retry } = useAmountDataset(value.dataset_id, context)
+  const suffix = number === undefined ? "" : ` ${number}`
   return <div className="min-w-0 space-y-3">
-    <div className="grid min-w-0 gap-4 sm:grid-cols-2"><DatasetChoice {...context} label={`${label} dataset`} value={value.dataset_id} selectedLabel={dataset?.dataset_label} onChange={dataset_id => onChange({ ...blankAmount(), dataset_id })} />
-      <AmountChoice label={`${label} amount`} dataset={dataset} value={value.metric_key} onChange={metric_key => onChange({ ...value, metric_key, date_column: value.date_column || dataset?.date_columns[0] || "" })} /></div>
+    <div className="grid min-w-0 gap-4 sm:grid-cols-2"><DatasetChoice {...context} label={`${label} dataset${suffix}`} value={value.dataset_id} selectedLabel={dataset?.dataset_label} onChange={dataset_id => onChange({ ...blankAmount(), dataset_id })} />
+      <AmountChoice label={`${label} column${suffix}`} dataset={dataset} value={value.metric_key} onChange={metric_key => onChange({ ...value, metric_key, date_column: value.date_column || dataset?.date_columns[0] || "" })} /></div>
     {value.dataset_id > 0 && <details className="text-sm"><summary className="min-h-10 cursor-pointer content-center text-gray-600">Dates and filters{value.dimension_filter ? ` / ${value.dimension_filter.values.join(", ")}` : ""}</summary>
       <SourceDetails context={context} value={value} dataset={dataset} onChange={onChange} /></details>}
     {error && <div role="alert" className="text-sm text-red-700">{error} <button type="button" className={command} onClick={retry}><RefreshCw size={16} />Retry</button></div>}
