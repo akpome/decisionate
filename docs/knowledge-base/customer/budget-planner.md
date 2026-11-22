@@ -6,9 +6,9 @@ Use Budget Planner to see whether changing how you divide your advertising budge
 
 1. Open Analysis > Budget Planner. Choose the result you want to improve, such as store revenue or orders.
 2. Add each spending option separately. For example, choose Google Ads spend and Meta Ads spend, with Shopify revenue as the result. You can use other eligible datasets or separate channel values in a dimension column; this is not limited to those providers.
-3. Enter the total budget, currency, start Monday and number of planning weeks. Choose Preview budget.
+3. In Set up budget, enter the total budget, currency, start Monday and number of planning weeks. Confirm the spending does not overlap and consider other business influences. Choose Preview budget to go straight to Results.
 4. Review the recent spending mix beside the suggested test at the same total budget. If the data supports a recommendation, the preview shows suggested amounts and an estimated additional result with a range. If it does not, the planner explains what is missing instead of inventing a split.
-5. Save the plan after preview, then use Create Decision to record what you will change, the expected result and a review date. You apply any spending changes yourself.
+5. If the checks fail, choose Edit setup and read which records or assumptions need attention. Otherwise save the supported plan, then use Create Decision to record what you will change, the expected result and a review date. You apply any spending changes yourself.
 
 You need at least 104 complete matching weeks of recent history, plus enough separate variation in each option's spending. The data and model checks must pass before a mix is recommended. A recommendation is a test to review, not a guarantee of more sales or proof that a channel caused them. The planner never changes an advertising platform's budget automatically.
 

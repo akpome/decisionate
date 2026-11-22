@@ -127,7 +127,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">{toolLabels[kind]}</h2>
       {result && <button className={command} disabled={busy} onClick={reset}><Plus size={16} />New comparison</button>}
     </div>
-    <details className="text-sm"><summary className="w-fit cursor-pointer py-2 text-gray-600">Saved comparisons</summary><div className="flex max-w-3xl items-end gap-3 pt-2">
+    {(history.analyses.length > 0 || result?.analysis_id || historyError) && <details className="text-sm"><summary className="w-fit cursor-pointer py-2 text-gray-600">Saved comparisons</summary><div className="flex max-w-3xl items-end gap-3 pt-2">
       <div className="min-w-0 flex-1"><SearchableSelect label="Saved comparison" value={result?.analysis_id || null} options={history.analyses.map(item => ({ value: item.analysis_id, label: `${item.name} / saved ${item.created_at.slice(0, 10)}` }))} placeholder="Choose a saved comparison" disabled={busy}
         onChange={id => void action(async () => {
           const data = await request<PerformanceResult>(`/${encodeURIComponent(id)}`)
@@ -140,7 +140,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
           await request(`/${result.analysis_id}`, { method: "DELETE" }); if (mounted.current) reset(); await loadHistory()
         })
       }}><Trash2 size={16} /></button>}
-    </div>{historyError && <p role="alert" className="mt-3 text-amber-900">{historyError} <button className={command} disabled={busy} onClick={() => void loadHistory()}>Retry</button></p>}</details>
+    </div>{historyError && <p role="alert" className="mt-3 text-amber-900">{historyError} <button className={command} disabled={busy} onClick={() => void loadHistory()}>Retry</button></p>}</details>}
     {error && <p role="alert" className="break-words rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {busy && phase && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><LoaderCircle size={16} className="animate-spin" />{analysisPhaseLabel(phase)}
       {jobId && <button className={command} onClick={() => {

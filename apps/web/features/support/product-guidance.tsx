@@ -11,6 +11,7 @@ type Props = { userId: string; workspaceId: string; onContactSupport: (message: 
 
 const starters = [
   "Which analysis tool should I use?",
+  "How do I go from a spreadsheet to my first dashboard?",
   "Which channel gave me more revenue per dollar spent?",
   "Where is Business impact and how do I use it?",
 ]

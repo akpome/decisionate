@@ -222,7 +222,7 @@ Analysis. On smaller screens, use the Analysis tool selector.
 
 ## How do I reopen, change or delete a saved comparison?
 
-Open the same tool in Business Analysis, expand Saved comparisons and choose a
+Open the same tool in Business Analysis. Once there is history, expand Saved comparisons and choose a
 Saved comparison. Search by name if needed; Load more shows additional records.
 Each tool has its own list. Saving Return on spend does not replace a cash plan
 or the workspace's current weekly report.

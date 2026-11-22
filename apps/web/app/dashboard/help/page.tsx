@@ -273,9 +273,9 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Configure a connector",
         steps: [
-          "Open Data -> Connections and review the connector catalog. The status shown in the application is the authority for whether a source is available in the current deployment.",
+          "Open Data -> Connections -> Connection sources. Switch on the source you want to add.",
           "Choose from the accounting, commerce, payment, CRM, advertising, analytics, or database sources actually offered by the catalog. Connector availability and required fields can differ by deployment; do not assume every provider is enabled.",
-          "Select a connector and provide only the fields requested by that connector, such as an account, property, company, shop, tenant, or object identifier.",
+          "After you add a provider, its card moves out of Connection sources. Configure added connections opens so you can choose the account, authorize it and sync. Manage or remove the connection here. Removing the last connection for a provider returns its card to Connection sources.",
           "Use read-only or minimum-scope credentials wherever the provider supports them.",
           "Run the connection or pull test if the connector exposes one. Resolve provider authentication, permission, identifier, and server-configuration errors before enabling scheduled sync.",
           "Choose the dataset name and sync settings, then perform a manual pull before relying on scheduled ingestion.",
@@ -613,9 +613,9 @@ const referenceChapters: ReferenceChapter[] = [
   },
   {
     id: "reference-relationships-alerts",
-    title: "8. Relationships and alerts",
+    title: "8. Relationships and weekly email",
     summary:
-      "Relationships describe observed association between metrics from different datasets. Alerts use selected dataset metrics, optional KPI targets, saved relationships, and recommendations to produce scheduled notification digests.",
+      "Use Relationships to check how two metrics move together. Use Weekly Reports to choose what to monitor and who receives the report.",
     howTos: [
       {
         title: "Create a cross-source relationship",
@@ -631,31 +631,16 @@ const referenceChapters: ReferenceChapter[] = [
         ],
       },
       {
-        title: "Configure an alert metric and optional KPI target",
+        title: "Set up weekly email",
         steps: [
-          "Open Analysis -> Alerts and review the dataset metrics loaded into the KPI focus list.",
-          "Select each metric that should shape the alert digest. The metric key includes its dataset so identical column names from different datasets remain separate.",
-          "For a selected metric, enter an optional numeric KPI target. Leave it blank when the metric has no benchmark.",
-          "Select any saved relationships that should shape cross-source analysis.",
-          "Save the analysis selection. Targets appear in the digest and email as benchmark context and are included in the AI analysis context.",
-        ],
-      },
-      {
-        title: "Configure and verify alert delivery",
-        steps: [
-          "Open Analysis -> Alerts and configure notification recipients and schedule alongside the KPI setup. Email transport is managed centrally by a platform administrator.",
-          "Confirm that the selected alert metrics and relationships belong to the active workspace.",
-          "Use the test delivery action where available and inspect the delivery status or history.",
-          "Enable the schedule only after confirming recipients and platform email readiness.",
-          "If a relationship is deleted, remove it from the alert selection. A deleted relationship should not remain an active alert focus.",
+          "In Weekly Reports, choose the metrics, preview the report and save it. The workspace owner receives the scheduled report when delivery is on and there is enough data.",
+          "Open Scheduled email to add recipients, change the schedule, send a test or check delivery history.",
         ],
       },
     ],
     notes: [
       "A relationship reports association, not proven causation.",
       "Relationships saves a two-metric monitor. For multiple metrics across multiple datasets, use Multi-dataset report in Business Analysis. Enable correlation analysis can be cleared to review the same selected metrics without correlation. The retired advanced relationship explorer has been removed.",
-      "The current KPI target is a digest and AI benchmark; it does not by itself create a separate threshold-triggered alert.",
-      "Alerts are workspace-scoped. A workspace must not receive another workspace's datasets, targets, relationships, recipients, or recommendations.",
     ],
   },
   {
@@ -793,7 +778,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Manage agency members, client workspace access, one client owner and one client user per client workspace, invitations, ownership assignments, and invitation revocation where those controls are available to your plan and role.",
           "Once a client accepts ownership, only that client owner can delete the workspace. An agency can remove it from its list without deleting the client's data.",
           "In client Settings, use Agency access to control whether the agency may enter the workspace, or Unlink agency to end the relationship. A removed client owner can open Billing to start a 30-day trial in the existing workspace if eligible, choose an independent plan, or approve another agency invitation.",
-          "Configure workspace alert recipients and schedule in Analysis -> Alerts. The email provider is managed centrally by the platform.",
+          "Manage weekly report recipients and timing in Weekly Reports -> Scheduled email.",
           "Save one section at a time and verify the resulting workspace name, branding, and access behavior in a fresh page load.",
         ],
       },

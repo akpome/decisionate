@@ -75,8 +75,8 @@ async function loadDecisionDefinition(userId: string, workspaceId: string | unde
   return { definition: decisionReviewDefinition(current, context, page.datasets[0]), datasets: page.datasets }
 }
 
-export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEditDecisions = false, initialScope = "multi", weekly = false, impactPage = false, includeRelationships = true }: {
-  userId: string; workspaceId?: string; canManage: boolean; canSave: boolean; canEditDecisions?: boolean; initialScope?: "single" | "multi"; weekly?: boolean; impactPage?: boolean; includeRelationships?: boolean
+export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail = canManage, canSave, canEditDecisions = false, initialScope = "multi", weekly = false, impactPage = false, includeRelationships = true }: {
+  userId: string; workspaceId?: string; canManage: boolean; canManageEmail?: boolean; canSave: boolean; canEditDecisions?: boolean; initialScope?: "single" | "multi"; weekly?: boolean; impactPage?: boolean; includeRelationships?: boolean
 }) {
   const { t } = useDecisionateText()
   const router = useRouter()
@@ -717,7 +717,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canSave, canEd
       <p className="text-sm text-gray-600">{weeklyDirty ? "Unsaved report changes" : weeklySettings?.definition ? "Weekly report saved" : "No weekly report saved"} / {weeklySettings?.enabled ? "Automatic email on" : "Automatic email off"}</p>
       <div className="flex flex-wrap items-center gap-3">
         {view === "explore" && <button type="button" className={button} disabled={busy || catalogBusy || retryingDataset !== null} title="Refresh available datasets" aria-label="Refresh available datasets" onClick={refreshCatalog}>{catalogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}</button>}
-        {canManage && <Link href="/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Scheduled email</Link>}
+        {canManageEmail && <Link href="/alerts#weekly-delivery" className={button}><CalendarDays size={16} />Scheduled email</Link>}
         {canManage && weeklySettings?.definition && view === "explore" && <details className="relative"><summary className="cursor-pointer text-sm text-gray-600">Report options</summary><div className="absolute right-0 z-10 mt-2 w-64 max-w-[80vw] rounded-md border border-gray-200 bg-white p-2 shadow-sm"><button type="button" className={`${button} w-full text-red-700`} disabled={busy} onClick={() => void removeWeeklySettings()}><Trash2 size={16} />Remove weekly report setup</button></div></details>}
       </div>
     </section>}

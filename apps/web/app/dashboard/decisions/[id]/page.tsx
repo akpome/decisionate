@@ -1817,9 +1817,7 @@ export default function DecisionPage() {
 
         <DashboardPageHeader
           title={getDecisionDisplayTitle(decision)}
-          description={isLegacyEvidencePlaceholder(decision)
-            ? "No decision action was recorded."
-            : decisionDescription || "No description provided."}
+          description={decisionDescription || undefined}
           actions={
             <div className="flex items-center gap-2">
               <Link
@@ -1843,9 +1841,10 @@ export default function DecisionPage() {
           }
         />
 
-        {isLegacyEvidencePlaceholder(decision) && (
-          <p className="mt-4 text-sm text-amber-800">Legacy evidence placeholder. No decision action was recorded.</p>
-        )}
+        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+          <div><dt className="font-medium">Action to take</dt><dd className="mt-1 whitespace-pre-wrap break-words">{(!isLegacyEvidencePlaceholder(decision) && decision.action?.trim()) || "No action recorded."}</dd></div>
+          <div><dt className="font-medium">Expected result</dt><dd className="mt-1 whitespace-pre-wrap break-words">{decision.expected_outcome?.trim() || "No expected result recorded."}</dd></div>
+        </dl>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Badge className="border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]">
@@ -1896,7 +1895,7 @@ export default function DecisionPage() {
 
           {metricColumn && (
             <Badge className="border-gray-200 bg-gray-50 text-gray-700">
-              Metric: {formatMetricLabel(metricColumn)}
+              Outcome metric: {formatMetricLabel(metricColumn)}
             </Badge>
           )}
 
@@ -1904,6 +1903,47 @@ export default function DecisionPage() {
             <Badge className="border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]">
               Analysis source: {recommendationSourceLabel}
             </Badge>
+          )}
+        </div>
+        <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
+            Next Action
+          </p>
+
+          <p className="mt-1 text-sm text-[var(--decisionate-brand-primary-text)]">
+            {nextAction}
+          </p>
+
+          {nextActionTarget && (
+            <button
+              type="button"
+              onClick={() => focusNextActionTarget(nextActionTarget)}
+              className="mt-3 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)]"
+            >
+              {nextActionTarget.label}
+            </button>
+          )}
+
+          {showActionQueueBackLink && (
+            <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+              actionQueueWorkRemaining
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : "border-green-200 bg-green-50 text-green-800"
+            }`}
+            >
+              <p>
+                {actionQueueWorkRemaining
+                  ? "This decision still has Action Needed work."
+                  : "This decision is clear for the Action Needed queue."}
+              </p>
+
+              <Link
+                href="/action-needed"
+                className="mt-2 inline-flex font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
+              >
+                Back to Action Needed →
+              </Link>
+            </div>
           )}
         </div>
       </DashboardCard>
@@ -2245,10 +2285,11 @@ export default function DecisionPage() {
           Decision Health Completion Score And Next Action Section
       ========================= */}
 
-      <DashboardCard>
+      <details className="rounded-lg border border-gray-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-medium">Review checklist</summary>
         <CardHeader
-          title="Decision Health"
-          description="Lifecycle health with documentation completeness across outcome, learning, review schedule and notes."
+          title="Review progress"
+          description="What has been recorded for this decision."
           icon={
             <IconBadge
               className={getHealthIconClass(
@@ -2356,48 +2397,7 @@ export default function DecisionPage() {
           />
         </div>
 
-        <div className="mt-4 rounded-xl border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--decisionate-brand-primary-text)]">
-            Next Action
-          </p>
-
-          <p className="mt-1 text-sm text-[var(--decisionate-brand-primary-text)]">
-            {nextAction}
-          </p>
-
-          {nextActionTarget && (
-            <button
-              type="button"
-              onClick={() => focusNextActionTarget(nextActionTarget)}
-              className="mt-3 rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-white px-3 py-2 text-sm font-medium text-[var(--decisionate-brand-primary-text)] transition hover:bg-[var(--decisionate-brand-primary-soft)]"
-            >
-              {nextActionTarget.label}
-            </button>
-          )}
-
-          {showActionQueueBackLink && (
-            <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
-              actionQueueWorkRemaining
-                ? "border-amber-200 bg-amber-50 text-amber-800"
-                : "border-green-200 bg-green-50 text-green-800"
-            }`}
-            >
-              <p>
-                {actionQueueWorkRemaining
-                  ? "This decision still has Action Needed work."
-                  : "This decision is clear for the Action Needed queue."}
-              </p>
-
-              <Link
-                href="/action-needed"
-                className="mt-2 inline-flex font-medium text-[var(--decisionate-brand-primary-text)] hover:opacity-80"
-              >
-                Back to Action Needed →
-              </Link>
-            </div>
-          )}
-        </div>
-      </DashboardCard>
+      </details>
 
       </>}
       <DashboardCard>

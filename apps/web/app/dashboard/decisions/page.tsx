@@ -23,21 +23,8 @@ import {
 } from "@/lib/decision-options"
 import {
     hasPendingLearning,
-    hasPendingNotes,
     hasPendingOutcome,
-    hasRecordedOutcome,
 } from "@/lib/decision-outcomes"
-import {
-    archivedDecisionHealthLabel,
-    cancelledDecisionHealthLabel,
-    getDecisionHealth,
-    healthyDecisionHealthLabel,
-    inProgressDecisionHealthLabel,
-    needsReviewDecisionHealthLabel,
-} from "@/lib/decision-health"
-import type {
-    DecisionHealthLabel,
-} from "@/lib/decision-health"
 import type {
     ActiveDecisionStatus,
 } from "@/lib/decision-options"
@@ -54,12 +41,7 @@ import { DashboardPageHeader } from "@/features/dashboard/components/dashboard-p
 import { CreateDecisionLink } from "@/features/decisions/components/create-decision-action"
 import { buildCreateDecisionHref } from "@/features/decisions/lib/decision-handoff"
 import { getDecisionDisplayTitle, isLegacyEvidencePlaceholder } from "@/features/decisions/lib/decision-title"
-import { decisionNarrativeText } from "@/features/decisions/lib/decision-evidence-text"
 import { AIAnalysisPanel } from "@/features/ai/components/analysis-panel"
-import { getAIRecommendationSource } from "@/features/decisions/lib/ai-recommendation-source"
-import {
-    formatMetricLabel,
-} from "@/features/dashboard/components/metric-selector"
 import type {
     DecisionAttentionWorkflowState,
     DecisionCategory,
@@ -82,16 +64,10 @@ import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
 
 import {
-    Target,
     Calendar,
     Activity,
     ArrowRight,
-    FolderOpen,
-    Flag,
-    FileText,
     Gauge,
-    Lightbulb,
-    LineChart as LineChartIcon,
     BriefcaseBusiness,
     Search,
     RefreshCw,
@@ -185,7 +161,6 @@ function getInitialDecisionPortfolioText(
 
 const portfolioPageSize = 24
 const activityFeedPageSize = 20
-const addNotesFollowUpAction = "Add notes"
 const decisionPortfolioLifecycleOptions = [
     allPortfolioLifecycle,
     defaultPortfolioLifecycle,
@@ -1436,8 +1411,8 @@ export default function DecisionsPage() {
             <div className="grid gap-6">
                 <DashboardCard className="h-full p-4 sm:p-5">
                     <CardHeader
-                        title="Action Queue"
-                        description="Outcome, learning, and overdue-review work that needs attention."
+                        title="Needs attention"
+                        description="Choose a group to see the decisions that need follow-up."
                         icon={
                             <IconBadge
                                 className="bg-amber-50 text-amber-600"
@@ -1480,117 +1455,11 @@ export default function DecisionsPage() {
                 </DashboardCard>
             </div>
 
-            {decisionSummary?.ai_analysis && (
-                <AIAnalysisPanel
-                    analysis={decisionSummary.ai_analysis}
-                    title="Portfolio learning signal"
-                    className="rounded-2xl p-4 sm:p-5"
-                />
-            )}
-
-            {/* =========================
-                Workspace Recent Decision Activity Feed Section
-            ========================= */}
-
-            <DashboardCard>
-                <CardHeader
-                    title="Recent Decision Activity"
-                    description="Latest updates across the current decision workspace."
-                    action={
-                        <button
-                            type="button"
-                            aria-label="Refresh decision workspace"
-                            onClick={handleRefreshDecisionWorkspace}
-                            disabled={workspaceRefreshing}
-                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
-                        >
-                            <RefreshCw
-                                size={16}
-                                className={
-                                    workspaceRefreshing
-                                        ? "animate-spin"
-                                        : ""
-                                }
-                            />
-                        </button>
-                    }
-                    icon={
-                        <IconBadge
-                            className="bg-gray-100 text-gray-600"
-                            icon={<Activity size={22} />}
-                        />
-                    }
-                />
-
-                {decisionActivityError && (
-                    <div
-                        className="mt-4 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
-                        role="alert"
-                    >
-                        <span>{decisionActivityError}</span>
-
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setActivityRetryKey(
-                                    currentKey => currentKey + 1
-                                )
-                            }
-                            className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
-                        >
-                            Retry
-                        </button>
-                    </div>
-                )}
-
-                {activityFeedLoadingEmpty ? (
-                    <div
-                        className="mt-4 flex h-36 flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 text-center"
-                        role="status"
-                        aria-live="polite"
-                    >
-                        <p className="text-sm font-medium text-gray-600">
-                            Loading activity...
-                        </p>
-                    </div>
-                ) : activityFeedErrorEmpty ? null
-                : activityFeedEmpty ? (
-                    <EmptyState
-                        title="No activity yet"
-                        description="Decision updates will appear here as work happens."
-                    />
-                ) : (
-                    <div className="mt-4 divide-y divide-gray-100 md:max-h-72 md:overflow-y-auto md:pr-2">
-                        {decisionActivityFeed.map(activityItem => (
-                            <DecisionActivityRow
-                                key={activityItem.id}
-                                activityItem={activityItem}
-                            />
-                        ))}
-
-                        {hasMoreDecisionActivity && (
-                            <div className="pt-3">
-                                <button
-                                    type="button"
-                                    onClick={handleLoadMoreDecisionActivity}
-                                    disabled={decisionActivityLoading}
-                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
-                                >
-                                    {decisionActivityLoading
-                                        ? "Loading activity..."
-                                        : "Load more activity"}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </DashboardCard>
-
             <DashboardCard id="decision-portfolio" className="scroll-mt-4">
                 <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                         <h2 className="break-words text-2xl font-semibold">
-                            Decision Portfolio
+                            Your decisions
                         </h2>
 
                         <p className="mt-1 break-words text-sm text-gray-500">
@@ -2136,6 +2005,116 @@ export default function DecisionsPage() {
                     )}
                 </div>
             )}
+            <details className="border-t pt-4">
+                <summary className="cursor-pointer font-medium">Recent activity and insights</summary>
+                <div className="mt-4 space-y-4">
+                    {decisionSummary?.ai_analysis && (
+                        <AIAnalysisPanel
+                            analysis={decisionSummary.ai_analysis}
+                            title="Portfolio learning signal"
+                            className="rounded-2xl p-4 sm:p-5"
+                        />
+                    )}
+
+                    {/* =========================
+                        Workspace Recent Decision Activity Feed Section
+                    ========================= */}
+
+                    <DashboardCard>
+                        <CardHeader
+                            title="Recent Decision Activity"
+                            description="Latest updates across the current decision workspace."
+                            action={
+                                <button
+                                    type="button"
+                                    aria-label="Refresh decision workspace"
+                                    onClick={handleRefreshDecisionWorkspace}
+                                    disabled={workspaceRefreshing}
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
+                                >
+                                    <RefreshCw
+                                        size={16}
+                                        className={
+                                            workspaceRefreshing
+                                                ? "animate-spin"
+                                                : ""
+                                        }
+                                    />
+                                </button>
+                            }
+                            icon={
+                                <IconBadge
+                                    className="bg-gray-100 text-gray-600"
+                                    icon={<Activity size={22} />}
+                                />
+                            }
+                        />
+
+                        {decisionActivityError && (
+                            <div
+                                className="mt-4 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+                                role="alert"
+                            >
+                                <span>{decisionActivityError}</span>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setActivityRetryKey(
+                                            currentKey => currentKey + 1
+                                        )
+                                    }
+                                    className="w-fit rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        )}
+
+                        {activityFeedLoadingEmpty ? (
+                            <div
+                                className="mt-4 flex h-36 flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 text-center"
+                                role="status"
+                                aria-live="polite"
+                            >
+                                <p className="text-sm font-medium text-gray-600">
+                                    Loading activity...
+                                </p>
+                            </div>
+                        ) : activityFeedErrorEmpty ? null
+                        : activityFeedEmpty ? (
+                            <EmptyState
+                                title="No activity yet"
+                                description="Decision updates will appear here as work happens."
+                            />
+                        ) : (
+                            <div className="mt-4 divide-y divide-gray-100 md:max-h-72 md:overflow-y-auto md:pr-2">
+                                {decisionActivityFeed.map(activityItem => (
+                                    <DecisionActivityRow
+                                        key={activityItem.id}
+                                        activityItem={activityItem}
+                                    />
+                                ))}
+
+                                {hasMoreDecisionActivity && (
+                                    <div className="pt-3">
+                                        <button
+                                            type="button"
+                                            onClick={handleLoadMoreDecisionActivity}
+                                            disabled={decisionActivityLoading}
+                                            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-[var(--decisionate-brand-primary-ring)] hover:text-[var(--decisionate-brand-primary-text)] disabled:cursor-not-allowed disabled:text-gray-300"
+                                        >
+                                            {decisionActivityLoading
+                                                ? "Loading activity..."
+                                                : "Load more activity"}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </DashboardCard>
+                </div>
+            </details>
         </div>
     )
 }
@@ -2455,289 +2434,24 @@ function formatActivityTimestamp(createdAt: string) {
     )
 }
 
-function getDecisionFollowUpActions(
-    decision: DecisionListRecord
-) {
-    if (decision.status === archivedDecisionStatus) {
-        return []
-    }
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    const reviewDate =
-        getDecisionDateValue(decision.review_date)
-
-    const actions: string[] = []
-
-    if (reviewDate && reviewDate < today) {
-        actions.push("Review overdue")
-    }
-
-    if (hasPendingOutcome(decision)) {
-        actions.push("Record actual outcome")
-    }
-
-    if (hasPendingLearning(decision)) {
-        actions.push("Capture learning")
-    }
-
-    if (
-        actions.length === 0 &&
-        hasPendingNotes(decision)
-    ) {
-        actions.push(addNotesFollowUpAction)
-    }
-
-    return actions
-}
-
-function getHealthBadgeClass(health: DecisionHealthLabel) {
-    if (health === healthyDecisionHealthLabel) {
-        return "border-green-200 bg-green-50 text-green-700"
-    }
-
-    if (health === needsReviewDecisionHealthLabel) {
-        return "border-amber-200 bg-amber-50 text-amber-700"
-    }
-
-    if (health === inProgressDecisionHealthLabel) {
-        return "border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
-    }
-
-    if (health === cancelledDecisionHealthLabel) {
-        return "border-red-200 bg-red-50 text-red-700"
-    }
-
-    if (health === archivedDecisionHealthLabel) {
-        return "border-gray-200 bg-gray-50 text-gray-600"
-    }
-
-    return "border-gray-200 bg-gray-50 text-gray-700"
-}
-
-function DecisionCard({
-    decision,
-}: {
-    decision: DecisionListRecord
-}) {
-    const health = getDecisionHealth(decision)
-    const isArchived =
-        decision.status === archivedDecisionStatus
-    const lastUpdatedLabel =
-        getDecisionUpdatedLabel(decision)
-    const expectedOutcome =
-        decision.expected_outcome?.trim()
-    const outcomePending =
-        hasPendingOutcome(decision)
-    const learningPending =
-        hasPendingLearning(decision)
-    const notesPending =
-        hasPendingNotes(decision)
-    const followUpActions =
-        getDecisionFollowUpActions(decision)
-    const documentationOnlyAction =
-        followUpActions.length === 1 &&
-        followUpActions[0] === addNotesFollowUpAction
-    const decisionHref =
-        followUpActions.length > 0
-            ? `/decisions/${decision.id}?focus=next-action`
-            : `/decisions/${decision.id}`
-    const analysisSource =
-        getAIRecommendationSource(
-            decision.description
-        )
-
+function DecisionCard({ decision }: { decision: DecisionListRecord }) {
+    const archived = decision.status === archivedDecisionStatus
+    const action = isLegacyEvidencePlaceholder(decision) ? null : decision.action?.trim()
+    const review = formatDecisionDate(decision.review_date)
+    const result = decision.actual_outcome?.trim()
     return (
-        <Link
-            href={decisionHref}
-            className={getDecisionCardClass(isArchived)}
-        >
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <h2 className="min-w-0 break-words text-lg font-semibold">
-                    {getDecisionDisplayTitle(decision)}
-                </h2>
-
-                <span
-                    className={`w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${getHealthBadgeClass(
-                        health
-                    )}`}
-                >
-                    {health}
-                </span>
+        <Link href={`/decisions/${decision.id}`} className={getDecisionCardClass(archived)}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                <h2 className="min-w-0 break-words text-lg font-semibold">{getDecisionDisplayTitle(decision)}</h2>
+                <span className="text-sm text-gray-600">{formatDecisionLabel(decision.status)}</span>
             </div>
-
-            {isLegacyEvidencePlaceholder(decision) && (
-                <p className="mt-3 text-sm text-amber-800">Legacy evidence placeholder. No decision action was recorded.</p>
-            )}
-
-            {decision.action && !isLegacyEvidencePlaceholder(decision) && (
-                <p className="mt-3 break-words border-l-2 border-[var(--decisionate-brand-primary)] pl-3 text-sm text-gray-700 line-clamp-2">
-                    <span className="font-medium text-[var(--decisionate-brand-primary-text)]">
-                        Action:
-                    </span>{" "}
-                    {decision.action}
-                </p>
-            )}
-
-            <p className="mt-3 break-words text-sm text-gray-500 line-clamp-2">
-                {decisionNarrativeText(decision.description) ||
-                    "No description provided."}
-            </p>
-
-            {expectedOutcome && (
-                <p className="mt-3 break-words border-l-2 border-green-200 pl-3 text-sm text-gray-600 line-clamp-2">
-                    <span className="font-medium text-green-700">
-                        Expected:
-                    </span>{" "}
-                    {expectedOutcome}
-                </p>
-            )}
-
-            {followUpActions.length > 0 && (
-                <div
-                    className={`mt-3 rounded-xl border px-3 py-2 ${
-                        documentationOnlyAction
-                            ? "border-gray-200 bg-gray-50"
-                            : "border-amber-100 bg-amber-50"
-                    }`}
-                >
-                    <p
-                        className={`text-xs font-semibold uppercase tracking-wide ${
-                            documentationOnlyAction
-                                ? "text-gray-600"
-                                : "text-amber-700"
-                        }`}
-                    >
-                        {documentationOnlyAction
-                            ? "Completeness gap"
-                            : "Action needed"}
-                    </p>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                        {followUpActions.map(action => (
-                            <span
-                                key={action}
-                                className={`max-w-full break-words rounded-full bg-white px-2.5 py-1 text-xs font-medium shadow-sm ${
-                                    documentationOnlyAction
-                                        ? "text-gray-700"
-                                        : "text-amber-700"
-                                }`}
-                            >
-                                {action}
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
-                {decision.category && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-primary-text)]">
-                        <FolderOpen size={12} className="shrink-0" />
-                        {formatDecisionLabel(decision.category)}
-                    </span>
-                )}
-
-                {decision.metric_column && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-primary-text)]">
-                        <LineChartIcon size={12} className="shrink-0" />
-                        Metric: {formatMetricLabel(decision.metric_column)}
-                    </span>
-                )}
-
-                {analysisSource && (
-                    <span
-                        className="flex min-w-0 items-center gap-1 break-words text-blue-700"
-                        title={analysisSource}
-                    >
-                        <BriefcaseBusiness size={12} className="shrink-0" />
-                        Analysis: {analysisSource}
-                    </span>
-                )}
-
-                {decision.review_date && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-amber-600">
-                        <Calendar size={12} className="shrink-0" />
-                        Review:{" "}
-                        {formatDecisionDate(decision.review_date)}
-                    </span>
-                )}
-
-                {decision.priority && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-red-600">
-                        <Flag size={12} className="shrink-0" />
-                        Priority: {formatDecisionLabel(decision.priority)}
-                    </span>
-                )}
-
-                {outcomePending && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-amber-600">
-                        <Target size={12} className="shrink-0" />
-                        Outcome Pending
-                    </span>
-                )}
-
-                {hasRecordedOutcome(decision) && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-green-600">
-                        <Target size={12} className="shrink-0" />
-                        {decision.outcome_status
-                            ? formatDecisionLabel(decision.outcome_status)
-                            : "Actual Recorded"}
-                    </span>
-                )}
-
-                {learningPending && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-accent-text)]">
-                        <Lightbulb size={12} className="shrink-0" />
-                        Learning Pending
-                    </span>
-                )}
-
-                {notesPending && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-gray-600">
-                        <FileText size={12} className="shrink-0" />
-                        Notes Pending
-                    </span>
-                )}
-
-                {decision.confidence_score && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-[var(--decisionate-brand-primary-text)]">
-                        <Gauge size={12} className="shrink-0" />
-                        Confidence: {formatDecisionLabel(decision.confidence_score)}
-                    </span>
-                )}
-
-                {lastUpdatedLabel && (
-                    <span className="flex min-w-0 items-center gap-1 break-words text-gray-500">
-                        <Activity size={12} className="shrink-0" />
-                        {lastUpdatedLabel}
-                    </span>
-                )}
-            </div>
-
-            <div className="mt-4 border-t border-gray-100 pt-3">
-                <div className="flex min-w-0 flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                    <span className="min-w-0 break-words text-gray-400">
-                        {isArchived
-                            ? "Historical record"
-                            : followUpActions.length > 0
-                              ? documentationOnlyAction
-                                ? "Record can be completed"
-                                : "Next action ready"
-                            : "Click to manage decision"}
-                    </span>
-
-                    <span className="w-fit shrink-0 font-medium text-[var(--decisionate-brand-primary-text)]">
-                        {isArchived
-                            ? "View Archived Record →"
-                            : followUpActions.length > 0
-                              ? documentationOnlyAction
-                                ? "Complete Record →"
-                                : "Resolve Next Action →"
-                            : "View Details →"}
-                    </span>
-                </div>
+            {action && action !== decision.title && <p className="mt-3 line-clamp-2 break-words text-sm"><strong>Action:</strong> {action}</p>}
+            {(result || decision.expected_outcome) && <p className="mt-2 line-clamp-2 break-words text-sm">
+                <strong>{result ? "Recorded result:" : "Expected result:"}</strong> {result || decision.expected_outcome}
+            </p>}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-sm">
+                <span className="flex items-center gap-2 text-gray-600"><Calendar size={14} />{review ? `Review: ${review}` : "No review date"}</span>
+                <span className="flex items-center gap-1 text-[var(--decisionate-brand-primary-text)]">Open decision <ArrowRight size={14} /></span>
             </div>
         </Link>
     )
@@ -2753,22 +2467,6 @@ function getDecisionCardClass(
     }`
 }
 
-/* =========================
-   Decision Card Last Updated Helper For Portfolio Sorting Context
-========================= */
-
-function getDecisionUpdatedLabel(
-    decision: DecisionListRecord
-) {
-    const updatedDate =
-        formatDecisionDate(decision.updated_at)
-
-    if (!updatedDate) {
-        return null
-    }
-
-    return `Updated ${updatedDate}`
-}
 
 function getDecisionDateValue(
     value?: string | null

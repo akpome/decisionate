@@ -14,15 +14,15 @@ const { outputText } = ts.transpileModule(source + "\nexport { groupSharingEntri
 const props = { userId: "owner", workspaceId: "agency:client:shop" }
 
 function sharing(members, invites) {
-  const module = { exports: {} }
+  const testModule = { exports: {} }
   let stateIndex = 0
   let access
-  vm.runInNewContext(outputText, { module, exports: module.exports, require: name => {
+  vm.runInNewContext(outputText, { module: testModule, exports: testModule.exports, require: name => {
     if (name === "@/lib/api") return {}
     if (name === "react") return { ...React, useState: initial => React.useState(stateIndex++ === 2 ? access : initial) }
     return require(name)
   } })
-  const { groupSharingEntries, ClientWorkspaceSharing } = module.exports
+  const { groupSharingEntries, ClientWorkspaceSharing } = testModule.exports
   const entries = groupSharingEntries(members, invites)
   access = { key: JSON.stringify([props.userId, props.workspaceId, 0]), entries }
   return { entries, html: renderToStaticMarkup(React.createElement(ClientWorkspaceSharing, props)) }

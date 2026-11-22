@@ -188,5 +188,11 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Not open for new subscriptions yet": "Pas encore ouvert aux nouvelles souscriptions",
   "Billed annually.": "Facturé annuellement.",
   "year": "an",
-  "month": "mois"
+  "month": "mois",
+  "Find where your money goes further.": "Repérez les dépenses les plus rentables.",
+  "Compare revenue per advertising dollar, or see which products leave the most money after costs.": "Comparez les ventes par dollar publicitaire ou voyez quels produits rapportent le plus après déduction des coûts.",
+  "Catch a tight week before it arrives.": "Anticipez les semaines où la trésorerie sera serrée.",
+  "Line up expected payments and bills. Try a late payment to see when your cash balance could fall short.": "Comparez les encaissements et les factures prévus. Simulez un retard de paiement pour repérer un manque de liquidités.",
+  "Follow through on the change you make.": "Mesurez le résultat de vos décisions.",
+  "Set a target for what you will change and the result you want. On review day, compare both with what actually happened.": "Fixez une cible pour votre action et le résultat attendu. À la date de suivi, comparez les deux aux résultats observés.",
 }

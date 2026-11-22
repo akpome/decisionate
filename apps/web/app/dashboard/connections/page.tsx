@@ -239,10 +239,20 @@ function ConnectionsPageContent({
   const { t } = useDecisionateText()
   const [sources, setSources] =
     useState<DatasetSourceOption[]>([])
+  const [requestedTab, setRequestedTab] = useState<"sources" | "added" | null>(null)
+  useEffect(() => {
+    const readTab = () => setRequestedTab(window.location.hash === "#connection-sources" ? "sources" :
+      window.location.hash === "#saved-connections" ? "added" : null)
+    readTab()
+    window.addEventListener("hashchange", readTab)
+    return () => window.removeEventListener("hashchange", readTab)
+  }, [])
   const [
     sourceConnections,
     setSourceConnections,
   ] = useState<DataSourceConnection[]>([])
+  const hasAdded = sourceConnections.length > 0
+  const showAdded = !canConfigureWorkspace || (hasAdded && requestedTab !== "sources")
   const [
     creatingSourceType,
     setCreatingSourceType,
@@ -392,6 +402,8 @@ function ConnectionsPageContent({
         ]
       )
 
+      window.location.hash = "saved-connections"
+      setRequestedTab("added")
       await loadConnections()
     } catch (error) {
       setConnectionError(
@@ -425,6 +437,10 @@ function ConnectionsPageContent({
         activeWorkspaceId
       )
 
+      if (sourceConnections.length === 1) {
+        window.history.replaceState(null, "", "#connection-sources")
+        setRequestedTab("sources")
+      }
       setSourceConnections(
         (currentConnections) =>
           currentConnections.filter(
@@ -925,10 +941,9 @@ function ConnectionsPageContent({
   ])
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <DashboardPageHeader
         title="Connections"
-        description="Configure external business systems that can feed datasets, forecasts, reports, alerts, and decisions."
       />
 
       {canViewConnections && connectionError && (
@@ -955,20 +970,16 @@ function ConnectionsPageContent({
       )}
 
       {!loadingWorkspaceAccess &&
-        canConfigureWorkspace && (
-        <section aria-labelledby="data-sources-heading">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-            <h2 id="data-sources-heading" className="text-xl font-semibold">{t("Data Sources")}</h2>
-            {sourceConnections.length > 0 && (
-              <a href="#saved-connections" className="text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:underline">
-                {t("Manage connections")}
-              </a>
-            )}
-          </div>
-
-          <p className="mb-4 mt-2 text-sm text-gray-500">
-            {t("Add an external connector, then configure its account details and authorize it before syncing data into a dataset. File uploads are available from Datasets.")}
-          </p>
+        canConfigureWorkspace && <>
+        <nav aria-label={t("Connections")} className="flex flex-wrap gap-x-5 border-b text-sm font-medium">
+          {([{ id: "connection-sources", label: "Connection sources", active: !showAdded },
+            ...(hasAdded ? [{ id: "saved-connections", label: "Configure added connections", active: showAdded }] : [])]).map(tab =>
+            <a key={tab.id} href={`#${tab.id}`} aria-current={tab.active ? "location" : undefined}
+              className={`min-h-11 content-center border-b-2 py-2 ${tab.active ? "border-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-text)]" : "border-transparent text-gray-600"}`}>
+              {t(tab.label)}
+            </a>)}
+        </nav>
+        <section id="connection-sources" hidden={showAdded} aria-label={t("Connection sources")}>
 
           <DataSourcePanel
             sources={configurableSources}
@@ -977,10 +988,9 @@ function ConnectionsPageContent({
             deletingConnectionId={deletingConnectionId}
             loadError={Boolean(connectionLoadError)}
             onCreateConnection={handleCreateSourceConnection}
-            onRemoveConnection={handleDeleteSourceConnection}
           />
         </section>
-      )}
+      </>}
 
       {loadingWorkspaceAccess ? (
         <div
@@ -995,20 +1005,7 @@ function ConnectionsPageContent({
           Connection access is not available to workspace members.
         </div>
       ) : (
-        <section id="saved-connections" aria-labelledby="saved-connections-heading" className="scroll-mt-6 border-t border-gray-200 pt-5">
-          <h2 id="saved-connections-heading" className="text-xl font-semibold">
-            {canConfigureWorkspace
-              ? "Configure Added Connections"
-              : "Available Connections"}
-          </h2>
-
-          <p className="mb-4 mt-2 text-sm text-gray-500">
-            {canConfigureWorkspace
-              ? "Finish setup for added connectors by providing the account, query, or authorization details needed for dataset pulls."
-              : canSyncConnections
-                ? "Review and sync the connections available to this workspace."
-                : "Review the external data source connections available to this workspace."}
-          </p>
+        <section id="saved-connections" hidden={!showAdded} aria-label={t("Added connections")} className="scroll-mt-6">
 
           <DataSourceConnections
             connections={

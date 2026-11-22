@@ -366,7 +366,7 @@ test("a viewer without sync permission has no advanced date range action", () =>
   assert.equal(harness("meta_ads", {}, { onSyncConnection: undefined }).trigger(), undefined)
 })
 
-test("Connections uses the workspace data permission for sync without granting setup access", async () => {
+function connectionsPage(access, { api = {}, browser = {} } = {}) {
   const page = readFileSync(new URL("../app/dashboard/connections/page.tsx", import.meta.url), "utf8")
   const compiled = ts.transpileModule(page, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
@@ -374,9 +374,14 @@ test("Connections uses the workspace data permission for sync without granting s
   const loaded = { exports: {} }
   const ConnectionList = () => null
   const calls = []
-  let access
+  const state = []
+  let cursor = 0
   const stubs = {
-    react: { ...React, useState: initial => [initial, () => {}], useEffect: () => {} },
+    react: { ...React, useState(initial) {
+      const index = cursor++
+      if (!(index in state)) state[index] = initial
+      return [state[index], next => { state[index] = typeof next === "function" ? next(state[index]) : next }]
+    }, useEffect: () => {} },
     "@clerk/nextjs": { useUser: () => ({ user: { id: "test-user" } }) },
     "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId: "test-workspace" }) },
     "@/lib/use-workspace-access": { useWorkspaceAccess: () => access },
@@ -390,24 +395,53 @@ test("Connections uses the workspace data permission for sync without granting s
         return { status: "queued", job_id: "test-job" }
       },
       getDataSourceConnections: async () => [],
+      ...api,
     },
   }
   vm.runInNewContext(compiled, {
-    module: loaded, exports: loaded.exports, require: name => stubs[name] ?? require(name),
+    module: loaded, exports: loaded.exports, require: name => stubs[name] ?? require(name), window: browser,
   })
-  for (const canConfigureWorkspace of [true, false]) {
-    access = { canConfigureWorkspace, canManageWorkspaceData: true, canViewConnections: true }
+  function render() {
+    cursor = 0
     const content = loaded.exports.default()
-    const [list] = elements(content.type(content.props), node => node.type === ConnectionList)
+    return content.type(content.props)
+  }
+  return { render, calls, ConnectionList, Sources: stubs["@/features/datasets/components/data-source-panel"].DataSourcePanel }
+}
+
+test("Connections uses the workspace data permission for sync without granting setup access", async () => {
+  for (const canConfigureWorkspace of [true, false]) {
+    const { render, calls, ConnectionList } = connectionsPage({ canConfigureWorkspace, canManageWorkspaceData: true, canViewConnections: true })
+    const [list] = elements(render(), node => node.type === ConnectionList)
     assert.equal(typeof list.props.onSyncConnection, "function")
     assert.equal(Boolean(list.props.onConfigureConnection), canConfigureWorkspace)
     await list.props.onSyncConnection({ id: 1 }, { advanced_date_range: true })
     assert.deepEqual(calls.at(-1), [1, "test-user", "test-workspace", { advanced_date_range: true }])
   }
-  access = { canConfigureWorkspace: false, canManageWorkspaceData: false, canViewConnections: true }
-  const content = loaded.exports.default()
-  const [list] = elements(content.type(content.props), node => node.type === ConnectionList)
+  const { render, ConnectionList } = connectionsPage({ canConfigureWorkspace: false, canManageWorkspaceData: false, canViewConnections: true })
+  const [list] = elements(render(), node => node.type === ConnectionList)
   assert.equal(list.props.onSyncConnection, undefined)
+})
+
+test("adding the first connection opens setup and removing the last returns to sources", async () => {
+  const connection = { id: 1, display_name: "Shopify", source_type: "shopify" }
+  let records = []
+  const { render, Sources, ConnectionList } = connectionsPage({ canConfigureWorkspace: true, canManageWorkspaceData: true, canViewConnections: true }, {
+    api: {
+      createDataSourceConnection: async () => { records = [connection]; return connection },
+      deleteDataSourceConnection: async () => { records = [] },
+      getDataSourceConnections: async () => records,
+    },
+    browser: { location: { hash: "" }, history: { replaceState() {} }, confirm: () => true },
+  })
+  function tabs() { return elements(render(), node => node.type === "a").map(node => [node.props.href, node.props["aria-current"]]) }
+  assert.deepEqual(tabs(), [["#connection-sources", "location"]])
+  await elements(render(), node => node.type === Sources)[0].props.onCreateConnection({ type: "shopify", label: "Shopify" })
+  assert.deepEqual(tabs(), [["#connection-sources", undefined], ["#saved-connections", "location"]])
+  assert.equal(elements(render(), node => node.props.id === "saved-connections")[0].props.hidden, false)
+  await elements(render(), node => node.type === ConnectionList)[0].props.onDeleteConnection(connection)
+  assert.deepEqual(tabs(), [["#connection-sources", "location"]])
+  assert.equal(elements(render(), node => node.props.id === "connection-sources")[0].props.hidden, false)
 })
 
 test("initial import progress respects an explicit server window during rolling deployment", () => {

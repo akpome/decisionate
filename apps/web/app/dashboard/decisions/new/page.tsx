@@ -1101,103 +1101,10 @@ function NewDecisionContent() {
                                         event.target.value
                                     )
                                 }}
-                                placeholder="Success criteria, hypothesis, or measurable target this decision should be judged against."
+placeholder="For example: Increase weekly orders from 100 to 110."
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
                             />
-                        </div>
-
-                        <div className="min-w-0">
-                            <label
-                                htmlFor="decision-priority"
-                                className="text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Priority
-                            </label>
-
-                            <select
-                                id="decision-priority"
-                                value={createDecisionPriority}
-                                onChange={(event) => {
-                                    setCreateDecisionError("")
-                                    setCreateDecisionPriority(
-                                        event.target.value as DecisionPriority
-                                    )
-                                }}
-                                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                            >
-                                {decisionPriorityOptions.map(option => (
-                                    <option
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="min-w-0">
-                            <label
-                                htmlFor="decision-category"
-                                className="text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Category
-                            </label>
-
-                            <select
-                                id="decision-category"
-                                value={createDecisionCategory}
-                                onChange={(event) => {
-                                    setCreateDecisionError("")
-                                    setCreateDecisionCategory(
-                                        event.target.value as DecisionCategory
-                                    )
-                                }}
-                                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                            >
-                                {decisionCategoryOptions.map(option => (
-                                    <option
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="min-w-0">
-                            <label
-                                htmlFor="decision-confidence"
-                                className="text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Confidence
-                            </label>
-
-                            <select
-                                id="decision-confidence"
-                                value={createDecisionConfidence}
-                                onChange={(event) => {
-                                    setCreateDecisionError("")
-                                    setCreateDecisionConfidence(
-                                        event.target.value as
-                                            | DecisionConfidenceScore
-                                            | ""
-                                    )
-                                }}
-                                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
-                            >
-                                <option value="">Set later</option>
-                                {decisionConfidenceOptions.map(option => (
-                                    <option
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
                         </div>
 
                         <div className="min-w-0">
@@ -1247,6 +1154,104 @@ function NewDecisionContent() {
                                 Defaults to 30 days so every decision has a review loop.
                             </p>
                         </div>
+
+                        <details className="lg:col-span-3">
+                            <summary className="cursor-pointer text-sm font-medium">Priority, category and confidence (optional)</summary>
+                            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                                <div className="min-w-0">
+                                    <label
+                                        htmlFor="decision-priority"
+                                        className="text-xs font-medium uppercase tracking-wider text-gray-500"
+                                    >
+                                        Priority
+                                    </label>
+
+                                    <select
+                                        id="decision-priority"
+                                        value={createDecisionPriority}
+                                        onChange={(event) => {
+                                            setCreateDecisionError("")
+                                            setCreateDecisionPriority(
+                                                event.target.value as DecisionPriority
+                                            )
+                                        }}
+                                        className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                                    >
+                                        {decisionPriorityOptions.map(option => (
+                                            <option
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="min-w-0">
+                                    <label
+                                        htmlFor="decision-category"
+                                        className="text-xs font-medium uppercase tracking-wider text-gray-500"
+                                    >
+                                        Category
+                                    </label>
+
+                                    <select
+                                        id="decision-category"
+                                        value={createDecisionCategory}
+                                        onChange={(event) => {
+                                            setCreateDecisionError("")
+                                            setCreateDecisionCategory(
+                                                event.target.value as DecisionCategory
+                                            )
+                                        }}
+                                        className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                                    >
+                                        {decisionCategoryOptions.map(option => (
+                                            <option
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="min-w-0">
+                                    <label
+                                        htmlFor="decision-confidence"
+                                        className="text-xs font-medium uppercase tracking-wider text-gray-500"
+                                    >
+                                        Confidence
+                                    </label>
+
+                                    <select
+                                        id="decision-confidence"
+                                        value={createDecisionConfidence}
+                                        onChange={(event) => {
+                                            setCreateDecisionError("")
+                                            setCreateDecisionConfidence(
+                                                event.target.value as
+                                                    | DecisionConfidenceScore
+                                                    | ""
+                                            )
+                                        }}
+                                        className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-[var(--decisionate-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--decisionate-brand-primary-ring)]"
+                                    >
+                                        <option value="">Set later</option>
+                                        {decisionConfidenceOptions.map(option => (
+                                            <option
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </details>
 
                         {createDecisionError && (
                             <p role="alert" className="text-sm text-red-600 lg:col-span-3">

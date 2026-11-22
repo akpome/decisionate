@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-20",
+  "reviewed_on": "2026-11-22",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -357,18 +357,73 @@
       "routes": [
         "/datasets",
         "/business-analysis",
-        "/decisions"
+        "/decisions",
+        "/dashboard",
+        "/weekly-reports",
+        "/business-analysis/returns",
+        "/business-analysis/retention",
+        "/business-analysis/cash-flow",
+        "/forecasts",
+        "/entity-matching",
+        "/settings"
       ],
       "sources": [
         "apps/web/app/dashboard/help/page.tsx",
         "apps/api/app/modules/reports/schemas.py",
-        "apps/web/features/reports/report-workspace.tsx"
+        "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/features/performance/performance-workspace.tsx",
+        "apps/web/features/budget-planner/budget-planner.tsx",
+        "apps/web/features/decisions/components/metric-review.tsx",
+        "apps/web/app/dashboard/decisions/page.tsx"
       ],
       "related": [
         "workspaces-access",
         "uploads-datasets",
-        "reports-build"
-      ]
+        "reports-build",
+        "performance-analysis",
+        "budget-planner",
+        "sharing-exports"
+      ],
+      "section_routes": {
+        "From a new workspace to a dashboard you can trust": "/dashboard",
+        "From sales figures to a spending decision": "/business-analysis/returns",
+        "From a change in the chart to a weekly report": "/weekly-reports",
+        "From repeat purchases to a sales follow-up": "/business-analysis/retention",
+        "From a forecast to a cash plan": "/forecasts",
+        "From a decision to its review": "/decisions",
+        "From an internal report to something you can share": "/business-analysis",
+        "From separate files to a useful comparison": "/entity-matching",
+        "From an agency invitation to working with a client": "/settings"
+      },
+      "direct_questions": {
+        "From a new workspace to a dashboard you can trust": [
+          "How do I go from a spreadsheet to my first dashboard?"
+        ],
+        "From sales figures to a spending decision": [
+          "How do I go from ad returns to a spending decision?"
+        ],
+        "From a change in the chart to a weekly report": [
+          "How do I turn a metric comparison into a weekly report?"
+        ],
+        "From repeat purchases to a sales follow-up": [
+          "How do I decide between retention and conversion for a follow-up?"
+        ],
+        "From a forecast to a cash plan": [
+          "How do I go from a sales forecast to a cash plan?"
+        ],
+        "From a decision to its review": [
+          "How do I follow a decision from the report to review day?"
+        ],
+        "From an internal report to something you can share": [
+          "How do I share a report without inviting the recipient to my workspace?"
+        ],
+        "From separate files to a useful comparison": [
+          "Do I need to join my files or match customers before I compare them?"
+        ],
+        "From an agency invitation to working with a client": [
+          "How do I invite a client and get permission to work in their workspace?"
+        ]
+      }
     },
     {
       "id": "workspaces-access",
@@ -538,13 +593,29 @@
       ],
       "sources": [
         "apps/api/app/modules/datasets/services/sources.py",
-        "apps/web/app/dashboard/help/page.tsx"
+        "apps/web/app/dashboard/help/page.tsx",
+        "apps/web/app/dashboard/connections/page.tsx",
+        "apps/web/features/datasets/components/data-source-panel.tsx"
       ],
       "related": [
         "sync-retention",
         "metric-semantics",
         "troubleshooting-support"
-      ]
+      ],
+      "direct_questions": {
+        "Where did my connector go after I switched it on?": [
+          "Where did my connector go after I switched it on?",
+          "Why did Shopify disappear from Connection sources?",
+          "Where do I configure a connector I already added?"
+        ]
+      },
+      "section_questions": {
+        "Where did my connector go after I switched it on?": [
+          "I turned on a source and its card disappeared",
+          "I cannot see the configuration tab",
+          "How do I get a removed connector back into the catalog?"
+        ]
+      }
     },
     {
       "id": "sync-retention",

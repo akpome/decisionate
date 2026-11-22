@@ -9,15 +9,15 @@ const ts = require("typescript")
 const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 const source = readFileSync(new URL("../features/datasets/components/data-source-panel.tsx", import.meta.url), "utf8")
-const module = { exports: {} }
+const testModule = { exports: {} }
 const stubs = {
   "@/features/datasets/components/data-source-connections": { ConnectionSetupGuide: () => null },
   "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
 }
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
-} }).outputText, { module, exports: module.exports, require: name => stubs[name] ?? require(name) })
-const { DataSourcePanel } = module.exports
+} }).outputText, { module: testModule, exports: testModule.exports, require: name => stubs[name] ?? require(name) })
+const { DataSourcePanel } = testModule.exports
 
 const shopify = { type: "shopify", label: "Shopify", category: "commerce", status: "available", connection_type: "oauth" }
 const google = { type: "google_ads", label: "Google Ads", category: "analytics", status: "needs_setup", connection_type: "oauth" }
@@ -30,24 +30,22 @@ function switches(node) {
 }
 
 function panel(props = {}) {
-  const added = [], removed = []
+  const added = []
   const result = DataSourcePanel({
     sources: [shopify, google], connections: [],
     onCreateConnection: source => added.push(source),
-    onRemoveConnection: connection => removed.push(connection),
     ...props,
   })
-  return { switchFor: label => switches(result).find(item => item["aria-label"] === label), html: () => renderToStaticMarkup(result), added, removed }
+  return { switchFor: label => switches(result).find(item => item["aria-label"] === label), html: () => renderToStaticMarkup(result), added }
 }
 
-test("turning on an available connector requests one draft and turning off targets only the saved connection", () => {
+test("the catalog offers only sources not already saved, even before authorization", () => {
   const view = panel({ connections: [savedShop] })
   const shop = view.switchFor("Shopify"), ads = view.switchFor("Google Ads")
-  assert.equal(shop["aria-checked"], true, "A saved draft is on even if authorization is not complete")
+  assert.equal(shop, undefined)
+  assert.doesNotMatch(view.html(), /Shopify|Commerce/)
   assert.equal(ads["aria-checked"], false)
-  shop.onClick()
   ads.onClick()
-  assert.deepEqual(view.removed, [savedShop])
   assert.deepEqual(view.added, [google])
 })
 
@@ -58,16 +56,17 @@ test("the switch uses the saved state until a pending mutation succeeds", () => 
   assert.equal(adding.switchFor("Google Ads").disabled, true)
   assert.match(adding.html(), /Adding\.\.\./)
   const removing = panel({ connections: [savedShop], deletingConnectionId: savedShop.id })
-  assert.equal(removing.switchFor("Shopify")["aria-checked"], true)
-  assert.equal(removing.switchFor("Shopify").disabled, true)
-  assert.match(removing.html(), /Removing\.\.\./)
+  assert.equal(removing.switchFor("Shopify"), undefined)
+  assert.equal(removing.switchFor("Google Ads").disabled, true)
 })
 
-test("saved accounts are never removed in bulk from the provider switch", () => {
-  const view = panel({ connections: [savedShop, { ...savedShop, id: 2 }] })
-  assert.equal(view.switchFor("Shopify")["aria-checked"], true)
-  assert.equal(view.switchFor("Shopify").disabled, true)
-  assert.match(view.html(), /href="#saved-connections"[^>]*>Manage connections/)
+test("the source returns only after its last saved connection is removed", () => {
+  for (const connections of [[savedShop, { ...savedShop, id: 2 }], [savedShop]]) {
+    const view = panel({ sources: [shopify], connections })
+    assert.equal(view.switchFor("Shopify"), undefined)
+    assert.match(view.html(), /All available sources have been added/)
+  }
+  assert.ok(panel({ sources: [shopify], connections: [] }).switchFor("Shopify"))
 })
 
 test("planned and upload-only sources have no switch, and a failed catalog read disables mutations", () => {

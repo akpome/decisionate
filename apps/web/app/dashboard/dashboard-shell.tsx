@@ -13,7 +13,6 @@ import { getHostedLogo, hostedWorkspaceRecoveryUrl } from "@/features/hosted-sub
 import { WorkspaceBrandMark } from "./workspace-brand-mark"
 import {
   AlertCircle,
-  Bell,
   CalendarDays,
   CreditCard,
   Database,
@@ -202,12 +201,6 @@ const dashboardNavGroups: DashboardNavGroup[] = [
         label: "Forecasts",
         icon: <LineChart size={18} />,
       },
-      {
-        href: "/alerts",
-        label: "Alerts",
-        icon: <Bell size={18} />,
-        roles: ["owner", "client", "client_owner", "client_user", "managed_client"],
-      },
     ],
   },
   {
@@ -280,7 +273,6 @@ const dashboardNavigationTranslationKeys: Record<
   Insights: "insights",
   Forecasts: "forecasts",
   Reports: "reports",
-  Alerts: "alerts",
   Relationships: "relationships",
   Data: "data",
   Datasets: "datasets",

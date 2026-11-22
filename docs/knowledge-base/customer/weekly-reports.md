@@ -52,7 +52,7 @@ editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
 to three weeks. Preview and save the independent weekly setup before use.
 
-Use Scheduled email (also available from Alerts) to add optional additional addresses, change the delivery day,
+In Weekly Reports, use Scheduled email to add optional additional addresses, change the delivery day,
 timezone, email readiness and delivery history. Save email settings updates only
 delivery preferences, not report selections. The status reflects the saved
 schedule; unsaved changes are labeled separately. The workspace owner is always

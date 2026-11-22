@@ -16,7 +16,6 @@ interface DataSourcePanelProps {
   deletingConnectionId?: number | null
   loadError?: boolean
   onCreateConnection: (source: DatasetSourceOption) => void
-  onRemoveConnection: (connection: DataSourceConnection) => void
 }
 
 const SOURCE_CATEGORY_ORDER = [
@@ -38,14 +37,15 @@ export function DataSourcePanel({
   deletingConnectionId,
   loadError,
   onCreateConnection,
-  onRemoveConnection,
 }: DataSourcePanelProps) {
   const { t } = useDecisionateText()
   const mutationPending = creatingSourceType != null || deletingConnectionId != null
+  const addedTypes = new Set(connections.map(connection => normalizeSourceType(connection.source_type)))
   const groupedSources =
     sources.reduce<
       Record<string, DatasetSourceOption[]>
     >((groups, source) => {
+      if (addedTypes.has(normalizeSourceType(source.type))) return groups
       const category =
         source.category || "other"
 
@@ -70,6 +70,9 @@ export function DataSourcePanel({
 
   return (
     <div className="space-y-6">
+      {!loadError && sources.length > 0 && !orderedSourceGroups.length && (
+        <p role="status" className="py-4 text-sm text-gray-600">{t("All available sources have been added.")}</p>
+      )}
       {orderedSourceGroups.map(
         ([category, categorySources]) => (
           <section key={category}>
@@ -91,14 +94,7 @@ export function DataSourcePanel({
                       "upload" &&
                     source.status !==
                       "planned"
-                  const savedConnections = connections.filter(connection =>
-                    normalizeSourceType(connection.source_type) === normalizeSourceType(source.type)
-                  )
-                  const isSaved = savedConnections.length > 0
-                  const hasMultiple = savedConnections.length > 1
                   const isCreating = creatingSourceType === source.type
-                  const isRemoving = savedConnections.some(connection => connection.id === deletingConnectionId)
-                  const pendingLabel = isCreating ? "Adding..." : isRemoving ? "Removing..." : ""
                   const hasConfigKeys =
                     Boolean(
                       source.config_keys
@@ -170,36 +166,28 @@ export function DataSourcePanel({
                         <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-gray-100">
                             <div className="flex min-h-10 min-w-28 flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="text-xs font-medium text-gray-600" role="status">
-                                {pendingLabel ? (
+                                {isCreating ? (
                                   <span className="inline-flex items-center gap-1.5">
                                     <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-                                    {t(pendingLabel)}
+                                    {t("Adding...")}
                                   </span>
-                                ) : t(loadError ? "Unavailable" : isSaved ? "On" : "Off")}
+                                ) : t(loadError ? "Unavailable" : "Off")}
                               </span>
                               <button
                                 type="button"
                                 role="switch"
                                 aria-label={source.label}
-                                aria-checked={isSaved}
-                                title={t(hasMultiple ? "Manage connections individually" : isSaved ? "Remove connection" : "Add connection")}
-                                disabled={mutationPending || hasMultiple || loadError}
-                                onClick={() => {
-                                  if (isSaved) onRemoveConnection(savedConnections[0])
-                                  else onCreateConnection(source)
-                                }}
+                                aria-checked={false}
+                                title={t("Add connection")}
+                                disabled={mutationPending || loadError}
+                                onClick={() => onCreateConnection(source)}
                                 className="order-first flex h-10 w-12 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--decisionate-brand-primary)] disabled:cursor-not-allowed disabled:opacity-70"
                               >
-                                <span aria-hidden="true" className={`inline-flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors motion-reduce:transition-none ${isSaved ? "justify-end border-transparent bg-[var(--decisionate-brand-primary)]" : "justify-start border-gray-500 bg-gray-600"}`}>
+                                <span aria-hidden="true" className="inline-flex h-6 w-11 items-center justify-start rounded-full border border-gray-500 bg-gray-600 p-0.5">
                                   <span className="size-4 rounded-full bg-white shadow-sm" />
                                 </span>
                               </button>
                             </div>
-                            {hasMultiple && (
-                              <a href="#saved-connections" className="text-xs font-medium text-[var(--decisionate-brand-primary-text)] underline">
-                                {t("Manage connections")}
-                              </a>
-                            )}
                         </div>
                       )}
                     </div>

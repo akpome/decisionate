@@ -12,6 +12,6 @@ export default function ReportPage({ scope = "multi", weekly = false, impactPage
   if (!isLoaded || access.loadingWorkspaceAccess) return <p role="status">Loading workspace...</p>
   if (!user?.id) return <p role="status">Sign in to view reports.</p>
   return <ReportWorkspace key={`${user.id}:${activeWorkspaceId}:${scope}:${weekly}:${impactPage}:${includeRelationships}`} initialScope={scope} includeRelationships={includeRelationships} weekly={weekly} impactPage={impactPage} userId={user.id} workspaceId={activeWorkspaceId}
-    canManage={access.canManageWorkspaceData} canSave={access.canManageWorkspaceData || access.canCreateDecisions}
+    canManage={access.canManageWorkspaceData} canManageEmail={access.canManageAlerts} canSave={access.canManageWorkspaceData || access.canCreateDecisions}
     canEditDecisions={access.canCreateDecisions} />
 }

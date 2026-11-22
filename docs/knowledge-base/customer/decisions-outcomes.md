@@ -60,6 +60,13 @@ manually** for qualitative decisions or where daily records aren't available.
 
 ## Updates and duplicate-looking drafts
 
+In Decisions, start with Needs attention for pending follow-ups, or choose a
+record under Your decisions to see its action, expected result and review date.
+A measured decision shows What you planned to change and What you wanted to
+achieve separately. Expand Data and dates under either one to see its source,
+filter and periods. For a manual review, follow the next action on the decision;
+record the outcome and capture a lesson. Extra planning details are optional.
+
 Edit an existing decision to update that record; do not create a new one merely
 to change its wording. A shared default name is not evidence that two records
 are identical. Report linkage, action, selected evidence, ownership and recorded

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeft, ArrowRight, Check, LoaderCircle, Plus, Play, RefreshCw, Save, Target, Trash2, X } from "lucide-react"
+import { ArrowLeft, Check, LoaderCircle, Plus, Play, RefreshCw, Save, Target, Trash2, X } from "lucide-react"
 import { correlationRequest } from "@/lib/api"
 import { SearchableSelect } from "@/components/searchable-select"
 import { AnalysisUnavailableError, analysisPhaseLabel, waitForAnalysis, type AnalysisJob } from "@/features/reports/analysis-jobs"
@@ -78,7 +78,7 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
     <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-5"><h1>Budget Planner</h1><Link href="/help">Help &amp; Support</Link></header>
     <div className="flex flex-wrap items-end gap-3 py-5">
       <div className="min-w-0 flex-1 sm:max-w-lg"><SearchableSelect label="Saved plans" options={saved.plans.map(item => ({ value: item.plan_id, label: `${item.name} (${item.created_at.slice(0, 10)})` }))} value={result?.plan_id || null} placeholder="Unsaved plan" disabled={busy}
-        onChange={id => void action(async () => { const data = await request<BudgetResult>(`/${id}`); if (mounted.current) { requestKey.current = null; setResult(data); setDefinition(data.definition); setJobId(null); setDecision(null); setStep(data.status === "ready" ? 2 : 1) } })}
+        onChange={id => void action(async () => { const data = await request<BudgetResult>(`/${id}`); if (mounted.current) { requestKey.current = null; setResult(data); setDefinition(data.definition); setJobId(null); setDecision(null); setStep(1) } })}
         footer={saved.next_offset !== null && <button disabled={busy} onClick={() => void action(() => loadPlans(saved.next_offset!))}>Load more plans</button>} /></div>
       <button disabled={busy} onClick={() => { change(newBudgetDefinition()); setStep(0) }}><Plus size={16} />New plan</button>
       {result?.plan_id && canSave && <button disabled={busy} title="Delete saved plan" aria-label="Delete saved plan" onClick={() => {
@@ -87,8 +87,8 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
     </div>
     {plansError && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-amber-800"><span>{plansError}</span><button disabled={busy} onClick={() => void action(() => loadPlans())}><RefreshCw size={16} />Retry saved plans</button></div>}
     {error && <p role="alert" className="border-l-2 border-red-600 bg-red-50 p-3 text-red-800">{error}</p>}
-    <nav aria-label="Budget planning steps" className="flex flex-wrap gap-2 border-b py-3">{["Set up budget", "Check evidence", "Compare allocations"].map((label, index) =>
-      <button key={label} disabled={busy || index > 0 && !result || index === 2 && result?.status !== "ready"} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>{index + 1}. {label}</button>)}</nav>
+    <nav aria-label="Budget planning steps" className="flex flex-wrap gap-2 border-b py-3">{["Set up budget", "Results"].map((label, index) =>
+      <button key={label} disabled={busy || (index === 1 && !result)} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>{index + 1}. {label}</button>)}</nav>
     {step === 0 && <form onSubmit={event => { event.preventDefault(); void preview() }}>
       <fieldset disabled={busy} className="space-y-6 py-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -122,19 +122,19 @@ export function BudgetPlanner({ userId, workspaceId, canSave, canDecide }: { use
         {busy && <><span role="status">{analysisPhaseLabel(phase)}</span><button type="button" onClick={() => { active.current?.abort(); pending.current = false; requestKey.current = null; setBusy(false); if (jobId) void request(`/jobs/${jobId}`, { method: "DELETE" }).catch(failure => { if (mounted.current) setError(failure.message) }); setJobId(null) }}><X size={16} />Cancel</button></>}
       </div>
     </form>}
-    {step === 1 && result && <section className="space-y-5 py-6"><h2>{result.status === "ready" ? "Evidence supports a cautious test" : "More evidence needed"}</h2>
+    {step === 1 && result && result.status !== "ready" && <section className="space-y-5 py-6"><h2>More evidence needed</h2>
       {result.history && <p>{result.history.weeks} shared weeks: {result.history.start} to {result.history.end}.</p>}
-      <ul className="list-disc space-y-3 pl-5">{result.checks.map(check => <li key={check}>{check}</li>)}</ul>
+      <ul className="list-disc space-y-3 pl-5">{[...result.checks, ...result.limitations].map(check => <li key={check}>{check}</li>)}</ul>
       <p>No budget changes have been made.</p>
-      <div className="flex flex-wrap gap-3"><button onClick={() => setStep(0)}><ArrowLeft size={16} />Edit setup</button>{result.status === "ready" && <button className={styles.primary} onClick={() => setStep(2)}>Compare allocations<ArrowRight size={16} /></button>}</div>
+      <button onClick={() => setStep(0)}><ArrowLeft size={16} />Edit setup</button>
     </section>}
-    {step === 2 && result?.status === "ready" && <section className="space-y-6 py-6">
+    {step === 1 && result?.status === "ready" && <section className="space-y-6 py-6">
       <div><h2>{result.definition.name}</h2><p>{result.definition.weeks} weeks from {result.definition.start_date} / {amount(result.definition.budget, result.definition.currency)} total</p>
         <p className="mt-2 text-sm text-gray-600">{result.plan_id ? "Saved estimate" : "Preview calculated"}: {result.generated_at?.slice(0, 10)}{result.outcome?.dataset_label ? ` / Result: ${result.outcome.dataset_label} / ${result.outcome.label}` : ""}</p></div>
       <div className="grid gap-6 border-y py-5 lg:grid-cols-2"><div><h3>Estimated additional {result.outcome?.label || "result"}</h3><p className="text-2xl font-semibold text-emerald-700">{amount(result.estimate!.additional_result, result.outcome?.currency)}</p><p>Model range: {amount(result.estimate!.lower, result.outcome?.currency)} to {amount(result.estimate!.upper, result.outcome?.currency)}</p></div><p>Compared with keeping the recent spending mix at the same total budget. This is a candidate for a measured test, not a guaranteed improvement.</p></div>
       <div className="flex flex-wrap gap-5 text-sm"><span><i className="mr-2 inline-block h-3 w-3 bg-gray-400" />Recent mix at this budget</span><span><i className="mr-2 inline-block h-3 w-3 bg-emerald-600" />Suggested test</span></div>
       {result.allocations.map(item => <div key={item.name} className="space-y-2"><h3>{item.name}</h3>{(["current", "suggested"] as const).map(kind => <div key={kind} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-3"><div className="h-4 bg-gray-100" aria-hidden="true"><div className={`h-4 ${kind === "current" ? "bg-gray-400" : "bg-emerald-600"}`} style={{ width: `${100 * item[kind] / result.definition.budget}%` }} /></div><span className="text-right text-sm"><span className="sr-only">{kind}: </span>{amount(item[kind], result.definition.currency)}</span></div>)}<p className="text-sm">{item.suggested >= item.current ? "Increase" : "Decrease"} by {amount(Math.abs(item.suggested - item.current), result.definition.currency)}</p>{item.reason && <p className="text-sm text-gray-600">{item.reason}</p>}</div>)}
-      <div className="border-t pt-5"><h3>Evidence and limits</h3><ul className="list-disc space-y-2 pl-5">{[...result.checks, ...result.limitations].map(text => <li key={text}>{text}</li>)}</ul></div>
+      <details className="border-t pt-5"><summary>What this estimate is based on</summary>{result.history && <p className="my-2">{result.history.weeks} shared weeks: {result.history.start} to {result.history.end}.</p>}<ul className="list-disc space-y-2 pl-5">{[...result.checks, ...result.limitations].map(text => <li key={text}>{text}</li>)}</ul></details>
       <div className="flex flex-wrap gap-3 border-t pt-5">
         <button disabled={busy} onClick={() => setStep(0)}><ArrowLeft size={16} />Edit setup</button>
         {canSave && !result.plan_id && <button className={styles.primary} disabled={busy || !jobId} onClick={() => void action(async () => { const data = await request<BudgetResult>(`/jobs/${jobId}/save`, { method: "POST" }); if (mounted.current) setResult(data); await loadPlans() })}><Save size={16} />Save plan</button>}

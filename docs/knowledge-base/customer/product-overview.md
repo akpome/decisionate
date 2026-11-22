@@ -31,7 +31,7 @@ an impact estimate depends on the comparison and stated business assumptions.
 - Decisions is the central place to create and track accountable actions.
 - Action Needed organizes follow-up for existing decisions.
 - Datasets and Connections manage evidence and imports according to permissions.
-- Alerts manages weekly report recipients, schedule and delivery preferences.
+- In Weekly Reports, open Scheduled email to manage recipients, timing and delivery preferences.
 - Help & Support provides guidance and a support, bug or feature request form.
 
 Business Analysis was also called Analysis and Instant analysis.

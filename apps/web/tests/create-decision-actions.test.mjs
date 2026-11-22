@@ -61,6 +61,23 @@ const { CreateDecisionButton, CreateDecisionLink } = loadSource(
 const { buildCreateDecisionHref } = loadSource("features/decisions/lib/decision-handoff.ts")
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props))
 
+test("decision reviews distinguish the action from its outcome and missing data from a missed target", () => {
+  const { MetricReviewSummary } = loadSource("features/decisions/components/metric-review.tsx")
+  const dates = { start: "2026-10-01", end: "2026-10-07" }
+  const target = { direction: "increase", change: 10, unit: "percent", before: dates, after: dates, date_column: "date" }
+  const html = render(MetricReviewSummary, { review: {
+    status: "waiting", summary: "Waiting for sales data",
+    plan: { input: { ...target, label: "Ad spend", dataset_label: "Advertising" },
+      output: { ...target, label: "Orders", dataset_label: "Sales" } },
+    checks: { input: { baseline: 100, target: 110, actual: 115, status: "met" } },
+  } })
+  const visible = html.replace(/<details\b[^>]*>.*?<\/details>/gs, "")
+  assert.match(visible, /What you planned to change.*Ad spend.*Target met/s)
+  assert.match(visible, /What you wanted to achieve.*Orders.*Waiting for data/s)
+  assert.doesNotMatch(visible, /Target not met|Date column:/)
+  assert.match(html, /Action metric:.*Advertising.*Outcome metric:.*Sales/s)
+})
+
 test("creation buttons use one label, icon, stable size and accessible title", () => {
   const html = render(CreateDecisionButton, {})
   assert.match(html, /type="button"/)

@@ -22,16 +22,24 @@ export function MetricReviewSummary({review}: {review: MetricReview}) {
       const target = review.plan[role], check = review.checks[role]
       const format = (n?: number | null) => n == null ? "Not available" : formatReportValue(n, target.currency)
       return <div key={role} className="min-w-0 space-y-2 border-t py-3">
-        <h3 className="font-semibold">{role === "input" ? "Planned action" : "Expected result"}</h3>
+        <h3 className="font-semibold">{role === "input" ? "What you planned to change" : "What you wanted to achieve"}</h3>
         <p className="break-words text-sm">{target.direction === "increase" ? "Increase" : "Decrease"} {target.label} by at least {target.unit === "percent" ? target.change + "%" : format(target.change)}</p>
-        <p className="text-xs text-gray-600">{target.dataset_label} · {target.date_column}{target.filter && " · " + target.filter.column + ": " + target.filter.values.map(v => v ?? "Missing").join(", ")}</p>
         <dl className="space-y-1 text-sm">
-          <div><dt className="inline">Before ({target.before.start} to {target.before.end}): </dt><dd className="inline font-medium">{format(check?.baseline)}</dd></div>
+          <div><dt className="inline">Starting value: </dt><dd className="inline font-medium">{format(check?.baseline)}</dd></div>
           <div><dt className="inline">Target: </dt><dd className="inline font-medium">{format(check?.target)}</dd></div>
-          <div><dt className="inline">Review period: </dt><dd className="inline">{target.after.start} to {target.after.end}</dd></div>
           {review.status !== "scheduled" && <div><dt className="inline">Actual: </dt><dd className="inline font-medium">{format(check?.actual)} · {check?.status === "met" ? "Target met" : check?.status === "missed" ? "Target not met" : "Waiting for data"}</dd></div>}
         </dl>
-        {check?.baseline == null && <p className="text-xs text-amber-800">The baseline needs records for every day in the before period.</p>}
+        {check?.baseline == null && <p className="text-xs text-amber-800">There are not enough records to calculate the starting value.</p>}
+        <details className="text-sm text-gray-600">
+          <summary className="cursor-pointer">Data and dates</summary>
+          <dl className="mt-2 space-y-1">
+            <div><dt className="inline">{role === "input" ? "Action metric" : "Outcome metric"}: </dt><dd className="inline">{target.dataset_label} / {target.label}</dd></div>
+            <div><dt className="inline">Date column: </dt><dd className="inline">{target.date_column}</dd></div>
+            {target.filter && <div><dt className="inline">{target.filter.column}: </dt><dd className="inline">{target.filter.values.map(v => v ?? "Missing").join(", ")}</dd></div>}
+            <div><dt className="inline">Starting period: </dt><dd className="inline">{target.before.start} to {target.before.end}</dd></div>
+            <div><dt className="inline">Review period: </dt><dd className="inline">{target.after.start} to {target.after.end}</dd></div>
+          </dl>
+        </details>
       </div>
     })}</div>
     {review.plan.lag_days > 0 && <p className="text-sm">The source report suggests a {review.plan.lag_days}-day delay. The result window starts after that delay. Suggested review: {review.plan.suggested_review}.</p>}

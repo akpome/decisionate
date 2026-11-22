@@ -41,7 +41,9 @@ that its provider grants access to a particular customer's account.
 
 ## Connect safely
 
-1. Choose a source actually available in Connections.
+1. In Connections, open Connection sources and switch on the provider you need.
+   This saves a connection and opens Configure added connections. Adding alone
+   does not authorize the provider or create an imported dataset.
 2. Provide the account, property, shop, company, tenant or object identifier
    requested for that connector. Use the provider account with appropriate access.
 3. Complete authorization or enter credentials only in the designated controls.
@@ -55,3 +57,20 @@ If reauthorization is requested, use the connection's authorization workflow.
 Never paste secrets into support chat. A chatbot should not guess provider API
 versions, scopes or column names. A vendor-specific question not covered by the
 reviewed source needs current official vendor documentation or human review.
+
+## Where did my connector go after I switched it on?
+
+Open Connections and choose Configure added connections. After a provider is
+added successfully, its card disappears from Connection sources so you do not
+add it twice. This is expected even if it still needs authorization.
+
+1. Find the saved connection by name. Finish its account selection or
+   authorization, then sync. If no rows arrive, check the account and date range
+   before adding anything else.
+2. Use the same saved connection to change its settings, sync again or remove
+   it. Pausing automatic sync does not remove the connection from this tab.
+3. After the last saved connection for that provider is removed, its card is
+   available in Connection sources again. With no saved connections at all,
+   the configuration tab is hidden. If adding failed, retry from the catalog
+   after resolving the error. Switch workspaces only if you intended to manage
+   a different workspace's connections.
