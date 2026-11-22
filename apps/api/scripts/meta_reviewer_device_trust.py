@@ -4,11 +4,32 @@ import argparse
 import os
 import re
 import sys
+from dataclasses import dataclass
 
 import httpx
 
 
 REVIEWER = "meta_reviewer@decisionate.ca"
+
+
+@dataclass(frozen=True)
+class ReviewerSettings:
+    device_trust_exempt: bool
+    password_enabled: bool | None
+    mfa_enabled: bool | None
+
+
+def reviewer_settings(user):
+    exempt = user.get("bypass_client_trust")
+    if not isinstance(exempt, bool):
+        raise ValueError("Clerk did not report the Device Trust setting.")
+    password = user.get("password_enabled")
+    mfa = user.get("two_factor_enabled")
+    return ReviewerSettings(
+        exempt,
+        password if isinstance(password, bool) else None,
+        mfa if isinstance(mfa, bool) else None,
+    )
 
 
 def verified_reviewer(user):
@@ -33,27 +54,40 @@ def configure(client, action):
     if not isinstance(users, list) or len(users) != 1 or not verified_reviewer(users[0]):
         raise ValueError("Expected one existing Clerk user with the reviewer's verified primary email. No change made.")
     user = users[0]
-    current = user.get("bypass_client_trust")
-    if not isinstance(current, bool):
-        raise ValueError("Clerk did not report the Device Trust setting. No change made.")
+    path = "/v1/users/" + user["id"]
+    profile = client.get(path).raise_for_status().json()
+    if not verified_reviewer(profile) or profile["id"] != user["id"]:
+        raise ValueError("The Clerk profile did not match the reviewer lookup. No change made.")
+    current = reviewer_settings(profile)
     if action == "status":
         return current
     if action not in {"enable", "restore"}:
         raise ValueError("Unknown action.")
     enable = action == "enable"
     if enable:
-        if len(user["email_addresses"]) != 1:
+        if len(profile["email_addresses"]) != 1:
             raise ValueError("Use a dedicated reviewer account with no other email addresses. No change made.")
-        if user.get("password_enabled") is not True or user.get("two_factor_enabled") is not False:
-            raise ValueError("The reviewer needs password sign-in without enrolled MFA. No sign-in method was changed.")
-    if current is enable:
+        if current.password_enabled is not True:
+            raise ValueError("Clerk did not confirm a password on this account. Set up password sign-in before enabling the exception.")
+        if current.mfa_enabled is not False:
+            raise ValueError("Clerk did not confirm that the reviewer has no MFA enrolled. The exception does not waive MFA.")
+    if current.device_trust_exempt is enable:
         return current
-    path = "/v1/users/" + user["id"]
     client.patch(path, json={"bypass_client_trust": enable}).raise_for_status()
     updated = client.get(path).raise_for_status().json()
     if not verified_reviewer(updated) or updated["id"] != user["id"] or updated.get("bypass_client_trust") is not enable:
         raise ValueError("The update was submitted, but its result could not be verified. Check the Clerk user before retrying.")
-    return enable
+    return reviewer_settings(updated)
+
+
+def describe(settings):
+    def label(value):
+        return "yes" if value is True else "no" if value is False else "unknown"
+
+    return (
+        f"{REVIEWER}: Device Trust exception {'enabled' if settings.device_trust_exempt else 'off'}. "
+        f"Password set: {label(settings.password_enabled)}. MFA enrolled: {label(settings.mfa_enabled)}."
+    )
 
 
 def main():
@@ -67,14 +101,14 @@ def main():
     try:
         with httpx.Client(base_url="https://api.clerk.com", headers={"Authorization": f"Bearer {key}",
                          "Clerk-API-Version": "2025-11-10"}, timeout=10, follow_redirects=False) as client:
-            exempt = configure(client, args.action)
+            settings = configure(client, args.action)
     except httpx.HTTPStatusError as exc:
         parser.exit(1, f"Clerk returned HTTP {exc.response.status_code}. The setting was not confirmed.\n")
     except httpx.RequestError:
         parser.exit(1, "Clerk could not be reached. Use status to check before retrying.\n")
     except ValueError as exc:
         parser.exit(1, f"{exc}\n")
-    print(f"{REVIEWER}: Device Trust exception {'enabled' if exempt else 'off'}.")
+    print(describe(settings))
     return 0
 
 
