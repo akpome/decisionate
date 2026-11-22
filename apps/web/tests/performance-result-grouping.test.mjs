@@ -97,7 +97,11 @@ test("the grouped Return on spend filter restores saved values and preserves oth
   definition.group_column = "channel"
   definition.group_filter = { column: "channel", values: ["Search"] }
   const changes = []
-  const tree = SingleDatasetSetup({ definition, context, onChange: value => changes.push(value) })
+  const options = []
+  const tree = SingleDatasetSetup({ definition, context, onChange: (value, config) => {
+    changes.push(value)
+    options.push(config)
+  } })
   const filter = findControl(tree, GroupFilter)
   assert.equal(filter.props.fixedColumn, "channel")
   assert.equal(filter.props.datasetId, 7)
@@ -113,6 +117,10 @@ test("the grouped Return on spend filter restores saved values and preserves oth
   findGrouping(tree).props.onChange("product")
   assert.equal(changes.at(-1).group_filter, undefined)
   assert.equal(changes.at(-1).group_column, "product")
+  assert.deepEqual(options.map(config => config?.preserveConfirmation), [true, true, true])
+  findControl(tree, setupSources.DatasetChoice).props.onChange(9)
+  assert.equal(options.at(-1), undefined)
+  assert.equal(changes.at(-1).items[0].revenue.dataset_id, 9)
   const profit = { ...definition, kind: "profit", group_filter: undefined }
   assert.equal(findControl(SingleDatasetSetup({ definition: profit, context, onChange() {} }), GroupFilter), undefined)
 })

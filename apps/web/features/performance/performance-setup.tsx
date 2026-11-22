@@ -6,7 +6,9 @@ import { AmountChoice, AmountSource, command, DatasetChoice, field, GroupChoice,
 import { blankAmount, blankItem, type AmountSelection, type PerformanceDefinition, type PerformanceItem } from "./types"
 
 export function SingleDatasetSetup({ definition, onChange, context }: {
-  definition: PerformanceDefinition; onChange: (value: PerformanceDefinition) => void; context: SourceContext
+  definition: PerformanceDefinition
+  onChange: (value: PerformanceDefinition, options?: { preserveConfirmation: boolean }) => void
+  context: SourceContext
 }) {
   const item = definition.items[0]
   const { dataset, error, retry } = useAmountDataset(item.revenue.dataset_id, context)
@@ -19,12 +21,13 @@ export function SingleDatasetSetup({ definition, onChange, context }: {
       const source = { ...blankAmount(), dataset_id }
       onChange({ ...definition, group_column: null, group_filter: undefined, items: [{ ...blankItem("Business"), revenue: source, costs: [{ ...source }] }] })
     }} /><div className="min-w-0 space-y-3">
-      <GroupChoice context={context} datasetId={item.revenue.dataset_id} value={definition.group_column} onChange={group_column => onChange({ ...definition, group_column, group_filter: undefined })} />
+      <GroupChoice context={context} datasetId={item.revenue.dataset_id} value={definition.group_column}
+        onChange={group_column => onChange({ ...definition, group_column, group_filter: undefined }, { preserveConfirmation: true })} />
       {definition.kind === "return" && item.revenue.dataset_id > 0 && definition.group_column && (
         <DatasetDimensionFilter key={`${item.revenue.dataset_id}:${definition.group_column}`} embedded
           {...context} datasetId={item.revenue.dataset_id} fixedColumn={definition.group_column}
           value={definition.group_filter ?? undefined}
-          onChange={group_filter => onChange({ ...definition, group_filter })} />
+          onChange={group_filter => onChange({ ...definition, group_filter }, { preserveConfirmation: true })} />
       )}
     </div></div>
     <div className="grid items-start gap-4 md:grid-cols-2">

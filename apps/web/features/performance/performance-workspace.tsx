@@ -61,9 +61,10 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
     return () => { clearTimeout(timer); mounted.current = false; controller.abort(); active.current?.abort() }
   }, [kind, request, loadHistory])
 
-  function change(value: ToolDefinition) {
+  function change(value: ToolDefinition, { preserveConfirmation = false } = {}) {
     active.current?.abort(); requestKey.current = null
-    setDefinition({ ...value, amounts_confirmed: false }); setResult(null); setJobId(null); setDecision(null); setError("")
+    setDefinition(preserveConfirmation ? value : { ...value, amounts_confirmed: false })
+    setResult(null); setJobId(null); setDecision(null); setError("")
     window.history.replaceState(null, "", performancePath(kind))
   }
   async function preview() {
@@ -179,7 +180,7 @@ export function PerformanceWorkspace({ kind, userId, workspaceId, canSave, canMa
     {view === "results" && result && <>
       {"highlights" in result ? <GrowthResults result={result} /> : <PerformanceResults result={result} />}
       <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <button className={command} disabled={busy} onClick={() => { change(definition); setView("setup") }}><ArrowLeft size={16} />Edit comparison</button>
+        <button className={command} disabled={busy} onClick={() => { change(definition, { preserveConfirmation: true }); setView("setup") }}><ArrowLeft size={16} />Edit comparison</button>
         {canSave && !result.analysis_id && result.rows.some(row => row.ready) && <button className={primary} disabled={busy || !jobId} onClick={() => void action(async () => {
           setPhase("")
           const data = await request<PerformanceResult>(`/jobs/${jobId}/save`, { method: "POST" })

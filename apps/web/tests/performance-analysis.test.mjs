@@ -126,6 +126,37 @@ test("save and decision actions follow a completed preview; edits invalidate it"
   assert.match(source, /active.current\?\.abort\(\)/)
 })
 
+test("optional grouping edits keep a confirmed comparison ready but changing dates requires confirmation again", () => {
+  const source = ts.createSourceFile("performance-workspace.tsx", read("../features/performance/performance-workspace.tsx"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const workspace = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "PerformanceWorkspace")
+  const changeDeclaration = workspace.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "change")
+  let definition, result = {}, jobId = "previous-job"
+  const change = vm.runInNewContext(ts.transpileModule(`${changeDeclaration.getText(source)}\nchange`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    active: { current: null }, requestKey: { current: "previous-key" }, kind: "return", performancePath,
+    setDefinition: value => { definition = value }, setResult: value => { result = value }, setJobId: value => { jobId = value },
+    setDecision() {}, setError() {}, window: { history: { replaceState() {} } },
+  })
+  const ready = newPerformance("return")
+  ready.date_range = { start: "2025-01-01", end: "2025-01-03" }
+  ready.items[0].revenue = { dataset_id: 1, metric_key: "revenue", date_column: "date", records: "daily" }
+  ready.items[0].costs = [{ ...ready.items[0].revenue, metric_key: "spend" }]
+  ready.amounts_confirmed = true
+  ready.group_column = "campaign"
+  for (const group_filter of [{ column: "campaign", values: ["Search"] }, undefined]) {
+    change({ ...ready, group_filter }, { preserveConfirmation: true })
+    assert.equal(definition.group_filter, group_filter)
+    assert.equal(definition.amounts_confirmed, true)
+    assert.equal(missingSetup(definition), "")
+    assert.equal(result, null)
+    assert.equal(jobId, null)
+  }
+  change({ ...ready, date_range: { ...ready.date_range, end: "2025-01-04" } })
+  assert.equal(definition.amounts_confirmed, false)
+  assert.match(missingSetup(definition), /Confirm/)
+})
+
 test("result labels distinguish selected costs from net profit and preserve negatives", () => {
   const source = read("../features/performance/performance-results.tsx")
   assert.match(source, /Money left after selected costs/)
