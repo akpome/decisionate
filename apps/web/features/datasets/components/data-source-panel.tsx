@@ -169,7 +169,7 @@ export function DataSourcePanel({
                             aria-busy={isCreating}
                             disabled={mutationPending || loadError}
                             onClick={() => onCreateConnection(source)}
-                            className="inline-flex h-10 min-w-24 items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                           >
                             {isCreating && <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                             {t(isCreating ? "Adding..." : "Add")}

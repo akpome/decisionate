@@ -161,7 +161,7 @@
     "apps/web/features/dashboard/date-window.ts": "1ce1ffd58285c1c2c749cba3c0f7a77b68e6ecc904c9fbd909bc660569501d61",
     "apps/web/features/dashboards/dashboard-definitions.ts": "26dddbfc1599c5179cc823ec6231582aa8a5c5761ec2239a7defd6d9301f95ca",
     "apps/web/features/datasets/components/csv-upload.tsx": "e54dfe1ffebfad8b0f73265d66947580255bb66bac597f4fdd2a4f688bafea44",
-    "apps/web/features/datasets/components/data-source-panel.tsx": "915c58eb107f79b7f80bf88c26d5675e400391a2d7c8dd691f461e3af5f3e667",
+    "apps/web/features/datasets/components/data-source-panel.tsx": "58290e13fa994b526bb17d8ac88761fce9b84613b199fb36add6eecceb9c6fc5",
     "apps/web/features/datasets/components/dimension-filter.tsx": "e97303d33323f5c98b77679ab2dec5419277ad2e1ae958b306bd86b6a219aceb",
     "apps/web/features/datasets/lib/metric-selection-save.ts": "f5e26dc649de82e84e657e8a6e8ecc0bd635a6a07bd43426f1a263d23777b1ec",
     "apps/web/features/decisions/components/analysis-action-form.tsx": "c316bb9123126dfe141c3c421210ca0057ce7d254d5635401e001bd4a28be345",
