@@ -4,7 +4,7 @@ import {
   type DataSourceConnection,
   type DatasetSourceOption,
 } from "@/lib/api"
-import { LoaderCircle } from "lucide-react"
+import { LoaderCircle, Plus } from "lucide-react"
 
 import { ConnectionSetupGuide } from "@/features/datasets/components/data-source-connections"
 import { useDecisionateText } from "@/app/use-decisionate-language"
@@ -163,31 +163,21 @@ export function DataSourcePanel({
                       </div>
 
                       {canCreateDraft && (
-                        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-gray-100">
-                            <div className="flex min-h-10 min-w-28 flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="text-xs font-medium text-gray-600" role="status">
-                                {isCreating ? (
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-                                    {t("Adding...")}
-                                  </span>
-                                ) : t(loadError ? "Unavailable" : "Off")}
-                              </span>
-                              <button
-                                type="button"
-                                role="switch"
-                                aria-label={source.label}
-                                aria-checked={false}
-                                title={t("Add connection")}
-                                disabled={mutationPending || loadError}
-                                onClick={() => onCreateConnection(source)}
-                                className="order-first flex h-10 w-12 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--decisionate-brand-primary)] disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                <span aria-hidden="true" className="inline-flex h-6 w-11 items-center justify-start rounded-full border border-gray-500 bg-gray-600 p-0.5">
-                                  <span className="size-4 rounded-full bg-white shadow-sm" />
-                                </span>
-                              </button>
-                            </div>
+                        <div className="mt-auto flex items-center gap-2 border-t border-gray-100 pt-2">
+                          <button
+                            type="button"
+                            aria-busy={isCreating}
+                            disabled={mutationPending || loadError}
+                            onClick={() => onCreateConnection(source)}
+                            className="inline-flex h-10 min-w-24 items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm font-medium text-[var(--decisionate-brand-primary-text)] hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isCreating
+                              ? <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                              : <Plus size={16} aria-hidden="true" />}
+                            {t(isCreating ? "Adding..." : "Add")}
+                            <span className="sr-only"> {source.label}</span>
+                          </button>
+                          {loadError && <span className="text-xs text-gray-600">{t("Unavailable")}</span>}
                         </div>
                       )}
                     </div>

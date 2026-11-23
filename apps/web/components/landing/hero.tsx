@@ -18,7 +18,7 @@ export function LandingHero() {
               <h1 className="landing-hero-title font-semibold text-neutral-950">
                 {t("Decisionate")}
               </h1>
-              <p className="landing-hero-promise max-w-lg font-semibold text-neutral-950">
+              <p className="landing-hero-promise font-semibold text-neutral-950">
                 {t("Decide what to change this week. See whether it helped.")}
               </p>
               <p className="landing-hero-copy max-w-lg text-neutral-600">

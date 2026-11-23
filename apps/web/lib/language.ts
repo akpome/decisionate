@@ -1204,6 +1204,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Saving...": "Enregistrement...",
   Added: "Ajouté",
   "Add connection": "Ajouter une connexion",
+  "Add": "Ajouter",
+  "Adding...": "Ajout en cours...",
   "Saved data source connections are unavailable. Retry the data services above.": "Les connexions aux sources de données enregistrées sont indisponibles. Réessayez les services de données ci-dessus.",
   "No external data source connections have been added yet. Add one from the available connections above.": "Aucune connexion à une source de données externe n'a encore été ajoutée. Ajoutez-en une parmi les connexions disponibles ci-dessus.",
   Save: "Enregistrer",

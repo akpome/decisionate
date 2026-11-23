@@ -41,7 +41,7 @@ that its provider grants access to a particular customer's account.
 
 ## Connect safely
 
-1. In Connections, open Connection sources and switch on the provider you need.
+1. In Connections, open Connection sources and choose Add on the provider you need.
    This saves a connection and opens Configure added connections. Adding alone
    does not authorize the provider or create an imported dataset.
 2. Provide the account, property, shop, company, tenant or object identifier
@@ -58,7 +58,7 @@ Never paste secrets into support chat. A chatbot should not guess provider API
 versions, scopes or column names. A vendor-specific question not covered by the
 reviewed source needs current official vendor documentation or human review.
 
-## Where did my connector go after I switched it on?
+## Where did my connector go after I added it?
 
 Open Connections and choose Configure added connections. After a provider is
 added successfully, its card disappears from Connection sources so you do not

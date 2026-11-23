@@ -603,14 +603,15 @@
         "troubleshooting-support"
       ],
       "direct_questions": {
-        "Where did my connector go after I switched it on?": [
+        "Where did my connector go after I added it?": [
+          "Where did my connector go after I added it?",
           "Where did my connector go after I switched it on?",
           "Why did Shopify disappear from Connection sources?",
           "Where do I configure a connector I already added?"
         ]
       },
       "section_questions": {
-        "Where did my connector go after I switched it on?": [
+        "Where did my connector go after I added it?": [
           "I turned on a source and its card disappeared",
           "I cannot see the configuration tab",
           "How do I get a removed connector back into the catalog?"

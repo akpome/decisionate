@@ -273,7 +273,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Configure a connector",
         steps: [
-          "Open Data -> Connections -> Connection sources. Switch on the source you want to add.",
+          "Open Data -> Connections -> Connection sources. Choose Add on the provider you want to connect.",
           "Choose from the accounting, commerce, payment, CRM, advertising, analytics, or database sources actually offered by the catalog. Connector availability and required fields can differ by deployment; do not assume every provider is enabled.",
           "After you add a provider, its card moves out of Connection sources. Configure added connections opens so you can choose the account, authorize it and sync. Manage or remove the connection here. Removing the last connection for a provider returns its card to Connection sources.",
           "Use read-only or minimum-scope credentials wherever the provider supports them.",
