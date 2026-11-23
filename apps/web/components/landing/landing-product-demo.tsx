@@ -170,7 +170,7 @@ export function LandingProductDemo({ children }: { children: ReactNode }) {
               </button>
             ))}
           </div>
-          <div className="mt-4 flex justify-end text-xs leading-5">
+          <div className="landing-demo-footer flex justify-end text-xs leading-5">
             <Link
               href="/demo"
               className="landing-brand-link inline-flex items-center gap-2 font-medium"

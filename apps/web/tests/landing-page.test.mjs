@@ -39,6 +39,7 @@ const { refreshedLandingFrench } = load("../lib/landing-translations.ts")
 const headline = "Decisionate"
 const promise = "Decide what to change this week. See whether it helped."
 const productSummary = "Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result."
+const retentionExample = "Check how many customers make a second purchase within 30, 60 or 90 days. Use what you learn to choose when to send a reminder."
 const demoQuestion = "Which ads earned more per dollar? See the numbers, choose one change to test, and decide when to review it."
 const agencySummary = "Give each client a private workspace in a portal carrying your agency's name and logo. With their permission, review the numbers together, agree on the next step and revisit the result at your next meeting."
 
@@ -94,12 +95,13 @@ test("hero renders one brand headline and one copy instance in both languages", 
     const html = renderHero(language)
     const translated = text => language === "fr" ? refreshedLandingFrench[text] : text
     assert.equal((html.match(/<h1\b/g) || []).length, 1)
-    for (const copy of [headline, promise, productSummary, demoQuestion]) {
+    for (const copy of [headline, promise, productSummary, retentionExample, demoQuestion]) {
       assert.ok(refreshedLandingFrench[copy], `Missing French translation: ${copy}`)
       const expected = renderToStaticMarkup(React.createElement(React.Fragment, null, translated(copy)))
       assert.ok(html.includes(expected), `Missing ${language} copy: ${copy}`)
     }
     assert.equal((html.match(/landing-hero-copy /g) || []).length, 1)
+    assert.ok(html.indexOf(translated(retentionExample)) < html.indexOf("landing-hero-cta"))
     assert.equal((html.match(/landing-hero-promise /g) || []).length, 1)
     assert.doesNotMatch(html, /Insights from existing|Decisions from Data|landing-hero-more|landing-hero-team/)
     assert.ok(html.indexOf("landing-hero-intro") < html.indexOf("landing-product-demo"))
@@ -292,9 +294,9 @@ test("every landing FAQ answer and updated feature is available in French", () =
   }
 })
 
-test("desktop columns and stacked mobile content use normal flow rather than CTA spacers", () => {
+test("desktop aligns the trial note and demo footer while stacked mobile actions stay with the copy", () => {
   const css = require("postcss").parse(read("../components/landing/landing.css"))
-  const values = selector => Object.fromEntries(css.nodes.filter(node => node.selector === selector).flatMap(rule => rule.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value])))
+  const values = (selector, parent = css) => Object.fromEntries(parent.nodes.filter(node => node.selector === selector).flatMap(rule => rule.nodes.filter(node => node.type === "decl").map(node => [node.prop, node.value])))
   assert.equal(values(".landing-hero-cta")["margin-top"], "28px")
   assert.equal(values(".landing-hero-note")["margin-top"], "8px")
   assert.equal(values(".landing-product-video")["aspect-ratio"], "8 / 5")
@@ -304,7 +306,10 @@ test("desktop columns and stacked mobile content use normal flow rather than CTA
   assert.equal(values(".landing-demo-chapters")["grid-template-columns"], "repeat(4, minmax(0, 1fr))")
   assert.equal(values(".landing-page svg.lucide").color, "var(--landing-brand-accent)")
   const desktop = css.nodes.find(node => node.type === "atrule" && node.params === "(min-width: 1024px)")
-  assert.ok(desktop.nodes.find(node => node.selector === ".landing-hero-stage").nodes.some(node => node.prop === "grid-template-columns"))
+  assert.equal(values(".landing-hero-stage", desktop)["align-items"], "stretch")
+  for (const selector of [".landing-hero-cta", ".landing-demo-footer"]) {
+    assert.equal(values(selector, desktop)["margin-top"], "auto")
+  }
   assert.doesNotMatch(css.toString(), /display: contents|landing-hero-more|landing-hero-team|max-height: calc\(100svh/)
   assert.equal(values(".landing-button")["min-height"], "44px")
 })

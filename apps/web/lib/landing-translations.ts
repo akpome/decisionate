@@ -193,6 +193,8 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Compare revenue per advertising dollar, or see which products leave the most money after costs.": "Comparez les ventes par dollar publicitaire ou voyez quels produits rapportent le plus après déduction des coûts.",
   "Catch a tight week before it arrives.": "Anticipez les semaines où la trésorerie sera serrée.",
   "Line up expected payments and bills. Try a late payment to see when your cash balance could fall short.": "Comparez les encaissements et les factures prévus. Simulez un retard de paiement pour repérer un manque de liquidités.",
+  "See how many buyers come back.": "Voyez combien de clients reviennent.",
+  "Check how many customers make a second purchase within 30, 60 or 90 days. Use what you learn to choose when to send a reminder.": "Voyez combien de clients font un deuxième achat dans les 30, 60 ou 90 jours. Servez-vous de ce résultat pour choisir quand leur envoyer un rappel.",
   "Follow through on the change you make.": "Mesurez le résultat de vos décisions.",
   "Set a target for what you will change and the result you want. On review day, compare both with what actually happened.": "Fixez une cible pour votre action et le résultat attendu. À la date de suivi, comparez les deux aux résultats observés.",
 }

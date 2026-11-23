@@ -27,6 +27,7 @@ export function LandingHero() {
               <dl className="grid max-w-lg gap-3 text-sm leading-5 text-neutral-600">
                 <div><dt className="font-semibold text-neutral-950">{t("Find where your money goes further.")}</dt><dd>{t("Compare revenue per advertising dollar, or see which products leave the most money after costs.")}</dd></div>
                 <div><dt className="font-semibold text-neutral-950">{t("Catch a tight week before it arrives.")}</dt><dd>{t("Line up expected payments and bills. Try a late payment to see when your cash balance could fall short.")}</dd></div>
+                <div><dt className="font-semibold text-neutral-950">{t("See how many buyers come back.")}</dt><dd>{t("Check how many customers make a second purchase within 30, 60 or 90 days. Use what you learn to choose when to send a reminder.")}</dd></div>
                 <div><dt className="font-semibold text-neutral-950">{t("Follow through on the change you make.")}</dt><dd>{t("Set a target for what you will change and the result you want. On review day, compare both with what actually happened.")}</dd></div>
               </dl>
             </div>
