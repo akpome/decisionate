@@ -128,7 +128,7 @@
     "apps/web/app/dashboard/billing/page.tsx": "5ff4653e57b141fa0fbf090a539961efa8e02b1b5395ef60ad4929b40223d549",
     "apps/web/app/dashboard/business-impact/page.tsx": "657b0306e9fd9af1381e2ba2481f45aa3e54a68030affcd7f243c694e20a104e",
     "apps/web/app/dashboard/connections/page.tsx": "161a128bfdeb14edd6c8ad1343774a997e54d42bf8179bf0dee09a3a28699402",
-    "apps/web/app/dashboard/dashboard-shell.tsx": "62d8124b68b4bb41c495579538f0c7d02a8883955eab6f18ee5adcb20200b871",
+    "apps/web/app/dashboard/dashboard-shell.tsx": "5b8544d24e6777a26f10c463ab1045e0d9e38f1e384d8da40068a35d7ae9ebda",
     "apps/web/app/dashboard/decisions/[id]/page.tsx": "3516c0011aef286b528081088e6ce8dd87287116a2a882ee6abc71f30d4e8a57",
     "apps/web/app/dashboard/decisions/new/page.tsx": "4691bb984b75d10723d72a8b36c66c75149b6efd28b987f15939dc28ed06672a",
     "apps/web/app/dashboard/decisions/page.tsx": "f1086ea16c13974acc384d14090de10054f1bc6ba92243e9dd885c5be99e3758",

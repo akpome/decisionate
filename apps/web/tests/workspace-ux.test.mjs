@@ -30,7 +30,7 @@ function loadComponent(relativePath, translate = text => text) {
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
     })
     vm.runInNewContext(outputText, {
-      module: loadedModule, exports: loadedModule.exports, process: { env: {} },
+      module: loadedModule, exports: loadedModule.exports, process: { env: {} }, URL,
       require: specifier => {
         if (overrides[specifier]) return overrides[specifier]
         if (specifier.startsWith("@/") || specifier.startsWith(".")) {
@@ -52,6 +52,58 @@ const { DatasetList } = loadComponent("features/datasets/components/dataset-list
 const { DashboardActionButton } = loadComponent("features/dashboards/dashboard-registry.tsx")
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props))
 const datasets = Array.from({ length: 25 }, (_, index) => ({ id: index + 1, file_name: `Dataset ${index + 1}`, row_count: 100 + index, column_count: 4, source_type: index % 2 ? "csv" : "meta_ads" }))
+
+function findWorkspaceCode(file, predicate) {
+  const source = ts.createSourceFile(file, readFileSync(path.join(webRoot, file), "utf8"), ts.ScriptTarget.Latest, true)
+  function find(node) {
+    return predicate(node) ? node : ts.forEachChild(node, find)
+  }
+  const node = find(source)
+  assert.ok(node)
+  return node
+}
+
+test("Manage starts open and still respects an explicit collapse", () => {
+  const initializer = findWorkspaceCode("app/dashboard/dashboard-shell.tsx", node =>
+    ts.isVariableDeclaration(node) && node.name.getText() === "isExpanded"
+  ).initializer.getText()
+  const group = { label: "Manage", collapsible: true }
+  assert.equal(vm.runInNewContext(initializer, { group, expandedNavGroups: {} }), true)
+  assert.equal(vm.runInNewContext(initializer, { group, expandedNavGroups: { Manage: false } }), false)
+})
+
+test("successful workspace creation defaults to Settings and preserves safe deep links", async () => {
+  const submit = findWorkspaceCode("app/onboarding/page.tsx", node =>
+    ts.isFunctionDeclaration(node) && node.name?.text === "handleSubmit"
+  ).getText()
+  const { outputText } = ts.transpileModule(`${submit}\nhandleSubmit({ preventDefault() {} })`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 },
+  })
+  const { getDashboardReturnTo } = loadComponent("features/auth/lib/auth-redirects.ts")
+  for (const [returnTo, expected] of [
+    ["", "/settings"],
+    ["/connections?provider=google_ads", "/connections?provider=google_ads"],
+    ["https://other.test/settings", "/settings"],
+  ]) {
+    const calls = []
+    await vm.runInNewContext(outputText, {
+      step: 2,
+      canCreateOrganization: true,
+      user: { id: "agency", update: async () => {} },
+      resolvedFirstName: "Agency", resolvedLastName: "Owner", organizationName: "Agency",
+      businessType: "agency", agencyPlan: "agency_subdomain",
+      country: "Canada", industry: "Marketing and advertising", companySize: "1-10",
+      agencyClientCount: "1-5", role: "Agency owner or lead", primaryGoal: "Automate reporting",
+      setLoading() {}, setErrorMessage() {}, setExistingWorkspaceFound() {},
+      createOrganization: async () => calls.push("created"),
+      setActiveWorkspaceId: (userId, workspaceId) => calls.push([userId, workspaceId]),
+      router: { replace: destination => calls.push(destination) },
+      getDashboardReturnTo, URLSearchParams,
+      window: { location: { search: new URLSearchParams({ redirect_url: returnTo }).toString(), origin: "https://app.decisionate.ca" } },
+    })
+    assert.deepEqual(calls, ["created", ["agency", "agency"], expected])
+  }
+})
 
 test("page headers have a compact semantic title and optional description", () => {
   const html = render(DashboardPageHeader, { title: "Datasets", actions: React.createElement("button", {}, "Add data") })

@@ -370,15 +370,6 @@ export function DashboardShell({
   const text = (key: DecisionateTranslationKey) =>
     getDecisionateText(language, key)
 
-  const activeCollapsibleGroupLabel =
-    dashboardNavGroups.find(
-      group =>
-        group.collapsible &&
-        group.items.some(item =>
-          isActiveDashboardPath(pathname, item.href)
-        )
-    )?.label
-
   const activeNavItem = dashboardNavGroups.flatMap(group => group.items).find(
     item => isActiveDashboardPath(pathname, item.href)
   )
@@ -1057,11 +1048,7 @@ export function DashboardShell({
               }
 
               const isExpanded =
-                !group.collapsible ||
-                (
-                  expandedNavGroups[group.label] ??
-                  (group.label !== "Manage" || group.label === activeCollapsibleGroupLabel)
-                )
+                !group.collapsible || expandedNavGroups[group.label] !== false
 
               return (
                 <div key={group.label}>

@@ -23,7 +23,7 @@ import {
 } from "@/app/theme-toggle"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { portalBrand } from "@/lib/portal-brand"
-import { getSafeReturnTo, getSignInUrl, getWorkspaceReturnTo } from "@/features/auth/lib/auth-redirects"
+import { getDashboardReturnTo, getSafeReturnTo, getSignInUrl, getWorkspaceReturnTo } from "@/features/auth/lib/auth-redirects"
 import { chooseAuthWorkspace } from "@/features/auth/lib/auth-workspaces"
 import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
 
@@ -227,7 +227,8 @@ export default function OnboardingPage() {
 
       setActiveWorkspaceId(user.id, user.id)
       setExistingWorkspaceFound(true)
-      router.replace(getWorkspaceReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin))
+      const returnTo = getDashboardReturnTo(new URLSearchParams(window.location.search).get("redirect_url"), window.location.origin)
+      router.replace(returnTo ?? "/settings")
     } catch (error) {
       console.error(error)
       setErrorMessage(
