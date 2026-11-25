@@ -4,6 +4,24 @@ The file workflow offers CSV, JSON, Excel and Parquet ingestion, subject to the
 readers installed in the deployment. A dataset's real schema comes from its
 file or connector output, not from a generic example shown in a conversation.
 
+## Add and inspect data
+
+1. Open Datasets and choose Add data. In Upload file, choose a supported
+   file from your device. Use Import link for a supported data-file URL you
+   are authorized to import, or Connections to set up a provider.
+2. Wait for processing and check that the dataset appears in the list before
+   sending the file again. Open it to review the preview, column names, row
+   count and dates. Check a few amounts against your source.
+3. In the dataset details, review the selected metrics and save any changes
+   needed for analysis. Choose a real date column for time-based tools; keep
+   categories such as location available for filters.
+4. Open the tool you need, such as Dashboard, Forecasts or Business Analysis,
+   and choose that dataset. Its available dates and saved metrics determine
+   what the tool can use.
+
+If Add data is unavailable in your workspace, ask its owner to check your
+permissions. A file import is not a scheduled provider sync.
+
 ## Prepare a useful file
 
 Use stable column names and a header row for CSV. Include a genuine date or

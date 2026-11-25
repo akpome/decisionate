@@ -97,6 +97,21 @@ Legacy Review joined evidence placeholders may be editable drafts with no actual
 action recorded. A draft is not evidence that a business action occurred.
 Decisions and outcomes is not supposed to contain a fixed number of records.
 
+## Follow up in Action Needed
+
+1. Open Action Needed in the workspace that owns the decision. Use All to
+   see the queue, or select Results ready, Review overdue, Outcome pending
+   or Learning pending to focus on that work.
+2. Open the decision from its card. For a measured decision, compare actuals
+   against the separate targets for the action and the result. For a manual
+   decision, record the outcome and what you learned.
+3. Decide what to do next. Update or close the existing decision when it is
+   resolved; do not create another record just to log the result.
+
+No action needed means the current follow-up queue is clear, not that every
+past decision succeeded. If you have read-only access, you can inspect the
+details but an authorized workspace manager must make updates.
+
 ## Review, learning and lifecycle
 
 Business impact review is an assessment of this decision, not another decision.

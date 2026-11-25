@@ -4,6 +4,26 @@ The weekly report is an HTML email with a plain-text alternative. It is not a
 PDF attachment and currently does not embed the report preview's indexed trend
 chart.
 
+## Set up scheduled weekly email
+
+1. In Weekly Reports, preview and save the weekly report. A new saved setup
+   enables owner delivery by default when the report has sufficient data.
+   You do not need to add the workspace owner's email again.
+2. Open Scheduled email from Weekly Reports. This is the page older links
+   may call Alerts. To add recipients, enter Additional email addresses and
+   choose the Delivery day. The owner is always included.
+3. Use Send automatically each week to enable or pause automatic delivery,
+   then choose Save email settings. This does not change what the report
+   measures. Edit report metrics or the reporting timezone in Weekly Reports.
+4. Choose Send test email after saving to check delivery. The test does not
+   require report data and has no results. Review Delivery history before
+   retrying a send with an uncertain status.
+
+To send the actual report once to its owner, use Email workspace owner on
+Weekly Reports. It requires usable data for the report week and is separate
+from both the recurring schedule and the test. Opening Scheduled email does
+not send anything.
+
 ## What appears in the HTML email
 
 The current Weekly Intelligence email includes a weekly summary, up to three

@@ -75,8 +75,11 @@
       },
       "direct_questions": {
         "How do I set up my portal?": [
+          "How do I use Hosted portal settings?",
+          "How to use Hosted portal settings?",
           "How do I set up a white-label portal?",
-          "How do I create a branded customer portal?"
+          "How do I create a branded customer portal?",
+          "How do I set up a hosted portal?"
         ],
         "Which subscriptions include hosted portals?": [
           "Can I use a subdomain with my Professional subscription?",
@@ -233,11 +236,11 @@
         ],
         "How do I use Customer retention?": [
           "How do I use Customer retention?",
+          "How to use Customer retention?",
           "See how many buyers come back.",
           "How do I see how many buyers come back?",
           "See how many buyers come back. Check how many customers make a second purchase within 30, 60 or 90 days. Use what you learn to choose when to send a reminder.",
           "How do I check repeat purchases and choose when to test a reminder?",
-          "How to use Customer retention?",
           "How do I use the Customer retention tool?",
           "How do I use Customer retention under Business Analysis?",
           "How do I use Customer retention in Business Analysis?"
@@ -257,11 +260,11 @@
         ],
         "How do I use Cash flow planning?": [
           "How do I use Cash flow planning?",
+          "How to use Cash flow planning?",
           "Catch a tight week before it arrives.",
           "How do I catch a tight week before it arrives?",
           "Catch a tight week before it arrives. Line up expected payments and bills. Try a late payment to see when your cash balance could fall short.",
           "How do I check cash flow if a customer pays late?",
-          "How to use Cash flow planning?",
           "How do I use the Cash flow planning tool?",
           "How do I use Cash flow planning under Business Analysis?",
           "How do I use Cash flow planning in Business Analysis?"
@@ -367,7 +370,8 @@
           "How do I get a recommendation on what to spend on Meta or Google for my Shopify store?",
           "How can I get a recommendation for dividing my advertising budget between channels?",
           "how can decisionate make recommedation for me on how to get the most value for my advertising spend, with Google ads and meta ads",
-          "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store"
+          "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store",
+          "How do I use the Budget Planner?"
         ]
       }
     },
@@ -477,7 +481,8 @@
         "From a decision to its review": "/decisions",
         "From an internal report to something you can share": "/business-analysis",
         "From separate files to a useful comparison": "/entity-matching",
-        "From an agency invitation to working with a client": "/settings"
+        "From an agency invitation to working with a client": "/settings",
+        "First analysis checklist": "/business-analysis"
       },
       "direct_questions": {
         "From a new workspace to a dashboard you can trust": [
@@ -506,6 +511,11 @@
         ],
         "From an agency invitation to working with a client": [
           "How do I invite a client and get permission to work in their workspace?"
+        ],
+        "First analysis checklist": [
+          "How do I use Decisionate?",
+          "How to use Decisionate?",
+          "How do I get started with Decisionate?"
         ]
       }
     },
@@ -541,7 +551,19 @@
         "agencies-clients",
         "troubleshooting-support",
         "privacy-preferences"
-      ]
+      ],
+      "direct_questions": {
+        "Manage workspace settings": [
+          "How do I use Settings?",
+          "How to use Settings?",
+          "How do I manage workspace settings?"
+        ],
+        "Invite a teammate": [
+          "How do I use Workspace Members?",
+          "How to use Workspace Members?",
+          "How do I invite a teammate?"
+        ]
+      }
     },
     {
       "id": "agencies-clients",
@@ -565,11 +587,15 @@
       ],
       "direct_questions": {
         "Invitations and first sign-in": [
+          "How do I use Client Workspaces?",
+          "How to use Client Workspaces?",
           "Does creating a client workspace automatically invite its owner?",
           "How does a client receive and accept their workspace invitation?",
           "Why did creating a client workspace not send an invitation email?",
           "How do I resend a client invitation?",
-          "Why does my client sign in to a personal workspace instead of their client workspace?"
+          "Why does my client sign in to a personal workspace instead of their client workspace?",
+          "How do I create a client workspace?",
+          "How do I link an existing client workspace?"
         ],
         "Pause, resume or delete a client account": [
           "How do I pause or resume a client account?",
@@ -587,6 +613,11 @@
           "Can I start a trial using my existing client workspace?",
           "Can another agency add my existing workspace?",
           "Can the agency delete my workspace after I accept the invitation?"
+        ],
+        "Working with a client": [
+          "How do I use Agency connection?",
+          "How to use Agency connection?",
+          "How do I give my agency access to my workspace?"
         ]
       },
       "routes": [
@@ -656,7 +687,16 @@
         "metric-selection",
         "connectors",
         "time-aggregation"
-      ]
+      ],
+      "direct_questions": {
+        "Add and inspect data": [
+          "How do I use Datasets?",
+          "How to use Datasets?",
+          "How do I upload a file?",
+          "How do I import a dataset?",
+          "How do I import data from a link?"
+        ]
+      }
     },
     {
       "id": "connectors",
@@ -679,6 +719,7 @@
         "apps/api/app/modules/datasets/services/sources.py",
         "apps/web/app/dashboard/help/page.tsx",
         "apps/web/app/dashboard/connections/page.tsx",
+        "apps/web/features/datasets/components/data-source-connections.tsx",
         "apps/web/features/datasets/components/data-source-panel.tsx"
       ],
       "related": [
@@ -699,6 +740,17 @@
           "Where did my connector go after I switched it on?",
           "Why did Shopify disappear from Connection sources?",
           "Where do I configure a connector I already added?"
+        ],
+        "Connect safely": [
+          "How do I use Connections?",
+          "How to use Connections?",
+          "How do I add a connection?",
+          "How do I connect a data source?"
+        ],
+        "Request an older date range": [
+          "How do I use Advanced date range?",
+          "How to use Advanced date range?",
+          "How do I import older data from a connection?"
         ]
       },
       "section_questions": {
@@ -774,7 +826,14 @@
         "metric-semantics",
         "uploads-datasets",
         "reports-build"
-      ]
+      ],
+      "direct_questions": {
+        "Change a selection": [
+          "How do I use dataset metric selection?",
+          "How to use dataset metric selection?",
+          "How do I select metrics for a dataset?"
+        ]
+      }
     },
     {
       "id": "metric-semantics",
@@ -883,6 +942,13 @@
           "How do I filter analysis to one region or product?",
           "How do I choose a segment or category?"
         ]
+      },
+      "direct_questions": {
+        "Apply a dimension filter": [
+          "How do I use dimension filters?",
+          "How to use dimension filters?",
+          "How do I filter by location or product?"
+        ]
       }
     },
     {
@@ -917,7 +983,8 @@
         "apps/web/app/dashboard/page.tsx",
         "apps/web/app/dashboard/help/page.tsx",
         "apps/web/tests/dashboard-periods.test.mjs",
-        "apps/web/tests/dashboard-analysis-removal.test.mjs"
+        "apps/web/tests/dashboard-analysis-removal.test.mjs",
+        "apps/web/app/dashboard/dashboards/page.tsx"
       ],
       "related": [
         "dimension-filters",
@@ -932,19 +999,35 @@
       },
       "direct_questions": {
         "Configure a view": [
+          "How do I use Dashboard?",
+          "How to use Dashboard?",
           "How do I use the dashboards?",
-          "How do I set up a dashboard?"
+          "How do I set up a dashboard?",
+          "How do I use the Dashboard page?"
         ],
         "How do I choose metrics and add a target?": [
+          "How do I use Select Metrics?",
+          "How to use Select Metrics?",
           "How do I set a target in Select Metrics?",
           "How do I hide the KPI gauge?",
-          "Why can't I set a target for a dimension value?"
+          "Why can't I set a target for a dimension value?",
+          "How do I add a KPI target on a dashboard?"
         ],
         "How do I compare groups on a dashboard?": [
           "How do I use Compare Groups?",
+          "How to use Compare Groups?",
           "How can I compare sales by location on the same chart?",
-          "What is the difference between Select Metrics and Compare Groups?"
+          "What is the difference between Select Metrics and Compare Groups?",
+          "How do I compare groups on a dashboard?"
+        ],
+        "Choose a dashboard": [
+          "How do I use Dashboards?",
+          "How to use Dashboards?",
+          "How do I choose my main dashboard?"
         ]
+      },
+      "section_routes": {
+        "Choose a dashboard": "/dashboards"
       }
     },
     {
@@ -1063,20 +1146,36 @@
       },
       "direct_questions": {
         "Where is Business impact and how do I use it?": [
-          "Where is Business impact and how do I use it?",
           "How do I use Business impact?",
+          "How to use Business impact?",
+          "Where is Business impact and how do I use it?",
           "How do I use Business impact analysis?",
-          "How do I use Business impact under Business Analysis?"
+          "How do I use Business impact under Business Analysis?",
+          "How to use Business impact analysis?"
         ],
         "Build an analysis": [
+          "How do I use Multi-dataset report?",
+          "How to use Multi-dataset report?",
           "How do I use Compare metrics?",
+          "How to use Compare metrics?",
+          "How do I use Business Analysis?",
+          "How to use Business Analysis?",
           "How do I use correlation analysis?",
           "How do I build a report across datasets?",
-          "How do I create a multi dataset report?"
+          "How do I create a multi dataset report?",
+          "How do I use the multi-dataset report?"
         ],
         "Analyze one dataset": [
+          "How do I use Single dataset report?",
+          "How to use Single dataset report?",
           "How do I create a single dataset report?",
-          "How do I use Single dataset report?"
+          "How do I use the single dataset report?"
+        ],
+        "Set up relationship analysis": [
+          "How do I use Relationship analysis?",
+          "How to use Relationship analysis?",
+          "How do I turn correlation on or off in Business Analysis?",
+          "How do I compare datasets without correlation?"
         ]
       }
     },
@@ -1121,7 +1220,14 @@
         "weekly-reports",
         "decisions-outcomes",
         "relationship-evidence"
-      ]
+      ],
+      "direct_questions": {
+        "Save and update": [
+          "How do I use Saved reports?",
+          "How to use Saved reports?",
+          "How do I save a Business Analysis report?"
+        ]
+      }
     },
     {
       "id": "relationship-evidence",
@@ -1261,6 +1367,7 @@
       "direct_questions": {
         "Set up a two-metric monitor": [
           "How do I use Relationships?",
+          "How to use Relationships?",
           "How do I use the Relationships page?"
         ]
       }
@@ -1294,7 +1401,14 @@
         "forecasts",
         "weekly-reports",
         "sync-retention"
-      ]
+      ],
+      "direct_questions": {
+        "Check for unusual changes": [
+          "How do I use Anomaly detection?",
+          "How to use Anomaly detection?",
+          "How do I check for unusual changes in a report?"
+        ]
+      }
     },
     {
       "id": "forecasts",
@@ -1303,8 +1417,8 @@
       "direct_questions": {
         "Generate a forecast": [
           "How do I use Forecasts?",
-          "How do I create a forecast?",
-          "How to use Forecasts?"
+          "How to use Forecasts?",
+          "How do I create a forecast?"
         ]
       },
       "audience": "customer",
@@ -1343,6 +1457,7 @@
       "direct_questions": {
         "Configure weekly analysis and sending separately": [
           "How do I use Weekly Reports?",
+          "How to use Weekly Reports?",
           "How do I set up a weekly report?"
         ]
       },
@@ -1408,13 +1523,22 @@
       "sources": [
         "apps/api/app/modules/alerts/email_delivery.py",
         "apps/api/app/modules/alerts/router.py",
-        "apps/api/app/infrastructure/email_branding.py"
+        "apps/api/app/infrastructure/email_branding.py",
+        "apps/web/features/alerts/weekly-email-settings.tsx"
       ],
       "related": [
         "weekly-reports",
         "agencies-clients",
         "privacy-preferences"
-      ]
+      ],
+      "direct_questions": {
+        "Set up scheduled weekly email": [
+          "How do I use Scheduled email?",
+          "How to use Scheduled email?",
+          "How do I use Alerts?",
+          "How do I set up weekly email delivery?"
+        ]
+      }
     },
     {
       "id": "decisions-outcomes",
@@ -1437,10 +1561,13 @@
       ],
       "direct_questions": {
         "How do I follow through on a change I make?": [
+          "How do I use Decisions?",
+          "How to use Decisions?",
           "How do I follow through on a change I make?",
           "Follow through on the change you make.",
           "Follow through on the change you make. Set a target for what you will change and the result you want. On review day, compare both with what actually happened.",
-          "How do I compare the planned change and outcome targets with what actually happened?"
+          "How do I compare the planned change and outcome targets with what actually happened?",
+          "How do I create and review a decision?"
         ],
         "How do I check whether spending more brought the orders I wanted?": [
           "How do automatic decision reviews work?",
@@ -1449,14 +1576,21 @@
         "Where can I create a decision?": [
           "How do I create a decision from Business Analysis?",
           "Do I need to save my comparison before creating a decision?"
+        ],
+        "Follow up in Action Needed": [
+          "How do I use Action Needed?",
+          "How to use Action Needed?",
+          "How do I review overdue decisions?"
         ]
       },
       "section_routes": {
-        "How do I follow through on a change I make?": "/decisions/new"
+        "How do I follow through on a change I make?": "/decisions/new",
+        "Follow up in Action Needed": "/action-needed"
       },
       "routes": [
         "/decisions",
-        "/decisions/new"
+        "/decisions/new",
+        "/action-needed"
       ],
       "sources": [
         "apps/web/components/landing/hero.tsx",
@@ -1473,7 +1607,8 @@
         "apps/web/features/decisions/components/decision-impact-reviews.tsx",
         "apps/web/app/dashboard/decisions/new/page.tsx",
         "apps/web/app/dashboard/decisions/[id]/page.tsx",
-        "docs/CROSS_DATASET_REPORTS.md"
+        "docs/CROSS_DATASET_REPORTS.md",
+        "apps/web/app/dashboard/action-needed/page.tsx"
       ],
       "related": [
         "reports-read-save",
@@ -1513,7 +1648,14 @@
         "billing-credits",
         "anomalies-seasonality",
         "privacy-preferences"
-      ]
+      ],
+      "direct_questions": {
+        "Request an interpretation": [
+          "How do I use AI interpretation?",
+          "How to use AI interpretation?",
+          "How do I get an AI interpretation of a report?"
+        ]
+      }
     },
     {
       "id": "billing-credits",
@@ -1559,6 +1701,11 @@
           "What are the four subscription plans?",
           "What is the difference between the agency plans?",
           "Can I subscribe to custom-domain white label now?"
+        ],
+        "Subscription changes": [
+          "How do I use Billing?",
+          "How to use Billing?",
+          "How do I change my subscription?"
         ]
       }
     },
@@ -1609,7 +1756,22 @@
           "Can recipients edit a shared dashboard?",
           "Why are there no controls on my shared dashboard?",
           "Why is there no KPI target gauge in my shared dashboard?"
+        ],
+        "Public dashboard links": [
+          "How do I use dashboard sharing?",
+          "How to use dashboard sharing?",
+          "How do I email a dashboard?",
+          "How do I stop a shared dashboard link?"
+        ],
+        "Email a business analysis report": [
+          "How do I use report sharing?",
+          "How to use report sharing?",
+          "How do I email a Business Analysis report?",
+          "How do I stop a shared report link?"
         ]
+      },
+      "section_routes": {
+        "Email a business analysis report": "/business-analysis"
       }
     },
     {
@@ -1645,7 +1807,22 @@
         "lag-observations",
         "forecasts",
         "privacy-preferences"
-      ]
+      ],
+      "direct_questions": {
+        "Ask Decisionate": [
+          "How do I use Ask Decisionate?",
+          "How to use Ask Decisionate?",
+          "How do I use Help & Support?",
+          "How to use Help & Support?",
+          "How do I use Help and Support?",
+          "How to use Help and Support?"
+        ],
+        "Send a useful support request": [
+          "How do I use the support form?",
+          "How to use the support form?",
+          "How do I contact support?"
+        ]
+      }
     },
     {
       "id": "privacy-preferences",
@@ -1696,7 +1873,14 @@
       "direct_questions": {
         "Match customer or product identities": [
           "How do I use Entity Matching?",
-          "How do I create linked history?"
+          "How to use Entity Matching?",
+          "How do I create linked history?",
+          "How do I match customer or product records?"
+        ],
+        "Compare dashboard data": [
+          "How do I use Compare data?",
+          "How to use Compare data?",
+          "How do I join datasets on a dashboard?"
         ]
       },
       "audience": "customer",
@@ -1725,7 +1909,10 @@
         "dashboards",
         "relationship-evidence",
         "dimension-filters"
-      ]
+      ],
+      "section_routes": {
+        "Match customer or product identities": "/entity-matching"
+      }
     },
     {
       "id": "operator-architecture",

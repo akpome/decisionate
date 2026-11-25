@@ -30,6 +30,21 @@ produce an unusual week. Whole-week results include an expected range even
 when the week is not unusual. Missing dates prevent a complete-week assessment;
 they are not replaced with invented zero values.
 
+## Check for unusual changes
+
+1. Open Business Analysis > Compare metrics. Choose a single- or multi-dataset
+   report, select metrics, and set dates and grouping for the period to check.
+   For the last completed week, use Weekly Reports instead.
+2. Keep Detect unusual changes checked. If your business has recurring busy
+   and quiet periods, set Business has seasonal activity separately under
+   Business context.
+3. Preview the report. Compare the actual value with the expected range and
+   check any warnings about missing history. A result marked Not assessed
+   does not mean nothing unusual happened.
+4. Check the source records and known changes, such as a promotion or a
+   closure, before acting. Anomaly detection flags what to investigate; it
+   does not explain the cause or send an immediate alert.
+
 ## How expected behavior is built
 
 The detector uses preceding history inside a rolling three-calendar-year cap.

@@ -59,3 +59,32 @@ incident without distributing the exposed data.
 Report and chart selections refer to the active workspace. An old browser tab
 or bookmark may point to a different context. Switch using authorized controls
 and reopen the relevant page rather than assuming an old link proves access.
+
+## Manage workspace settings
+
+1. Check the active workspace, then open Settings. The available options
+   depend on your role and subscription.
+2. With eligible owner access, use Workspace branding to edit the workspace
+   name, logo or colors, and choose Save Changes. When Hosted portal settings
+   is offered, use that editor instead for the portal address and sign-in
+   branding. Saving workspace branding does not publish a portal.
+3. Use Workspace Members to invite or manage teammates. Agencies manage
+   separate clients in Client Workspaces. Client owners see the controls
+   allowed for their workspace, such as sharing or the agency connection.
+4. Use Billing, not Settings, for subscription changes. Delete workspace
+   in Settings is permanent and has separate ownership and access checks.
+
+A missing control does not mean the workspace or its data has been removed.
+Check your selected workspace and permissions first.
+
+## Invite a teammate
+
+In an eligible owner workspace, open Settings > Workspace Members. Under
+Invite a teammate by email, enter the person's email and choose Invite Member.
+They open the email, sign in or create a login with the invited address, and
+accept workspace access. Review the invitation in Workspace Members before
+sending again. Only grant the access the person needs.
+
+For an agency client owner, use Client Workspaces > Create and invite owner
+instead. A client owner sharing their client workspace should use its Share
+workspace controls where available, not create a second workspace.

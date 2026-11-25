@@ -49,6 +49,25 @@ sources and their dimension filters; the remaining selections are kept. Preview
 again before saving a replacement. Dataset names are not used to decide whether
 a source is joined.
 
+## Set up relationship analysis
+
+1. Open Business Analysis > Compare metrics > Multi-dataset report. Choose
+   dated metrics from at least two original datasets, then set the dates and
+   grouping. Both sources need usable data in matching periods.
+2. In Relationship analysis, leave Enable correlation analysis checked to
+   test relationships. Under Metric pairs, remove the pairs you don't want
+   to test and review Relationship direction for the rest. Use Automatic
+   or choose the metric you expect to lead. Use Maximum delay under Delay to
+   check to limit how far apart the report compares the metrics.
+3. Choose Preview analysis. Read each pair's correlation, observed direction
+   and delay, and check whether it had enough matched observations. Use the
+   preview's direction selector to rerun a pair in a different direction.
+   Moving together does not mean one metric caused the other to change.
+
+To compare trends without testing relationships, clear Enable correlation
+analysis before previewing. You still get totals, charts and any enabled
+unusual-change checks. Single dataset report has no cross-dataset relationships.
+
 ## Where did correlation settings go? Is Reports a decision review?
 
 New Multi-dataset reports open with Enable correlation analysis checked. The correlation
@@ -80,6 +99,10 @@ showing every workspace source. Unavailable sources remain explicit and retryabl
 they are not replaced with another dataset. Dataset names load first, and only
 the selected source's metric catalog is read in this workflow. More names can be
 loaded with Load more datasets when the catalog is paginated.
+
+Set the report dates and grouping to match the data. Enter an optional Business
+question to give the report context. Choose Preview analysis, review the totals,
+trends and any unusual changes, then choose Save report to keep the result.
 
 ## Where is Business impact and how do I use it?
 
@@ -329,7 +352,8 @@ business change. Existing saved reports keep their original workflow.
 ## Build an analysis
 
 1. Open Business Analysis from the sidebar. Under Compare metrics, choose Multi-dataset report
-   or Single dataset report, then name the business question.
+   or Single dataset report. Enter a Business question if you want the report
+   to focus on a specific question.
 2. Replace the generated report name with a useful description. Its unique
    starting label prevents name collisions; it is not a business conclusion.
 3. In Datasets and metrics, select only relevant approved measures. Multi dataset
@@ -360,7 +384,9 @@ business change. Existing saved reports keep their original workflow.
    a saved report or weekly settings.
    Clearing Enable correlation analysis skips these calculations. Single dataset
    reports omit relationship calculations and controls.
-7. Choose Preview analysis and wait for analysis to finish before saving.
+7. Choose Preview analysis. Review the results and any missing-data warnings
+   before choosing Save report. Use Create decision if you want to record
+   a change and follow up on it.
 
 ## Limits and evidence
 

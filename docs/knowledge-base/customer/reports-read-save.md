@@ -99,10 +99,12 @@ shared positive baseline. Missing observations remain gaps in either view.
 Success confirmations disappear after five seconds. The saved-report status,
 delivery status, errors and delivery warnings remain visible independently.
 
-On Business Analysis, Save report (previously Save snapshot) stores the server-generated completed analysis. Reopening it does
-not silently recalculate the data or update its narrative. Editing the settings
-starts an unsaved analysis; preview again and save a new snapshot. Generated
-names should be edited to describe the analysis, not treated as an overwrite key.
+In Business Analysis, finish Preview analysis, then choose Save report to
+keep the completed analysis. Give the report a recognizable name. Later,
+choose it from Saved reports. Reopening it does not recalculate the data
+or update its narrative. Editing the settings starts an unsaved analysis.
+Preview again and save a new snapshot to keep a different period or setup;
+the name is not an overwrite key.
 
 On Weekly Reports, preview first, then choose Save changes. This replaces the
 workspace's one current weekly report and its setup for future weeks. It does

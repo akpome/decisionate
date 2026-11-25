@@ -4,7 +4,25 @@ Dashboard and the selectable industry dashboards are supporting views of metrics
 and trends. Use Reports for the integrated findings, anomalies and cross-dataset
 analysis workflow. The removed dashboard Analysis tab is not a hidden setting.
 
+## Choose a dashboard
+
+1. Check the workspace name, then open Dashboards from the sidebar.
+2. Choose a view that matches the job. General Business Overview uses selected
+   dataset metrics. A view marked Uses decision records uses saved decisions
+   instead. Industry views can need manual metric mappings.
+3. Choose Use Dashboard to make it your main workspace view, or Open Dashboard
+   on the view already selected. The Dashboard link opens that view.
+4. For a dataset view, select your dataset, check the metric mappings and set
+   dates within the available records. Choose Edit dashboard in General
+   Business Overview to select metrics or compare groups.
+
+Changing the view does not add a data source or delete an existing dashboard
+share. Use Shared links on Dashboards to manage emailed dashboard links.
+
 ## Configure a view
+
+Open Dashboard from the sidebar. To change its main view, open Dashboards first
+and choose the dashboard you want to use.
 
 Select the dataset and measures, then review the chart and any manual metric
 mappings. Industry dashboard names describe a view, not proof that a connector's

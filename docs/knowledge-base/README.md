@@ -31,6 +31,86 @@ states that limitation and may offer related reviewed questions as suggestions,
 not as evidence for the unanswered question. Add new phrasings only after
 checking that the approved answer directly addresses them.
 
+## Step-by-step tool guides
+
+Open a guide below or try its question in Ask Decisionate in Help & Support.
+For the tools listed here, both `How do I use ...?` and `How to use ...?`
+return the reviewed steps.
+These guides explain how to use the tools; they do not inspect your workspace.
+
+### Get Data Ready
+
+| Guide | Ask Decisionate |
+| --- | --- |
+| [Getting started](customer/getting-started.md#first-analysis-checklist) | How do I use Decisionate? |
+| [Upload or inspect a dataset](customer/uploads-datasets.md#add-and-inspect-data) | How do I use Datasets? |
+| [Connect a data source](customer/connectors.md#connect-safely) | How do I use Connections? |
+| [Import older connector records](customer/connectors.md#request-an-older-date-range) | How do I use Advanced date range? |
+| [Choose dataset metrics](customer/metric-selection.md#change-a-selection) | How do I use dataset metric selection? |
+| [Match identities across datasets](customer/joins-entities.md#match-customer-or-product-identities) | How do I use Entity Matching? |
+
+### Dashboards
+
+| Guide | Ask Decisionate |
+| --- | --- |
+| [Choose a dashboard](customer/dashboards.md#choose-a-dashboard) | How do I use Dashboards? |
+| [Use the active dashboard](customer/dashboards.md#configure-a-view) | How do I use Dashboard? |
+| [Select metrics and set a KPI target](customer/dashboards.md#how-do-i-choose-metrics-and-add-a-target) | How do I use Select Metrics? |
+| [Compare categories on a chart](customer/dashboards.md#how-do-i-compare-groups-on-a-dashboard) | How do I use Compare Groups? |
+| [Filter to a location, product or channel](customer/dimension-filters.md#apply-a-dimension-filter) | How do I use dimension filters? |
+| [Join data on a dashboard](customer/joins-entities.md#compare-dashboard-data) | How do I use Compare data? |
+
+### Business Analysis
+
+| Guide | Ask Decisionate |
+| --- | --- |
+| [Build and save an analysis](customer/reports-build.md#build-an-analysis) | How do I use Business Analysis? |
+| [Compare metrics](customer/reports-build.md#build-an-analysis) | How do I use Compare metrics? |
+| [Build a multi-dataset report](customer/reports-build.md#build-an-analysis) | How do I use Multi-dataset report? |
+| [Build a single-dataset report](customer/reports-build.md#analyze-one-dataset) | How do I use Single dataset report? |
+| [Turn report correlation on or off](customer/reports-build.md#set-up-relationship-analysis) | How do I use Relationship analysis? |
+| [Assess an implemented decision](customer/reports-build.md#where-is-business-impact-and-how-do-i-use-it) | How do I use Business impact? |
+| [Save or reopen a report](customer/reports-read-save.md#save-and-update) | How do I use Saved reports? |
+| [Check for unusual changes](customer/anomalies-seasonality.md#check-for-unusual-changes) | How do I use Anomaly detection? |
+| [Request report interpretation](customer/ai-interpretation.md#request-an-interpretation) | How do I use AI interpretation? |
+| [Compare recorded revenue per dollar](customer/performance-analysis.md#how-do-i-use-return-on-spend) | How do I use Return on spend? |
+| [Compare revenue after selected costs](customer/performance-analysis.md#how-do-i-use-profitability) | How do I use Profitability? |
+| [Check repeat purchases](customer/performance-analysis.md#how-do-i-use-customer-retention) | How do I use Customer retention? |
+| [Find where potential sales drop off](customer/performance-analysis.md#how-do-i-use-sales-conversion) | How do I use Sales conversion? |
+| [Plan cash and test late receipts](customer/performance-analysis.md#how-do-i-use-cash-flow-planning) | How do I use Cash flow planning? |
+
+### Planning and Monitoring
+
+| Guide | Ask Decisionate |
+| --- | --- |
+| [Test a future spending mix](customer/budget-planner.md#how-to-compare-advertising-spend-and-get-a-budget-recommendation) | How do I use Budget Planner? |
+| [Preview and save a weekly report](customer/weekly-reports.md#configure-weekly-analysis-and-sending-separately) | How do I use Weekly Reports? |
+| [Schedule, test or pause email](customer/email-branding.md#set-up-scheduled-weekly-email) | How do I use Scheduled email? |
+| [Preview and save a relationship](customer/relationship-monitors.md#set-up-a-two-metric-monitor) | How do I use Relationships? |
+| [Forecast a metric](customer/forecasts.md#generate-a-forecast) | How do I use Forecasts? |
+
+### Decisions and Sharing
+
+| Guide | Ask Decisionate |
+| --- | --- |
+| [Create and review a decision](customer/decisions-outcomes.md#how-do-i-follow-through-on-a-change-i-make) | How do I use Decisions? |
+| [Follow up on decisions](customer/decisions-outcomes.md#follow-up-in-action-needed) | How do I use Action Needed? |
+| [Share a dashboard or revoke one link](customer/sharing-exports.md#public-dashboard-links) | How do I use dashboard sharing? |
+| [Share a report or revoke one link](customer/sharing-exports.md#email-a-business-analysis-report) | How do I use report sharing? |
+
+### Workspace and Support
+
+| Guide | Ask Decisionate |
+| --- | --- |
+| [Manage account access and workspace settings](customer/workspaces-access.md#manage-workspace-settings) | How do I use Settings? |
+| [Invite or manage a teammate](customer/workspaces-access.md#invite-a-teammate) | How do I use Workspace Members? |
+| [Set up a branded portal](customer/hosted-portals.md#how-do-i-set-up-my-portal) | How do I use Hosted portal settings? |
+| [Create or link a client workspace](customer/agencies-clients.md#invitations-and-first-sign-in) | How do I use Client Workspaces? |
+| [Grant or revoke agency access](customer/agencies-clients.md#working-with-a-client) | How do I use Agency connection? |
+| [Manage a subscription](customer/billing-credits.md#subscription-changes) | How do I use Billing? |
+| [Find product guidance](customer/troubleshooting-support.md#ask-decisionate) | How do I use Ask Decisionate? |
+| [Ask for help or report a problem](customer/troubleshooting-support.md#send-a-useful-support-request) | How do I use the support form? |
+
 ## Customer articles
 
 | Topic | Article |

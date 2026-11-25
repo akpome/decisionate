@@ -51,6 +51,61 @@ class GuidanceTests(unittest.TestCase):
                         self.assertFalse(result.contact_support)
                         self.assertFalse(result.suggested_questions)
 
+    def test_each_customer_tool_has_direct_how_to_answers_and_a_working_destination(self):
+        guides = [
+            ("Decisionate", "/business-analysis", "First analysis checklist", "Preview analysis"),
+            ("Datasets", "/datasets", "Add and inspect data", "Add data"),
+            ("Connections", "/connections", "Connect safely", "Configure added connections"),
+            ("Advanced date range", "/connections", "Request an older date range", "Sync selected range"),
+            ("dataset metric selection", "/datasets", "Change a selection", "Reset to system defaults"),
+            ("Dashboards", "/dashboards", "Choose a dashboard", "Use Dashboard"),
+            ("Dashboard", "/dashboard", "Configure a view", "Date column"),
+            ("Select Metrics", "/dashboard", "How do I choose metrics and add a target?", "Target metric"),
+            ("Compare Groups", "/dashboard", "How do I compare groups on a dashboard?", "Dimension column"),
+            ("dimension filters", "/dashboard", "Apply a dimension filter", "Unique values"),
+            ("Compare data", "/dashboard", "Compare dashboard data", "Join selected data"),
+            ("Entity Matching", "/entity-matching", "Match customer or product identities", "Entity Matching"),
+            ("Business Analysis", "/business-analysis", "Build an analysis", "Preview analysis"),
+            ("Compare metrics", "/business-analysis", "Build an analysis", "Preview analysis"),
+            ("Multi-dataset report", "/business-analysis", "Build an analysis", "Enable correlation analysis"),
+            ("Single dataset report", "/business-analysis/dataset", "Analyze one dataset", "Preview analysis"),
+            ("Relationship analysis", "/business-analysis", "Set up relationship analysis", "Enable correlation analysis"),
+            ("Business impact", "/business-analysis/impact", "Where is Business impact and how do I use it?", "Analyze business impact"),
+            ("Saved reports", "/business-analysis", "Save and update", "Save report"),
+            ("Anomaly detection", "/business-analysis", "Check for unusual changes", "Detect unusual changes"),
+            ("AI interpretation", "/business-analysis", "Request an interpretation", "fresh report preview"),
+            ("Return on spend", "/business-analysis/returns", "How do I use Return on spend?", "Compare results"),
+            ("Profitability", "/business-analysis/profitability", "How do I use Profitability?", "money left"),
+            ("Customer retention", "/business-analysis/retention", "How do I use Customer retention?", "Time to buy again"),
+            ("Sales conversion", "/business-analysis/conversion", "How do I use Sales conversion?", "Add step"),
+            ("Cash flow planning", "/business-analysis/cash-flow", "How do I use Cash flow planning?", "Preview cash plan"),
+            ("Budget Planner", "/budget-planner", "How to compare advertising spend and get a budget recommendation", "Preview budget"),
+            ("Weekly Reports", "/weekly-reports", "Configure weekly analysis and sending separately", "Save changes"),
+            ("Scheduled email", "/alerts", "Set up scheduled weekly email", "Save email settings"),
+            ("Relationships", "/relationships", "Set up a two-metric monitor", "Preview relationship"),
+            ("Forecasts", "/forecasts", "Generate a forecast", "Business has seasonal activity"),
+            ("Decisions", "/decisions/new", "How do I follow through on a change I make?", "Preview targets"),
+            ("Action Needed", "/action-needed", "Follow up in Action Needed", "Results ready"),
+            ("dashboard sharing", "/dashboard", "Public dashboard links", "Stop this link"),
+            ("report sharing", "/business-analysis", "Email a business analysis report", "Send email"),
+            ("Settings", "/settings", "Manage workspace settings", "Workspace Members"),
+            ("Workspace Members", "/settings", "Invite a teammate", "Invite Member"),
+            ("Hosted portal settings", "/settings", "How do I set up my portal?", "Save draft"),
+            ("Client Workspaces", "/settings", "Invitations and first sign-in", "Create and invite owner"),
+            ("Agency connection", "/settings", "Working with a client", "Allow agency access"),
+            ("Billing", "/billing", "Subscription changes", "checkout"),
+            ("Ask Decisionate", "/help", "Ask Decisionate", "reviewed question"),
+            ("the support form", "/help", "Send a useful support request", "Bug report"),
+        ]
+        for tool, route, section, expected_step in guides:
+            for prefix in ("How do I use", "How to use"):
+                with self.subTest(tool=tool, wording=prefix):
+                    result = guidance.answer_guidance(GuidanceRequest(question=f"{prefix} {tool}?"))
+                    self.assertEqual([(item.route, item.section) for item in result.sources], [(route, section)])
+                    self.assertIn(expected_step.casefold(), " ".join(result.answer.casefold().split()))
+                    self.assertFalse(result.contact_support)
+                    self.assertFalse(result.suggested_questions)
+
     def test_landing_page_promises_are_answered_from_reviewed_workflows(self):
         path = Path(__file__).resolve().parents[3] / "apps/web/components/landing/hero.tsx"
         copy = re.findall(r'\{t\("([^"]+)"\)\}', path.read_text())

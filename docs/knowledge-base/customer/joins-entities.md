@@ -11,8 +11,9 @@ Open Compare data on a dataset dashboard with at least two available sources.
 Choose datasets, source metrics and date columns, and apply each source's own
 dimension filter if needed. Join selected data normalizes dates into comparable
 periods. Check overlap, coverage, joined metric choices and mappings before
-interpreting the chart. Reset joined data releases the joined analysis context;
-review the restored selection before continuing.
+interpreting the chart. After joining, use Review joined data to inspect the
+selection. Use Reset joined data in that panel to release the join and return
+to the original datasets.
 
 No overlapping normalized dates, invalid date values or overly narrow filters
 can prevent a useful joined comparison. A join does not create missing business

@@ -47,8 +47,11 @@ that its provider grants access to a particular customer's account.
 2. Provide the account, property, shop, company, tenant or object identifier
    requested for that connector. Use the provider account with appropriate access.
 3. Complete authorization or enter credentials only in the designated controls.
-4. Run the available connection/pull operation and inspect the resulting dataset.
-5. Enable scheduled sync only after the manual result is correct.
+4. Choose Sync now when available. Wait for the sync and open the resulting
+   dataset to check the dates and a few values.
+5. If the connection offers Enable automatic sync, choose its frequency
+   and local time, then choose Save schedule. A sync schedule updates
+   source data; it is not the schedule that emails a weekly report.
 
 Permissions, provider limits, regional support and available history can constrain
 the result. A token refresh does not create new permissions or missing history.
@@ -57,6 +60,17 @@ If reauthorization is requested, use the connection's authorization workflow.
 Never paste secrets into support chat. A chatbot should not guess provider API
 versions, scopes or column names. A vendor-specific question not covered by the
 reviewed source needs current official vendor documentation or human review.
+
+## Request an older date range
+
+1. Open Connections > Configure added connections. Find the authorized
+   source and choose Advanced date range when available.
+2. Set From and To, then choose Sync selected range. Use dates within
+   the allowed range. A provider can still restrict how much history it
+   returns, so selecting a range does not guarantee complete data.
+3. Let the pull finish before starting another one. Longer imports can
+   run in chunks. Open the resulting dataset and verify the actual dates
+   and rows before running a report or forecast.
 
 ## How do I connect Google Business Profile?
 

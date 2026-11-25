@@ -33,6 +33,19 @@ do not create a second subscription to change tiers.
 
 ## Subscription changes
 
+1. Open Billing as an authorized workspace owner. Make sure you are looking
+   at the workspace you intend to manage.
+2. Review its plan, status and current period. For a new subscription, choose
+   one of the available plans and a monthly or annual term. Check the total
+   and continue to checkout. If a subscription already exists, use the
+   billing-management action rather than starting a second checkout.
+3. In the billing portal, review available payment and cancellation controls.
+   If a cancellation is scheduled for a later date, the current period has
+   not ended yet. After checkout, wait for Billing to confirm the payment
+   before trying again.
+4. Use the separate AI credits section to review allowances and any available
+   purchase option. Buying credits does not change your subscription.
+
 An active paid period normally renews; its end date is not automatically an
 expired subscription. A trial end, scheduled cancellation, incomplete checkout,
 past-due renewal and an expired plan are different states. Review the displayed
