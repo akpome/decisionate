@@ -16,6 +16,7 @@ import dynamic from "next/dynamic"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } from "@/features/dashboard/date-window"
 import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
+import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { CompareGroupsEditor, DashboardGroupChart, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
@@ -3102,13 +3103,13 @@ export default function DashboardPage() {
             {metricDimensionFilter}
             <div className="grid gap-3 md:grid-cols-2">
               {metrics.map(metric => (
-                <MetricSelectionRow
+                <DashboardSelectionRow
                   key={metric.column}
-                  metric={metric}
+                  label={formatMetricName(metric.column)}
                   color={getMetricColor(getMetricIndex(metrics, metric.column))}
-                  selected={selectedMetrics.includes(metric.column)}
+                  checked={selectedMetrics.includes(metric.column)}
                   target={targets[metric.column] ?? 0}
-                  onTargetChange={value => setTargets(current => ({ ...current, [metric.column]: value }))}
+                  onTargetChange={value => setTargets(current => ({ ...current, [metric.column]: value ?? 0 }))}
                   onToggle={() => handleMetricToggle(metric.column)}
                 />
               ))}
@@ -5112,148 +5113,6 @@ function formatChartCellValue(
 }
 
 /* =========================
-   Shared: Metric Selection Rows
-========================= */
-
-function MetricSelectionRow({
-  metric,
-  color,
-  selected,
-  target,
-  onToggle,
-  onTargetChange,
-}: {
-  metric: DashboardMetric
-  color: string
-  selected: boolean
-  target: number
-  onToggle: () => void
-  onTargetChange: (value: number) => void
-}) {
-  return (
-    <div
-      className={`flex flex-col gap-3 rounded-xl border p-3 transition sm:flex-row sm:items-center sm:justify-between ${
-        selected
-          ? ""
-          : "border-gray-100 bg-gray-50"
-      }`}
-      style={
-        selected
-          ? {
-            borderColor: getColorWithAlpha(
-              color,
-              "66"
-            ),
-            backgroundColor: getColorWithAlpha(
-              color,
-              "12"
-            ),
-          }
-          : undefined
-      }
-    >
-      <button
-        type="button"
-        aria-pressed={selected}
-        aria-label={`${selected ? "Hide" : "Show"} ${formatMetricName(
-          metric.column
-        )} in dashboard chart`}
-        onClick={onToggle}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-      >
-        <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
-            selected
-              ? "bg-white"
-              : "border-gray-200 bg-white text-gray-400"
-          }`}
-          style={
-            selected
-              ? {
-                borderColor: getColorWithAlpha(
-                  color,
-                  "66"
-                ),
-                color,
-              }
-              : undefined
-          }
-          aria-hidden="true"
-        >
-          {selected ? "✓" : ""}
-        </span>
-
-        <span className="min-w-0">
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{
-                backgroundColor: color,
-              }}
-              aria-hidden="true"
-            />
-
-            <span className="truncate text-sm font-semibold text-gray-900">
-              {formatMetricName(metric.column)}
-            </span>
-          </span>
-
-          <span className="block text-xs text-gray-500">
-            {selected
-              ? "Included in chart"
-              : "Hidden from chart"}
-          </span>
-        </span>
-      </button>
-
-      <label
-        className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-500 sm:w-52"
-        style={
-          selected
-            ? {
-              borderColor: getColorWithAlpha(
-                color,
-                "44"
-              ),
-            }
-            : undefined
-        }
-        onClick={(event) => {
-          event.stopPropagation()
-        }}
-      >
-        <span className="shrink-0 font-medium">
-          Target
-        </span>
-
-        <input
-          type="number"
-          aria-label={`Target for ${formatMetricName(metric.column)}`}
-          min={0}
-          value={
-            target > 0
-              ? target
-              : ""
-          }
-          placeholder="Optional"
-          onChange={(event) => {
-            const nextValue =
-              event.target.value
-
-            onTargetChange(
-              nextValue === ""
-                ? 0
-                : Number(nextValue)
-            )
-          }}
-          className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none"
-        />
-      </label>
-    </div>
-  )
-}
-
-/* =========================
    Shared: Gauge
 ========================= */
 
@@ -6832,32 +6691,6 @@ function getMetricColor(index: number) {
   return dashboardChartPalette[
     index % dashboardChartPalette.length
   ]
-}
-
-function getColorWithAlpha(
-  color: string,
-  alpha: string
-) {
-  if (
-    !/^[0-9a-fA-F]{2}$/.test(alpha)
-  ) {
-    return color
-  }
-
-  if (/^#[0-9a-fA-F]{6}$/.test(color)) {
-    return `${color}${alpha}`
-  }
-
-  if (color.startsWith("var(")) {
-    const alphaPercent =
-      Math.round(
-        (parseInt(alpha, 16) / 255) * 100
-      )
-
-    return `color-mix(in srgb, ${color} ${alphaPercent}%, transparent)`
-  }
-
-  return `${color}${alpha}`
 }
 
 function formatMetricName(metric: string) {

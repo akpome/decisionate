@@ -23,6 +23,11 @@ function load(source, globals = {}) {
 const { DatasetDimensionFilter, dimensionFilterLabel } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"))
 const { SearchableSelect } = load(readFileSync(new URL("../components/searchable-select.tsx", import.meta.url), "utf8"))
 const render = props => renderToStaticMarkup(React.createElement(DatasetDimensionFilter, { datasetId: 7, userId: "owner", onChange() {}, ...props }))
+const groupPicker = {
+  limit: 8,
+  renderValue: (item, checked, disabled, onChange) => React.createElement("input",
+    { key: JSON.stringify(item), type: "checkbox", checked, disabled, onChange }),
+}
 
 test("dimension control defaults to all rows with no preselected values", () => {
   const html = render({})
@@ -58,7 +63,7 @@ test("unique values use a dropdown with a search field instead of a checkbox lis
 
 test("group comparison shows checkbox values with search while ordinary filters keep the dropdown", () => {
   const value = { column: "region", values: ["East", "West", null] }
-  const html = render({ value, checkboxLimit: 8 })
+  const html = render({ value, groupPicker })
   assert.match(html, /aria-label="Groups to compare"/)
   assert.match(html, /aria-label="Search unique values"/)
   assert.equal((html.match(/type="checkbox"/g) || []).length, 3)
@@ -91,7 +96,7 @@ test("a saved filter on a metric loads the valid dimension list without clearing
         return { columns: [{ column: "region", label: "Region" }], values: [], next_offset: null }
       } } : name === "@/components/searchable-select" ? { SearchableSelect } : require(name),
   })
-  const props = { datasetId: 7, userId: "owner", checkboxLimit: 8,
+  const props = { datasetId: 7, userId: "owner", groupPicker,
     value: { column: "customer_id", values: ["123"] }, onChange: value => changes.push(value) }
   Control(props)
   await new Promise(resolve => setTimeout(resolve, 0))

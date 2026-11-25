@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useState } from "react"
 import { RefreshCw } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { formatMetricLabel } from "@/features/dashboard/components/metric-selector"
 import { dashboardChartPalette } from "@/features/dashboard/lib/chart-palette"
 import { DatasetDimensionFilter, dimensionValueLabel } from "@/features/datasets/components/dimension-filter"
@@ -11,8 +12,28 @@ import {
   getDashboardGroupSeries, type DashboardGroupPreference, type DashboardGroupQuery, type DashboardGroupResult, type DimensionFilter,
 } from "@/lib/api"
 
-const input = "min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-950"
+const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const maxGroups = dashboardChartPalette.length
+
+function groupColor(value: string | null, colors: Map<string | null, string>) {
+  const selected = colors.get(value)
+  if (selected) return selected
+  const hash = Array.from(JSON.stringify(value)).reduce((sum, character) =>
+    (Math.imul(sum, 31) + character.codePointAt(0)!) >>> 0, 0)
+  const start = hash % maxGroups
+  const used = [...colors.values()]
+  for (let offset = 0; offset < maxGroups; offset++) {
+    const color = dashboardChartPalette[(start + offset) % maxGroups]
+    if (!used.includes(color)) return color
+  }
+  return dashboardChartPalette[start]
+}
+
+function groupColors(values: (string | null)[]) {
+  const colors = new Map<string | null, string>()
+  for (const value of values) colors.set(value, groupColor(value, colors))
+  return colors
+}
 
 export function useDashboardGroupSeries(datasetId: number | undefined, userId: string, workspaceId: string | undefined,
   query: DashboardGroupQuery | undefined, context: string) {
@@ -44,38 +65,27 @@ export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, f
 }) {
   const { t } = useDecisionateText()
   const id = useId()
+  const colors = groupColors(filter?.values ?? [])
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <DatasetDimensionFilter datasetId={datasetId} userId={userId} workspaceId={workspaceId}
-        value={filter} onChange={onFilter} checkboxLimit={maxGroups} embedded />
-      <div className="min-w-0 space-y-3">
-        <label className="block space-y-1 text-xs font-medium text-gray-600">
-          <span>{t("Metric to compare")}</span>
-          <select className={input} value={metric} onChange={event => onMetric(event.target.value)} disabled={!metrics.length}>
-            <option value="">{t(metrics.length ? "Choose a metric" : "No numeric metrics available")}</option>
-            {metrics.map(column => <option key={column} value={column}>{formatMetricLabel(column)}</option>)}
-          </select>
-        </label>
-        {metric && Boolean(filter?.values.length) && (
-          <fieldset className="min-w-0 border-t pt-2">
-            <legend className="pr-2 text-xs font-medium text-gray-600">{t("Group targets (optional)")}</legend>
-            <div className="grid divide-y">
-              {filter?.values.map((value, index) => (
-                <label key={JSON.stringify(value)} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(6rem,9rem)] items-center gap-3 py-2 text-sm">
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{t(dimensionValueLabel(value))}</span>
-                  <input className={input} type="number" inputMode="decimal" min="0" step="any"
-                    id={`${id}-target-${index}`} aria-label={`${t("Target")}: ${t(dimensionValueLabel(value))}`}
-                    value={targets[index] ?? ""} placeholder={t("No target")}
-                    onChange={event => {
-                      const amount = event.target.valueAsNumber
-                      onTarget(index, Number.isFinite(amount) && amount > 0 ? amount : null)
-                    }} />
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
+    <div className="min-w-0 space-y-3">
+      <div className="min-w-0">
+        <label htmlFor={id} className="block text-xs font-medium text-gray-600">{t("Metric to compare")}</label>
+        <select id={id} className={input} value={metric} onChange={event => onMetric(event.target.value)} disabled={!metrics.length}>
+          <option value="">{t(metrics.length ? "Choose a metric" : "No numeric metrics available")}</option>
+          {metrics.map(column => <option key={column} value={column}>{formatMetricLabel(column)}</option>)}
+        </select>
       </div>
+      <DatasetDimensionFilter datasetId={datasetId} userId={userId} workspaceId={workspaceId}
+        value={filter} onChange={onFilter} embedded groupPicker={{
+          limit: maxGroups,
+          renderValue(value, checked, disabled, toggle) {
+            const index = filter?.values.indexOf(value) ?? -1
+            return <DashboardSelectionRow key={JSON.stringify(value)}
+              label={t(dimensionValueLabel(value))} color={groupColor(value, colors)}
+              checked={checked} disabled={disabled} onToggle={toggle} target={targets[index]}
+              onTargetChange={metric && checked ? target => onTarget(index, target) : undefined} />
+          },
+        }} />
     </div>
   )
 }
@@ -103,6 +113,7 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
   const { t } = useDecisionateText()
   const data = state.data
   const rows = useMemo(() => alignDashboardGroupPoints(data?.series ?? []), [data])
+  const colors = groupColors(comparison.filter.values)
   const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
   return (
     <section className="min-w-0 space-y-3 border-t pt-4" aria-label={t("Group comparison")}>
@@ -123,15 +134,15 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
               <XAxis dataKey="period" minTickGap={32} tick={{ fontSize: 11 }} tickMargin={8} tickFormatter={period => period.slice(2)} />
               <YAxis width={57} domain={["auto", "auto"]} tickFormatter={value => format.format(value)} tick={{ fontSize: 11 }} />
               <Tooltip formatter={value => typeof value === "number" ? format.format(value) : value} />
-              {data?.series.map((group, index) => {
-                const color = dashboardChartPalette[index]
+              {data?.series.map(group => {
+                const color = groupColor(group.value, colors)
                 const target = comparison.targets[comparison.filter.values.indexOf(group.value)]
-                return target ? <ReferenceLine key={`target-${index}`} y={target} stroke={color}
+                return target ? <ReferenceLine key={`target-${JSON.stringify(group.value)}`} y={target} stroke={color}
                   strokeOpacity={0.8} strokeDasharray="5 4" ifOverflow="extendDomain" /> : null
               })}
               {data?.series.map((group, index) => (
                 <Line key={JSON.stringify(group.value)} type="linear" dataKey={`group${index}`} name={t(dimensionValueLabel(group.value))}
-                  stroke={dashboardChartPalette[index]} strokeWidth={2} dot={group.points.length < 90 ? { r: 2 } : false}
+                  stroke={groupColor(group.value, colors)} strokeWidth={2} dot={group.points.length < 90 ? { r: 2 } : false}
                   connectNulls={false} isAnimationActive={false} />
               ))}
             </LineChart>
@@ -140,8 +151,8 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
       )}
       {data && (
         <ul className="grid grid-cols-1 gap-x-5 gap-y-2 border-y py-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          {data.series.map((group, index) => {
-            const color = dashboardChartPalette[index]
+          {data.series.map(group => {
+            const color = groupColor(group.value, colors)
             const target = comparison.targets[comparison.filter.values.indexOf(group.value)]
             return <li key={JSON.stringify(group.value)} className="min-w-0 space-y-1">
               <div className="flex min-w-0 items-center gap-2 font-medium">
