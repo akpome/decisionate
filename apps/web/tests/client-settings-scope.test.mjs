@@ -164,23 +164,40 @@ test("current and legacy Agency owners get inline portal settings instead of wor
     const html = render(Settings, { userId: "agency", fullName: "Agency Owner", emailAddress: "owner@example.test" })
     assert.match(html, /data-hosted-settings="true"/)
     assert.match(html, /Hosted portal settings/)
-    assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|href="\/hosted-portal"/)
+    assert.doesNotMatch(html, /Workspace Name|Logo link or upload|Report Display Name|Reset Branding|href="\/hosted-portal"|name="branding-editor"/)
     assert.match(html, /Client Workspaces/)
     assert.match(html, /Workspace Members/)
     assert.match(html, /workspace-deletion-title/)
   }
 })
 
-test("Professional owners retain workspace branding and can set up a hosted portal without Agency controls", () => {
+test("Professional owners can choose between workspace branding and hosted portal settings", () => {
   const workspace = { id: 1, name: "Owner workspace", owner_user_id: "owner", role: "owner", is_managed_client: false }
-  for (const plan of ["professional"]) {
-    const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "professional" ? "direct" : "agency" } }).Settings
-    const html = render(Settings, { userId: "owner", fullName: "Owner", emailAddress: "owner@example.test" })
-    assert.match(html, /Workspace Name/)
-    assert.match(html, /Logo link or upload/)
-    assert.match(html, /data-hosted-settings="true"/)
-    assert.doesNotMatch(html, /Client Workspaces|Create and invite owner/)
-  }
+  const context = JSON.stringify(["owner", "owner", 0])
+  const view = brandingSelection => render(components(workspace, {}, { brandingSelection }).Settings, {
+    userId: "owner", fullName: "Owner", emailAddress: "owner@example.test",
+  })
+  const selectedEditor = html => html.match(/<input(?=[^>]*type="radio")(?=[^>]*name="branding-editor")(?=[^>]*checked="")[^>]*value="(workspace|portal)"/)?.[1]
+  const defaultView = view()
+  assert.equal(selectedEditor(defaultView), "workspace")
+  assert.match(defaultView, /name="branding-editor" value="portal"/)
+  assert.match(defaultView, /Workspace Name/)
+  assert.match(defaultView, /Logo link or upload/)
+  assert.doesNotMatch(defaultView, /data-hosted-settings|Client Workspaces|Create and invite owner/)
+
+  const hosted = view({ context, editor: "portal", portalOpened: true })
+  assert.equal(selectedEditor(hosted), "portal")
+  assert.match(hosted, /<div><section data-hosted-settings="true"/)
+  assert.doesNotMatch(hosted, /Workspace Name|Logo link or upload|Reset Branding|Client Workspaces/)
+
+  const switchedBack = view({ context, editor: "workspace", portalOpened: true })
+  assert.equal(selectedEditor(switchedBack), "workspace")
+  assert.match(switchedBack, /Workspace Name|Logo link or upload/)
+  assert.match(switchedBack, /<div hidden=""><section data-hosted-settings="true"/, "hide the opened portal without losing its draft")
+
+  const otherWorkspace = view({ context: JSON.stringify(["owner", "other", 0]), editor: "portal", portalOpened: true })
+  assert.match(otherWorkspace, /Workspace Name/)
+  assert.doesNotMatch(otherWorkspace, /data-hosted-settings/)
 })
 
 test("custom-domain, free and unrecognized plans never fall back to workspace branding", () => {

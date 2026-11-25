@@ -71,6 +71,8 @@ type SettingsClientProps = {
   emailAddress: string
 }
 
+type BrandingEditor = "workspace" | "portal"
+
 function getSettingsErrorMessage(
   error: unknown,
   fallbackMessage: string
@@ -200,6 +202,11 @@ export function SettingsClient({
     useState("")
   const [saved, setSaved] =
     useState(false)
+  const [brandingSelection, setBrandingSelection] = useState<{
+    context: string
+    editor: BrandingEditor
+    portalOpened: boolean
+  }>()
 
   const workspaceDisplayName =
     reportDisplayName.trim() ||
@@ -323,6 +330,17 @@ export function SettingsClient({
     canConfigureWorkspace
   const hostedPortalSettings = ["professional", "agency", "agency_subdomain"].includes(billingStatus?.plan || "") && !process.env.NEXT_PUBLIC_PORTAL_ID
   const canEditWorkspaceBranding = canConfigureWorkspace && (billingStatus?.plan === "professional" || Boolean(process.env.NEXT_PUBLIC_PORTAL_ID && billingStatus?.plan === "agency"))
+  const hasBrandingChoice = hostedPortalSettings && canEditWorkspaceBranding
+  const currentBrandingSelection = brandingSelection?.context === organizationLoadKey ? brandingSelection : undefined
+  const brandingEditor = currentBrandingSelection?.editor ?? "workspace"
+
+  function selectBrandingEditor(editor: BrandingEditor) {
+    setBrandingSelection({
+      context: organizationLoadKey,
+      editor,
+      portalOpened: editor === "portal" || Boolean(currentBrandingSelection?.portalOpened),
+    })
+  }
 
   useEffect(() => {
     let ignoreResult = false
@@ -1513,13 +1531,33 @@ export function SettingsClient({
             className="rounded-md border border-red-200 bg-white px-3 py-2 font-medium hover:bg-red-100">Retry workspace load</button>
         </div>
       )}
-      {!isClientPortalUser && !organizationLoadError && hostedPortalSettings && <HostedSubdomainSetup userId={userId} embedded />}
-      {!isClientPortalUser && !organizationLoadError && canEditWorkspaceBranding && (
+      {!isClientPortalUser && !organizationLoadError && hasBrandingChoice && (
+        <fieldset className="min-w-0">
+          <legend className="mb-2 text-sm font-semibold">Branding</legend>
+          <div className="grid w-fit max-w-full grid-cols-[repeat(2,minmax(0,1fr))] gap-1 rounded-md border border-gray-200 bg-white p-1">
+            {([["workspace", "Workspace branding"], ["portal", "Hosted portal settings"]] as const).map(([editor, label]) => (
+              <label key={editor} className="min-w-0 cursor-pointer rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-[var(--decisionate-brand-primary)]">
+                <input type="radio" name="branding-editor" value={editor} checked={brandingEditor === editor}
+                  onChange={() => selectBrandingEditor(editor)} className="peer sr-only" />
+                <span className="flex h-full min-h-10 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-medium text-gray-700 peer-checked:bg-[var(--decisionate-brand-primary-soft)] peer-checked:text-[var(--decisionate-brand-primary-text)]">
+                  {label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {!isClientPortalUser && !organizationLoadError && hostedPortalSettings && (!hasBrandingChoice || currentBrandingSelection?.portalOpened) && (
+        <div hidden={hasBrandingChoice && brandingEditor !== "portal"}>
+          <HostedSubdomainSetup userId={userId} embedded />
+        </div>
+      )}
+      {!isClientPortalUser && !organizationLoadError && canEditWorkspaceBranding && (!hasBrandingChoice || brandingEditor === "workspace") && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold">
-              Workspace
+              {hasBrandingChoice ? "Workspace branding" : "Workspace"}
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
