@@ -97,6 +97,15 @@ class HostedSubdomainPortal(Base):
     suspended_at = Column(DateTime, nullable=True)
 
 
+class HostedSubdomainAddress(Base):
+    """Pending reservations and former hostnames for the same portal."""
+
+    __tablename__ = "hosted_subdomain_addresses"
+    hostname = Column(String(253), primary_key=True)
+    portal_id = Column(String, ForeignKey("hosted_subdomain_portals.id", ondelete="SET NULL"), nullable=True, index=True)
+    forwards = Column(Boolean, nullable=False, default=False)
+
+
 class HostedSubdomainEntitlement(Base):
     """Legacy add-on records retained for upgrades, never required for portal access."""
 

@@ -15,7 +15,7 @@ import {
 import { portalBrand } from "./lib/portal-brand"
 import { DECISIONATE_APPLICATION_ORIGIN, DECISIONATE_MARKETING_ORIGIN } from "./lib/decisionate-domains"
 import { canonicalWorkspacePathname, internalWorkspacePathname, isWorkspacePathname } from "./lib/application-routes"
-import { resolveHostedPortal, safeHostedReturn } from "./features/hosted-subdomains/server"
+import { getHostedAddressForwardUrl, resolveHostedPortal, safeHostedReturn } from "./features/hosted-subdomains/server"
 import { hostedPrimaryOrigin, isHostedHostname, type HostedPortal } from "./features/hosted-subdomains/types"
 import { unavailablePortalPage, unavailablePortalHeaders } from "./features/hosted-subdomains/unavailable-page"
 
@@ -130,6 +130,11 @@ export default async function proxy(
   trustedHeaders.delete("x-decisionate-hosted-return")
   if (hosted) {
     portal = isHostedHostname(hostname) ? await resolveHostedPortal(hostname) : null
+    if (portal?.redirect_origin && !request.nextUrl.pathname.startsWith("/__clerk/") &&
+        ["GET", "HEAD"].includes(request.method)) {
+      const target = getHostedAddressForwardUrl(new URL(request.nextUrl.href), portal.redirect_origin)
+      return NextResponse.redirect(target, { status: 307, headers: { "Cache-Control": "no-store" } })
+    }
     if (!portal || (!portal.active && !request.nextUrl.pathname.startsWith("/__clerk/"))) {
       return new NextResponse(unavailablePortalPage, { status: 404, headers: unavailablePortalHeaders })
     }

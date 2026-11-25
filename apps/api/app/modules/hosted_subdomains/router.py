@@ -6,15 +6,15 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import or_, update
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
 from app.application_context import get_application
 from app.db.database import SessionLocal
-from app.db.models import HostedSubdomainPortal, Organization, WorkspaceSubscription, utc_now
+from app.db.models import HostedSubdomainAddress, HostedSubdomainPortal, Organization, WorkspaceSubscription, utc_now
 from app.modules.auth_context import get_auth_context
 from app.modules.hosted_subdomains.context import ROOT_DOMAIN, current_portal, entitled, resolve_portal, hosted_hostname
-from app.modules.hosted_subdomains.service import Branding, TRANSPARENT_DECISIONATE_LOGO, audit, canonical_branding, ensure_satellite, launch_blockers, normalize_slug, portal_record, public_configuration
+from app.modules.hosted_subdomains.service import Branding, TRANSPARENT_DECISIONATE_LOGO, audit, canonical_branding, ensure_satellite, launch_blockers, lock_hosted_addresses, normalize_slug, portal_record, public_configuration, reserved_address
 from app.modules.white_label_availability import availability
 
 router = APIRouter(prefix="/api/v2/hosted-subdomains", tags=["hosted-subdomains"])
@@ -64,13 +64,6 @@ def require_entitlement(db, agency):
         raise HTTPException(403, "An Agency subscription is required for your hosted portal.")
 
 
-def reserved_address(db, slug):
-    return db.query(HostedSubdomainPortal).filter(or_(
-        HostedSubdomainPortal.slug == slug,
-        HostedSubdomainPortal.hostname == slug + "." + ROOT_DOMAIN,
-    )).first()
-
-
 @router.get("/availability")
 def check_availability(request: Request, response: Response, slug: str = Query(min_length=1, max_length=80)):
     response.headers["Cache-Control"] = "no-store"
@@ -83,7 +76,7 @@ def check_availability(request: Request, response: Response, slug: str = Query(m
             return {"available": False, "status": "invalid", "message": str(error)}
         row = reserved_address(db, slug)
         if row:
-            owned = row.organization_id == agency.id
+            owned = isinstance(row, HostedSubdomainPortal) and row.organization_id == agency.id
             return {"available": False, "status": "reserved" if owned else "taken",
                     "message": "This is your reserved address." if owned else "This address is already taken. Choose another name."}
         return {"available": True, "status": "available", "message": "This address is available. Save your draft to reserve it."}
@@ -96,7 +89,16 @@ def resolve(hostname: str, response: Response):
         raise HTTPException(404, "Portal unavailable.")
     with SessionLocal() as db:
         row = db.query(HostedSubdomainPortal).filter_by(hostname=hostname, application_id="decisionate-ca").first()
-        if not row or row.status == "retired":
+        if not row:
+            address = db.get(HostedSubdomainAddress, hostname)
+            row = db.get(HostedSubdomainPortal, address.portal_id) if address and address.portal_id else None
+            if not row or row.application_id != "decisionate-ca" or row.status == "retired":
+                raise HTTPException(404, "Portal unavailable.")
+            result = {**public_configuration(row, active=False), "hostname": hostname, "origin": "https://" + hostname}
+            if address.forwards and resolve_portal(db, row.hostname):
+                result["redirect_origin"] = "https://" + row.hostname
+            return result
+        if row.status == "retired":
             raise HTTPException(404, "Portal unavailable.")
         # Reserved hosts may proxy Clerk while registration is verified; no branding/data is exposed.
         return public_configuration(row, active=bool(resolve_portal(db, hostname)))
@@ -108,6 +110,10 @@ def published_asset(hostname: str, field: str):
         raise HTTPException(404, "Image unavailable.")
     with SessionLocal() as db:
         portal = resolve_portal(db, hostname)
+        if not portal:
+            address = db.get(HostedSubdomainAddress, hostname)
+            current = db.get(HostedSubdomainPortal, address.portal_id) if address and address.forwards and address.portal_id else None
+            portal = resolve_portal(db, current.hostname) if current else None
         row = db.get(HostedSubdomainPortal, portal.id) if portal else None
         brand = canonical_branding(json.loads(row.published_configuration)) if row else {}
         value = brand.get("logo_url" if field == "favicon_url" else field, "")
@@ -155,6 +161,7 @@ def save(request: Request, payload: SavePortal):
         else:
             if payload.revision:
                 raise HTTPException(409, "This portal changed. Refresh before saving.")
+            lock_hosted_addresses(db)
             if reserved_address(db, payload.slug):
                 raise HTTPException(409, "This address is already taken. Choose another name.")
             row = HostedSubdomainPortal(id=uuid4().hex, organization_id=agency.id, slug=payload.slug,
@@ -187,7 +194,9 @@ def activate(request: Request, payload: PublishPortal):
         domain_id = ensure_satellite(hostname)
     except HTTPException as error:
         with SessionLocal() as db:
-            db.execute(update(HostedSubdomainPortal).where(HostedSubdomainPortal.id == portal_id).values(last_error=error.detail))
+            db.execute(update(HostedSubdomainPortal).where(
+                HostedSubdomainPortal.id == portal_id, HostedSubdomainPortal.revision == payload.revision,
+            ).values(last_error=error.detail))
             db.commit()
         raise
     with SessionLocal() as db:

@@ -130,6 +130,90 @@ class HostedSubdomainTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.text)
         return result.json()
 
+    def rename_address(self, row, slug):
+        return self.client.post(f"/admin/hosted-subdomains/{row['id']}/address", headers=self.headers(), json={
+            "slug": slug, "revision": row["revision"], "reason": "Agency requested a new address",
+        })
+
+    def test_rename_switches_the_host_after_clerk_is_ready_and_preserves_workspaces(self):
+        published = self.publish()
+        original = published["hostname"]
+        payload = "/resolve?hostname="
+
+        def ensure_ready(hostname):
+            pending = self.client.get(self.base + payload + hostname).json()
+            self.assertFalse(pending["active"])
+            self.assertIsNone(pending["branding"])
+            self.assertTrue(self.client.get(self.base + payload + original).json()["active"])
+            return "new_clerk_domain"
+
+        with patch.object(admin, "require_platform_admin_full_access", return_value=SimpleNamespace(user_id="operator")), patch.object(
+            admin, "ensure_satellite", side_effect=ensure_ready,
+        ) as ensure:
+            result = self.rename_address(published, " New-Star ")
+            self.assertEqual(result.status_code, 200, result.text)
+            updated = result.json()
+            self.assertEqual(self.rename_address(published, "stale-name").status_code, 409)
+        ensure.assert_called_once_with("new-star.decisionate.app")
+        self.assertEqual(updated["id"], published["id"])
+        self.assertEqual(updated["revision"], published["revision"] + 1)
+        self.assertEqual(updated["configuration"], published["configuration"])
+        old = self.client.get(self.base + payload + original).json()
+        self.assertFalse(old["active"])
+        self.assertEqual(old["redirect_origin"], updated["url"])
+        self.assertTrue(self.client.get(self.base + payload + updated["hostname"]).json()["active"])
+        self.assertEqual(self.save("north-star", user="another").status_code, 409)
+        with self.Session() as db:
+            from app.modules.white_label_availability import admin_listing
+
+            listing = admin_listing(db)["hosted_subdomain_portals"]
+            self.assertEqual([(item["hostname"], item["agency_name"]) for item in listing], [
+                (updated["hostname"], "Original agency"),
+            ])
+            row = db.get(HostedSubdomainPortal, published["id"])
+            self.assertEqual((row.organization_id, row.clerk_domain_id), (1, "new_clerk_domain"))
+            self.assertEqual(context.portal_for_workspace(db, "agency:client:1").origin, updated["url"])
+            self.assertIsNone(context.resolve_portal(db, original))
+            self.assertEqual(db.get(Organization, 3).managing_agency_workspace_id, "agency")
+            self.assertEqual(db.get(WorkspaceSubscription, 1).provider_subscription_id, "sub_agency")
+            event = db.query(HostedSubdomainEvent).filter_by(action="address_changed").one()
+            self.assertEqual(event.user_id, "operator")
+            self.assertIn(original, event.reason)
+            self.assertIn(updated["hostname"], event.reason)
+
+    def test_rename_requires_an_operator_and_does_not_interrupt_access_on_failure(self):
+        from fastapi import HTTPException
+
+        published = self.publish()
+        with patch("app.modules.platform_admin.SessionLocal", self.Session):
+            self.assertEqual(self.rename_address(published, "new-star").status_code, 403)
+        self.assertEqual(self.save("other-agency", user="another").status_code, 200)
+        with patch.object(admin, "require_platform_admin_full_access", return_value=SimpleNamespace(user_id="operator")), patch.object(
+            admin, "ensure_satellite", side_effect=HTTPException(503, "Clerk unavailable"),
+        ) as ensure:
+            self.assertEqual(self.rename_address(published, "other-agency").status_code, 409)
+            self.assertEqual(self.rename_address(published, "admin").status_code, 422)
+            self.assertEqual(self.rename_address(published, "new-star").status_code, 503)
+        ensure.assert_called_once()
+        self.assertTrue(self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json()["active"])
+        self.assertFalse(self.client.get(self.base + "/resolve?hostname=new-star.decisionate.app").json()["active"])
+        with patch.object(admin, "require_platform_admin_full_access", return_value=SimpleNamespace(user_id="operator")), patch.object(
+            admin, "ensure_satellite", return_value="retry_domain",
+        ):
+            self.assertEqual(self.rename_address(published, "new-star").status_code, 200)
+
+    def test_draft_address_can_change_without_clerk_or_publishing(self):
+        draft = self.save().json()
+        with patch.object(admin, "require_platform_admin_full_access", return_value=SimpleNamespace(user_id="operator")), patch.object(
+            admin, "ensure_satellite",
+        ) as ensure:
+            result = self.rename_address(draft, "corrected")
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertFalse(result.json()["published"])
+        self.assertEqual(result.json()["status"], "reserved")
+        self.assertNotIn("redirect_origin", self.client.get(self.base + "/resolve?hostname=north-star.decisionate.app").json())
+        ensure.assert_not_called()
+
     def test_atomic_reservation_draft_preview_and_publish_do_not_modify_standard_brand(self):
         result = self.save(" North-Star ")
         self.assertEqual(result.status_code, 200, result.text)

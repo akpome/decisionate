@@ -14,7 +14,12 @@ export async function resolveHostedPortal(hostname: string): Promise<HostedPorta
     })
     if (!response.ok) return null
     const portal: HostedPortal = await response.json()
-    return portal.hostname === hostname && portal.origin === `https://${hostname}` ? portal : null
+    if (portal.hostname !== hostname || portal.origin !== `https://${hostname}`) return null
+    if (portal.redirect_origin) {
+      const target = new URL(portal.redirect_origin)
+      if (target.hostname === hostname || !isHostedHostname(target.hostname) || portal.redirect_origin !== `https://${target.hostname}`) return null
+    }
+    return portal
   } catch { return null }
 }
 
@@ -22,6 +27,21 @@ export const requestHostedPortal = cache(async () => {
   const host = (await headers()).get("host") || ""
   return resolveHostedPortal(host)
 })
+
+export function getHostedAddressForwardUrl(previous: URL, origin: string) {
+  const target = new URL(origin)
+  target.pathname = previous.pathname
+  target.search = previous.search
+  target.hash = previous.hash
+  for (const key of [...target.searchParams.keys()]) {
+    if (key.startsWith("__clerk") || key === "__session") target.searchParams.delete(key)
+  }
+  const returnTo = getSafeReturnTo(target.searchParams.get("redirect_url"), previous.origin)
+  if (returnTo) target.searchParams.set("redirect_url", returnTo)
+  else target.searchParams.delete("redirect_url")
+  if (target.pathname === "/auth/redirect") target.searchParams.set("__clerk_synced", "false")
+  return target
+}
 
 async function resolveHostedReturn(value: string | null) {
   if (!value || /[\\\s]/.test(value)) return null
@@ -31,6 +51,12 @@ async function resolveHostedReturn(value: string | null) {
     // Clerk's session-sync marker is preserved; destinations remain application routes only.
     if (url.pathname !== "/auth/redirect" && !getSafeReturnTo(url.pathname + url.search, url.origin)) return null
     const portal = await resolveHostedPortal(url.hostname)
+    if (portal?.redirect_origin) {
+      const target = await resolveHostedPortal(new URL(portal.redirect_origin).hostname)
+      if (!target?.active || target.id !== portal.id) return null
+      const forwarded = getHostedAddressForwardUrl(url, target.origin)
+      return { portal: target, url: getHostedAuthReturnUrl(forwarded.href) }
+    }
     if (!portal?.active) return null
     return { portal, url: getHostedAuthReturnUrl(url.href) }
   } catch { return null }

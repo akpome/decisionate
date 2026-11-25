@@ -13,9 +13,10 @@ from urllib.error import HTTPError, URLError
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from sqlalchemy import text
 
-from app.db.models import HostedSubdomainEvent
-from app.modules.hosted_subdomains.context import PRIMARY_ORIGIN
+from app.db.models import HostedSubdomainAddress, HostedSubdomainEvent, HostedSubdomainPortal
+from app.modules.hosted_subdomains.context import PRIMARY_ORIGIN, ROOT_DOMAIN
 
 RESERVED = frozenset({"www", "app", "api", "admin", "mail", "support", "billing", "auth", "status",
     "clerk", "accounts", "account", "login", "signin", "signup", "cdn", "assets", "static", "dev",
@@ -51,6 +52,20 @@ def normalize_slug(value):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,38}[a-z0-9]", value) or value in RESERVED or "--" in value:
         raise ValueError("Use 3-40 letters, numbers or single hyphens. This address must not be a reserved name.")
     return value
+
+
+def lock_hosted_addresses(db):
+    # Primary hosts and aliases share one address namespace across two tables.
+    dialect = db.get_bind().dialect.name
+    if dialect == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(59831, 8)"))
+    elif dialect == "sqlite":
+        db.execute(text("BEGIN IMMEDIATE"))
+
+
+def reserved_address(db, slug):
+    hostname = f"{slug}.{ROOT_DOMAIN}"
+    return db.query(HostedSubdomainPortal).filter_by(hostname=hostname).first() or db.get(HostedSubdomainAddress, hostname)
 
 
 class Branding(BaseModel):

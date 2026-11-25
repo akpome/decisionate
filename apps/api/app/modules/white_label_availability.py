@@ -34,7 +34,7 @@ def require_custom_domain_sales(db, *, lock=False):
 def admin_listing(db):
     from app.modules.hosted_portals import platform_blockers
     from app.modules.hosted_subdomains.service import launch_blockers
-    from app.db.models import HostedSubdomainPortal
+    from app.db.models import HostedSubdomainPortal, Organization
 
     return {
         **availability(db),
@@ -43,8 +43,11 @@ def admin_listing(db):
         "hosted_subdomain_portal_count": db.query(HostedSubdomainPortal).count(),
         "hosted_subdomain_active_count": db.query(HostedSubdomainPortal).filter_by(status="active").count(),
         "hosted_subdomain_portals": [
-            {"id": row.id, "hostname": row.hostname, "status": row.status, "revision": row.revision, "last_error": row.last_error}
-            for row in db.query(HostedSubdomainPortal).options(load_only(HostedSubdomainPortal.id, HostedSubdomainPortal.hostname,
+            {"id": row.id, "hostname": row.hostname, "status": row.status, "revision": row.revision,
+             "last_error": row.last_error, "agency_name": agency_name}
+            for row, agency_name in db.query(HostedSubdomainPortal, Organization.name)
+            .join(Organization, Organization.id == HostedSubdomainPortal.organization_id)
+            .options(load_only(HostedSubdomainPortal.id, HostedSubdomainPortal.hostname,
                 HostedSubdomainPortal.status, HostedSubdomainPortal.revision, HostedSubdomainPortal.last_error))
             .order_by(HostedSubdomainPortal.created_at.desc()).limit(200)],
         "custom_domain_portal_count": db.query(HostedPortal).count(),

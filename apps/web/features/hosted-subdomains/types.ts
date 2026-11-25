@@ -5,7 +5,7 @@ export type HostedBrand = {
 }
 export type HostedPortal = {
   id: string; hostname: string; origin: string; active: boolean
-  primary_origin: string; branding: HostedBrand | null
+  primary_origin: string; branding: HostedBrand | null; redirect_origin?: string
 }
 export const getHostedLogo = (brand: Partial<HostedBrand>) => brand.logo_url || brand.favicon_url || ""
 export function isHostedLogoUrl(value: string) {
