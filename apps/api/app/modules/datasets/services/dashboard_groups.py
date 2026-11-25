@@ -301,8 +301,10 @@ def joined_dashboard_dimension_options(db, dataset, frame, metric, column, searc
 
     return {
         **joined_result,
-        "columns": [{**item, "label": f"{item['label']} (joined months)"} for item in joined_columns]
-        + source_columns,
+        # Lead with original dimensions, which can split a month's metric
+        # into its separate groups instead of grouping whole monthly totals.
+        "columns": source_columns
+        + [{**item, "label": f"{item['label']} (joined months)"} for item in joined_columns],
     }
 
 

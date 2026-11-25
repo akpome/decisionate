@@ -190,7 +190,22 @@ class DashboardGroupTests(unittest.TestCase):
             columns = {item["label"]: item["column"] for item in base.json()["columns"]}
             self.assertEqual(set(columns), {"sales.csv / country", "sales.csv / channel", "ads.csv / campaign", "ads.csv / channel"}
                              | {f"{column} (joined months)" for column in joined_columns})
+            self.assertTrue(all("(joined months)" not in label for label in list(columns)[:4]))
             self.assertNotEqual(columns["sales.csv / channel"], columns["ads.csv / channel"])
+            channel = columns["sales.csv / channel"]
+            values = client.get(path, params={"group_metric": "", "column": channel})
+            self.assertEqual(values.status_code, 200, values.text)
+            self.assertEqual(values.json()["values"], ["Online", "Store"])
+            grouped = client.post("/datasets/21/dashboard-groups", json=selection(
+                metric=metric, date_column="period", aggregation="monthly", end_date="2026-03-31",
+                filter={"column": channel, "values": values.json()["values"]},
+            ).model_dump(mode="json"))
+            self.assertEqual(grouped.status_code, 200, grouped.text)
+            self.assertEqual(grouped.json()["dimension_label"], "sales.csv / channel")
+            self.assertEqual([group["points"][0] for group in grouped.json()["series"]], [
+                {"period": "2026-01-01", "amount": 15},
+                {"period": "2026-01-01", "amount": 30},
+            ])
             for selected_metric in (metric, "ads.csv · spend", "stale metric"):
                 response = client.get(path, params={"group_metric": selected_metric})
                 self.assertEqual(response.status_code, 200, response.text)

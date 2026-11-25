@@ -129,7 +129,7 @@ test("workspace members see the dimension picker in their Select Metrics panel w
   const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
   const filter = React.createElement("label", null, "Dimension column")
   const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {
-    dimensionControls: null, dashboardEditMode: false, groupPreference: null, showJoinPanel: false,
+    dimensionControls: null, dashboardEditMode: false, groupPreference: null, showGroupComparison: false, showJoinPanel: false,
     canConfigureWorkspace: false, availableMetricColumns: ["Orders"], memberMetricsOpen: true,
     primaryMetricFields: null, metricDimensionFilter: filter, t: text => text,
   })
@@ -146,7 +146,7 @@ test("Compare Groups requests dimensions for the selected joined dataset", () =>
     groupTabActive: true, showJoinPanel: false, canConfigureWorkspace: true, t: text => text,
     selectedDatasetId: 21, compareJoinedGroups: true, groupMetric: "Joined revenue", groupMetricTarget: 0,
     dimensionContext: "joined", userId: "owner", activeWorkspaceId: "workspace",
-    availableMetricColumns: ["Joined revenue"], groupFilter: undefined, updateMetricTarget() {},
+    availableMetricColumns: ["Joined revenue"], groupFilter: undefined, updateMetricTarget() {}, selectGroupMetric() {},
     CompareGroupsEditor: ({ datasetId, joined }) => React.createElement("output", null, `${datasetId} / ${joined}`),
   })
   const html = renderToStaticMarkup(React.createElement(Editor))
@@ -156,7 +156,73 @@ test("Compare Groups requests dimensions for the selected joined dataset", () =>
   assert.match(html, /<output>21 \/ true<\/output>/)
   assert.match(source, /groupDateColumn = compareJoinedGroups \? "period" : analysisDateColumn/)
   assert.match(source, /groupAggregation = compareJoinedGroups \? "monthly" : aggregation/)
-  assert.match(source, /filter: compareJoinedGroups && groupMetric && groupMetric !== metric && !isJoinedSourceDimension\(groupFilter\?\.column\)\s*\? undefined : groupFilter/)
+})
+
+test("Compare Groups never displays or exports the Select Metrics chart while its selection is incomplete", () => {
+  const mode = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "showGroupComparison")
+  const body = find(node => ts.isJsxExpression(node) && node.expression?.getText(ast).startsWith("dataset && !loading && showGroupComparison && ("))
+  const regular = find(node => ts.isJsxExpression(node) && node.expression?.getText(ast).startsWith("dataset && !loading && !showGroupComparison && !dimensionBlocked"))
+  const exportGate = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "handleDownloadDashboardPdf")
+  assert.match(exportGate.getText(ast), /if \(showGroupComparison \? !groupSeries.data : dimensionBlocked\) return/)
+  const dataset = { id: 21 }
+  const filters = { column: "Channel", values: ["Online", "Store"] }
+  const { View } = load(`export function View({ groupTabActive, groupMetric, groupFilter, groupPreference }) {
+    const ${mode.getText(ast)}
+    return <>${body.getText(ast)}${regular.getText(ast)}</>
+  }`, {
+    dataset, loading: false, canCompareGroups: true, dimensionBlocked: false,
+    availableMetricColumns: ["Revenue", "Orders"], t: text => text, dashboardTemplate: "executive",
+    DashboardCard: ({ children }) => React.createElement("section", null, children),
+    DashboardGroupChart: ({ comparison }) => React.createElement("output", null, comparison.filter.values.join(", ")),
+    ExecutiveTemplate: () => React.createElement("output", null, "Metric totals"), templateProps: {},
+    groupSeries: {}, groupMetricTarget: 0, chartType: "line", scaleMode: "actual", DashboardControls: icon,
+    groupDateColumn: "date", dateRange: { start: "2026-01-01", end: "2026-12-31" },
+    groupAggregation: "daily", groupAggregationType: "sum", compareJoinedGroups: false,
+    setChartType() {}, setScaleMode() {}, setDateRange() {}, setAggregation() {}, setAggregationType() {}, handleResetView() {},
+  })
+  for (const [groupMetric, groupFilter, expected] of [
+    ["", undefined, "Choose a metric"],
+    ["Revenue", undefined, "Choose a dimension"],
+    ["Revenue", { ...filters, values: [] }, "Select values to compare"],
+  ]) {
+    const html = renderToStaticMarkup(React.createElement(View, { groupTabActive: true, groupMetric, groupFilter }))
+    assert.match(html, new RegExp(expected))
+    assert.doesNotMatch(html, /Metric totals/)
+  }
+  const setup = { groupMetric: "Revenue", groupFilter: filters, groupPreference: { filter: filters, metric: "Revenue" } }
+  assert.match(renderToStaticMarkup(React.createElement(View, { ...setup, groupTabActive: true })), /Online, Store/)
+  assert.match(renderToStaticMarkup(React.createElement(View, { ...setup, groupTabActive: false })), /Metric totals/)
+})
+
+test("changing the metric keeps a valid group dimension and selected values", () => {
+  const handler = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "selectGroupMetric")
+  for (const [compareJoinedGroups, column, physicalColumns, preview, retain] of [
+    [false, "channel", [], [], true],
+    [true, "__join_source_18_af24", [], [], true],
+    [true, "sales.csv · channel", ["sales.csv · channel"], [], true],
+    [true, "sales.csv · channel", [], [{ "sales.csv · channel": "Online" }], true],
+    [true, "channel", [], [], false],
+  ]) {
+    const groupFilter = { column, values: ["Online", "Store"] }
+    const changes = []
+    const { selectGroupMetric } = load(`export ${handler.getText(ast)}`, {
+      groupFilter, groupMetric: "Revenue", compareJoinedGroups, dashboardDimensionMappingColumns: physicalColumns,
+      isJoinedSourceDimension: name => name.startsWith("__join_source_"), dataset: { preview },
+      dimensionContext: "dataset:21", setGroupSelection: next => changes.push(next),
+    })
+    selectGroupMetric("Orders")
+    assert.equal(changes[0].metric, "Orders")
+    assert.equal(changes[0].active, true)
+    assert.equal(changes[0].filter, retain ? groupFilter : undefined)
+  }
+})
+
+test("a stale chart axis does not override a usable date column for group queries", () => {
+  const helper = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getDashboardDateColumn")
+  const { getDashboardDateColumn } = load(`export ${helper.getText(ast)}`, { getDashboardAutoMetricMapping: () => ({ date: "month" }) })
+  const dataset = { chart: { x_key: "legacy_date" } }
+  assert.equal(getDashboardDateColumn(dataset, ["date", "paid_date"], "general", {}), "date")
+  assert.equal(getDashboardDateColumn(dataset, ["date", "paid_date"], "general", { date: "paid_date" }), "paid_date")
 })
 
 test("the General Business target metric picker is in Select Metrics, not beside the dataset", () => {

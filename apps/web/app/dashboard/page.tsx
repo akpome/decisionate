@@ -2071,6 +2071,7 @@ export default function DashboardPage() {
     ? targetMetricSelection.value
     : ""
   const canCompareGroups = selectedDashboard === defaultDashboardKey && Boolean(dataset && dataset.id === selectedDatasetId)
+  const showGroupComparison = canCompareGroups && groupTabActive
   const compareJoinedGroups = Boolean(joinedDatasetResult || dataset?.source_type === "joined")
   const joinSourceConfig = compareJoinedGroups ? parseDatasetSourceConfig(dataset?.source_config) : null
   const groupDateColumn = compareJoinedGroups ? "period" : analysisDateColumn
@@ -2084,14 +2085,11 @@ export default function DashboardPage() {
       ? { filter: groupFilter, metric: groupMetric, active: groupTabActive }
       : null,
   [canCompareGroups, groupFilter, availableMetricColumns, groupMetric, groupTabActive])
-  const showGroupComparison = Boolean(groupPreference?.active)
   const groupQuery = useMemo<DashboardGroupQuery | undefined>(() => {
-    if (!canCompareGroups || !groupTabActive || !groupFilter?.values.length ||
-        !availableMetricColumns.includes(groupMetric) || !groupDateColumn ||
-        loading || dateRange.start > dateRange.end) return undefined
-    return { filter: groupFilter, metric: groupMetric, date_column: groupDateColumn, start_date: dateRange.start,
+    if (!showGroupComparison || !groupPreference || !groupDateColumn || loading || dateRange.start > dateRange.end) return undefined
+    return { filter: groupPreference.filter, metric: groupPreference.metric, date_column: groupDateColumn, start_date: dateRange.start,
       end_date: dateRange.end, aggregation: groupAggregation, aggregation_type: groupAggregationType }
-  }, [canCompareGroups, groupTabActive, groupFilter, groupMetric, availableMetricColumns, groupDateColumn, dateRange, loading, groupAggregation, groupAggregationType])
+  }, [showGroupComparison, groupPreference, groupDateColumn, dateRange, loading, groupAggregation, groupAggregationType])
   const groupSeries = useDashboardGroupSeries(selectedDatasetId, userId, activeWorkspaceId, groupQuery, `${dimensionContext}:${datasetLoadRetryKey}`)
   const groupShareReady = Boolean(groupQuery && groupSeries.data?.series.some(group => group.points.length > 0))
 
@@ -2923,6 +2921,15 @@ export default function DashboardPage() {
     setGroupSelection({ context: dimensionContext, filter: groupFilter, metric: groupMetric, active })
   }
 
+  function selectGroupMetric(metric: string) {
+    const column = groupFilter?.column
+    // Only legacy unqualified source columns depend on which metric is selected.
+    const legacyColumn = compareJoinedGroups && column && !isJoinedSourceDimension(column) &&
+      !dashboardDimensionMappingColumns.includes(column) && !dataset?.preview.some(row => Object.hasOwn(row, column))
+    setGroupSelection({ context: dimensionContext, metric, active: true,
+      filter: legacyColumn && groupMetric && groupMetric !== metric ? undefined : groupFilter })
+  }
+
   function updateMetricTarget(metric: string, value: number | null) {
     setTargets(current => ({ ...current, [metric]: value ?? 0 }))
   }
@@ -3078,7 +3085,7 @@ export default function DashboardPage() {
     <>
       {dimensionControls}
 
-      {(dashboardEditMode || groupPreference) && (
+      {(dashboardEditMode || groupPreference || showGroupComparison) && (
         <div role={dashboardEditMode ? "tablist" : "group"} aria-label={t("Dashboard view")}
           className="flex flex-wrap gap-x-5 border-b border-gray-200 print:hidden">
           {([["dashboard-metrics-tab", "Select Metrics", false], ["dashboard-groups-tab", "Compare Groups", true]] as const)
@@ -3112,9 +3119,7 @@ export default function DashboardPage() {
               metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
               metricTarget={groupMetricTarget} onTargetChange={updateMetricTarget}
               onFilter={filter => setGroupSelection({ context: dimensionContext, filter, metric: groupMetric, active: true })}
-              onMetric={metric => setGroupSelection({ context: dimensionContext,
-                filter: compareJoinedGroups && groupMetric && groupMetric !== metric && !isJoinedSourceDimension(groupFilter?.column)
-                  ? undefined : groupFilter, metric, active: true })} />
+              onMetric={selectGroupMetric} />
           ) : (
             <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a dataset to compare groups.")}</p>
           ) : <>
@@ -3949,8 +3954,8 @@ export default function DashboardPage() {
         </>
       )}
 
-      {dataset && !loading && showGroupComparison && groupPreference && (
-        <DashboardCard className="min-w-0 xl:h-[660px]">
+      {dataset && !loading && showGroupComparison && (
+        groupPreference ? <DashboardCard className="min-w-0 xl:h-[660px]">
           <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType}
             scaleMode={scaleMode} controls={<>
               <DashboardControls chartType={chartType} scaleMode={scaleMode} dateRange={dateRange}
@@ -3963,7 +3968,10 @@ export default function DashboardPage() {
               {!groupDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
               {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
             </>} />
-        </DashboardCard>
+        </DashboardCard> : <p role="status" className="border-t border-gray-200 py-4 text-sm text-gray-600">
+          {t(!availableMetricColumns.includes(groupMetric) ? "Choose a metric to compare groups."
+            : !groupFilter?.column ? "Choose a dimension to compare groups." : "Select values to compare.")}
+        </p>
       )}
 
       {dataset && !loading && !showGroupComparison && !dimensionBlocked && (
@@ -6791,7 +6799,9 @@ function getDashboardDateColumns(dataset: DashboardDataset | null): string[] {
 function getDashboardDateColumn(dataset: DashboardDataset | null, columns: string[], componentKey: Parameters<typeof getDashboardAutoMetricMapping>[0], mapping: DashboardMetricMapping) {
   if (mapping.date && columns.includes(mapping.date)) return mapping.date
   const automatic = getDashboardAutoMetricMapping(componentKey, dataset).date
-  return automatic && columns.includes(automatic) ? automatic : dataset?.chart?.x_key || columns[0] || "month"
+  if (automatic && columns.includes(automatic)) return automatic
+  const chartColumn = dataset?.chart?.x_key
+  return chartColumn && columns.includes(chartColumn) ? chartColumn : columns[0] || chartColumn || "month"
 }
 
 function getDashboardNumericMappingColumns(
