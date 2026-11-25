@@ -68,6 +68,44 @@ test("group comparison shows checkbox values with search while ordinary filters 
   assert.doesNotMatch(render({ value }), /type="checkbox"/)
 })
 
+test("a saved filter on a metric loads the valid dimension list without clearing the filter", async () => {
+  const state = []
+  const requests = []
+  const changes = []
+  let nextState = 0
+  const hooks = {
+    ...React, useId: () => "dimension", useRef: () => ({ current: null }), useEffect: effect => effect(),
+    useState(initial) {
+      const index = nextState++
+      if (!(index in state)) state[index] = initial
+      return [state[index], next => { state[index] = typeof next === "function" ? next(state[index]) : next }]
+    },
+  }
+  class ApiError extends Error { status = 422 }
+  const { DatasetDimensionFilter: Control } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"), {
+    AbortController, setTimeout,
+    require: name => name === "react" ? hooks : name === "@/app/use-decisionate-language" ? { useDecisionateText: () => ({ t: value => value }) }
+      : name === "@/lib/api" ? { ApiError, async getDatasetDimensions(_id, _user, _workspace, options) {
+        requests.push(options.column)
+        if (options.column) throw new ApiError("The selected dimension column is unavailable")
+        return { columns: [{ column: "region", label: "Region" }], values: [], next_offset: null }
+      } } : name === "@/components/searchable-select" ? { SearchableSelect } : require(name),
+  })
+  const props = { datasetId: 7, userId: "owner", checkboxLimit: 8,
+    value: { column: "customer_id", values: ["123"] }, onChange: value => changes.push(value) }
+  Control(props)
+  await new Promise(resolve => setTimeout(resolve, 0))
+  hooks.useEffect = () => {}
+  nextState = 0
+  const html = renderToStaticMarkup(Control(props))
+  assert.deepEqual(requests, ["customer_id", undefined])
+  assert.deepEqual(changes, [])
+  assert.match(html, /<option value="customer_id" disabled="" selected="">Unavailable dimension<\/option>/)
+  assert.match(html, /<option value="region">Region<\/option>/)
+  assert.match(html, /Clear dimension filter/)
+  assert.doesNotMatch(html, /Groups to compare|Search unique values|123/)
+})
+
 test("a fixed grouping column starts unfiltered and does not ask the user to choose the column again", () => {
   const html = render({ fixedColumn: "campaign" })
   assert.equal((html.match(/<select/g) || []).length, 1)

@@ -8,7 +8,9 @@ from pandas.api.types import is_scalar
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 
 from .curated_metric_analytics import frame_policy
-from .metric_selection import build_metric_selection_profile, parse_dataset_source_config
+from .metric_selection import (
+    build_metric_selection_profile, get_effective_dataset_metric_columns, parse_dataset_source_config,
+)
 from .receipt_metrics import receipt_document_columns
 
 
@@ -49,9 +51,11 @@ def dimension_value(value):
 
 def dimension_columns(dataset, frame):
     profile = build_metric_selection_profile(dataset, frame)
+    metric_columns = set(get_effective_dataset_metric_columns(dataset, frame, profile=profile))
     return [{"column": field["column"], "label": field["column"].replace("_", " ")}
             for field in profile["fields"]
             if field["role"] in {"dimension", "identifier"} and field["column"] in frame
+            and field["column"] not in metric_columns
             and not field["column"].startswith("__")
             and frame[field["column"]].head(100).map(is_scalar).all()]
 

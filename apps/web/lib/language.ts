@@ -1288,6 +1288,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Choose a source dataset instead of a joined dataset to compare groups.": "Choisissez un jeu de données source plutôt qu'un jeu de données joint pour comparer les groupes.",
   "Dashboard view": "Vue du tableau de bord",
   "Choose a dimension": "Choisir une dimension",
+  "Unavailable dimension": "Dimension indisponible",
+  "This column is no longer available as a dimension.": "Cette colonne ne peut plus être utilisée comme dimension.",
   "Groups to compare": "Groupes à comparer",
   "Metric to compare": "Indicateur à comparer",
   "Choose a metric": "Choisir un indicateur",

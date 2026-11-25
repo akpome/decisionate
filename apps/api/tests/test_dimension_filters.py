@@ -36,6 +36,17 @@ class DimensionFilterTests(unittest.TestCase):
         self.assertNotIn("revenue", columns)
         self.assertNotIn("date", columns)
 
+    def test_columns_chosen_as_metrics_are_not_dimensions_even_when_inferred_as_identifiers_or_categories(self):
+        self.dataset.source_config = {"selected_metric_columns": ["revenue", "customer_id", "active"]}
+        columns = {item["column"] for item in dimension_options(self.dataset, self.frame)["columns"]}
+        self.assertEqual(columns, {"channel"})
+        for column in ("customer_id", "active"):
+            with self.subTest(column=column):
+                with self.assertRaisesRegex(DimensionFilterError, "dimension column is unavailable"):
+                    dimension_options(self.dataset, self.frame, column)
+                with self.assertRaisesRegex(DimensionFilterError, "dimension column is unavailable"):
+                    apply_dimension_filter(self.dataset, self.frame, {"column": column, "values": ["1"]})
+
     def test_filter_uses_or_values_and_keeps_missing_empty_and_literal_null_distinct(self):
         for values, expected in [(["East", "West"], [1, 2, 6, 7]), ([None], [3, 8]), (["null"], [4]), ([""], [5])]:
             with self.subTest(values=values):

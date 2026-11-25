@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { LoaderCircle, RefreshCw, Search, X } from "lucide-react"
 import { useDecisionateText } from "@/app/use-decisionate-language"
-import { getDatasetDimensions, type DimensionFilter, type DimensionOptions } from "@/lib/api"
+import { ApiError, getDatasetDimensions, type DimensionFilter, type DimensionOptions } from "@/lib/api"
 import { SearchableSelect } from "@/components/searchable-select"
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
@@ -26,11 +26,14 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
   const [version, setVersion] = useState(0)
   const [loading, setLoading] = useState(!deferLoad || Boolean(value))
   const [error, setError] = useState("")
-  const column = fixedColumn ?? value?.column
+  const selectedColumn = fixedColumn ?? value?.column
   const datasetScope = JSON.stringify([datasetId, userId, workspaceId])
-  const scope = JSON.stringify([datasetScope, column, search])
+  const scope = JSON.stringify([datasetScope, selectedColumn, search])
   const currentOptions = options.scope === scope
-  const columns = options.datasetScope === datasetScope ? options.columns : []
+  const hasCatalog = options.datasetScope === datasetScope
+  const columns = hasCatalog ? options.columns : []
+  const unavailableColumn = Boolean(selectedColumn && hasCatalog && !columns.some(item => item.column === selectedColumn))
+  const column = unavailableColumn ? undefined : selectedColumn
 
   useEffect(() => {
     if (!deferLoad || activated || !fieldset.current || typeof IntersectionObserver === "undefined") return
@@ -42,41 +45,53 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
   }, [deferLoad, activated])
 
   useEffect(() => {
-    if (!activated && !column) return
+    if (!activated && !selectedColumn) return
     const controller = new AbortController()
+    const signal = controller.signal
     async function load() {
       setLoading(true); setError("")
       try {
-        const result = await getDatasetDimensions(datasetId, userId, workspaceId, { column, search, offset, signal: controller.signal })
-        if (!controller.signal.aborted) {
-          setOptions(current => ({ ...result, scope, datasetScope, valueColumn: column,
+        const result = await getDatasetDimensions(datasetId, userId, workspaceId, { column: selectedColumn, search, offset, signal })
+          .catch(async failure => {
+            if (!selectedColumn || signal.aborted || !(failure instanceof ApiError) || failure.status !== 422) throw failure
+            // A saved filter may refer to a column that is now a metric.
+            const catalog = await getDatasetDimensions(datasetId, userId, workspaceId, { signal })
+            if (catalog.columns.some(item => item.column === selectedColumn)) throw failure
+            return catalog
+          })
+        if (!signal.aborted) {
+          setOptions(current => ({ ...result, scope, datasetScope, valueColumn: selectedColumn,
             values: offset && current.scope === scope ? [...new Set([...current.values, ...result.values])] : result.values }))
         }
       } catch (failure) {
-        if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Dimension values could not be loaded.")
-      } finally { if (!controller.signal.aborted) setLoading(false) }
+        if (!signal.aborted) setError(failure instanceof Error ? failure.message : "Dimension values could not be loaded.")
+      } finally { if (!signal.aborted) setLoading(false) }
     }
     const timer = setTimeout(() => void load(), search ? 200 : 0)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [datasetId, userId, workspaceId, column, search, offset, version, activated, scope, datasetScope])
+  }, [datasetId, userId, workspaceId, selectedColumn, search, offset, version, activated, scope, datasetScope])
 
   const selectedValues = value?.column === column ? value?.values ?? [] : []
   const valuesAvailable = currentOptions || singleValue && options.datasetScope === datasetScope && options.valueColumn === column
   const visible = [...new Set([...selectedValues, ...(valuesAvailable ? options.values : [])])]
   const savedMultiple = singleValue && selectedValues.length > 1
+  const columnGrid = column ? singleValue || fixedColumn || checkboxLimit
+    ? "@min-[28rem]:grid-cols-[repeat(2,minmax(0,1fr))_auto]"
+    : "@min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]" : ""
   const moreValues = currentOptions && options.next_offset !== null && <button type="button" className="min-h-10 text-sm font-medium text-blue-700 underline disabled:opacity-50" disabled={loading} onClick={() => setOffset(options.next_offset!)}>{t("Load more values")}</button>
   const errorFeedback = error && <div className="flex min-w-0 items-start gap-2 text-xs text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{error}</p><button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title={t("Retry dimension values")} aria-label={t("Retry dimension values")} onClick={() => setVersion(current => current + 1)}><RefreshCw size={15} /></button></div>
   return <fieldset ref={fieldset} disabled={disabled} aria-label={t("Filter by column values")} onFocusCapture={() => setActivated(true)} onMouseEnter={() => setActivated(true)} className={`@container min-w-0 space-y-3 ${embedded ? "" : "mt-4 border-t border-gray-100 pt-3"}`}>
-    <div className={`grid min-w-0 items-end gap-3 ${column ? `grid-cols-[minmax(0,1fr)_auto] ${singleValue || fixedColumn || checkboxLimit ? "@min-[28rem]:grid-cols-[repeat(2,minmax(0,1fr))_auto]" : "@min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]"}` : "grid-cols-1"}`}>
+    <div className={`grid min-w-0 items-end gap-3 ${column || value ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-1"} ${columnGrid}`}>
       {!fixedColumn && <div className="min-w-0">
         <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-column`}>{t("Dimension column")}</label>
-        <select id={`${id}-column`} className={input} value={column || ""} onChange={event => {
+        <select id={`${id}-column`} className={input} value={selectedColumn || ""} onChange={event => {
           setSearch(""); setOffset(0); setOptions(current => ({ ...current, values: [], next_offset: null }))
           onChange(event.target.value ? { column: event.target.value, values: [] } : undefined)
         }}>
           <option value="">{t(checkboxLimit ? "Choose a dimension" : "All rows")}</option>
           {loading && !columns.length && <option disabled>{t("Loading columns...")}</option>}
-          {column && !columns.some(item => item.column === column) && <option value={column}>{column}</option>}
+          {unavailableColumn && <option value={selectedColumn} disabled>{t("Unavailable dimension")}</option>}
+          {!hasCatalog && column && <option value={column}>{column}</option>}
           {columns.map(item => <option key={item.column} value={item.column}>{item.label}</option>)}
         </select>
       </div>}
@@ -106,7 +121,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
           <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} aria-label={t("Search unique values")} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>
         </div>}
       </>}
-      {value && <button type="button" className={`col-start-2 row-start-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 ${singleValue || fixedColumn || checkboxLimit ? "@min-[28rem]:col-start-3" : "@min-[28rem]:col-start-4"}`} title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
+      {value && <button type="button" className={`col-start-2 row-start-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 ${column ? singleValue || fixedColumn || checkboxLimit ? "@min-[28rem]:col-start-3" : "@min-[28rem]:col-start-4" : ""}`} title={t("Clear dimension filter")} aria-label={t("Clear dimension filter")} onClick={() => { onChange(undefined); setSearch(""); setOffset(0) }}><X size={16} /></button>}
     </div>
     {column && <div className="min-w-0 space-y-2">
       {checkboxLimit && visible.length > 0 && (
@@ -139,6 +154,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
     </div>}
     {loading && (!singleValue || !column) && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><LoaderCircle size={14} className="animate-spin" />{t("Loading dimensions...")}</p>}
     {(!singleValue || !column) && errorFeedback}
+    {unavailableColumn && <p role="status" className="text-xs text-amber-800">{t("This column is no longer available as a dimension.")}</p>}
     {!loading && !error && options.datasetScope === datasetScope && !columns.length && <p className="text-xs text-gray-500">{t("No filterable columns available.")}</p>}
   </fieldset>
 }
