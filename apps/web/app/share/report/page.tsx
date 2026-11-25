@@ -11,6 +11,7 @@ import { ReportTakeaways } from "@/features/reports/report-takeaways"
 import { ReportRelationshipFindings } from "@/features/reports/report-evidence-sections"
 import { ReportAnomalies } from "@/features/reports/report-anomalies"
 import { ReportGrouping } from "@/features/reports/report-grouping"
+import { readSharedLinkLocation } from "@/features/sharing/shared-link-location"
 import type { BusinessReport } from "@/features/reports/types"
 
 const MetricTrends = dynamic(() => import("@/features/reports/report-metric-trends").then(module => module.MetricTrends), { ssr: false })
@@ -21,8 +22,8 @@ export default function SharedReportPage() {
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
-    const token = new URLSearchParams(window.location.search).get("token") || ""
-    const request = /^[\w-]{32,100}$/.test(token)
+    const { token } = readSharedLinkLocation(window)
+    const request = token
       ? fetch(`${API_URL}/public/reports/${encodeURIComponent(token)}`, { cache: "no-store", referrerPolicy: "no-referrer", signal: controller.signal,
         headers: portalBrand.id ? { "X-Application-Id": portalBrand.id } : undefined })
       : Promise.reject(new Error("This shared report is unavailable. Ask the sender for a new email."))

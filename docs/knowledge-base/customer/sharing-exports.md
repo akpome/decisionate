@@ -53,6 +53,12 @@ Sharing a dashboard is not a frozen analysis snapshot. Choose Save PDF for a
 fixed copy of the dashboard, or share a saved Business Analysis report to
 preserve its results. A dashboard link does not grant workspace membership.
 
+After opening a shared dashboard or report, the browser removes its access
+token from the address bar. To open it in a new tab or share it with an
+intended recipient, use the original email link. Hiding the token in the
+address bar does not revoke the original link. Use Manage shared links to
+stop access if the original link was disclosed.
+
 ## Email a business analysis report
 
 In Business Analysis, preview a multi-dataset report or a single-dataset report,

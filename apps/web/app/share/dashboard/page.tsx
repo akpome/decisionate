@@ -4,6 +4,7 @@ import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } fr
 import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
 import { DashboardTrendChart, indexDashboardChartRows } from "@/features/dashboard/components/dashboard-chart"
 import { DashboardGroupChart } from "@/features/dashboard/components/compare-groups"
+import { readSharedLinkLocation } from "@/features/sharing/shared-link-location"
 
 import {
   useEffect,
@@ -126,7 +127,6 @@ type SharedDashboardConfig = {
   datasetId?: number
   dashboardTemplate?: DashboardTemplate
   selectedDashboard?: string
-  token?: string
 }
 
 type SharedBrandStyle =
@@ -261,14 +261,15 @@ function SharedDashboardContent({
 }: {
   demoMode?: boolean
 }) {
-  const [searchParamString, setSearchParamString] =
-    useState<string | null>(null)
+  const [linkLocation, setLinkLocation] =
+    useState<ReturnType<typeof readSharedLinkLocation> | null>(null)
+  const searchParamString = linkLocation?.search ?? null
 
   useEffect(() => {
     const updateSearchParams = () => {
-      setSearchParamString(
-        window.location.search.replace(/^\?/, "")
-      )
+      setLinkLocation(demoMode
+        ? { search: window.location.search.slice(1), token: "" }
+        : readSharedLinkLocation(window))
     }
 
     updateSearchParams()
@@ -283,7 +284,7 @@ function SharedDashboardContent({
         updateSearchParams
       )
     }
-  }, [])
+  }, [demoMode])
 
   const sharedConfig =
     useMemo(
@@ -363,7 +364,7 @@ function SharedDashboardContent({
   const sharedSelectedDashboard =
     sharedConfig.selectedDashboard ?? ""
   const sharedToken =
-    sharedConfig.token ?? ""
+    linkLocation?.token ?? ""
   const sharedConfigKey =
     [
       sharedDemo ? "demo" : sharedDatasetId ?? "",
@@ -761,8 +762,7 @@ function SharedDashboardContent({
     sharedBrand,
     {
       keepFaviconStable: true,
-      workspaceKey:
-        sharedBrandStorageKey || sharedConfigKey,
+      workspaceKey: sharedBrandStorageKey,
       brandReady:
         !loading && Boolean(sharedConfigKey),
     }
@@ -945,7 +945,7 @@ function SharedDashboardContent({
       setDemoJoinDataset("")
     }
     window.history.replaceState(null, "", url.toString())
-    setSearchParamString(url.search.slice(1))
+    setLinkLocation({ search: url.search.slice(1), token: "" })
     setDemoNotice("")
   }
 
@@ -2858,9 +2858,6 @@ function getSharedDashboardConfig(
     params.get("template")
   const selectedDashboard =
     params.get("dashboard")?.trim()
-  const token =
-    params.get("token")?.trim()
-
   return {
     demo: demoMode,
     demoDataset:
@@ -2873,7 +2870,6 @@ function getSharedDashboardConfig(
       isDashboardKey(selectedDashboard)
         ? selectedDashboard
         : undefined,
-    token: token || undefined,
   }
 }
 

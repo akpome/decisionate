@@ -12,6 +12,57 @@ const compiled = ts.transpileModule(modal, { compilerOptions: { module: ts.Modul
 const compiledModule = { exports: {} }
 vm.runInNewContext(compiled, { module: compiledModule, exports: compiledModule.exports, require: () => ({}) })
 const { shareRecipients } = compiledModule.exports
+const locationModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(read("../features/sharing/shared-link-location.ts"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { module: locationModule, exports: locationModule.exports, URL })
+const { readSharedLinkLocation } = locationModule.exports
+
+function shareLocation(path) {
+  const origin = "https://app.example.test"
+  const browser = {
+    location: { href: origin + path },
+    history: {
+      state: null,
+      replaceState(state, _title, path) {
+        browser.location.href = origin + path
+        this.state = state
+      },
+    },
+  }
+  return browser
+}
+
+test("shared links remove their access token from the address bar and keep access on refresh", () => {
+  const token = "test_share_token_" + "a".repeat(32)
+  const browser = shareLocation(`/share/dashboard?dataset=7&dashboard=general-business&token=${token}#chart`)
+  const result = readSharedLinkLocation(browser)
+  assert.equal(result.token, token)
+  assert.equal(result.search, "dataset=7&dashboard=general-business")
+  assert.equal(browser.location.href, "https://app.example.test/share/dashboard?dataset=7&dashboard=general-business#chart")
+  assert.equal(readSharedLinkLocation(browser).token, token)
+  assert.equal(readSharedLinkLocation(shareLocation("/share/dashboard?dataset=7&dashboard=general-business#chart")).token, "")
+  browser.location.href = "https://app.example.test/share/dashboard?dataset=8&dashboard=general-business"
+  assert.equal(readSharedLinkLocation(browser).token, "")
+})
+
+test("a malformed replacement link is scrubbed without reusing previous access", () => {
+  const browser = shareLocation("/share/report?token=" + "b".repeat(43))
+  assert.equal(readSharedLinkLocation(browser).token, "b".repeat(43))
+  browser.location.href = "https://app.example.test/share/report?token=invalid"
+  assert.equal(readSharedLinkLocation(browser).token, "")
+  assert.equal(browser.location.href, "https://app.example.test/share/report")
+  assert.equal(browser.history.state.decisionateSharedView, null)
+  assert.equal(readSharedLinkLocation(browser).token, "")
+})
+
+test("both shared pages use the scrubbed history entry and do not put tokens in branding storage", () => {
+  const dashboard = read("../app/share/dashboard/page.tsx")
+  assert.match(dashboard, /readSharedLinkLocation\(window\)/)
+  assert.match(dashboard, /workspaceKey: sharedBrandStorageKey/)
+  assert.doesNotMatch(dashboard, /workspaceKey:[^,]*sharedConfigKey/)
+  assert.match(read("../app/share/report/page.tsx"), /const \{ token \} = readSharedLinkLocation\(window\)/)
+})
 
 test("sharing recipients support pasted lists, normalization and deduplication", () => {
   assert.equal(JSON.stringify(shareRecipients(" A@Example.com, b@example.com\na@example.com; c@example.com ")), JSON.stringify(["a@example.com", "b@example.com", "c@example.com"]))

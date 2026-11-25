@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-25",
-  "base_git_revision": "a05948adc5720841b93227fa3243118394919fdf",
+  "base_git_revision": "b4b9ba004c50ae77c2bc7ae29641fdd9921cfda2",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/support/guidance.py",
-    "apps/api/app/modules/support/knowledge.py"
+    "apps/web/app/share/dashboard/page.tsx",
+    "apps/web/app/share/report/page.tsx",
+    "apps/web/features/sharing/shared-link-location.ts"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -149,8 +150,8 @@
     "apps/web/app/layout.tsx": "96dca03c35c0da5f6096baea4fde5d394a799356f2b6949743a230d495de6cb0",
     "apps/web/app/platform-admin/page.tsx": "92c0d3f2cc005ad440bf0a5be21e01883e11179baefb12359f3b8b8eff7dc6cd",
     "apps/web/app/privacy/page.tsx": "df2cf1571be5763ceb3d8fe7ebea3a1d582c34bd7b743fcbb8328dabc9c3f185",
-    "apps/web/app/share/dashboard/page.tsx": "1faa8030939a22da8ad4c61b353d3f3999004d277e6c974063cf823165fe07ad",
-    "apps/web/app/share/report/page.tsx": "b7f0a87158499789fd679bb4fc7ad64cfa7c232c20b7308243a3d2d67adf19bc",
+    "apps/web/app/share/dashboard/page.tsx": "1786d60cfc9d8e2a720265be813f1f2c27ccbbc0c5912cb27846d8c53d71cef6",
+    "apps/web/app/share/report/page.tsx": "7e948be379ef4fd8986e98a826a2d899b9469d2c87be229175893bc45e4fed6a",
     "apps/web/app/sign-in/[[...sign-in]]/page.tsx": "3343d474391348d6610d5dc7ccf7e177adab87e7b6ecde2f9f13174fd65ccda2",
     "apps/web/app/sign-up/[[...sign-up]]/page.tsx": "e0cff096166ffaf14bbb4d13f684ba2bed2ae2d0dc390b6595e22d0139686407",
     "apps/web/components/landing/hero.tsx": "7113ad5f30d0200f34d7a22b80bd9d5df2e61e25c39f35d79a791de75a801dff",
@@ -235,6 +236,7 @@
     "apps/web/features/settings/client-workspace-ownership.tsx": "e3ddc1848dfc2ddf226d6301b7cd537863b4629e91aaf1f89c85e670e6f88b3f",
     "apps/web/features/settings/workspace-deletion.tsx": "ab00956fa4dc7d8941f867120a9b887eecdc637492f50eaa74ea0372e9ea48e3",
     "apps/web/features/sharing/share-email-modal.tsx": "4aba24db93fbb5e22646bbaa188cff1eed0273ae24748a9901928d743bf6b7e3",
+    "apps/web/features/sharing/shared-link-location.ts": "b2ea740dd5030d85e127e685ab346a72d35a3d247fb70990813c979c5e060d3c",
     "apps/web/features/sharing/shared-links.tsx": "6092c574a880d051e179b38a45580b7d16a9967f681bb3c8fb344a8d0965e114",
     "apps/web/features/support/product-guidance.tsx": "1a9f5afff9d69d7ca26e57508baf4266a802b4d266c62ff9a5c720c3ce25d2ad",
     "apps/web/features/white-label/hosted-setup.tsx": "7a433c8702d617df6b29626cbc08f891a91b67b327ef63afbfacc57abdd5da1b",
@@ -286,7 +288,7 @@
     "customer/decisions-outcomes.md": "4feea4bd5327816f32c33ac2de40b4078e69533b80163ffd3c487a7c0642ef34",
     "customer/ai-interpretation.md": "7e20d8d6a5c63f9cc1c921d05393fc85a131f2ade2a32a19e140702902205cdb",
     "customer/billing-credits.md": "c7a850c1039453350d091687c0c604cf6514959585c6153591215bb1f04cad6b",
-    "customer/sharing-exports.md": "09442662df6404f50afd12ffbe2759d7379f0555928da4e26233457e8120f942",
+    "customer/sharing-exports.md": "23ae166a9520b0d2383dae6e5545708d42ab0a65eeab93ede6260e2c9365b190",
     "customer/troubleshooting-support.md": "07b8e9494afc07392a1d896b1d2819a650a5ee8f763f999ffee312e53f958a0d",
     "customer/privacy-preferences.md": "f53d81daed63f169f038d99d78543aba5a1989ae84b45544e73f3aac46ccabd8",
     "customer/joins-entities.md": "26e3e9ef49c8eab86efbe53d3d05081f386c3f12829ead7b9f756265cd028f58",
