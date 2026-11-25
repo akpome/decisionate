@@ -83,9 +83,9 @@ Ask Decisionate on Help & Support explains approved product guidance and provide
 source sections. It does not read your live datasets, rank your own channels,
 inspect your account, run analyses or change settings. Use the relevant tool in
 your workspace for your results. A guidance answer is not an account investigation.
-When approved information is incomplete, the answer should state the gap rather
-than invent instructions or claim an undocumented feature exists. Use Contact
-support for account-specific help, without sending secrets or private records.
+If it cannot match your question to a reviewed answer, it says it cannot
+confirm it. Related questions are suggestions, not answers. Use Contact support
+for account-specific help, without sending secrets or private records.
 
 ## What a recommendation means
 

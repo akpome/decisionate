@@ -235,6 +235,7 @@ export type GuidanceResponse = {
     route: string
     reviewed_on: string
   }[]
+  suggested_questions?: string[]
   contact_support: boolean
 }
 

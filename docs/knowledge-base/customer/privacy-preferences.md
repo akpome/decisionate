@@ -13,14 +13,13 @@ can still contain sensitive information, so minimize personal content in dataset
 and support requests. An AI payload shape alone does not establish a provider's
 training, retention, residency or contractual behavior.
 
-Ask Decisionate sends product questions, bounded recent user messages and
-relevant customer documentation to the configured AI provider when available.
-It does not load your workspace datasets or retain a server-side conversation
-history. Known credential patterns are blocked and email addresses are removed
-from provider-bound question text, but this is not comprehensive personal-data
-redaction. Do not submit sensitive records. Provider processing and retention
-terms still apply. A separate support request is sent only after you review and
-submit its form.
+Ask Decisionate matches product questions to reviewed documentation without
+sending them to an AI provider. It does not load your workspace datasets or
+retain a server-side conversation history. Known credential patterns are blocked,
+but this is not comprehensive personal-data redaction. Do not submit sensitive
+records. A separate support request is sent only after you review and submit
+its form. The separate report AI interpretation feature can still send selected
+analysis context to the configured provider.
 
 ## Retention distinctions
 

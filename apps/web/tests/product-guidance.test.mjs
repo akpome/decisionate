@@ -101,8 +101,7 @@ test("long replies open at the start of the answer while questions and pending s
 })
 
 test("sources, privacy, retries, stop and human handoff remain available without automatic support delivery", () => {
-  assert.match(component, /Approved guidance/)
-  assert.doesNotMatch(component, /AI answer/)
+  assert.doesNotMatch(component, /Approved guidance|AI answer|sent to our AI provider/)
   assert.match(component, /Documentation/)
   assert.match(component, /<details key=\{source.chunk_id\}/)
   assert.match(component, /not your live account/)
@@ -111,6 +110,13 @@ test("sources, privacy, retries, stop and human handoff remain available without
   assert.match(component, /onContactSupport\(/)
   assert.doesNotMatch(component, /submitSupportRequest/)
   assert.match(page, /if \(message\) setSupportMessage\(message\)/)
+})
+
+test("unconfirmed answers show related questions as separate actions", () => {
+  assert.match(component, /Related questions you can try/)
+  assert.match(component, /message\.response\.suggested_questions\.map/)
+  assert.match(component, /void ask\(suggestion\)/)
+  assert.match(component, /message\.response\?\.sources\.length \? "Decisionate · Documentation"/)
 })
 
 test("starter questions cover choosing tools, past spending and the moved Business impact workflow", () => {

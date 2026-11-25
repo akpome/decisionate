@@ -2,6 +2,7 @@
   "schema_version": 1,
   "scope": "Representative business questions and paraphrases for every current analysis workflow. Not an exhaustive list of all possible questions or certification of live AI answers. Each question must retrieve the specified approved answer among its first three sources.",
   "cases": [
+    {"id":"find-where-money-goes-further","tool":"navigation","chunk_id":"performance-analysis:how-do-i-find-where-my-money-goes-further","questions":["How to Find where your money goes further. Compare revenue per advertising dollar, or see which products leave the most money after costs.","How can I compare what I earn per ad dollar and which products make the most after costs?","Where can I check past advertising returns and product profitability?"]},
     {"id":"return-usage","tool":"return-on-spend","chunk_id":"performance-analysis:how-do-i-use-return-on-spend","questions":["how do use the return on spend under business analysis","How do I use Return on spend?"]},
     {"id":"profit-usage","tool":"profitability","chunk_id":"performance-analysis:how-do-i-use-profitability","questions":["How do I use Profitability?","How do I use the Profitability tool?","How do I compare profitability by location?"]},
     {"id":"retention-usage","tool":"retention","chunk_id":"performance-analysis:how-do-i-use-customer-retention","questions":["How do I use Customer retention?","How do I use Customer retention in Business Analysis?"]},

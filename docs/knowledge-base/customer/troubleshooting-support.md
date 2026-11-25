@@ -6,31 +6,21 @@ subscription, an AI failure or a connector permissions problem.
 
 ## Ask Decisionate
 
-Open Help & Support and use Ask Decisionate for product guidance. You can ask a
-follow-up question, expand a cited documentation section, or open its product
-page. AI answers and documentation excerpts are labeled separately. If AI is not
-configured or cannot answer, relevant documentation remains available. Missing
-evidence is not permission to invent an answer.
+Open Help & Support and use Ask Decisionate for product guidance. You can
+expand the cited documentation or open the relevant product page. Each answer
+comes from a reviewed question and a documented answer, not generated text.
 
-Factual guidance is taken from approved documentation sections, not invented by
-the model. If the documentation does not establish the answer, the assistant
-says it cannot confirm it from the approved information available at this time.
-If only part is documented, it shares that part with an explicit limitation.
-Related documentation is not proof that an unlisted feature exists, is
-unavailable, or is planned. An unrelated question may receive a polite redirect;
-an unclear question may need clarification. A source review date is not proof
-of your account's live state. Human support can investigate missing details.
+If it cannot confirm an answer, it says so. It may offer related questions
+you can try, but does not present a loosely related guide as the answer.
+Ask one question at a time or name the feature you want to use. Missing
+documentation does not prove a feature is supported, unavailable or planned.
+Human support can investigate missing details or live account issues.
 
-Questions and recent user messages may be sent to the configured AI provider
-with approved customer documentation. Do not include private business records or
-credentials. The assistant does not query live datasets, inspect your account,
-read internal runbooks, access GitHub or execute actions. Guidance does not use
-your business-analysis AI credits. Usage limits can require you to wait.
-
-The conversation stays in the current page rather than a saved chat history.
-Clear conversation, leave the page or switch workspaces to start fresh. Clearing
-the page does not erase information already processed by the provider. Stop
-waiting cancels the browser request, not necessarily a provider call in progress.
+Guidance questions are not sent to an AI provider. Do not include credentials or
+private records. Ask Decisionate cannot inspect your account or datasets, access
+GitHub, execute actions, or use business-analysis AI credits. The conversation
+stays in the current page. Clear it, leave the page or switch workspaces to
+start fresh. Usage limits can require you to wait.
 
 Contact support opens the normal support form with the latest question for you
 to review. It does not send an email automatically or attach the entire chat.

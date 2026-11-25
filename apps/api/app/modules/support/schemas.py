@@ -41,6 +41,7 @@ class GuidanceSource(BaseModel):
 
 class GuidanceResponse(BaseModel):
     answer: str
-    mode: Literal["ai", "documentation", "unavailable"]
+    mode: Literal["documentation", "unavailable"]
     sources: list[GuidanceSource] = Field(default_factory=list)
+    suggested_questions: list[str] = Field(default_factory=list)
     contact_support: bool = False

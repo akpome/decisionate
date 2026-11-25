@@ -142,6 +142,7 @@
         "/business-analysis/cash-flow"
       ],
       "sources": [
+        "apps/web/components/landing/hero.tsx",
         "apps/api/app/modules/performance/schemas.py",
         "apps/api/app/modules/performance/service.py",
         "apps/api/app/modules/performance/router.py",
@@ -164,6 +165,8 @@
         "decisions-outcomes"
       ],
       "section_routes": {
+        "Sales are up. Is profit up too?": "/business-analysis/profitability",
+        "How do I find where my money goes further?": "/business-analysis",
         "How do I use Return on spend?": "/business-analysis/returns",
         "How do I use Profitability?": "/business-analysis/profitability",
         "How do I use Customer retention?": "/business-analysis/retention",
@@ -184,6 +187,35 @@
         "What if customers pay late or expenses rise?": "/business-analysis/cash-flow"
       },
       "direct_questions": {
+        "Sales are up. Is profit up too?": [
+          "Sales are up. Is profit up too?",
+          "How do I check whether sales and profit both went up?",
+          "Sales are up. Is profit up too? Bring your sales, marketing and accounting figures together to answer questions like this. Record what you'll try and when you'll check the result.",
+          "How can I tell whether my profit rose as sales went up?",
+          "How do I compare sales and profit across periods?"
+        ],
+        "How do I find where my money goes further?": [
+          "How do I find where my money goes further?",
+          "How to find where your money goes further?",
+          "Find where your money goes further. Compare revenue per advertising dollar, or see which products leave the most money after costs.",
+          "How to Find where your money goes further. Compare revenue per advertising dollar, or see which products leave the most money after costs.",
+          "How do I compare revenue per advertising dollar or see which products leave the most money after costs?",
+          "How can I compare what I earn per ad dollar and which products make the most after costs?",
+          "Where can I check past advertising returns and product profitability?",
+          "Find where your money goes further."
+        ],
+        "Which advertising platform gave better value for my money?": [
+          "Which channel gave me more revenue per dollar spent?",
+          "Which advertising platform gave me more revenue per dollar spent?",
+          "Which ad platform gave me more bang for my dollar?"
+        ],
+        "Which products or services leave the most money?": [
+          "Which products leave the most money after costs?",
+          "Which products or services leave the most money after costs?"
+        ],
+        "Does a return of 3 mean I made 3 dollars of profit?": [
+          "Does a return of 3 mean I made 3 dollars of profit?"
+        ],
         "How do I use Return on spend?": [
           "How do I use Return on spend?",
           "How to use Return on spend?",
@@ -201,10 +233,17 @@
         ],
         "How do I use Customer retention?": [
           "How do I use Customer retention?",
+          "See how many buyers come back.",
+          "How do I see how many buyers come back?",
+          "See how many buyers come back. Check how many customers make a second purchase within 30, 60 or 90 days. Use what you learn to choose when to send a reminder.",
+          "How do I check repeat purchases and choose when to test a reminder?",
           "How to use Customer retention?",
           "How do I use the Customer retention tool?",
           "How do I use Customer retention under Business Analysis?",
           "How do I use Customer retention in Business Analysis?"
+        ],
+        "Are customers coming back?": [
+          "Are my customers coming back to buy again?"
         ],
         "How do I use Sales conversion?": [
           "How do I use Sales conversion?",
@@ -213,15 +252,29 @@
           "How do I use Sales conversion under Business Analysis?",
           "How do I use Sales conversion in Business Analysis?"
         ],
+        "Where are potential sales being lost?": [
+          "Where are potential sales being lost?"
+        ],
         "How do I use Cash flow planning?": [
           "How do I use Cash flow planning?",
+          "Catch a tight week before it arrives.",
+          "How do I catch a tight week before it arrives?",
+          "Catch a tight week before it arrives. Line up expected payments and bills. Try a late payment to see when your cash balance could fall short.",
+          "How do I check cash flow if a customer pays late?",
           "How to use Cash flow planning?",
           "How do I use the Cash flow planning tool?",
           "How do I use Cash flow planning under Business Analysis?",
           "How do I use Cash flow planning in Business Analysis?"
+        ],
+        "When might cash run short?": [
+          "When might cash run short?"
         ]
       },
       "section_questions": {
+        "How do I find where my money goes further?": [
+          "How can I compare what I earn per ad dollar and which products make the most after costs?",
+          "Where can I check past advertising returns and product profitability?"
+        ],
         "How do I use Cash flow planning?": [
           "Can money in and money out be in separate datasets?",
           "How do I use separate receipts and bills datasets for cash flow planning?"
@@ -241,6 +294,10 @@
         "Why is there no winning channel or return figure?": [
           "Why won't Return on spend declare a winner?",
           "What does missing or zero spending mean for return?"
+        ],
+        "Which products or services leave the most money?": [
+          "Which products leave the most money after costs?",
+          "Which products or services leave the most money after costs?"
         ],
         "Why can a high-margin product leave less money?": [
           "Which matters more, highest margin or largest profit amount?",
@@ -306,7 +363,11 @@
         "How to compare advertising spend and get a budget recommendation": [
           "How do I use Budget Planner?",
           "How to use Budget Planner?",
-          "How do I create a budget plan?"
+          "How do I create a budget plan?",
+          "How do I get a recommendation on what to spend on Meta or Google for my Shopify store?",
+          "How can I get a recommendation for dividing my advertising budget between channels?",
+          "how can decisionate make recommedation for me on how to get the most value for my advertising spend, with Google ads and meta ads",
+          "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store"
         ]
       }
     },
@@ -346,6 +407,16 @@
       ],
       "section_routes": {
         "What can Ask Decisionate do?": "/help"
+      },
+      "direct_questions": {
+        "Which analysis tool should I use?": [
+          "Which analysis tool should I use?"
+        ],
+        "What can Ask Decisionate do?": [
+          "Can Ask Decisionate check my results or change my account?",
+          "Can you run an analysis from this chat?",
+          "Does the help chatbot read my live datasets?"
+        ]
       },
       "section_questions": {
         "What can Ask Decisionate do?": [
@@ -978,6 +1049,9 @@
           "Which decisions are eligible for impact analysis?",
           "Why is my decision missing from the decision dropdown?"
         ],
+        "How does Business impact allow time for results?": [
+          "Does impact run a new correlation to choose the delay?"
+        ],
         "Where do the Business impact dates come from?": [
           "Why can't I edit the impact history range or analysis settings?"
         ],
@@ -989,6 +1063,7 @@
       },
       "direct_questions": {
         "Where is Business impact and how do I use it?": [
+          "Where is Business impact and how do I use it?",
           "How do I use Business impact?",
           "How do I use Business impact analysis?",
           "How do I use Business impact under Business Analysis?"
@@ -996,6 +1071,7 @@
         "Build an analysis": [
           "How do I use Compare metrics?",
           "How do I use correlation analysis?",
+          "How do I build a report across datasets?",
           "How do I create a multi dataset report?"
         ],
         "Analyze one dataset": [
@@ -1082,6 +1158,13 @@
         "reports-build",
         "decisions-outcomes"
       ],
+      "direct_questions": {
+        "Can I compare three or more datasets without joining them?": [
+          "How are relationships calculated across multiple datasets?",
+          "Can I compare three or more datasets without joining them?",
+          "Can I compare three datasets without joining them?"
+        ]
+      },
       "section_questions": {
         "Terms in plain language": [
           "What does lead mean?",
@@ -1353,6 +1436,12 @@
         "How do I check whether spending more brought the orders I wanted?"
       ],
       "direct_questions": {
+        "How do I follow through on a change I make?": [
+          "How do I follow through on a change I make?",
+          "Follow through on the change you make.",
+          "Follow through on the change you make. Set a target for what you will change and the result you want. On review day, compare both with what actually happened.",
+          "How do I compare the planned change and outcome targets with what actually happened?"
+        ],
         "How do I check whether spending more brought the orders I wanted?": [
           "How do automatic decision reviews work?",
           "How do I set targets for my action and outcome?"
@@ -1362,11 +1451,15 @@
           "Do I need to save my comparison before creating a decision?"
         ]
       },
+      "section_routes": {
+        "How do I follow through on a change I make?": "/decisions/new"
+      },
       "routes": [
         "/decisions",
         "/decisions/new"
       ],
       "sources": [
+        "apps/web/components/landing/hero.tsx",
         "apps/api/app/modules/decisions/router.py",
         "apps/api/app/modules/decisions/metric_scope.py",
         "apps/api/app/modules/decisions/metric_plans.py",

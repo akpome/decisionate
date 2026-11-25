@@ -18,29 +18,18 @@ calls and sends no emails.
 - Use [the generated connector inventory](connector-catalog.json) for the
   source-registry inventory, not a claim that a connector is enabled in production.
 - Use [the evaluation cases](evaluation-cases.json) for chatbot review.
-  Retrieval and mocked-provider regression tests do not establish live model
-  answer quality; these criteria still need human review with the configured model.
-- Use [the business-question coverage matrix](analysis-question-coverage.json)
-  for 174 representative questions across 20 tools and supporting workflows.
-  These include ordinary wording, data requirements, interpretation, saving and
-  limitations, not only exact feature names. The matrix checks that the intended
-  answer appears among the first three retrieved sections and can be displayed
-  in full within the answer limit. It is not a claim to cover every possible question.
+  Automated tests check exact landing-page questions, refusal on unverified
+  requests, and customer-only document retrieval.
+- Use the [business-question coverage matrix](analysis-question-coverage.json)
+  to verify the intended article can be found for representative questions
+  across the tools and workflows. Retrieval does not establish answer coverage.
 
-The chatbot no longer displays free-form model-written factual answers. It uses
-AI to classify coverage and select approved sections, then composes the response
-on the server. Unsupported and partial questions receive explicit limitations.
-Reviewed, exact how-to questions can return their approved instructions directly
-without an AI call or an unnecessary uncertainty preamble. Other questions still
-use coverage classification, or related documentation when the provider is
-unavailable. Related guides lead with practical instructions and end with a
-scope note: they do not verify account facts or anything beyond the guide.
-An unavailable provider does not mean the product guidance is missing.
-Keyword similarity alone does not establish complete answer coverage.
-Regression tests cover fabricated claims with real citations, missing features,
-live-account questions, partial answers and unrelated follow-up questions.
-Relevant selection and source accuracy still need review; this is not a claim
-that model selection or documentation can never be mistaken.
+Ask Decisionate returns factual text only for reviewed questions and approved
+phrasings. It cites the corresponding section. It never asks a model to guess
+which documentation answers a question. If no reviewed answer matches, it
+states that limitation and may offer related reviewed questions as suggestions,
+not as evidence for the unanswered question. Add new phrasings only after
+checking that the approved answer directly addresses them.
 
 ## Customer articles
 

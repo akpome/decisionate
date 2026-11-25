@@ -118,7 +118,7 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
         </button>
       </div>
       <p className="mt-2 max-w-3xl text-xs text-gray-600 dark:text-gray-400">
-        Questions and recent messages may be sent to our AI provider. Do not include private records or credentials. Answers use product documentation, not your live account. <Link href="/privacy" className="text-blue-600 underline">Privacy</Link>
+        Answers come from reviewed product documentation, not your live account. Do not include private records or credentials. <Link href="/privacy" className="text-blue-600 underline">Privacy</Link>
       </p>
       <div ref={log} role="log" aria-label="Product guidance conversation" aria-live="polite" aria-relevant="additions" className="mt-4 max-h-[480px] min-h-40 space-y-5 overflow-y-auto overscroll-contain py-2 pr-2 [overflow-wrap:anywhere]">
         {!messages.length && (
@@ -131,7 +131,7 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
         )}
         {messages.map(message => (
           <article key={message.id} data-guidance-message={message.id} className={message.role === "user" ? "border-l-2 border-blue-500 pl-3" : "space-y-2"}>
-            <p className="text-xs font-semibold text-gray-500">{message.role === "user" ? "You" : message.response?.mode === "ai" ? "Decisionate · Approved guidance" : "Decisionate · Documentation"}</p>
+            <p className="text-xs font-semibold text-gray-500">{message.role === "user" ? "You" : message.response?.sources.length ? "Decisionate · Documentation" : "Decisionate"}</p>
             <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
             {message.response?.sources.map(source => (
               <details key={source.chunk_id} className="border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
@@ -143,6 +143,16 @@ export function ProductGuidance({ userId, workspaceId, onContactSupport }: Props
                 </div>
               </details>
             ))}
+            {!!message.response?.suggested_questions?.length && (
+              <div className="space-y-2 border-l border-gray-200 pl-3 dark:border-gray-700">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Related questions you can try</p>
+                <ul className="space-y-1">
+                  {message.response.suggested_questions.map(suggestion => (
+                    <li key={suggestion}><button type="button" onClick={() => void ask(suggestion)} disabled={busy || !userId || !workspaceId} className="max-w-full text-left text-sm text-blue-600 underline underline-offset-4 disabled:opacity-50">{suggestion}</button></li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </article>
         ))}
         {busy && <p role="status" className="flex items-center gap-2 text-sm text-gray-500"><LoaderCircle size={16} aria-hidden="true" className="animate-spin" />Finding guidance...</p>}

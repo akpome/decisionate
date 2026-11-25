@@ -1,5 +1,47 @@
 # Business Analysis tools for growing businesses
 
+## Sales are up. Is profit up too?
+
+Open Business Analysis > Profitability. Higher sales can still leave less
+money if your costs rose faster.
+
+1. Connect or upload the records you need: sales revenue, relevant total costs
+   from accounting, and marketing spend if you want to include it and it is
+   not already in your costs. Use revenue after refunds and discounts, excluding
+   tax. Use the same currency and do not count the same cost twice.
+2. Choose where the revenue and costs are stored, select the dataset and
+   columns for each, and run Compare results for the earlier period. Run it
+   again for the later period. Compare equally long, complete periods using the
+   same definitions, cost columns and filters.
+3. Look at Revenue and Money left for both periods. Money left is revenue
+   minus the costs you selected. Call it net profit only if you've included all
+   relevant costs. Margin is the share of revenue left, not the amount left.
+4. If you want to try a change, choose Create decision on the results. Record
+   the action, the result you want, and when you will review it. The app does
+   not change prices, spending or source records for you.
+
+## How do I find where my money goes further?
+
+Open Business Analysis and pick the tab that answers your question:
+
+1. Which ads earned more revenue per dollar? Choose Return on spend.
+   Set the dates and currency, then pick the revenue and spending columns. If
+   both figures are in one dataset, choose Channel under Show separate
+   results for. If they're in different datasets, add one comparison per
+   channel. Choose Compare results to see recorded revenue divided by
+   spending. For a fair ranking, count each sale under just one channel using
+   the same tracking method. Don't give every channel the store's total sales.
+2. Which products leave the most money after costs? Choose Profitability.
+   Set the dates and currency, then pick revenue and the total cost columns
+   without counting any cost twice. When the figures are in one dataset,
+   choose Product under Show separate results for. When they're in
+   separate datasets, add a comparison for each product using records filtered
+   to that product. Choose Compare results and look at Money left:
+   revenue minus the costs you selected.
+
+Return on spend measures recorded revenue, not profit. Profitability only
+subtracts the costs you include.
+
 ## How do I use Return on spend?
 
 Open Business Analysis and choose Return on spend to compare revenue earned
@@ -74,7 +116,10 @@ Open Business Analysis and choose Customer retention to check repeat purchases.
 
 Only customers with the complete follow-up window enter the rate. The first
 purchase means first in the available filtered records, not necessarily
-first-ever. This is not a prediction of which customers will leave.
+first-ever. Compare 30, 60 or 90 days to see how much repeat buying happened
+by each cutoff. For example, use those results to choose a reminder timing to
+test, then record it as a decision. The retention report does not pick an
+optimal send date, send reminders or predict which customers will leave.
 
 ## How do I use Sales conversion?
 
@@ -116,10 +161,15 @@ against upcoming payments.
 3. Set Plan starts, Plan length of 4, 8, 13 or 26 weeks, Currency and
    Cash available at the start.
 4. Optionally open Cash buffer and what-if changes to set Minimum cash to keep,
-   adjust receipts or costs, or test receipts arriving up to 90 days later.
+   adjust receipts or costs, or use Receipts arrive later (days) to move the
+   selected incoming payments up to 90 days later. It shifts the selected
+   receipts together, not an individual invoice. To test a specific late
+   payment, use a separate copy of the schedule with only that payment's
+   expected date changed.
 5. Confirm that the schedules include the receipts and obligations you intend
    to plan. Choose Preview cash plan and review weekly cash, the lowest balance
-   and any shortfall against your minimum.
+   and any shortfall against your minimum. Preview once with no delay for your
+   baseline and again with the delay to see if a different week falls short.
 6. Choose Create decision on the cash plan to record an action and review date,
    or Save comparison to keep the scenario without taking action.
 

@@ -88,7 +88,7 @@ const faqItems = [
   },
   {
     question: "Can Ask Decisionate check my results or change my account?",
-    answer: "No. Ask Decisionate explains the approved product documentation and shows its sources. It does not inspect your datasets, calculate your channel winner, change settings or execute actions. Run the relevant tool in your workspace for your results. When the documentation does not answer a question, it should state the limitation rather than invent an answer. Use Contact support for account-specific help, without sharing credentials or private records.",
+    answer: "No. Ask Decisionate answers reviewed product questions and shows its sources. It does not inspect your datasets, calculate your channel winner or change settings. If it cannot confirm an answer, it says so and may suggest related questions you can try. Use Contact support for account-specific help, without sharing credentials or private records.",
   },
   {
     question: "How can I tell whether customers are coming back?",

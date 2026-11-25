@@ -4,6 +4,26 @@ A decision records a concrete action, its reasoning, expected result and later
 outcome. Reading a report, finding a correlation or generating an AI recommendation
 does not automatically create an accountable decision.
 
+## How do I follow through on a change I make?
+
+Open Decisions > Create decision, or choose Create decision from your analysis
+results. Record what you plan to change, when it will start, and the date
+you'll review it.
+
+1. Choose Measure an action and a result when both can be tracked from data.
+   Pick the action metric (for example, ad spend) and a direction and target
+   change, such as increase by 10%. Pick a separate result metric (for example,
+   orders) and its direction and target, such as increase by 20 orders.
+2. Choose Preview targets. Check the data, baseline, target values and dates
+   before creating the decision. For a change you cannot track with two
+   usable metrics, choose Review manually and record what you'll look for.
+3. On or after the review date, open the decision. A measured decision with
+   enough data shows what actually happened next to each target. The action
+   can meet its target while the result misses. If data is missing, that is
+   not evidence that a target was missed. Review and record your next step.
+
+Meeting both targets does not prove that your action caused the result.
+
 ## Where can I create a decision?
 
 You can create a decision without leaving Business Analysis. On a completed

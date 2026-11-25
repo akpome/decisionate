@@ -119,6 +119,11 @@ produce three pairs. More selected metrics create more cross-source pairs, not
 a single model that separates every source's contribution. Within-source pairs
 are not added by this report engine.
 
+For each pair, the report groups each metric by the selected time period,
+matches the resulting periods, and computes the selected correlation method
+when there is enough usable shared history. Missing values are not treated as
+zero, and a high correlation does not prove that either metric caused the other.
+
 Choose direction independently for each pair. Visits can follow advertising
 spend while leading orders. Remove pairs you do not want tested; their metrics
 can still appear in the report and receive unusual-change checks. The sources

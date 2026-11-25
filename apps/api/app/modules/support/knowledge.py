@@ -115,7 +115,15 @@ def retrieve(question, history=(), limit=5):
         ranked.append((score, record))
     direct = direct_answer_record(question, records)
     guide = usage_guide_record(question, records)
-    ranked.sort(key=lambda item: (item[1] is not direct, item[1] is not guide, -item[0], item[1]["chunk_id"]))
+    key = question_key(question)
+    matched_questions = {
+        record["chunk_id"] for _, record in ranked
+        if any(question_key(hint) == key for hint in record.get("section_questions", []))
+    }
+    ranked.sort(key=lambda item: (
+        item[1] is not direct, item[1] is not guide,
+        item[1]["chunk_id"] not in matched_questions, -item[0], item[1]["chunk_id"],
+    ))
     selected, per_article, characters = [], Counter(), 0
     for score, record in ranked:
         if score < 2.0 or per_article[record["article_id"]] >= 2:
