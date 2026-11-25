@@ -503,7 +503,8 @@ test("unknown hosted domains never fall back to Decisionate, and inactive domain
       const html = await response.text()
       assert.match(html, /We can't open this portal/)
       assert.match(html, /href="\/">Try again/)
-      assert.doesNotMatch(html, /decisionate\.ca|sign.in|private|redirect_url|<script/i)
+      assert.match(html, /href="https:\/\/app\.decisionate\.ca\/sign-in">Sign in to Decisionate<\/a>/)
+      assert.doesNotMatch(html, /private|redirect_url|<script/i)
     }
   }
   assert.equal(h.clerkCalls(), 0)

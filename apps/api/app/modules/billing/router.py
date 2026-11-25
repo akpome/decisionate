@@ -71,7 +71,9 @@ from app.modules.billing.service import (
     verify_stripe_webhook,
     retrieve_stripe_checkout,
     retrieve_stripe_subscription,
+    timestamp_to_datetime,
 )
+from app.modules.hosted_subdomains.cleanup import release_trial_portal
 
 
 router = APIRouter()
@@ -1073,11 +1075,23 @@ def apply_stripe_billing_event(
     subscription.additional_ai_credit_packs = parse_nonnegative_int(
         metadata.get("additional_ai_credit_packs")
     )
+    was_trialing = subscription.status == "trialing"
+    trial_end = timestamp_to_datetime(event_object.get("trial_end")) or (
+        subscription.current_period_end if was_trialing else None
+    )
     apply_renewal_period(
         subscription, event_object, first_item,
         deleted=event_type == "customer.subscription.deleted",
         previous_credit_limit=previous_credit_limit,
     )
+    if get_application().is_default and billing_enforcement_enabled() and trial_end and trial_end <= utc_now():
+        # Stripe can replace "trialing" before the scheduled billing check runs.
+        ended_at = timestamp_to_datetime(event_object.get("ended_at"))
+        ended_at_trial = (
+            subscription.status == "canceled" and (was_trialing or bool(ended_at and ended_at <= trial_end))
+        ) or subscription.status == "paused"
+        if ended_at_trial:
+            release_trial_portal(db, subscription.workspace_id)
 
 
 def get_or_create_subscription(

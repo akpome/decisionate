@@ -60,7 +60,9 @@ def lock_hosted_addresses(db):
     if dialect == "postgresql":
         db.execute(text("SELECT pg_advisory_xact_lock(59831, 8)"))
     elif dialect == "sqlite":
-        db.execute(text("BEGIN IMMEDIATE"))
+        connection = db.connection()
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
 
 
 def reserved_address(db, slug):

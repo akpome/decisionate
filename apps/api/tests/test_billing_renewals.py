@@ -14,10 +14,15 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
 
-from app.db.models import BillingWebhookEvent, Organization, WorkspaceApplication, WorkspaceSubscription, HostedSubdomainEntitlement, HostedSubdomainPortal, utc_now
+from app.db.models import (
+    BillingWebhookEvent, Dataset, HostedSubdomainAddress, HostedSubdomainEntitlement,
+    HostedSubdomainEvent, HostedSubdomainOAuthReturn, HostedSubdomainPortal,
+    OAuthConnectionState, Organization, WorkspaceApplication, WorkspaceSubscription, utc_now,
+)
 from app.modules.billing import notifications, router as billing, service
 from app.modules.billing.lifecycle import build_subscription_access_state
 from app.modules.billing.renewals import apply_renewal_period, reconcile_subscription_if_needed
+from app.modules.hosted_subdomains.service import Branding, reserved_address
 
 
 def timestamp(date):
@@ -28,8 +33,12 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.engine = create_engine(f"sqlite:///{self.directory.name}/renewals.db", connect_args={"timeout": 30})
-        for table in (WorkspaceApplication.__table__, WorkspaceSubscription.__table__, BillingWebhookEvent.__table__, Organization.__table__, HostedSubdomainEntitlement.__table__, HostedSubdomainPortal.__table__):
-            table.create(self.engine)
+        for model in (
+            WorkspaceApplication, WorkspaceSubscription, BillingWebhookEvent, Organization,
+            HostedSubdomainEntitlement, HostedSubdomainPortal, HostedSubdomainAddress,
+            HostedSubdomainEvent, OAuthConnectionState, HostedSubdomainOAuthReturn, Dataset,
+        ):
+            model.__table__.create(self.engine)
         self.sessions = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.now = utc_now().replace(microsecond=0)
         self.start = self.now - timedelta(days=30)
@@ -67,6 +76,19 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
         defaults.update(values)
         with self.sessions() as db:
             db.add(WorkspaceSubscription(**defaults))
+            db.commit()
+
+    def seed_hosted_portal(self):
+        brand = Branding(name="Test", support_email="support@example.test").model_dump_json()
+        with self.sessions() as db:
+            organization = Organization(owner_user_id="owner", name="Test", country="Canada")
+            db.add(organization)
+            db.flush()
+            db.add(HostedSubdomainPortal(
+                id="trial-portal", organization_id=organization.id, slug="trial-shop",
+                hostname="trial-shop.decisionate.app", configuration=brand, status="active",
+                published_configuration=brand,
+            ))
             db.commit()
 
     def remote(self, interval="month", **values):
@@ -352,6 +374,71 @@ class BillingRenewalTests(unittest.IsolatedAsyncioTestCase):
             notice = notifications.build_lifecycle_notice(subscription, build_subscription_access_state(subscription))
         self.assertIn("Auto-renewal is off", notice[2])
         self.assertNotIn("billing automatically", notice[2])
+
+    def test_trial_reminder_warns_owner_that_address_will_be_released(self):
+        self.seed(status="trialing", provider_subscription_id=None, current_period_end=self.now + timedelta(days=3))
+        self.seed_hosted_portal()
+        with self.sessions() as db, patch.object(
+            notifications, "get_workspace_owner_email", return_value="owner@example.test",
+        ), patch.object(notifications, "send_platform_system_email") as email:
+            result = notifications.send_due_billing_lifecycle_notifications(db, self.now)
+            self.assertIsNotNone(reserved_address(db, "trial-shop"))
+        self.assertEqual(result["notified"], 1)
+        recipient, _, body = email.call_args.args
+        self.assertEqual(recipient, "owner@example.test")
+        self.assertIn("subdomain (trial-shop.decisionate.app) will be deleted", body)
+        self.assertIn("set up your portal again", body)
+        self.assertIn("only reuse the same address if it is still available", body)
+
+    def test_expired_local_trial_releases_address_once_without_deleting_workspace_data(self):
+        self.seed(status="trialing", provider_subscription_id=None)
+        self.seed_hosted_portal()
+        with self.sessions() as db, patch.object(
+            notifications, "get_workspace_owner_email", return_value="owner@example.test",
+        ), patch.object(notifications, "send_platform_system_email") as email:
+            db.add(Dataset(
+                user_id="owner", workspace_id="owner", file_name="sales.csv", file_path="sales.csv",
+                row_count=10, column_count=2,
+            ))
+            db.add(HostedSubdomainEvent(portal_id="trial-portal", user_id="owner", action="published", revision=1))
+            db.add(HostedSubdomainAddress(hostname="previous-shop.decisionate.app", portal_id="trial-portal", forwards=True))
+            db.commit()
+            result = notifications.send_due_billing_lifecycle_notifications(db, self.now)
+            repeat = notifications.send_due_billing_lifecycle_notifications(db, self.now)
+            self.assertIsNone(reserved_address(db, "trial-shop"))
+            self.assertIsNotNone(reserved_address(db, "previous-shop"))
+            self.assertEqual(db.query(HostedSubdomainEvent).count(), 0)
+            self.assertEqual(db.query(Organization).count(), 1)
+            self.assertEqual(db.query(WorkspaceSubscription).count(), 1)
+            self.assertEqual(db.query(Dataset).count(), 1)
+        self.assertEqual(result["data_purged"], 0)
+        self.assertIn("hosted_portal_released", [item["status"] for item in result["results"]])
+        self.assertEqual(repeat["notified"], 0)
+        self.assertIn("subdomain (trial-shop.decisionate.app) was deleted", email.call_args.args[2])
+
+    def test_verified_stripe_trial_expiry_releases_address_despite_status_transition(self):
+        self.seed(status="trialing", cancel_at_period_end=1)
+        self.seed_hosted_portal()
+        remote = self.remote(status="canceled", trial_end=timestamp(self.now), ended_at=timestamp(self.now))
+        self.assertEqual(self.apply(remote).status, "canceled")
+        self.apply(remote)
+        with self.sessions() as db:
+            self.assertIsNone(reserved_address(db, "trial-shop"))
+            self.assertEqual(db.query(Organization).count(), 1)
+
+    def test_verified_trial_conversion_to_paid_plan_preserves_portal(self):
+        self.seed(status="trialing")
+        self.seed_hosted_portal()
+        self.assertEqual(self.apply(self.remote(trial_end=timestamp(self.now))).status, "active")
+        with self.sessions() as db:
+            self.assertIsNotNone(reserved_address(db, "trial-shop"))
+
+    def test_later_paid_cancellation_does_not_release_trial_address(self):
+        self.seed(status="active")
+        self.seed_hosted_portal()
+        self.apply(self.remote(status="canceled", trial_end=timestamp(self.start), ended_at=timestamp(self.now)))
+        with self.sessions() as db:
+            self.assertIsNotNone(reserved_address(db, "trial-shop"))
 
     def test_annual_renewal_reminder_and_monthly_auto_renew_are_not_expiry(self):
         subscription = WorkspaceSubscription(workspace_id="owner", plan="professional", status="active", billing_interval="year", current_period_end=self.now + timedelta(days=29))

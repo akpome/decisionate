@@ -182,18 +182,25 @@ workspace starts on the main application before that workspace joins the agency.
 ## What happens when Agency access ends or a client leaves?
 
 There is no separate hosted subscription to cancel. Hosted access follows your
-Professional or Agency plan: cancellation at the end of the billing period retains access until
-then; expiry or the end of the existing payment grace period stops access. Agency
-pause or platform suspension can also stop portal access. Configuration and data
-are preserved. An unlinked client loses agency portal access but keeps the existing
-main-app recovery options. Closing new setup does not delete a live portal.
+Professional or Agency plan. If the trial ends without an active paid
+subscription, the hosted portal is removed and the address becomes available
+for someone else to claim. The workspace itself is not deleted at trial expiry.
+After subscribing, set up the portal again and choose the same address only if
+it is still available. Continuing directly onto a paid plan keeps the portal.
+
+For a paid plan, cancellation retains access through the end of the billing
+period; expiry or the end of the payment grace period stops access. Agency pause
+or platform suspension can also stop portal access. An unlinked client loses
+agency portal access but keeps the main-app recovery options. Closing new setup
+does not delete a live portal.
 Ask Decisionate cannot confirm live billing/provider status; use Billing or contact
 support.
 
 ## Why does my portal show Portal unavailable?
 
-An unavailable hosted address shows a neutral page, without workspace details or
-a link to another application. Check the web address or ask the workspace owner who shared
-your link for help. Try again checks the same portal's home address. The message
+An unavailable hosted address shows a neutral page without workspace details.
+If you already have a Decisionate account, use the sign-in link on the page to
+sign in through Decisionate.ca. Otherwise, check the address or ask the workspace
+owner who shared your link for help. The message
 does not confirm whether an address is unregistered, access is paused or a service
 is temporarily unavailable. Ask Decisionate cannot check the portal's live status.

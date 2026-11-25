@@ -7,6 +7,7 @@ from urllib.parse import quote
 from app.db.models import (
     AppUser,
     AuthIdentity,
+    HostedSubdomainPortal,
     Organization,
     OrganizationMember,
     WorkspaceSubscription,
@@ -28,6 +29,8 @@ from app.modules.billing.data_retention import (
 )
 from app.configuration import get_runtime_configuration
 from app.application_context import get_application
+from app.modules.hosted_subdomains.cleanup import release_trial_portal
+from app.modules.hosted_subdomains.service import lock_hosted_addresses
 from app.modules.organizations.ownership import managed_client_filter, managing_agency_workspace_id
 
 
@@ -160,6 +163,9 @@ def send_ai_credit_low_balance_notification(
 def build_lifecycle_notice(
     subscription: WorkspaceSubscription,
     state,
+    *,
+    hosted_hostname: str | None = None,
+    released_hostname: str | None = None,
 ) -> tuple[str, str, str] | None:
     if (
         not subscription.current_period_end
@@ -229,6 +235,18 @@ def build_lifecycle_notice(
             if subscription.provider_subscription_id else
             "Your trial ends soon. Choose a paid plan to keep workspace access. Your remaining trial time is preserved when you add payment details."
         )
+        if hosted_hostname:
+            message += (
+                f"\n\nIf your trial ends without an active paid subscription, your hosted "
+                f"subdomain ({hosted_hostname}) will be deleted and the address may be claimed "
+                "by someone else. If you subscribe later, set up your portal again. "
+                "You can only reuse the same address if it is still available."
+            )
+    elif released_hostname:
+        message += (
+            f"\n\nYour hosted subdomain ({released_hostname}) was deleted. If you subscribe later, "
+            "set up your portal again. You can only reuse the same address if it is still available."
+        )
 
     notice_key = f"{stage}:{period_key}"
 
@@ -245,6 +263,24 @@ def build_lifecycle_notice(
         f"{get_application().name}"
     )
     return notice_key, subject, body
+
+
+def _expired_local_trial(subscription, now):
+    return (
+        subscription.status == "trialing"
+        and not subscription.provider_subscription_id
+        and subscription.current_period_end is not None
+        and subscription.current_period_end <= now
+    )
+
+
+def _hosted_trial_address(db, organization_id):
+    return (
+        db.query(HostedSubdomainPortal.hostname)
+        .filter_by(organization_id=organization_id, application_id="decisionate-ca")
+        .filter(HostedSubdomainPortal.status != "retired")
+        .scalar()
+    )
 
 
 def send_due_billing_lifecycle_notifications(
@@ -305,13 +341,37 @@ def send_due_billing_lifecycle_notifications(
             })
             continue
         state = build_subscription_access_state(subscription, current_time)
-        organization = (
-            db.query(Organization)
-            .filter(
-                Organization.owner_user_id == subscription.workspace_id,
-            )
-            .first()
-        )
+        organization = subscribed_workspace
+        released_hostname = None
+        if (
+            organization and get_application().is_default
+            and _expired_local_trial(subscription, current_time)
+            and _hosted_trial_address(db, organization.id)
+        ):
+            try:
+                if db.get_bind().dialect.name == "sqlite":
+                    lock_hosted_addresses(db)
+                # A concurrent checkout can convert the trial before this job obtains the lock.
+                db.refresh(subscription, with_for_update=True)
+                if _expired_local_trial(subscription, current_time):
+                    released_hostname = release_trial_portal(db, subscription.workspace_id)
+                db.commit()
+                if released_hostname:
+                    results.append({
+                        "workspace_id": subscription.workspace_id,
+                        "status": "hosted_portal_released",
+                        "hostname": released_hostname,
+                    })
+            except Exception:
+                db.rollback()
+                failed += 1
+                results.append({
+                    "workspace_id": subscription.workspace_id,
+                    "status": "hosted_portal_release_failed",
+                    "detail": "Hosted address release will be retried by the billing scheduler.",
+                })
+                continue
+            state = build_subscription_access_state(subscription, current_time)
 
         workspace_ids = [subscription.workspace_id]
         if organization:
@@ -364,10 +424,7 @@ def send_due_billing_lifecycle_notifications(
             subscription,
             current_time,
         )
-        notice = build_lifecycle_notice(
-            subscription,
-            state,
-        )
+        notice = build_lifecycle_notice(subscription, state, released_hostname=released_hostname)
         if notice is None:
             skipped += 1
             continue
@@ -376,6 +433,13 @@ def send_due_billing_lifecycle_notifications(
         if subscription.lifecycle_notice_key == notice_key:
             skipped += 1
             continue
+
+        if state.raw_status == "trialing" and state.access_allowed and get_application().is_default:
+            hosted = _hosted_trial_address(db, organization.id)
+            if hosted:
+                notice_key, subject, body = build_lifecycle_notice(
+                    subscription, state, hosted_hostname=hosted,
+                )
 
         recipient = get_workspace_owner_email(db, organization)
         if not recipient:

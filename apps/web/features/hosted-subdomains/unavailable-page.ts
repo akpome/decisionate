@@ -18,9 +18,11 @@ export const unavailablePortalPage = `<!doctype html>
     .status { margin: 0 0 14px; color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.5; }
     h1 { max-width: 460px; margin: 0; font-size: 36px; line-height: 1.18; font-weight: 600; overflow-wrap: anywhere; }
     .description { max-width: 450px; margin: 22px 0 30px; color: var(--muted); font-size: 16px; line-height: 1.65; }
-    .retry { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 12px 22px; border: 1px solid var(--button); border-radius: 6px; background: var(--button); color: var(--button-text); text-decoration: none; font-size: 15px; font-weight: 600; line-height: 1.4; }
-    .retry:hover { opacity: .88; }
-    .retry:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+    .sign-in { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 12px 22px; border: 1px solid var(--button); border-radius: 6px; background: var(--button); color: var(--button-text); text-decoration: none; font-size: 15px; font-weight: 600; line-height: 1.4; text-align: center; }
+    .retry { display: inline-flex; align-items: center; min-height: 46px; color: var(--accent); font-size: 15px; }
+    .sign-in:hover { opacity: .88; }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
     @media (max-width: 480px) { .shell { padding: 40px 24px; } }
     @media (prefers-color-scheme: dark) { :root { --background: #111918; --text: #f2f6f5; --muted: #b4c2be; --accent: #6ed3bb; --button: #f2f6f5; --button-text: #172321; } }
   </style>
@@ -31,8 +33,11 @@ export const unavailablePortalPage = `<!doctype html>
       <img class="portal-icon" src="/icons/portal-unavailable.svg" width="64" height="64" alt="" aria-hidden="true">
       <p class="status">Portal unavailable</p>
       <h1 id="portal-unavailable-title">We can't open this portal.</h1>
-      <p class="description">Check the web address, or contact the workspace owner who shared this link with you.</p>
-      <a class="retry" href="/">Try again</a>
+      <p class="description">If you already have an account, sign in through Decisionate.ca. Otherwise, check the web address or contact the workspace owner who shared this link.</p>
+      <div class="actions">
+        <a class="sign-in" href="https://app.decisionate.ca/sign-in">Sign in to Decisionate</a>
+        <a class="retry" href="/">Try again</a>
+      </div>
     </main>
   </div>
 </body>

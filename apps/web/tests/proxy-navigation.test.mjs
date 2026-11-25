@@ -150,6 +150,8 @@ test("unavailable portals return a non-indexable HTML page before Clerk for docu
     assert.equal(response.headers.get("x-middleware-rewrite"), null)
     const html = await response.text()
     assert.match(html, /We can't open this portal/)
-    assert.doesNotMatch(html, /decisionate\.ca|private|<script/i)
+    assert.match(html, /If you already have an account, sign in through Decisionate\.ca/)
+    assert.match(html, /href="https:\/\/app\.decisionate\.ca\/sign-in">Sign in to Decisionate<\/a>/)
+    assert.doesNotMatch(html, /private|<script/i)
   }
 })
