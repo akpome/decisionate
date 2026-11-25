@@ -103,12 +103,12 @@ class DashboardGroupTests(unittest.TestCase):
             clean_dashboard_preferences({"17": preference})
         self.assertEqual(error.exception.status_code, 422)
 
-    def test_existing_shared_dashboard_never_exposes_private_comparison_values_or_target_selection(self):
+    def test_shared_dashboard_settings_strip_private_group_values_and_extract_the_target_separately(self):
         stored = SimpleNamespace(
             dashboard_preferences='{"17":{"groupComparison":{"filter":{"column":"channel","values":["Private"]},"metric":"revenue","targets":[200]}}}',
             dashboard_views='{"17":{"general-business":{"targetMetric":"revenue","groupComparison":{"filter":{"column":"channel","values":["Private"]},"metric":"revenue","targets":[200]}}}}',
         )
-        self.assertEqual(shared_view_settings(stored, 17, "general-business"), ({}, {}))
+        self.assertEqual(shared_view_settings(stored, 17, "general-business"), ({}, {}, "revenue"))
 
     def test_older_monthly_summaries_are_not_shown_as_daily_or_partial_month_results(self):
         frame = self.frame.assign(**{"__decisionate_summary__": [True, *([False] * 8)], "revenue__sum": [200, *([None] * 8)]})

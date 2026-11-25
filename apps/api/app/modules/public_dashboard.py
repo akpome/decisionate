@@ -136,16 +136,18 @@ def shared_view_settings(preference, dataset_id, dashboard_key):
             return {}
         fields = {} if maps_only else raw.copy()
         fields.pop("groupComparison", None)
-        fields.pop("targetMetric", None)
+        if dashboard_key != DEFAULT_SELECTED_DASHBOARD:
+            fields.pop("targetMetric", None)
         for name in ("metricMappings", "chartTitles"):
             mapping = raw.get(name)
             fields[name] = {dashboard_key: mapping[dashboard_key]} if isinstance(mapping, dict) and dashboard_key in mapping else {}
         return clean_dashboard_preferences({key: fields})[key]
 
-    return (
-        clean(entry("dashboard_preferences"), maps_only=dashboard_key != DEFAULT_SELECTED_DASHBOARD),
-        clean(entry("dashboard_views").get(dashboard_key)),
-    )
+    legacy = clean(entry("dashboard_preferences"), maps_only=dashboard_key != DEFAULT_SELECTED_DASHBOARD)
+    view = clean(entry("dashboard_views").get(dashboard_key))
+    legacy_target = legacy.pop("targetMetric", None)
+    target_metric = view.pop("targetMetric", legacy_target)
+    return legacy, view, target_metric
 
 
 def is_public_join_result_for_dataset(result, dataset):
@@ -673,7 +675,7 @@ def get_public_shared_dashboard(
             if preference
             else None
         )
-        legacy, view = shared_view_settings(preference, dataset_id, dashboard_key)
+        legacy, view, target_metric = shared_view_settings(preference, dataset_id, dashboard_key)
         saved_joins = (view.pop("joinedDatasetResult", None), legacy.pop("joinedDatasetResult", None))
         joined_dataset_result = get_public_join_cache_result(
             db,
@@ -730,6 +732,7 @@ def get_public_shared_dashboard(
                     if preference and preference.selected_metric in public_metrics
                     else None
                 ),
+                "target_metric": target_metric if target_metric in public_metrics else None,
                 "metric_targets": {key: targets} if targets else None,
                 "dashboard_preferences": {key: legacy} if legacy else None,
                 "dashboard_views": {key: {dashboard_key: view}} if view else None,

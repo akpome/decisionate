@@ -1545,6 +1545,7 @@ export type PublicSharedDashboardResponse = {
   }
   preference: {
     selected_metric?: string | null
+    target_metric?: string | null
     metric_targets?: Record<
       string,
       Record<string, number>

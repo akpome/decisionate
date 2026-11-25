@@ -8,13 +8,13 @@ const require = createRequire(import.meta.url), ts = require("typescript"), Reac
 const { renderToStaticMarkup } = require("react-dom/server")
 const source = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8")
 const ast = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-function find(predicate) {
+function find(predicate, root = ast) {
   let found
   function visit(node) {
     if (predicate(node)) found = node
     ts.forEachChild(node, visit)
   }
-  visit(ast)
+  visit(root)
   assert.ok(found)
   return found
 }
@@ -298,6 +298,49 @@ test("executive, performance, and PDF layouts keep the main chart and only show 
       assert.match(html, /revenue (Trend|Performance)/, name)
       if (targetMetric) assert.match(html, />orders</, name)
     }
+  }
+})
+
+test("shared Executive and Performance views only show an explicitly selected target, while the demo keeps its sample target", () => {
+  const sharedSource = readFileSync(new URL("../app/share/dashboard/page.tsx", import.meta.url), "utf8")
+  const shared = ts.createSourceFile("shared.tsx", sharedSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const selection = find(node => ts.isCallExpression(node) && node.expression.getText(shared) === "setTargetMetricSelection"
+    && node.arguments[0]?.getText(shared).includes("preference.target_metric"), shared)
+  const target = find(node => ts.isVariableDeclaration(node) && node.name.getText(shared) === "targetMetric", shared)
+  const amount = find(node => ts.isVariableDeclaration(node) && node.name.getText(shared) === "selectedTarget", shared)
+  const line = find(node => ts.isVariableDeclaration(node) && node.name.getText(shared) === "chartTarget", shared)
+  const layouts = ["executive", "performance"].map(template =>
+    find(node => ts.isJsxExpression(node) && node.expression?.getText(shared).startsWith(`effectiveDashboardTemplate === "${template}"`), shared))
+  const { View } = load(`export function View({ preference, sharedDemo, effectiveDashboardTemplate, selectedMetrics = ["revenue"] }) {
+    const effectDemo = sharedDemo, restoredSelectedMetrics = ["revenue"]
+    let targetMetricSelection = "", availableMetrics = demoMetricOptions
+    const setTargetMetricSelection = value => { targetMetricSelection = value }
+    ${selection.getText(shared)}
+    const ${target.getText(shared)}
+    const ${amount.getText(shared)}
+    const ${line.getText(shared)}
+    return <>${layouts.map(layout => layout.getText(shared)).join("")}</>
+  }`, {
+    demoMetricOptions: ["revenue", "orders"], primaryMetric: "revenue",
+    exampleTarget: { metric: "orders", value: 80 }, targets: { revenue: 500, orders: 80 },
+    KpiGrid: icon, demoStatusLine: null, latestValue: 0, targetProgress: 0,
+    chartType: "line", chartRows: [{}], xKey: "date", metrics: [], scaleMode: "actual", dashboardColorPalette: [],
+    MainChartCard: ({ selectedTarget }) => React.createElement("output", { "data-chart-target": selectedTarget }),
+    TargetKpiCard: ({ primaryMetric, selectedTarget }) => React.createElement("output", { "data-gauge": primaryMetric }, selectedTarget),
+  })
+  for (const effectiveDashboardTemplate of ["executive", "performance"]) {
+    const render = (preference, overrides) => renderToStaticMarkup(
+      React.createElement(View, { preference, effectiveDashboardTemplate, ...overrides }))
+    for (const preference of [{}, { target_metric: null }, { target_metric: "removed" }]) {
+      const html = render(preference)
+      assert.doesNotMatch(html, /data-gauge|xl:grid-cols/)
+      assert.match(html, /data-chart-target="0"/)
+    }
+    const explicit = render({ target_metric: "orders" }, { selectedMetrics: ["revenue", "orders"] })
+    assert.match(explicit, /data-gauge="orders">80/)
+    assert.match(explicit, /data-chart-target="80"/)
+    assert.match(render({ target_metric: "orders" }), /data-chart-target="0"/)
+    assert.match(render({}, { sharedDemo: true }), /data-gauge="orders">80/)
   }
 })
 

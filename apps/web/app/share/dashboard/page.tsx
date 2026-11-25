@@ -648,7 +648,9 @@ function SharedDashboardContent({
           restoredSelectedMetrics
         )
         setTargetMetricSelection(
-          restoredSelectedMetrics[0] ?? availableMetrics[0] ?? ""
+          effectDemo
+            ? exampleTarget?.metric ?? restoredSelectedMetrics[0] ?? availableMetrics[0] ?? ""
+            : preference.target_metric ?? ""
         )
         setChartType(
           getSavedChartType(
@@ -876,10 +878,9 @@ function SharedDashboardContent({
   const targetMetric =
     demoMetricOptions.includes(targetMetricSelection)
       ? targetMetricSelection
-      : primaryMetric
-  const primaryMetricTarget =
-    targets[primaryMetric] ?? 0
+      : sharedDemo ? primaryMetric : ""
   const selectedTarget = targets[targetMetric] ?? 0
+  const chartTarget = selectedMetrics.includes(targetMetric) ? selectedTarget : 0
   const latestValue =
     getLatestValue(
       aggregatedRows,
@@ -1289,7 +1290,7 @@ function SharedDashboardContent({
               headerContent={demoStatusLine}
             />
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className={`grid gap-5 ${targetMetric ? "xl:grid-cols-[minmax(0,1fr)_360px]" : ""}`}>
               <MainChartCard
                 demoMode={sharedDemo}
                 chartType={chartType}
@@ -1298,32 +1299,32 @@ function SharedDashboardContent({
                 selectedMetrics={selectedMetrics}
                 metrics={metrics}
                 primaryMetric={primaryMetric}
-                selectedTarget={primaryMetricTarget}
+                selectedTarget={chartTarget}
                 scaleMode={scaleMode}
                 colorPalette={dashboardColorPalette}
               />
 
-              <TargetKpiCard
+              {targetMetric && <TargetKpiCard
                 sample={sharedDemo}
                 primaryMetric={targetMetric}
                 latestValue={latestValue}
                 selectedTarget={selectedTarget}
                 targetProgress={targetProgress}
-              />
+              />}
             </div>
           </>
         )}
 
         {effectiveDashboardTemplate === "performance" && (
           <>
-            <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <TargetKpiCard
+            <div className={`grid gap-5 ${targetMetric ? "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
+              {targetMetric && <TargetKpiCard
                 sample={sharedDemo}
                 primaryMetric={targetMetric}
                 latestValue={latestValue}
                 selectedTarget={selectedTarget}
                 targetProgress={targetProgress}
-              />
+              />}
 
               <MainChartCard
                 demoMode={sharedDemo}
@@ -1333,7 +1334,7 @@ function SharedDashboardContent({
                 selectedMetrics={selectedMetrics}
                 metrics={metrics}
                 primaryMetric={primaryMetric}
-                selectedTarget={primaryMetricTarget}
+                selectedTarget={chartTarget}
                 scaleMode={scaleMode}
                 colorPalette={dashboardColorPalette}
               />

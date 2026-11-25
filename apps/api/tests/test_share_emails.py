@@ -505,8 +505,8 @@ class ShareEmailTests(unittest.TestCase):
         with self.Session() as db:
             db.add(UserPreference(clerk_user_id="owner", workspace_id="owner", selected_metric="other_dataset_only",
                 metric_targets=json.dumps({"1": {"other_dataset_only": 100}}),
-                dashboard_preferences=json.dumps({"1": {"title": "Default dashboard", "chartTitles": titles}}),
-                dashboard_views=json.dumps({"1": {shared: {"title": "Sales", "chartTitles": titles},
+                dashboard_preferences=json.dumps({"1": {"title": "Default dashboard", "chartTitles": titles, "targetMetric": "spend"}}),
+                dashboard_views=json.dumps({"1": {shared: {"title": "Sales", "chartTitles": titles, "targetMetric": "spend"},
                                                    sibling: {"title": "Other workspace view"}}})))
             db.commit()
         self.assertEqual(self.send(self.dashboard(dashboard=shared)).status_code, 200)
@@ -516,7 +516,35 @@ class ShareEmailTests(unittest.TestCase):
         self.assertEqual(prefs["dashboard_preferences"], {"1": {"chartTitles": {shared: titles[shared]}}})
         self.assertEqual(prefs["dashboard_views"], {"1": {shared: {"title": "Sales", "chartTitles": {shared: titles[shared]}}}})
         self.assertIsNone(prefs["selected_metric"])
+        self.assertIsNone(prefs["target_metric"])
         self.assertIsNone(prefs["metric_targets"])
+
+    def test_existing_dashboard_link_uses_only_an_explicit_public_target_metric(self):
+        with self.Session() as db:
+            db.add(UserPreference(clerk_user_id="owner", workspace_id="owner", selected_metric="spend",
+                metric_targets=json.dumps({"1": {"spend": 300}}),
+                dashboard_views=json.dumps({"1": {"general-business": {"selectedMetrics": ["spend"]}}})))
+            db.commit()
+        self.assertEqual(self.send().status_code, 200)
+        token = self.emailed_token()
+
+        def preferences():
+            return self.public_dashboard(token, "general-business")["preference"]
+
+        initial = preferences()
+        self.assertEqual(initial["selected_metric"], "spend")
+        self.assertEqual(initial["metric_targets"], {"1": {"spend": 300}})
+        self.assertIsNone(initial["target_metric"])
+
+        for saved, expected in (("spend", "spend"), (None, None), ("private_column", None)):
+            with self.subTest(saved=saved), self.Session() as db:
+                state = db.query(UserPreference).filter_by(clerk_user_id="owner", workspace_id="owner").one()
+                state.dashboard_preferences = json.dumps({"1": {"targetMetric": "spend"}})
+                state.dashboard_views = json.dumps({"1": {"general-business": {"targetMetric": saved}}})
+                db.commit()
+                updated = preferences()
+                self.assertEqual(updated["target_metric"], expected)
+                self.assertNotIn("targetMetric", json.dumps(updated))
 
     def test_shared_source_does_not_restore_an_unrelated_join_from_cache_or_preferences(self):
         import pandas as pd
