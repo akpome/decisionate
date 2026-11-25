@@ -127,6 +127,8 @@ export default function PrivacyPage() {
         <p>
           If you enable a public dashboard share, anyone with a valid share link
           can view the information exposed by that link without signing in.
+          The shared dashboard has no controls for changing its date range,
+          chart type, scale, grouping or aggregation.
           Share links should be treated as confidential and can be revoked by an
           authorized user. The public live demo and recorded walkthrough use
           prepared sample data, not customer workspace data. Demo sample files

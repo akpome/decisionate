@@ -25,8 +25,9 @@ availability; do not assume either is open for new customers.
 
 ## How do I set up my portal?
 
-For Professional or the standard Agency plan, open Settings > Hosted portal
-settings. Choose an available subdomain, add your name, support email, logo, colors and welcome
+For Professional, open Settings and select Hosted portal settings under
+Branding. Agency shows Hosted portal settings directly. Choose an available
+subdomain, add your name, support email, logo, colors and welcome
 message, then Save draft. Preview the portal and explicitly activate or publish
 it. Contact support to change a reserved address. Invite your team through
 Workspace Members. Agencies can also invite client workspace owners through
@@ -84,12 +85,27 @@ workspaces. The hosted address is included; there is no separate add-on.
 The former Decisionate-branded Agency tier has been upgraded to this Agency plan
 without deleting client workspaces or changing existing Stripe charges.
 Its monthly and annual prices for new subscriptions are set
-by the platform administrator. An eligible owner opens Settings, where Hosted
-portal settings is shown directly. No separate setup link is required. Start with the portal address and
+by the platform administrator. An eligible owner opens Settings and uses the
+inline Hosted portal settings editor. No separate setup link is required. Start with the portal address and
 branding. Normal trial, renewal,
 cancellation and payment grace rules still apply. If plan access is inactive, use Billing to
 restore it. If new portals are unavailable, contact support. Branding alone cannot
 enable one before the platform is ready.
+
+## What is the difference between workspace branding and hosted portal settings?
+
+On Professional, open Settings > Branding. Choose Workspace branding for the
+workspace name, logo, colors and report display name. Choose Hosted portal
+settings for the decisionate.app address, welcome and sign-in branding, and
+appearance of the published portal. Workspace branding is the first view when
+you open Settings. Only the selected editor is visible. Switching editors
+keeps the draft edits on the current Settings page; it does not save or publish
+them, unpublish a portal, or change the subscription. Save workspace branding
+or save and publish portal changes in the applicable editor.
+
+The Agency plan shows the hosted portal editor directly. Team members and
+client workspace users do not gain portal editing permissions from these
+options.
 
 ## How do I brand and publish my hosted portal?
 

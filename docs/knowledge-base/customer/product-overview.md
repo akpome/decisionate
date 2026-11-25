@@ -10,7 +10,10 @@ an impact estimate depends on the comparison and stated business assumptions.
 
 ## Choose the right page
 
-- Dashboard and Dashboards show supporting KPIs, trends, mappings and targets.
+- Dashboard and Dashboards show KPIs, trends, mappings and optional targets.
+  In General Business Overview, Select Metrics shows several measures in one
+  view. Compare Groups shows one measure across values such as locations or
+  channels. Either view can be emailed as a read-only dashboard.
 - Business Analysis is the on-demand analysis workspace. Multi dataset report opens by default;
   Single dataset report analyzes one source with the same report engine.
   Return on spend compares historical recorded revenue per dollar, and

@@ -135,6 +135,13 @@ export default function TermsPage() {
           workspace needs a paid plan to continue using paid features.
         </p>
         <p>
+          Eligible Professional and Agency plans include a Decisionate-hosted
+          portal. When a trial ends without an active paid plan, the trial
+          portal address is released and may be claimed by another workspace.
+          This does not by itself delete the workspace. To use a hosted address
+          after subscribing, set up the portal again and choose an available address.
+        </p>
+        <p>
           Paid subscriptions and AI-credit purchases are managed in Billing.
           Pricing, billing currency,
           interval, limits, taxes, and the amount you authorize are shown in the

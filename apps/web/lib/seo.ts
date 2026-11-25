@@ -4,7 +4,7 @@ import { DECISIONATE_MARKETING_ORIGIN } from "./decisionate-domains"
 export const publicSeoPages = {
   "/": {
     title: "Decisionate | Business Analytics and Weekly Reports",
-    description: "Connect sales, marketing and accounting data. Compare performance, plan budgets, forecast results and track decisions with weekly business reports.",
+    description: "Compare sales by product or channel, share read-only dashboards and review results each week. Connect business data and track what happened after a decision.",
   },
   "/demo": {
     title: "Live Business Dashboard Demo | Decisionate",

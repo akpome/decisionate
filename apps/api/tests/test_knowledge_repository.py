@@ -46,7 +46,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(summary["operator_articles"], 6)
         self.assertEqual(summary["connectors"], 27)
         self.assertEqual(summary["evaluation_cases"], 46)
-        self.assertEqual(summary["business_questions"], 178)
+        self.assertEqual(summary["business_questions"], 186)
         self.assertGreater(summary["customer_chunks"], 100)
 
     def test_default_export_contains_only_customer_content_and_safe_metadata(self):
@@ -124,7 +124,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(direct["routes"][0], "/business-analysis/returns")
         portal = rows["hosted-portals:how-do-i-set-up-my-portal"]
         self.assertIn("How do I set up a white-label portal?", portal["direct_questions"])
-        self.assertEqual(portal["routes"][0], "/white-label")
+        self.assertEqual(portal["routes"][0], "/settings")
         self.assertEqual(rows["performance-analysis:can-i-compare-channels-with-only-ad-spend-and-total-store-revenue"]["direct_questions"], [])
         article = self.manifest["articles"][0]
         for questions in [[], {"Unknown heading": ["How do I use this?"]},

@@ -82,6 +82,16 @@ export const faqs = [
       "Yes. In Business Analysis, choose Compare metrics, then Multi-dataset report. Select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Indexed trends use a shared baseline of 100. Turn on relationship analysis to check timing for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action."
   },
   {
+    question: "Can I compare products, locations or channels side by side?",
+    answer:
+      "Yes. In General Business Overview, open Edit dashboard and choose Compare Groups. Pick one metric, then check the values from one column you want to compare. For example, compare sales for two locations on the same chart. Use Select Metrics instead to track several measures for the same group."
+  },
+  {
+    question: "Can I share a dashboard without giving workspace access?",
+    answer:
+      "Yes. Email a read-only link from Select Metrics or Compare Groups. Recipients see the chosen view without changing settings or signing in. You can stop one link without affecting the others. Anyone who receives a forwarded link can still view it until you stop it."
+  },
+  {
     question: "How do AI recommendations and forecasts work?",
     answer:
       "Forecasts use your selected metric, date column, dimension filters and aggregation settings. Reports can include AI-assisted interpretation of analytical summaries and relevant decision history. Neither forecasts nor recommendations guarantee an outcome."
@@ -100,6 +110,11 @@ export const faqs = [
     question: "What does the free trial include?",
     answer:
       "Start a 30-day Professional or Agency trial without a credit card. Professional supports one business workspace; Agency includes an agency workspace and up to 10 client workspaces. Choose your plan during workspace setup."
+  },
+  {
+    question: "Can I set up a branded portal for my business?",
+    answer:
+      "Yes. Professional includes a branded decisionate.app portal for one business workspace. In Settings, switch between Workspace branding and Hosted portal settings. Agency adds separate client workspaces. If a trial ends without a paid plan, its hosted address is released; that does not delete the workspace."
   },
   {
     question: "Can an agency manage client workspaces?",
@@ -133,6 +148,6 @@ export const faqs = [
   {
     question: "How can I get help?",
     answer:
-      "Contact support@decisionate.ca or use Help & Support in the application. You can report an issue, request a feature or review the product guide."
+      "Open Help & Support for step-by-step guides. Ask Decisionate answers product questions from approved guidance, not your account data. For account-specific help, contact support@decisionate.ca."
   }
 ] as const

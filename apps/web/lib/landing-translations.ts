@@ -14,6 +14,27 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Quelles publicités rapportent le plus par dollar ? Examinez les chiffres, choisissez un changement à tester et fixez une date de révision.",
   "Trends": "Tendances",
   "Ad returns": "Rendement publicitaire",
+  "See which groups drive the numbers": "Voyez quels groupes contribuent le plus",
+  "Compare the same measure across products, locations or channels. Put the groups on one chart, add a target if you need one, and email a read-only link.":
+    "Comparez le même indicateur par produit, établissement ou canal. Affichez les groupes sur un seul graphique, ajoutez un objectif au besoin et envoyez un lien en lecture seule par courriel.",
+  "Save the evidence with your decision. Track whether the planned change happened and whether the result improved. Get a weekly email when the report has enough data.":
+    "Conservez les données probantes avec votre décision. Vérifiez si le changement prévu a eu lieu et si le résultat s’est amélioré. Recevez un courriel hebdomadaire lorsque le rapport contient assez de données.",
+  "Professional gives your team one workspace with industry dashboards, reports and decision tracking. Use your own workspace branding or set up a branded sign-in portal on decisionate.app.":
+    "Professional offre à votre équipe un espace avec des tableaux de bord sectoriels, des rapports et le suivi des décisions. Personnalisez l’espace ou créez un portail de connexion à votre image sur decisionate.app.",
+  "Bring in sales, marketing and accounting data, or start with a file. Add a source in Connections, then choose the account to authorize and sync.":
+    "Importez des données de vente, de marketing et de comptabilité, ou commencez avec un fichier. Ajoutez une source dans Connexions, puis choisissez le compte à autoriser et à synchroniser.",
+  "Industry dashboards and read-only sharing": "Tableaux de bord sectoriels et partage en lecture seule",
+  "Can I compare products, locations or channels side by side?": "Puis-je comparer des produits, des établissements ou des canaux côte à côte ?",
+  "Yes. In General Business Overview, open Edit dashboard and choose Compare Groups. Pick one metric, then check the values from one column you want to compare. For example, compare sales for two locations on the same chart. Use Select Metrics instead to track several measures for the same group.":
+    "Oui. Dans la Vue d’ensemble de l’entreprise, ouvrez Modifier le tableau de bord, puis Comparer les groupes. Choisissez un indicateur et cochez les valeurs à comparer dans une même colonne. Comparez, par exemple, les ventes de deux établissements sur un seul graphique. Utilisez Sélectionner les indicateurs pour suivre plusieurs mesures d’un même groupe.",
+  "Can I share a dashboard without giving workspace access?": "Puis-je partager un tableau de bord sans donner accès à mon espace ?",
+  "Yes. Email a read-only link from Select Metrics or Compare Groups. Recipients see the chosen view without changing settings or signing in. You can stop one link without affecting the others. Anyone who receives a forwarded link can still view it until you stop it.":
+    "Oui. Envoyez un lien en lecture seule depuis Sélectionner les indicateurs ou Comparer les groupes. Les destinataires voient la vue choisie sans modifier ses paramètres ni se connecter. Vous pouvez désactiver un lien sans toucher aux autres. Un lien transféré reste utilisable jusqu’à sa désactivation.",
+  "Can I set up a branded portal for my business?": "Puis-je créer un portail à l’image de mon entreprise ?",
+  "Yes. Professional includes a branded decisionate.app portal for one business workspace. In Settings, switch between Workspace branding and Hosted portal settings. Agency adds separate client workspaces. If a trial ends without a paid plan, its hosted address is released; that does not delete the workspace.":
+    "Oui. Professional inclut un portail personnalisé sur decisionate.app pour un espace d’entreprise. Dans Paramètres, basculez entre l’image de marque de l’espace et les paramètres du portail hébergé. Agency ajoute des espaces clients distincts. Si un essai se termine sans abonnement payant, l’adresse du portail est libérée, sans supprimer l’espace.",
+  "Open Help & Support for step-by-step guides. Ask Decisionate answers product questions from approved guidance, not your account data. For account-specific help, contact support@decisionate.ca.":
+    "Consultez les guides pas à pas dans Aide et soutien, ou demandez à Ask Decisionate comment utiliser un outil. Les réponses proviennent de la documentation approuvée, pas des données de votre compte. Pour de l’aide sur votre compte, écrivez à support@decisionate.ca.",
   "For agencies": "Pour les agences",
   "For businesses": "Pour les entreprises",
   "Which products are worth promoting?":

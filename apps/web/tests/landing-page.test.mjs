@@ -202,7 +202,7 @@ test("agency plan, permissions and four-step workflow are described in both lang
   const copy = [
     "Which products are worth promoting?",
     "Your bestseller may not be your most profitable product. Compare sales and costs by product before choosing what to promote. After the promotion, check whether the extra sales were worth the discount.",
-    "Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.",
+    "Professional gives your team one workspace with industry dashboards, reports and decision tracking. Use your own workspace branding or set up a branded sign-in portal on decisionate.app.",
     "Agency includes your agency workspace and up to 10 client workspaces, all Professional features and a shared AI credit allowance. Paid add-on workspaces let you expand as your agency grows.",
     "Create and brand your agency",
     "Choose Agency during workspace setup, then publish your branded portal from Settings. Invite clients to their own workspaces under your agency's name, logo and colours.",
@@ -250,7 +250,7 @@ test("landing explains cross-dataset Reports and selected evidence rather than a
     assert.match(multi, pattern)
   }
   const html = renderSections()
-  assert.match(html, /Save the evidence with your decision, set a review date/)
+  assert.match(html, /Save the evidence with your decision\. Track whether the planned change happened/)
   assert.doesNotMatch(html, /explore AI-assisted insights|A view you can question/)
   const metadata = read("../app/layout.tsx")
   assert.match(metadata, /Analyze business performance across datasets/)
@@ -283,7 +283,11 @@ test("every landing FAQ answer and updated feature is available in French", () =
     for (const text of [
       "See what earns its keep",
       "Compare the sales recorded for each dollar spent, see what's left after costs, and check which metrics move together. Keep the comparison separate from what you decide to test.",
-      "Save the evidence with your decision, set a review date, and record what happened. Get a weekly email when the latest report has enough data.",
+      "Save the evidence with your decision. Track whether the planned change happened and whether the result improved. Get a weekly email when the report has enough data.",
+      "See which groups drive the numbers",
+      "Can I compare products, locations or channels side by side?",
+      "Can I share a dashboard without giving workspace access?",
+      "Can I set up a branded portal for my business?",
       "Where supported, initial imports cover 90 days. Older available history is loaded in background chunks, up to three years. Provider permissions and history limits apply.",
       "Do reports and forecasts account for seasonality?",
       "What is included in a weekly report?",
@@ -293,6 +297,14 @@ test("every landing FAQ answer and updated feature is available in French", () =
       assert.ok(html.includes(renderToStaticMarkup(React.createElement(React.Fragment, null, copy))))
     }
   }
+})
+
+test("landing distinguishes group comparisons, recipient access and hosted portal expiry", () => {
+  const answer = question => faqs.find(item => item.question === question).answer
+  assert.match(answer("Can I compare products, locations or channels side by side?"), /Compare Groups.*one metric.*one column.*Select Metrics/)
+  assert.match(answer("Can I share a dashboard without giving workspace access?"), /read-only link.*without changing settings.*stop one link.*forwarded link/)
+  assert.match(answer("Can I set up a branded portal for my business?"), /Professional.*Workspace branding and Hosted portal settings.*address is released.*does not delete the workspace/)
+  assert.match(answer("How can I get help?"), /Ask Decisionate.*approved guidance, not your account data/)
 })
 
 test("desktop aligns the trial note and demo footer while stacked mobile actions stay with the copy", () => {

@@ -50,13 +50,6 @@ that its provider grants access to a particular customer's account.
 4. Run the available connection/pull operation and inspect the resulting dataset.
 5. Enable scheduled sync only after the manual result is correct.
 
-For Google Business Profile, sign in with a Google account that manages your
-business locations. The import brings in daily profile performance, such as
-website clicks and direction requests. Google must also grant the app API access.
-For Lightspeed Retail, select your actual series: R-Series uses your retail
-account ID; X-Series uses your store prefix and lets you choose which records
-to import.
-
 Permissions, provider limits, regional support and available history can constrain
 the result. A token refresh does not create new permissions or missing history.
 If reauthorization is requested, use the connection's authorization workflow.
@@ -64,6 +57,27 @@ If reauthorization is requested, use the connection's authorization workflow.
 Never paste secrets into support chat. A chatbot should not guess provider API
 versions, scopes or column names. A vendor-specific question not covered by the
 reviewed source needs current official vendor documentation or human review.
+
+## How do I connect Google Business Profile?
+
+In Connections > Connection sources, choose Add on Google Business Profile
+when it is available. In Configure added connections, authorize a Google
+account that manages the business locations you want to use. Select a location
+offered for that account and sync. The dataset contains daily profile
+performance such as website clicks and direction requests, not Google Ads or
+Search Console data. Google must grant the app API access. If authorization or
+locations are unavailable, check the connected Google account and provider
+access rather than adding another connection.
+
+## Which Lightspeed Retail connector should I choose?
+
+In Connections > Connection sources, choose the series you actually use.
+For R-Series, add Lightspeed Retail (R-Series), authorize it and supply the
+retail account ID. For X-Series, add Lightspeed Retail (X-Series), enter your
+store prefix, authorize it and choose the records to import. Finish in
+Configure added connections and check the first synced dataset. Credentials,
+identifiers and fields are not interchangeable across series. Restaurant
+K-Series and O-Series are not enabled by either Retail connector.
 
 ## Where did my connector go after I added it?
 

@@ -19,14 +19,17 @@ can prevent a useful joined comparison. A join does not create missing business
 activity or make different currencies equivalent. Use Reports for a broader
 multi-metric review and a frozen analysis snapshot.
 
-In Compare Groups, the dimension dropdown lists columns saved in the join and
-available dimensions from each original dataset, even before you choose a metric. The
-dataset name identifies the source of each dimension. A dimension from the
+In Compare Groups, the dimension dropdown lists available dimensions from
+each original dataset first, then columns saved in the join, even before you
+choose a metric. The dataset name identifies the source of each dimension. A dimension from the
 metric's own dataset can split the original rows into groups. A dimension from
 another dataset can only group the metric's monthly totals: a shared month must
 have a single known group value in that dataset. Months with missing or mixed
 groups are skipped. This does not match individual records or assign sales to
 specific ads. A column labeled "joined months" groups the saved monthly labels.
+For example, to compare Online and Store sales in a month, choose the original
+sales dataset's Channel, not the Channel labeled "joined months". Use the
+latter only to group whole monthly totals by their saved labels.
 
 Joined datasets are excluded from both Compare metrics report tabs in
 Business Analysis and from Weekly Reports. Use original datasets for Multi-dataset

@@ -49,7 +49,8 @@ export default function SecurityPage() {
           Owners control member access and sharing. Anyone with a valid shared link
           can view its shared dashboard or saved report without signing in. Public
           dashboard responses are limited to the selected view and exclude private
-          source configuration. Revoke individual emailed links when they are no
+          source configuration. Shared dashboard pages are read-only and do not
+          offer controls for changing the dashboard settings. Revoke individual emailed links when they are no
           longer needed; revocation does not recall copies already downloaded.
           The live demo and walkthrough use prepared sample data, not customer records.
         </p>

@@ -33,8 +33,25 @@ link stops all copies of that one token, but does not stop newly created links.
 
 If a shared view looks different, compare the dataset, selected metrics, time
 window, grouping, mapping and dimension filter before attributing the difference
-to the source. Refresh or republish only through the application's supported
-controls.
+to the source. The owner can review these settings in the workspace.
+
+## Can recipients change a shared dashboard?
+
+No. Share link emails a read-only view. A recipient can view the dashboard
+and enlarge its chart, but cannot change chart type, scale, dates, grouping or
+aggregation. The editable controls in the live demo are not part of a shared
+workspace dashboard.
+
+- In Select Metrics, confirm the selected dataset, metrics, dates and filters
+  before sharing. The KPI gauge appears only if a Target metric is selected.
+  A saved value for a metric does not make the gauge appear by itself.
+- In Compare Groups, choose the metric and dimension values, wait for the
+  comparison to show usable data, then email the link. The link preserves
+  that group comparison and does not replace the regular shared view.
+
+Sharing a dashboard is not a frozen analysis snapshot. Choose Save PDF for a
+fixed copy of the dashboard, or share a saved Business Analysis report to
+preserve its results. A dashboard link does not grant workspace membership.
 
 ## Email a business analysis report
 

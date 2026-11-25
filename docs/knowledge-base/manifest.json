@@ -2,7 +2,7 @@
   "schema_version": 1,
   "product": "Decisionate",
   "language": "en",
-  "reviewed_on": "2026-11-22",
+  "reviewed_on": "2026-11-25",
   "verification_scope": "Current source and selected regression contracts; no production configuration or provider-account certification",
   "default_export_audience": "customer",
   "articles": [
@@ -67,6 +67,12 @@
         "billing-credits",
         "email-branding"
       ],
+      "section_routes": {
+        "How do I set up my portal?": "/settings",
+        "Which subscriptions include hosted portals?": "/settings",
+        "What is the difference between workspace branding and hosted portal settings?": "/settings",
+        "How do I brand and publish my hosted portal?": "/settings"
+      },
       "direct_questions": {
         "How do I set up my portal?": [
           "How do I set up a white-label portal?",
@@ -81,6 +87,11 @@
         ],
         "How do team members and agency clients sign in?": [
           "Where do my hosted portal clients log in?"
+        ],
+        "What is the difference between workspace branding and hosted portal settings?": [
+          "How do I switch between workspace branding and hosted portal settings?",
+          "Where is workspace branding on Professional?",
+          "Why is workspace branding hidden?"
         ],
         "How do I brand and publish my hosted portal?": [
           "How do I add a logo to my hosted portal?",
@@ -605,6 +616,13 @@
         "troubleshooting-support"
       ],
       "direct_questions": {
+        "How do I connect Google Business Profile?": [
+          "How do I set up Google Business Profile?"
+        ],
+        "Which Lightspeed Retail connector should I choose?": [
+          "How do I connect Lightspeed Retail?",
+          "What is the difference between Lightspeed R-Series and X-Series?"
+        ],
         "Where did my connector go after I added it?": [
           "Where did my connector go after I added it?",
           "Where did my connector go after I switched it on?",
@@ -822,6 +840,8 @@
         "apps/web/features/dashboard/components/dataset-selector.tsx",
         "apps/web/features/dashboard/date-window.ts",
         "apps/web/features/dashboard/components/dashboard-date-inputs.tsx",
+        "apps/web/features/dashboard/components/compare-groups.tsx",
+        "apps/api/app/modules/datasets/services/dashboard_groups.py",
         "apps/web/components/searchable-select.tsx",
         "apps/web/app/dashboard/page.tsx",
         "apps/web/app/dashboard/help/page.tsx",
@@ -843,6 +863,16 @@
         "Configure a view": [
           "How do I use the dashboards?",
           "How do I set up a dashboard?"
+        ],
+        "How do I choose metrics and add a target?": [
+          "How do I set a target in Select Metrics?",
+          "How do I hide the KPI gauge?",
+          "Why can't I set a target for a dimension value?"
+        ],
+        "How do I compare groups on a dashboard?": [
+          "How do I use Compare Groups?",
+          "How can I compare sales by location on the same chart?",
+          "What is the difference between Select Metrics and Compare Groups?"
         ]
       }
     },
@@ -1470,6 +1500,7 @@
         "apps/api/app/modules/reports/models.py",
         "apps/web/features/sharing/share-email-modal.tsx",
         "apps/web/features/sharing/shared-links.tsx",
+        "apps/web/app/share/dashboard/page.tsx",
         "apps/web/app/share/report/page.tsx",
         "apps/api/app/modules/decisions/router.py",
         "apps/web/app/dashboard/help/page.tsx",
@@ -1479,7 +1510,14 @@
         "dashboards",
         "reports-read-save",
         "privacy-preferences"
-      ]
+      ],
+      "direct_questions": {
+        "Can recipients change a shared dashboard?": [
+          "Can recipients edit a shared dashboard?",
+          "Why are there no controls on my shared dashboard?",
+          "Why is there no KPI target gauge in my shared dashboard?"
+        ]
+      }
     },
     {
       "id": "troubleshooting-support",

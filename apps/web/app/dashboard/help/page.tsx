@@ -50,7 +50,7 @@ const gettingStartedItems = [
   {
     id: "metrics",
     title: "Choose metrics and filters",
-    description: "Choose measures, then open Filters for date and dimension columns.",
+    description: "Choose measures in Select Metrics, or compare one measure across groups.",
     href: "/dashboard",
     action: "Open dashboard",
   },
@@ -123,7 +123,15 @@ const faqItems = [
   {
     question: "Where are dashboard date and dimension filters?",
     answer:
-      "Open Filters beside the other dashboard controls. Date column is preselected from the dataset; change it when another date field better fits the question. Choose a Dimension column, add one or more Unique values from the dropdown, and use Search values to find options. Closing Filters keeps your selections applied. Clear the dimension filter to return to all rows.",
+      "Open Filters for the Date column. In General Business Overview, open Edit dashboard > Select Metrics for the Dimension column and Unique values. In an industry dashboard, use the available Filters or Dataset controls. Use Search values to find choices. Closing the panel keeps your filters; clearing it returns to all rows.",
+  },
+  {
+    question: "How do I compare the same metric across groups?",
+    answer: "In General Business Overview, open Edit dashboard > Compare Groups. Pick one metric, select a dimension column such as Channel, and check the values to compare. Each checked value gets its own series. Use Select Metrics instead when you want several measures filtered to the same group.",
+  },
+  {
+    question: "Can recipients change a shared dashboard?",
+    answer: "No. Emailed dashboard links are read-only. Recipients can view and enlarge charts, but cannot adjust dates, grouping, aggregation, chart type or scale. The live demo is interactive and uses sample data. Use Manage shared links to stop an individual link.",
   },
   {
     question: "What is the default dashboard period?",
@@ -277,6 +285,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Data -> Connections -> Connection sources. Choose Add on the provider you want to connect.",
           "Choose from the accounting, commerce, payment, CRM, advertising, analytics, or database sources actually offered by the catalog. Connector availability and required fields can differ by deployment; do not assume every provider is enabled.",
           "After you add a provider, its card moves out of Connection sources. Configure added connections opens so you can choose the account, authorize it and sync. Manage or remove the connection here. Removing the last connection for a provider returns its card to Connection sources.",
+          "Google Business Profile requires a Google account that manages the selected location and approved API access. For Lightspeed Retail, choose the matching series: R-Series uses a retail account ID; X-Series uses a store prefix and offers record choices.",
           "Use read-only or minimum-scope credentials wherever the provider supports them.",
           "Run the connection or pull test if the connector exposes one. Resolve provider authentication, permission, identifier, and server-configuration errors before enabling scheduled sync.",
           "Choose the dataset name and sync settings, then perform a manual pull before relying on scheduled ingestion.",
@@ -362,7 +371,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Dashboards and choose the business or industry dashboard appropriate to your question, including Auto Repair Shop Performance when available. Decision Performance uses decision records rather than dataset date and dimension selectors.",
           "Select a dataset on General Business Overview, or open Dataset in an industry dashboard. Dataset and metric choices are saved for the dashboard where you are working.",
           "Choose the target metric on General Business Overview. Use Edit dashboard to change metric selections, targets, or industry chart mappings where available.",
-          "Open Filters beside Edit dashboard, Dataset, or Compare data to choose the Date column and Dimension column. The selectors are aligned horizontally when space permits and stack on narrow screens.",
+          "Open Filters for the Date column. In General Business Overview, choose the Dimension column and values under Edit dashboard > Select Metrics. Industry dashboards keep their own Filters or Dataset controls.",
           "Start date and End date default to the same calendar date last year through today. Choose either date in the chart controls or industry Dataset panel. Both dates are included, and charts, KPI totals and anomaly checks use the same range. Reset view or Reset range restores the past year through today. Saved custom dates are retained, and older saved periods reopen as equivalent dates.",
           "Use the chart action controls to expand a chart, save a PDF, or share the dashboard when those controls are available.",
         ],
@@ -370,7 +379,7 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Filter a dashboard by dimension values",
         steps: [
-          "Open Filters. Keep the preselected Date column or choose another detected date field; changing it clears the old start-date selection.",
+          "Open Filters to keep the preselected Date column or choose another detected date field. For General Business Overview, open Edit dashboard > Select Metrics for the dimension filter.",
           "Leave Dimension column on All rows for an unfiltered view, or choose a source field such as region, channel, product, or customer segment.",
           "Choose one or more Unique values from the dropdown. Use Search values to find additional options; selected values appear below the controls and can be removed individually.",
           "Choose at least one value after selecting a dimension. An empty value selection is not treated as all rows. Review loading, no-match, or retry messages before interpreting the charts.",
@@ -393,8 +402,8 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Edit dashboard on General Business Overview, then choose a Target metric in Select Metrics to show the gauge. To hide it, return the selector to 'Choose a metric'. The checkboxes control which metrics appear in the main chart.",
           "In Select Metrics, choose a Dimension column and values to filter all selected metrics together.",
           "Open Compare Groups, choose one metric and a dimension column, then check the values to compare. The optional Metric target is shared with Select Metrics and appears as one dashed line across the chart.",
-          "Joined data offers dimensions from each original dataset. When the dimension comes from another dataset, Compare Groups uses monthly totals and skips months that have no single known group. It does not match individual records.",
-          "Choose Line, Bar, or Area under Chart. Use the same dates and grouping to compare the colored series. Use Save PDF to export the comparison.",
+          "Original dimensions appear first for joined data. Pick a dimension from the same source as the metric to split the underlying records. A dimension from another source can only group whole months with one known group; it cannot match individual records.",
+          "Choose Line, Bar, or Area under Chart. Use the same dates and grouping to compare the colored series. Use Save PDF or Share link to share that group comparison.",
           "Use the chart expand action to open a larger view when the chart is mapped and the action is available.",
           "For a horizontal bar chart opened in a modal, use the expanded vertical presentation to compare category values more easily.",
           "Use the chart legend or direct labels to verify which dataset column each visual encoding represents.",
@@ -732,7 +741,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Dashboards and select the dashboard you want to share.",
           "Confirm the dataset, metrics, mappings, period, aggregation, chart names, and visual state before sharing.",
           "Choose Share link, enter up to ten email addresses separated by commas or new lines, then Send email. Each recipient gets a different link. Opening or canceling the dialog sends nothing.",
-          "Open the link in a private browser session to verify that the shared page shows the intended workspace branding, charts, controls, date range, and selected metrics.",
+          "Open the link in a private browser session to verify the branding, date range and selected metrics or groups. The recipient cannot adjust the saved settings. A Select Metrics share shows the KPI gauge only if a target metric was selected.",
           "Choose Manage shared links, or find Shared links inside the email dialog. Find the recipient and creation date, select the trash icon, then confirm Stop this link. Other links stay active and your data stays intact. Dashboards also has a Shared links list for the workspace. A Legacy shared link may have been reused in older emails; stopping it affects those copies, not new links.",
         ],
       },
@@ -779,7 +788,8 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Configure workspace settings",
         steps: [
           "Open Manage -> Settings as a workspace owner.",
-          "Review workspace name, organization details, branding, logo, and report display name.",
+          "Professional: under Branding, choose Workspace branding for the workspace name, logo, colors and report display name, or Hosted portal settings for your decisionate.app address and branded welcome screen. Only the selected form is visible. Agency shows Hosted portal settings directly.",
+          "To put a hosted portal online, choose an available address, save a draft, preview it, and activate or publish it. Switching editors does not publish changes. If a trial ends without an active paid plan, the address is released, but the workspace is not deleted by that release.",
           "Manage agency members, client workspace access, one client owner and one client user per client workspace, invitations, ownership assignments, and invitation revocation where those controls are available to your plan and role.",
           "Once a client accepts ownership, only that client owner can delete the workspace. An agency can remove it from its list without deleting the client's data.",
           "In client Settings, use Agency access to control whether the agency may enter the workspace, or Unlink agency to end the relationship. A removed client owner can open Billing to start a 30-day trial in the existing workspace if eligible, choose an independent plan, or approve another agency invitation.",

@@ -23,9 +23,9 @@ export function FeaturesSection() {
   const features = [
     {
       icon: Database,
-      title: "One place for the numbers",
+      title: "See which groups drive the numbers",
       description:
-        "Sync your business systems or upload a file. Keep datasets, dates and metrics together instead of rebuilding a report every week."
+        "Compare the same measure across products, locations or channels. Put the groups on one chart, add a target if you need one, and email a read-only link."
     },
     {
       icon: BarChart3,
@@ -37,7 +37,7 @@ export function FeaturesSection() {
       icon: Target,
       title: "A decision you can follow up",
       description:
-        "Save the evidence with your decision, set a review date, and record what happened. Get a weekly email when the latest report has enough data."
+        "Save the evidence with your decision. Track whether the planned change happened and whether the result improved. Get a weekly email when the report has enough data."
     }
   ]
   return (
@@ -80,7 +80,7 @@ export function BusinessSection() {
             {t("Your bestseller may not be your most profitable product. Compare sales and costs by product before choosing what to promote. After the promotion, check whether the extra sales were worth the discount.")}
           </p>
           <p className="mt-4 max-w-lg text-sm leading-7 text-neutral-600">
-            {t("Professional includes one business workspace, all industry dashboards and decision management. Keep your team's data, reports, actions and review dates together.")}
+            {t("Professional gives your team one workspace with industry dashboards, reports and decision tracking. Use your own workspace branding or set up a branded sign-in portal on decisionate.app.")}
           </p>
           <Link
             href={DECISIONATE_AUTH_LINKS.signUp}
@@ -204,7 +204,7 @@ export function IntegrationsSection() {
         </h2>
         <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-600">
           {t(
-            "Accounting, commerce, marketing and CRM data, alongside databases and files. Choose the source that fits the question."
+            "Bring in sales, marketing and accounting data, or start with a file. Add a source in Connections, then choose the account to authorize and sync."
           )}
         </p>
         <div className="mt-9 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -274,7 +274,7 @@ export function PricingSection({ catalog }: { catalog?: PublicPlanCatalog | null
         "1 business workspace",
         "Your portal at business.decisionate.app",
         "Unlimited datasets",
-        "All industry dashboards",
+        "Industry dashboards and read-only sharing",
         "Decision management and outcome tracking",
       ]
     },
