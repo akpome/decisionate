@@ -19,6 +19,11 @@ can prevent a useful joined comparison. A join does not create missing business
 activity or make different currencies equivalent. Use Reports for a broader
 multi-metric review and a frozen analysis snapshot.
 
+In Compare Groups, the dimension dropdown lists columns saved in the join
+as well as dimensions from the selected metric's original dataset. A column
+labeled "joined months" groups the saved monthly totals; it does not split
+those totals across individual transactions or categories within a month.
+
 Joined datasets are excluded from both Compare metrics report tabs in
 Business Analysis and from Weekly Reports. Use original datasets for Multi-dataset
 report and Single dataset report.

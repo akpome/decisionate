@@ -258,4 +258,11 @@ test("dimension metadata requests preserve workspace, literal search, paging and
   assert.equal(query.get("offset"), "100")
   assert.equal(calls[0].init.signal, controller.signal)
   assert.equal(calls[0].init.headers.workspace, "workspace")
+  assert.equal(query.has("group_metric"), false)
+  for (const groupMetric of ["", "sales.csv · revenue"]) {
+    await getDatasetDimensions(21, "owner", "workspace", { groupMetric })
+    const url = new URL(calls.at(-1).url)
+    assert.equal(url.pathname, "/datasets/21/dimensions")
+    assert.equal(url.searchParams.get("group_metric"), groupMetric)
+  }
 })

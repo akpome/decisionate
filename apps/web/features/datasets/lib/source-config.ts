@@ -4,7 +4,6 @@ type DatasetSourceConfig = {
   file_extension?: string
   file_format?: string
   stored_file_format?: string
-  join_metric_sources?: Record<string, unknown>
   join_aggregation_type?: string
 }
 
@@ -53,8 +52,6 @@ export function parseDatasetSourceConfig(
           cleanStringValue(
             parsedConfig.stored_file_format
           ),
-        join_metric_sources: parsedConfig.join_metric_sources && typeof parsedConfig.join_metric_sources === "object" && !Array.isArray(parsedConfig.join_metric_sources)
-          ? parsedConfig.join_metric_sources : undefined,
         join_aggregation_type: cleanStringValue(parsedConfig.join_definition?.aggregation_type),
       }
     }

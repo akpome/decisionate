@@ -284,7 +284,9 @@ from app.modules.datasets.services.connector_range_sync import (
     range_sync_pending, new_range_sync, next_range_sync_chunk, advance_range_sync,
 )
 from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter, dimension_options
-from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest, dashboard_group_series_for_dataset
+from app.modules.datasets.services.dashboard_groups import (
+    DashboardGroupRequest, dashboard_group_series_for_dataset, joined_dashboard_dimension_options,
+)
 from app.modules.datasets.services.auth import (
     get_user_id,
     get_workspace_id,
@@ -10839,6 +10841,7 @@ def dataset_dimensions(
     request: Request, dataset_id: int,
     column: str | None = Query(None, min_length=1, max_length=200),
     search: str = Query("", max_length=200), offset: int = Query(0, ge=0),
+    group_metric: str | None = Query(None, max_length=200),
 ):
     user_id = get_user_id(request)
     workspace_id = get_workspace_id(request, user_id)
@@ -10846,6 +10849,8 @@ def dataset_dimensions(
         dataset, frame = _load_owned_dataset_dataframe(db, dataset_id, user_id, workspace_id, apply_metric_selection=False)
         frame = normalize_dataset_details_dataframe(frame)
         try:
+            if group_metric is not None and dataset.source_type == "joined":
+                return joined_dashboard_dimension_options(db, dataset, frame, group_metric, column, search, offset)
             return dimension_options(dataset, frame, column, search, offset)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error

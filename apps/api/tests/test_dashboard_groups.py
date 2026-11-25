@@ -50,7 +50,7 @@ def joined_fixture():
     selections = [
         {"dataset_id": 17, "date_column": "date", "metric_columns": ["revenue", "channel"],
          "dimension_filter": {"column": "country", "values": ["CA"]}},
-        {"dataset_id": 18, "date_column": "date", "metric_columns": ["spend"]},
+        {"dataset_id": 18, "date_column": "date", "metric_columns": ["spend", "campaign"]},
     ]
     definition = build_join_definition(selections, None, "all", "monthly", "sum")
     frames = [(source, frame, {}) for source, frame in records.values()]
@@ -168,3 +168,47 @@ class DashboardGroupTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "A source for this join is unavailable"):
                 dashboard_group_series_for_dataset(None, joined, frame, query)
             load.assert_not_called()
+
+    def test_joined_group_dimension_catalog_includes_saved_columns_and_follows_the_metric_source(self):
+        joined, frame, sources, metric = joined_fixture()
+        app = FastAPI()
+        app.include_router(datasets.router, prefix="/datasets")
+        joined_columns = {"sales.csv · channel", "ads.csv · campaign"}
+        with patch.object(datasets, "get_user_id", return_value="owner"), patch.object(
+            datasets, "get_workspace_id", return_value="workspace",
+        ), patch.object(datasets, "_load_owned_dataset_dataframe", return_value=(joined, frame)), patch.object(
+            dataset_loader, "load_dataset", side_effect=lambda db, identity: sources[identity][0],
+        ), patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda source, **_: sources[source.id][1]) as load:
+            client = TestClient(app)
+            path = "/datasets/21/dimensions"
+            base = client.get(path, params={"group_metric": ""})
+            self.assertEqual(base.status_code, 200, base.text)
+            self.assertEqual({item["column"] for item in base.json()["columns"]}, joined_columns)
+            self.assertTrue(all(item["label"].endswith("(joined months)") for item in base.json()["columns"]))
+            load.assert_not_called()
+            for selected_metric, expected in [(metric, {"country", "channel"}), ("ads.csv · spend", {"campaign"})]:
+                response = client.get(path, params={"group_metric": selected_metric})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual({item["column"] for item in response.json()["columns"]}, joined_columns | expected)
+            response = client.get(path, params={"group_metric": metric, "column": "ads.csv · campaign", "search": "spring"})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["values"], ["Spring"])
+
+    def test_saved_joined_dimensions_group_monthly_values_without_reaggregating(self):
+        joined, frame, _, metric = joined_fixture()
+        config = json.loads(joined.source_config)
+        config["join_definition"]["aggregation_type"] = "count"
+        joined.source_config = json.dumps(config)
+        frame[metric] = [2, 3]
+        query = selection(
+            metric=metric, date_column="period", aggregation="monthly", aggregation_type="count",
+            end_date="2026-03-31", filter={"column": "ads.csv · campaign", "values": ["Spring", "Summer"]},
+        )
+        with patch.object(dataset_loader, "load_dataset") as load:
+            result = dashboard_group_series_for_dataset(None, joined, frame, query)
+            load.assert_not_called()
+        self.assertEqual(result["series"], [
+            {"value": "Spring", "points": [{"period": "2026-01-01", "amount": 2}]},
+            {"value": "Summer", "points": [{"period": "2026-03-01", "amount": 3}]},
+        ])
+        self.assertEqual(result["metric_aggregation"], "Count")

@@ -2072,13 +2072,6 @@ export default function DashboardPage() {
   const canCompareGroups = selectedDashboard === defaultDashboardKey && Boolean(dataset && dataset.id === selectedDatasetId)
   const compareJoinedGroups = Boolean(joinedDatasetResult || dataset?.source_type === "joined")
   const joinSourceConfig = compareJoinedGroups ? parseDatasetSourceConfig(dataset?.source_config) : null
-  function groupDimensionSource(metric: string) {
-    if (!compareJoinedGroups) return selectedDatasetId
-    const identity = joinedDatasetResult?.datasets.find(column => column.label === metric)?.dataset_id
-      ?? joinSourceConfig?.join_metric_sources?.[metric]
-    return typeof identity === "number" && Number.isSafeInteger(identity) && identity > 0 ? identity : null
-  }
-  const groupSourceId = groupDimensionSource(groupMetric)
   const groupDateColumn = compareJoinedGroups ? "period" : analysisDateColumn
   const groupAggregation = compareJoinedGroups ? "monthly" : aggregation
   const groupAggregationType = compareJoinedGroups
@@ -2092,12 +2085,12 @@ export default function DashboardPage() {
   [canCompareGroups, groupFilter, availableMetricColumns, groupMetric, groupTabActive])
   const showGroupComparison = Boolean(groupPreference?.active)
   const groupQuery = useMemo<DashboardGroupQuery | undefined>(() => {
-    if (!canCompareGroups || !groupTabActive || !groupSourceId || !groupFilter?.values.length ||
+    if (!canCompareGroups || !groupTabActive || !groupFilter?.values.length ||
         !availableMetricColumns.includes(groupMetric) || !groupDateColumn ||
         loading || dateRange.start > dateRange.end) return undefined
     return { filter: groupFilter, metric: groupMetric, date_column: groupDateColumn, start_date: dateRange.start,
       end_date: dateRange.end, aggregation: groupAggregation, aggregation_type: groupAggregationType }
-  }, [canCompareGroups, groupTabActive, groupSourceId, groupFilter, groupMetric, availableMetricColumns, groupDateColumn, dateRange, loading, groupAggregation, groupAggregationType])
+  }, [canCompareGroups, groupTabActive, groupFilter, groupMetric, availableMetricColumns, groupDateColumn, dateRange, loading, groupAggregation, groupAggregationType])
   const groupSeries = useDashboardGroupSeries(selectedDatasetId, userId, activeWorkspaceId, groupQuery, `${dimensionContext}:${datasetLoadRetryKey}`)
   const groupShareReady = Boolean(groupQuery && groupSeries.data?.series.some(group => group.points.length > 0))
 
@@ -3103,12 +3096,12 @@ export default function DashboardPage() {
           className="@container space-y-4 border-b border-gray-200 pb-4 print:hidden">
           {groupTabActive ? canCompareGroups && selectedDatasetId ? (
             <CompareGroupsEditor key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
-              dimensionDatasetId={groupSourceId}
+              joined={compareJoinedGroups}
               metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
               metricTarget={groupMetricTarget} onTargetChange={updateMetricTarget}
               onFilter={filter => setGroupSelection({ context: dimensionContext, filter, metric: groupMetric, active: true })}
               onMetric={metric => setGroupSelection({ context: dimensionContext,
-                filter: groupDimensionSource(metric) === groupSourceId ? groupFilter : undefined, metric, active: true })} />
+                filter: compareJoinedGroups && groupMetric && groupMetric !== metric ? undefined : groupFilter, metric, active: true })} />
           ) : (
             <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a dataset to compare groups.")}</p>
           ) : <>
@@ -3954,7 +3947,6 @@ export default function DashboardPage() {
                 setChartType={setChartType} setScaleMode={setScaleMode} setDateRange={setDateRange}
                 setAggregation={setAggregation} setAggregationType={setAggregationType} onResetView={handleResetView} />
               {!groupDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
-              {!groupSourceId && <p role="status" className="text-sm text-gray-600">{t("Rebuild the join to compare groups for this metric.")}</p>}
               {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
             </>} />
         </DashboardCard>

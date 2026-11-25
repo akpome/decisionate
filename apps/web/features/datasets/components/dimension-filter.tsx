@@ -10,10 +10,11 @@ const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg
 export const dimensionValueLabel = (value: string | null) => value === null ? "Missing" : value === "" ? "Empty string" : value
 export const dimensionFilterLabel = (value: DimensionFilter) => `${value.column}: ${value.values.map(dimensionValueLabel).join(", ")}`
 
-export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false, singleValue = false, fixedColumn, groupPicker }: {
+export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false, singleValue = false, fixedColumn, groupPicker, groupMetric }: {
   datasetId: number; userId: string; workspaceId?: string; value?: DimensionFilter
   onChange: (value: DimensionFilter | undefined) => void; disabled?: boolean; deferLoad?: boolean; embedded?: boolean; singleValue?: boolean
   fixedColumn?: string
+  groupMetric?: string
   groupPicker?: {
     limit: number
     renderValue: (value: string | null, checked: boolean, disabled: boolean, toggle: () => void) => ReactNode
@@ -30,7 +31,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
   const [loading, setLoading] = useState(!deferLoad || Boolean(value))
   const [error, setError] = useState("")
   const selectedColumn = fixedColumn ?? value?.column
-  const datasetScope = JSON.stringify([datasetId, userId, workspaceId])
+  const datasetScope = JSON.stringify([datasetId, userId, workspaceId, groupMetric])
   const scope = JSON.stringify([datasetScope, selectedColumn, search])
   const currentOptions = options.scope === scope
   const hasCatalog = options.datasetScope === datasetScope
@@ -54,11 +55,11 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
     async function load() {
       setLoading(true); setError("")
       try {
-        const result = await getDatasetDimensions(datasetId, userId, workspaceId, { column: selectedColumn, search, offset, signal })
+        const result = await getDatasetDimensions(datasetId, userId, workspaceId, { column: selectedColumn, search, offset, signal, groupMetric })
           .catch(async failure => {
             if (!selectedColumn || signal.aborted || !(failure instanceof ApiError) || failure.status !== 422) throw failure
             // A saved filter may refer to a column that is now a metric.
-            const catalog = await getDatasetDimensions(datasetId, userId, workspaceId, { signal })
+            const catalog = await getDatasetDimensions(datasetId, userId, workspaceId, { signal, groupMetric })
             if (catalog.columns.some(item => item.column === selectedColumn)) throw failure
             return catalog
           })
@@ -72,7 +73,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
     }
     const timer = setTimeout(() => void load(), search ? 200 : 0)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [datasetId, userId, workspaceId, selectedColumn, search, offset, version, activated, scope, datasetScope])
+  }, [datasetId, userId, workspaceId, selectedColumn, search, offset, version, activated, scope, datasetScope, groupMetric])
 
   const selectedValues = value?.column === column ? value?.values ?? [] : []
   const valuesAvailable = currentOptions || singleValue && options.datasetScope === datasetScope && options.valueColumn === column

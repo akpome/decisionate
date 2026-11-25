@@ -6762,13 +6762,14 @@ export async function removeOrganizationMember(
 
 export async function getDatasetDimensions(
   datasetId: number, userId: string, workspaceId?: string,
-  options: { column?: string; search?: string; offset?: number; signal?: AbortSignal } = {},
+  options: { column?: string; search?: string; offset?: number; signal?: AbortSignal; groupMetric?: string } = {},
 ): Promise<DimensionOptions> {
   const identity = cleanPositiveIntegerId(datasetId, "Dataset id")
   const query = new URLSearchParams()
   if (options.column) query.set("column", options.column)
   if (options.search) query.set("search", options.search)
   if (options.offset) query.set("offset", String(options.offset))
+  if (options.groupMetric !== undefined) query.set("group_metric", options.groupMetric)
   const response = await apiFetch(`${API_URL}/datasets/${identity}/dimensions?${query}`, {
     signal: options.signal, headers: await workspaceHeaders(userId, workspaceId),
   })

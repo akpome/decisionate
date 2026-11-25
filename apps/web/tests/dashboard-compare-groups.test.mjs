@@ -96,10 +96,10 @@ test("the target field changes and clears only the chosen metric's target", () =
   assert.deepEqual(updates, [["Orders", 42.5], ["Orders", null]])
 })
 
-test("joined comparisons show a metric picker before asking for dimensions", () => {
-  const html = renderEditor({ metric: "", filter: undefined, dimensionDatasetId: null })
-  assert.match(html, /Choose a metric to see the groups in its original dataset\./)
-  assert.doesNotMatch(html, /aria-label="Filter by column values"/)
+test("joined comparisons show the dimension picker even before choosing a metric", () => {
+  const html = renderEditor({ metric: "", filter: undefined, joined: true })
+  assert.match(html, /Metric to compare.*Dimension column/)
+  assert.match(html, /aria-label="Filter by column values"/)
 })
 
 test("individual metric rows keep their checkbox without a target field", () => {
