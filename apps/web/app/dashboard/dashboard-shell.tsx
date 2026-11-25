@@ -891,7 +891,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="dashboard-shell-layout flex h-dvh overflow-hidden bg-gray-50" style={themeStyle} data-workspace-brand={themeStyle ? "" : undefined}>
+    <div className="dashboard-shell-layout fixed inset-0 flex h-dvh overflow-clip bg-gray-50 xl:static print:static" style={themeStyle} data-workspace-brand={themeStyle ? "" : undefined}>
       <a href="#workspace-content" className="workspace-skip-link dashboard-print-hidden rounded-lg bg-white px-4 py-3 text-sm font-medium shadow-lg">
         Skip to content
       </a>
@@ -1195,7 +1195,7 @@ export function DashboardShell({
           <ThemeToggle />
         </div>
 
-      <main id="workspace-content" tabIndex={-1} className="dashboard-print-main min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 xl:p-8">
+      <main id="workspace-content" tabIndex={-1} className="dashboard-print-main min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 xl:p-8">
         {apiUnavailableMessage && (
           <div role="alert" className="dashboard-print-hidden mb-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />

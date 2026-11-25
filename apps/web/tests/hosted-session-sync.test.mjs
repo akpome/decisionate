@@ -69,6 +69,38 @@ test("legacy primary login links also request a sync after the active portal has
   assert.equal(await safeHostedReturn("https://evil.test/auth/redirect"), null)
 })
 
+test("the hosted proxy starts Clerk's document handoff even without Fetch Metadata headers", async () => {
+  const nextServer = require("next/server")
+  const { default: proxy } = load("../proxy.ts", {
+    "@clerk/nextjs/server": {
+      createRouteMatcher: () => () => false,
+      clerkMiddleware: () => async nextRequest => {
+        const state = await clerk.authenticateRequest(nextRequest, options)
+        return new Response(state.status, { headers: state.headers })
+      },
+    },
+    "next/server": nextServer,
+    "./lib/application-routes": routes,
+    "./lib/portal-brand": { portalBrand: { id: "" } },
+    "./lib/decisionate-domains": load("../lib/decisionate-domains.ts"),
+    "./features/auth/lib/auth-redirects": redirects,
+    "./features/hosted-subdomains/types": types,
+    "./features/hosted-subdomains/server": { resolveHostedPortal: async () => portal },
+    "./features/hosted-subdomains/unavailable-page": {},
+  }, { Headers })
+  const callback = types.getHostedAuthReturnUrl(portal.origin + "/auth/redirect")
+  const htmlHeaders = { accept: "text/html" }
+  assert.equal((await clerk.authenticateRequest(new Request(callback, { headers: htmlHeaders }), options)).status, "signed-out")
+  const handshake = await proxy(new nextServer.NextRequest(callback, { headers: htmlHeaders }), {})
+  assert.equal(await handshake.text(), "handshake")
+  assert.equal(new URL(handshake.headers.get("location")).origin, portal.origin)
+  for (const headers of [{ ...htmlHeaders, rsc: "1" }, { ...htmlHeaders, "sec-fetch-dest": "empty" }, { accept: "application/json" }]) {
+    const result = await proxy(new nextServer.NextRequest(callback, { headers }), {})
+    assert.equal(await result.text(), "signed-out")
+    assert.equal(result.headers.get("location"), null)
+  }
+})
+
 async function authenticatedReturn(destination, workspaceReturn) {
   const returnTo = portal.origin + redirects.getAuthRedirectUrl(destination)
   const primarySession = session(types.hostedPrimaryOrigin)
@@ -121,11 +153,11 @@ async function openWorkspace(auth, completed, accessible) {
     "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal }) },
     "@/features/hosted-subdomains/types": types,
   }, { URLSearchParams, window: { location: { origin: portal.origin, search: completed.search } } })
-  renderToStaticMarkup(React.createElement(AuthRedirectPage))
+  const html = renderToStaticMarkup(React.createElement(AuthRedirectPage))
   const cleanups = effects.map(effect => effect())
   await new Promise(resolve => setImmediate(resolve))
   cleanups.forEach(cleanup => cleanup?.())
-  return { destinations, errors, selected }
+  return { destinations, errors, selected, html }
 }
 
 test("a verified primary session syncs to the portal and opens its authorized dashboard, not the welcome page", async () => {
@@ -169,4 +201,9 @@ test("a handshake with no signed session cannot grant access", async () => {
   const state = await clerk.authenticateRequest(request(callback), options)
   assert.equal(state.status, "signed-out")
   assert.equal(state.toAuth().userId, null)
+  const result = await openWorkspace(state.toAuth(), callback, [])
+  assert.deepEqual(result.destinations, [], "Do not return to the same welcome page after a failed handoff")
+  assert.deepEqual(result.selected, [])
+  assert.match(result.html, /This portal couldn&#x27;t finish signing you in/)
+  assert.match(result.html, /Try sign-in again/)
 })

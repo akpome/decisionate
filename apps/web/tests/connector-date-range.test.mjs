@@ -435,13 +435,19 @@ test("adding the first connection opens setup and removing the last returns to s
     browser: { location: { hash: "" }, history: { replaceState() {} }, confirm: () => true },
   })
   function tabs() { return elements(render(), node => node.type === "a").map(node => [node.props.href, node.props["aria-current"]]) }
+  function panelFor(href) {
+    const tree = render()
+    const [tab] = elements(tree, node => node.type === "a" && node.props.href === href)
+    assert.equal(elements(tree, node => node.props.id === href.slice(1)).length, 0, "Tabs must not trigger native fragment scrolling")
+    return elements(tree, node => node.props.id === tab.props["aria-controls"])[0]
+  }
   assert.deepEqual(tabs(), [["#connection-sources", "location"]])
   await elements(render(), node => node.type === Sources)[0].props.onCreateConnection({ type: "shopify", label: "Shopify" })
   assert.deepEqual(tabs(), [["#connection-sources", undefined], ["#saved-connections", "location"]])
-  assert.equal(elements(render(), node => node.props.id === "saved-connections")[0].props.hidden, false)
+  assert.equal(panelFor("#saved-connections").props.hidden, false)
   await elements(render(), node => node.type === ConnectionList)[0].props.onDeleteConnection(connection)
   assert.deepEqual(tabs(), [["#connection-sources", "location"]])
-  assert.equal(elements(render(), node => node.props.id === "connection-sources")[0].props.hidden, false)
+  assert.equal(panelFor("#connection-sources").props.hidden, false)
 })
 
 test("initial import progress respects an explicit server window during rolling deployment", () => {

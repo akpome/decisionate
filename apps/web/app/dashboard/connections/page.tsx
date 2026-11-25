@@ -974,12 +974,12 @@ function ConnectionsPageContent({
         <nav aria-label={t("Connections")} className="flex flex-wrap gap-x-5 border-b text-sm font-medium">
           {([{ id: "connection-sources", label: "Connection sources", active: !showAdded },
             ...(hasAdded ? [{ id: "saved-connections", label: "Configure added connections", active: showAdded }] : [])]).map(tab =>
-            <a key={tab.id} href={`#${tab.id}`} aria-current={tab.active ? "location" : undefined}
+            <a key={tab.id} href={`#${tab.id}`} aria-controls={`${tab.id}-panel`} aria-current={tab.active ? "location" : undefined}
               className={`min-h-11 content-center border-b-2 py-2 ${tab.active ? "border-[var(--decisionate-brand-primary)] text-[var(--decisionate-brand-primary-text)]" : "border-transparent text-gray-600"}`}>
               {t(tab.label)}
             </a>)}
         </nav>
-        <section id="connection-sources" hidden={showAdded} aria-label={t("Connection sources")}>
+        <section id="connection-sources-panel" hidden={showAdded} aria-label={t("Connection sources")}>
 
           <DataSourcePanel
             sources={configurableSources}
@@ -1005,7 +1005,7 @@ function ConnectionsPageContent({
           Connection access is not available to workspace members.
         </div>
       ) : (
-        <section id="saved-connections" hidden={!showAdded} aria-label={t("Added connections")} className="scroll-mt-6">
+        <section id="saved-connections-panel" hidden={!showAdded} aria-label={t("Added connections")}>
 
           <DataSourceConnections
             connections={

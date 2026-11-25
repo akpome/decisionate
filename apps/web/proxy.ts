@@ -140,6 +140,14 @@ export default async function proxy(
     if (["/privacy", "/terms", "/security"].includes(request.nextUrl.pathname)) {
       return NextResponse.redirect(new URL(request.nextUrl.pathname, DECISIONATE_MARKETING_ORIGIN))
     }
+    // Clerk's satellite sync requires a document destination. Older browsers
+    // may send an HTML navigation without Fetch Metadata headers.
+    if (request.nextUrl.pathname === "/auth/redirect" && request.method === "GET" &&
+        request.nextUrl.searchParams.get("__clerk_synced") === "false" &&
+        !trustedHeaders.has("sec-fetch-dest") && !trustedHeaders.has("rsc") &&
+        trustedHeaders.get("accept")?.startsWith("text/html")) {
+      trustedHeaders.set("sec-fetch-dest", "document")
+    }
   } else if (!portalBrand.id && hostname === "app.decisionate.ca" && (isSignInRoute(request) || isSignUpRoute(request))) {
     hostedReturn = await safeHostedReturn(request.nextUrl.searchParams.get("redirect_url"))
     if (hostedReturn) trustedHeaders.set("x-decisionate-hosted-return", hostedReturn)
