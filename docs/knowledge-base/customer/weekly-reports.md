@@ -89,10 +89,23 @@ When the server confirms report preparation stopped before delivery, the page
 explicitly says no email was sent. Older attempts without that confirmation
 remain conservative; they are not silently resent.
 
-KPI targets are benchmark context for the digest and interpretation. Setting a
-target does not by itself create a separate immediate threshold-triggered alert.
-Use the current delivery settings rather than assuming every metric anomaly
-causes an instant email.
+## Check weekly targets
+
+In Weekly Reports > Report setup, select the metrics to track. Below each
+selected metric, enter a Weekly target (optional) and choose At least (for
+example, at least 100 orders) or At most (for example, at most $2,000 in
+advertising spend). Leave the target blank for metrics you only want to
+monitor. Preview the report,
+then choose Save changes to keep the targets for future weeks. Weekly targets
+are separate from dashboard targets and legacy email settings in Alerts.
+
+The report and scheduled or one-time weekly email show the actual result and
+whether each configured target was met or missed for the last completed week.
+An exact match meets either rule. If any day lacks a usable result, the metric
+is unavailable, or its currency cannot be confirmed, the target is not assessed.
+Missing days are not treated as zero, even if the available days appear to meet
+the target. A missing previous-week baseline alone does not prevent the check.
+Changing targets does not change reports already sent or start an instant alert.
 
 ## Dates and historical context
 

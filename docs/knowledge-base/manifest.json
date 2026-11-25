@@ -1459,6 +1459,12 @@
           "How do I use Weekly Reports?",
           "How to use Weekly Reports?",
           "How do I set up a weekly report?"
+        ],
+        "Check weekly targets": [
+          "How do I set a weekly target for a metric?",
+          "How do I use weekly targets?",
+          "How to use weekly targets?",
+          "How do I know if a metric met its weekly target?"
         ]
       },
       "audience": "customer",
@@ -1478,12 +1484,16 @@
         "/alerts"
       ],
       "sources": [
+        "apps/api/app/modules/alerts/email_delivery.py",
         "apps/api/app/modules/alerts/router.py",
         "apps/api/app/modules/reports/service.py",
         "apps/api/app/modules/reports/jobs.py",
         "apps/api/app/modules/reports/router.py",
         "apps/api/app/modules/reports/weekly.py",
+        "apps/api/app/modules/reports/weekly_targets.py",
+        "apps/web/features/reports/report-metric-picker.tsx",
         "apps/web/features/reports/report-workspace.tsx",
+        "apps/web/features/reports/weekly-target-results.tsx",
         "apps/web/features/reports/weekly-intelligence.tsx",
         "apps/web/features/reports/report-workflow.ts",
         "apps/web/features/reports/weekly-decision-update.tsx",

@@ -81,6 +81,7 @@ class GuidanceTests(unittest.TestCase):
             ("Cash flow planning", "/business-analysis/cash-flow", "How do I use Cash flow planning?", "Preview cash plan"),
             ("Budget Planner", "/budget-planner", "How to compare advertising spend and get a budget recommendation", "Preview budget"),
             ("Weekly Reports", "/weekly-reports", "Configure weekly analysis and sending separately", "Save changes"),
+            ("weekly targets", "/weekly-reports", "Check weekly targets", "Weekly target (optional)"),
             ("Scheduled email", "/alerts", "Set up scheduled weekly email", "Save email settings"),
             ("Relationships", "/relationships", "Set up a two-metric monitor", "Preview relationship"),
             ("Forecasts", "/forecasts", "Generate a forecast", "Business has seasonal activity"),

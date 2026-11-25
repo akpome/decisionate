@@ -5,10 +5,12 @@ import vm from "node:vm"
 import test from "node:test"
 
 const require = createRequire(import.meta.url), ts = require("typescript")
+const React = require("react")
+const { renderToStaticMarkup } = require("react-dom/server")
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8")
 function load(path, imports = {}) {
   const loadedModule = { exports: {} }
-  vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText,
     { module: loadedModule, exports: loadedModule.exports, require: key => imports[key] || require(key) })
   return loadedModule.exports
 }
@@ -19,6 +21,30 @@ const names = load("../features/reports/default-report-name.ts")
 const { weeklyDefinition } = load("../features/reports/weekly-settings.ts", { "./types": types, "./default-report-name": names })
 const metrics = [{ dataset_id: 1, metric_key: "spend", date_column: "date", aggregation: "sum" }, { dataset_id: 2, metric_key: "orders", date_column: "created", aggregation: "sum" }]
 const direction = { metric_a: metrics[0], metric_b: metrics[1], direction: "a_leads_b" }
+
+test("weekly targets stay with their selected dataset and metric when reopening settings", () => {
+  const spend = { dataset_id: 1, metric_key: "spend", value: 0, direction: "at_most" }
+  const outside = { ...spend, dataset_id: 9 }
+  assert.deepEqual(Array.from(weeklyDefinition({ metrics, weekly_targets: [spend, outside] }).weekly_targets), [spend])
+  assert.equal(types.editableDefinition({ metrics }).weekly_targets, undefined)
+})
+
+test("the weekly report renders met, missed and incomplete results without scoring partial totals", () => {
+  const { WeeklyTargetResults } = load("../features/reports/weekly-target-results.tsx", {
+    "./types": types, "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: value => value }) },
+  })
+  const result = { label: "Orders", dataset_label: "Store", direction: "at_least", value: 100, actual: 100, gap: 0, currency: null }
+  const html = renderToStaticMarkup(React.createElement(WeeklyTargetResults, { targets: [
+    { ...result, metric_id: "1:orders", status: "met" },
+    { ...result, metric_id: "2:orders", status: "missed", actual: 92, gap: -8 },
+    { ...result, metric_id: "3:orders", status: "not_assessed", actual: null, observed_days: 6, reason: "incomplete_week" },
+  ] }))
+  for (const text of ["Weekly targets", "Target met", "Target missed", "8 below target", "Not enough data to assess", "6/7 days with usable results"]) {
+    assert.ok(html.includes(text), text)
+  }
+  assert.equal((html.match(/Actual:/g) || []).length, 2)
+  assert.equal(renderToStaticMarkup(React.createElement(WeeklyTargetResults)), "")
+})
 
 test("new weekly settings have weekly units and independent same-period defaults", () => {
   const value = weeklyDefinition({ metrics })

@@ -319,6 +319,35 @@ class BusinessReportEngineTests(unittest.TestCase):
         self.assertTrue(all(item["lag"] == 0 and item["lag_unit"] == "calendar weekly periods" for item in report["findings"]))
         self.assertFalse(any("not reused" in warning for warning in report["warnings"]))
 
+    def test_weekly_targets_do_not_assume_missing_days_are_zero(self):
+        preference = WeeklyReportPreferenceResponse(enabled=True, cadence="weekly", delivery_day="monday",
+            recipient_emails=["owner@example.test"], metric_focus=[], include_recommendations=False)
+        dataset, frame = self.frames[1]
+        self.frames[1] = dataset, frame.loc[frame.date != pd.Timestamp("2026-03-28")].copy()
+        frames = {item.id: rows for item, rows in self.frames.values()}
+        template = {**definition(grain="weekly", include_relationships=False), "weekly_targets": [
+            {"dataset_id": 1, "metric_key": "spend", "direction": "at_most", "value": 1000},
+        ]}
+        with patch("app.modules.alerts.router.load_dataframe_from_dataset", side_effect=lambda dataset: frames[dataset.id]):
+            digest = build_weekly_report_digest(preference, [item for item, _ in self.frames.values()], report_definition=template,
+                                                include_ai_analysis=False, analysis_date=date(2026, 4, 1))
+        result, = digest.cross_dataset_report["weekly_target_assessments"]
+        self.assertEqual((result["status"], result["reason"], result["observed_days"], result["actual"]), ("not_assessed", "incomplete_week", 6, None))
+        for render in (build_weekly_report_email_text, build_weekly_report_email_html):
+            self.assertIn("Not enough data to assess (6 of 7 days have usable results)", render(digest))
+
+    def test_weekly_targets_require_matching_units_and_treat_zero_as_observed(self):
+        from app.modules.reports.weekly_targets import assess_weekly_targets
+
+        target = {"dataset_id": 1, "metric_key": "spend", "direction": "at_most", "value": 0}
+        available = {"id": "1:spend", "value": 0, "observations": 7, "expected_periods": 7}
+        confirmed, = assess_weekly_targets([target], [available], {1: "Source 1"})
+        self.assertEqual((confirmed["status"], confirmed["actual"], confirmed["gap"]), ("met", 0, 0))
+        unresolved, = assess_weekly_targets([target], [{**available, "currency_unresolved": True}], {1: "Source 1"})
+        self.assertEqual((unresolved["status"], unresolved["reason"]), ("not_assessed", "currency_unavailable"))
+        unavailable, = assess_weekly_targets([target], [], {1: "Source 1"})
+        self.assertEqual((unavailable["status"], unavailable["reason"]), ("not_assessed", "metric_unavailable"))
+
     def test_instant_grouping_does_not_change_weekly_values_coverage_or_anomalies(self):
         preference = WeeklyReportPreferenceResponse(enabled=False, cadence="weekly", delivery_day="monday", recipient_emails=[], metric_focus=[], include_recommendations=True)
         original = None

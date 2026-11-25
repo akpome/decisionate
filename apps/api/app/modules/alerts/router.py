@@ -843,6 +843,11 @@ def build_weekly_cross_dataset_report(frames, preference, template=None, unavail
                           relationship_history_end=previous_window(definition["date_range"])["end"], include_whole_week=True,
                           weekly_intelligence=not bool(impact_definition))
     result["weekly_report"] = True
+    if definition.get("weekly_targets"):
+        from app.modules.reports.weekly_targets import assess_weekly_targets
+        result["weekly_target_assessments"] = assess_weekly_targets(
+            definition["weekly_targets"], result["metrics"], {identity: dataset.file_name for identity, (dataset, _) in frames.items()},
+        )
     evaluated = {item["metric_id"] for item in result.get("anomaly_analysis", {}).get("metrics", [])}
     omitted = [item for item in requested_references if f"{item['dataset_id']}:{item['metric_key']}" not in evaluated] if definition.get("include_anomalies", True) else []
     if omitted:

@@ -14,7 +14,7 @@ import type { CatalogDataset } from "@/features/relationships/types"
 import { CorrelationInsights } from "@/features/relationships/correlation-widgets"
 import { ReportMetricPicker, reportDateColumn } from "./report-metric-picker"
 import { isJoinedReportDataset, loadReportCatalogDataset, loadReportCatalogPage, mergeReportCatalog as mergeCatalog } from "./report-catalog-loading"
-import { editableDefinition, selectedReportDimensionFilters, type BusinessReport, type ReportDefinition } from "./types"
+import { editableDefinition, selectedReportDimensionFilters, selectedWeeklyTargets, type BusinessReport, type ReportDefinition } from "./types"
 import { ReportDecisions, ReportRelationshipFindings } from "./report-evidence-sections"
 import { defaultReportName, isDefaultReportName, reportDraftName } from "./default-report-name"
 import { reportExcludedPairs, reportPairDirections, reportPairKey, reportTestCount, unorderedReportPairKey } from "./pair-directions"
@@ -36,6 +36,7 @@ import { WeeklyAssessmentSetup, WeeklyDecisionUpdate } from "./weekly-decision-u
 import { reportHistoryQuery, reportPagePath, reportSourceTabs } from "./report-navigation"
 import { AnalysisTools } from "./analysis-tools"
 import { WeeklyIntelligenceReport } from "./weekly-intelligence"
+import { WeeklyTargetResults } from "./weekly-target-results"
 import { WeeklyTimezone } from "./weekly-timezone"
 import { defaultReportQuestion, reportSetupIssue } from "./report-workflow"
 import { ReportTakeaways } from "./report-takeaways"
@@ -407,6 +408,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail
     const nextName = !weekly && report?.report_id && !("name" in patch) && isDefaultReportName(definition.name) ? defaultReportName() : null
     setDefinition(current => {
       const next = { ...current, ...(nextName ? { name: nextName } : {}), ...patch, ...(analysisChanged ? { included_findings: null } : {}) }
+      if (next.weekly_targets) next.weekly_targets = selectedWeeklyTargets(next)
       return { ...next, impact: retainedImpactStudy(next.impact, next.metrics, "metrics" in patch || "dimension_filters" in patch), pair_directions: next.scope === "multi" && next.include_relationships !== false ? reportPairDirections(next.metrics, next.pair_directions) : [], excluded_pairs: next.scope === "multi" && next.include_relationships !== false ? reportExcludedPairs(next.metrics, next.excluded_pairs) : [] }
     })
     setReport(null); setError(""); setMessage("")
@@ -476,7 +478,8 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail
     try { await execute(async () => {
       const selected = override || definition
       const settings = weekly ? weeklyDefinition(selected, weeklySettings?.history_window) : selected
-      const payload = { ...settings, business_question: selected.business_question.trim() || defaultReportQuestion(selected, weekly), dimension_filters: selectedReportDimensionFilters(selected), included_findings: null,
+      const { weekly_targets, ...reportSettings } = settings
+      const payload = { ...reportSettings, ...(weekly && weekly_targets ? { weekly_targets } : {}), business_question: selected.business_question.trim() || defaultReportQuestion(selected, weekly), dimension_filters: selectedReportDimensionFilters(selected), included_findings: null,
         pair_directions: settings.scope === "multi" && settings.include_relationships !== false && !settings.impact ? reportPairDirections(settings.metrics, settings.pair_directions) : [] }
       if (!weekly && payload.impact?.decision_id) {
         const context = await request<DecisionReviewContext>(`/review-decisions/${payload.impact.decision_id}`, { signal })
@@ -743,7 +746,10 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail
           <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <ReportMetricPicker key={single ? `single-${singleDatasetId ?? "none"}` : "multi"} userId={userId} workspaceId={workspaceId} selectedDatasetId={singleDatasetId} onDatasetChange={chooseSingleDataset} onDatasetSearch={searchSingleDatasets} selectionDisabled={busy} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
-            ] })} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} retryingDataset={retryingDataset} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
+            ] })} weeklyTargets={weekly ? definition.weekly_targets : undefined} onWeeklyTargetChange={weekly ? (metricId, target) => {
+              const retained = (definition.weekly_targets || []).filter(item => `${item.dataset_id}:${item.metric_key}` !== metricId)
+              edit({ weekly_targets: target ? [...retained, target] : retained })
+            } : undefined} datasets={datasets} metrics={definition.metrics} dateColumns={dateColumns} singleDataset={single} loading={catalogBusy} error={catalogError} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} retryingDataset={retryingDataset} onToggleMetric={toggleMetric} onDateColumnChange={(dataset, column) => {
               setDateColumns(current => ({ ...current, [dataset.dataset_id]: column }))
               edit({ metrics: definition.metrics.map(item => item.dataset_id === dataset.dataset_id ? { ...item, date_column: column } : item) })
             }} footer={catalogFooter} />
@@ -788,6 +794,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail
     <section role="tabpanel" id="report-report" aria-labelledby="tab-report" hidden={view !== "report"} className="space-y-6">
       {view !== "report" ? null : !report ? <div className="border-y border-gray-200 py-12 text-center"><FileText className="mx-auto text-gray-400" size={32} /><h2 className="mt-3 text-lg font-medium">{t(weekly ? "No report generated" : "No analysis generated")}</h2><button type="button" className={`${button} mt-4`} onClick={() => setView("explore")}><ChartNoAxesCombined size={16} />{t(setupLabel)}</button></div> : <>
         <header className="border-b border-gray-200 pb-5"><div className="flex items-center gap-3"><WorkspaceBrandMark name={brand.name} logoUrl={brand.logoUrl} primaryColor={brand.primaryColor} className="h-10 w-10 rounded-md text-sm" /><span className="text-sm font-medium">{brand.name}</span></div><h2 className="mt-4 break-words text-2xl font-semibold">{report.name}</h2><p className="mt-2 break-words text-base text-gray-700">{report.business_question}</p><p className="mt-2 text-xs text-gray-500">{report.window.start} to {report.window.end} / {report.dataset_count} datasets / Generated {report.generated_at.slice(0, 10)}</p><ReportGrouping report={report} /></header>
+        {weekly && <WeeklyTargetResults targets={report.weekly_target_assessments} />}
         {!weekly && <ImpactResult analysis={report.impact_analysis} />}
         {!weekly && report.impact_analysis && <ImpactChart analysis={report.impact_analysis} />}
         {report.intelligence ? <WeeklyIntelligenceReport report={report} snapshot={<MetricTrends report={report} />} busy={busy}

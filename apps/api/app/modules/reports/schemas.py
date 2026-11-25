@@ -177,11 +177,25 @@ def weekly_history_range():
     return DateRange.model_validate(weekly_context()["history_window"])
 
 
+class WeeklyMetricTarget(ReportMetricKey):
+    direction: Literal["at_least", "at_most"]
+    value: float = Field(strict=True, allow_inf_nan=False)
+
+
 class WeeklyReportSettings(ReportDefinition):
     scope: Literal["multi"] = "multi"
     grain: Literal["weekly"] = "weekly"
     date_range: DateRange = Field(default_factory=weekly_history_range)
     reporting_timezone: str | None = Field(default=None, max_length=100)
+    weekly_targets: list[WeeklyMetricTarget] = Field(default_factory=list, max_length=25)
+
+    @model_validator(mode="after")
+    def targets_match_selected_metrics(self):
+        selected = {(item.dataset_id, item.metric_key) for item in self.metrics}
+        targets = {(item.dataset_id, item.metric_key) for item in self.weekly_targets}
+        if not targets <= selected or len(targets) != len(self.weekly_targets):
+            raise ValueError("Set at most one weekly target per selected metric.")
+        return self
 
     @field_validator("reporting_timezone")
     @classmethod

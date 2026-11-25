@@ -12,6 +12,7 @@ from app.modules.alerts import router as alerts
 from app.modules.alerts.schemas import WeeklyReportPreferenceUpdate
 from app.modules.reports import jobs
 from app.modules.reports.models import ReportAnalysisJob
+from app.modules.reports.weekly import weekly_context
 from tests import test_business_reports as fixtures
 
 
@@ -84,6 +85,24 @@ class WeeklyAutomaticOwnerDeliveryTests(unittest.TestCase):
         send = self.execute(self.enqueue())
         send.assert_called_once()
         self.assertEqual(send.call_args.args[0].recipient_emails, ["actual-owner@example.test", "team@example.test"])
+
+    def test_scheduled_report_checks_saved_target_for_latest_week(self):
+        week = weekly_context()["window"]
+        dates = pd.date_range(week["start"], week["end"])
+        for identity, column in [(1, "spend"), (2, "net_sales")]:
+            source, _ = self.frames[identity]
+            self.frames[identity] = source, pd.DataFrame({"date": dates, column: 2, "currency": "CAD"})
+        response = self.client.put("/api/v2/business-reports/weekly-settings", json={
+            **fixtures.definition(grain="weekly", include_relationships=False, include_anomalies=False),
+            "weekly_targets": [{"dataset_id": 1, "metric_key": "spend", "direction": "at_most", "value": 14}],
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        send = self.execute(self.enqueue())
+        send.assert_called_once()
+        report = send.call_args.args[0].cross_dataset_report
+        self.assertEqual(report["window"], week)
+        target, = report["weekly_target_assessments"]
+        self.assertEqual((target["status"], target["actual"], target["gap"]), ("met", 14, 0))
 
     def test_explicit_pause_survives_saving_report_and_sending_test(self):
         self.configure(enabled=False)

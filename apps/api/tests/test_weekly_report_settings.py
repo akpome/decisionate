@@ -11,21 +11,25 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, text
 from app.db.database import get_table_columns
 
-from app.db.models import WeeklyReportPreference
+from app.db.models import AppUser, Organization, WeeklyReportPreference
 from app.infrastructure import analysis_worker
 from app.modules.alerts import router as alerts
+from app.modules.alerts.email_delivery import build_weekly_report_email_html, build_weekly_report_email_text
 from app.modules.reports import jobs
 from app.modules.reports.cleanup import cleanup_source, cleanup_workspace
 from app.modules.reports.models import BusinessReport, CurrentWeeklyReport, ReportAnalysisJob
+from app.modules.reports.weekly import weekly_context
 from tests import test_business_reports as fixtures
 
 
 class WeeklyReportSettingsTests(unittest.TestCase):
     setUp = fixtures.BusinessReportWorkflowTests.setUp
 
-    def settings(self, **updates):
+    def settings(self, weekly_targets=None, **updates):
         value = fixtures.definition(grain="weekly", **updates)
         value.pop("date_range")
+        if weekly_targets is not None:
+            value["weekly_targets"] = weekly_targets
         return value
 
     def put(self, **updates):
@@ -56,6 +60,58 @@ class WeeklyReportSettingsTests(unittest.TestCase):
         self.assertIsNone(self.client.get("/api/v2/business-reports/weekly-settings").json()["definition"])
         unsaved_send = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}")
         self.assertEqual(unsaved_send.status_code, 409, unsaved_send.text)
+
+    def test_targets_are_saved_with_preview_and_included_in_the_sent_report(self):
+        with self.Session() as db:
+            db.add(AppUser(id="owner", email="owner@example.test"))
+            db.add(Organization(name="Owner workspace", owner_user_id="owner"))
+            db.commit()
+        window = weekly_context()["window"]
+        dates = pd.date_range(window["start"], window["end"])
+        for identity, column, amount in [(1, "spend", 3), (2, "net_sales", 10)]:
+            source = self.frames[identity][0]
+            self.frames[identity] = source, pd.DataFrame({"date": dates, column: amount, "currency": "CAD"})
+        targets = [
+            {"dataset_id": 1, "metric_key": "spend", "direction": "at_most", "value": 20},
+            {"dataset_id": 2, "metric_key": "net_sales", "direction": "at_least", "value": 70},
+        ]
+        identity, preview = self.draft_preview(weekly_targets=targets, include_anomalies=False, include_relationships=False)
+        assessment = preview["result"]["weekly_target_assessments"]
+        self.assertEqual([(item["status"], item["actual"], item["gap"]) for item in assessment], [("missed", 21, 1), ("met", 70, 0)])
+        self.assertEqual([item["previous_observations"] for item in preview["result"]["metrics"]], [0, 0])
+
+        saved = self.client.post(f"/api/v2/business-reports/jobs/{identity}/save-weekly")
+        self.assertEqual(saved.status_code, 201, saved.text)
+        self.assertEqual(saved.json()["settings"]["definition"]["weekly_targets"], targets)
+        self.assertEqual(saved.json()["report"]["weekly_target_assessments"], assessment)
+        send_job = self.client.post(f"/api/v2/business-reports/weekly-owner-jobs?preview_job_id={identity}&include_ai_analysis=false")
+        self.assertEqual(send_job.status_code, 202, send_job.text)
+        send_id = send_job.json()["job_id"]
+        with patch.object(alerts, "load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()), \
+                patch.object(alerts, "send_weekly_report_email", return_value={"recipients": ["owner@example.test"], "delivered_count": 1}) as send:
+            analysis_worker.execute_job(send_id)
+        delivery = self.client.get(f"/api/v2/business-reports/jobs/{send_id}")
+        self.assertEqual(delivery.json()["status"], "succeeded", delivery.text)
+        send.assert_called_once()
+        digest = send.call_args.args[0]
+        self.assertEqual(digest.cross_dataset_report["weekly_target_assessments"], assessment)
+        for render in (build_weekly_report_email_text, build_weekly_report_email_html):
+            email = render(digest)
+            for text in ("Weekly targets", "At most CAD 20.00", "Target missed", "At least CAD 70.00", "Target met"):
+                self.assertIn(text, email)
+        archive_id = digest.cross_dataset_report["report_id"]
+        self.put(name="Target cleared")
+        archive = self.client.get(f"/api/v2/business-reports/{archive_id}")
+        self.assertEqual(archive.json()["weekly_target_assessments"], assessment)
+
+    def test_targets_must_be_numeric_and_unique_to_selected_metrics(self):
+        target = {"dataset_id": 1, "metric_key": "spend", "direction": "at_most", "value": 0}
+        for targets in ([target, target], [{**target, "metric_key": "unselected"}], [{**target, "value": "NaN"}],
+                        [{**target, "value": True}], [{**target, "direction": "unknown"}]):
+            with self.subTest(targets=targets):
+                response = self.client.post("/api/v2/business-reports/weekly-preview-jobs", json=self.settings(weekly_targets=targets))
+                self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.put(weekly_targets=[target])["definition"]["weekly_targets"], [target])
 
     def test_weekly_preview_save_and_future_delivery_use_recognizable_default_name(self):
         generated = "Report (034a3449-983d-4130-8cb4-c6d870713c06)"

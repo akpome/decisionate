@@ -509,13 +509,39 @@ def weekly_decision_link(digest, item):
     return f"{origin.scheme}://{origin.netloc}/auth/redirect?" + urlencode({"redirect_url": path})
 
 
+def weekly_target_lines(report):
+    def amount(value, currency):
+        formatted = format_digest_number(value)
+        return f"{currency} {formatted}" if currency else formatted
+
+    lines = []
+    for target in report.get("weekly_target_assessments", []):
+        bound = "At least" if target["direction"] == "at_least" else "At most"
+        currency = target["currency"]
+        name = f"{target['dataset_label']} / {target['label']}"
+        limit = amount(target["value"], currency)
+        if target["status"] == "not_assessed":
+            reason = {"metric_unavailable": "Metric unavailable", "currency_unavailable": "Currency not confirmed"}.get(
+                target["reason"], f"{target['observed_days']} of 7 days have usable results")
+            lines.append(f"{name}: {bound} {limit}. Not enough data to assess ({reason}).")
+        else:
+            actual = amount(target["actual"], currency)
+            status = "Target met" if target["status"] == "met" else "Target missed"
+            gap = target["gap"]
+            difference = f" {amount(abs(gap), currency)} {'above' if gap > 0 else 'below'} target." if gap else ""
+            lines.append(f"{name}: Actual {actual}. {bound} {limit}. {status}.{difference}")
+    return lines
+
+
 def weekly_intelligence_email_sections(digest):
     intelligence = digest.cross_dataset_report["intelligence"]
     findings = intelligence["findings"][:3]
     ids = {item["id"] for item in findings}
     actions = [item for item in intelligence["recommendations"] if item["finding_id"] in ids][:3]
     filters = report_dimension_lines(digest.cross_dataset_report)
+    targets = weekly_target_lines(digest.cross_dataset_report)
     return [("This week", [intelligence["summary"]]),
+            *([("Weekly targets", targets)] if targets else []),
             *([("Selected data", filters)] if filters else []),
             ("Priority findings", [item["observation"] for item in findings] or ["No supported priority changes to highlight."]),
             ("Recommended investigations", [(f"Follow up Decision #{item['related_decision_id']}: " if item.get("related_decision_id") else "") + item["action"] for item in actions] or ["No new action recommended."]),
@@ -577,6 +603,8 @@ def build_weekly_report_email_text(
                         f"Coverage: {report['status']}"]
         review_lines.extend(report_grouping_lines(report))
         review_lines.extend(report_dimension_lines(report))
+        if targets := weekly_target_lines(report):
+            review_lines.extend(["", "Weekly targets", *targets, ""])
         review_lines.extend(impact_lines(report))
         review_lines.extend(report["observations"])
         review_lines.extend(report["contrasts"])
@@ -931,6 +959,11 @@ def build_weekly_report_email_html(
                 + "".join(f'<p>{escape_html(line)}</p>' for line in impact_lines(report))
                 + '</section>' + cross_markup
             )
+        if targets := weekly_target_lines(report):
+            cross_markup = ('<section style="margin-top:24px;font-size:14px;line-height:1.6;">'
+                            '<h2 style="font-size:18px;">Weekly targets</h2>'
+                            + "".join(f'<p>{escape_html(line)}</p>' for line in targets)
+                            + '</section>' + cross_markup)
     if digest.ai_analysis:
         analysis_markup = (
             '<p style="color:#475569;font-size:14px;line-height:1.6;'

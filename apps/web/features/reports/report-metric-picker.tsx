@@ -9,6 +9,7 @@ import { DatasetDimensionFilter } from "@/features/datasets/components/dimension
 import { SearchableSelect } from "@/components/searchable-select"
 import type { DatasetDimensionFilter as DimensionSelection, DimensionFilter } from "@/lib/api"
 import { isJoinedReportDataset } from "./report-catalog-loading"
+import type { WeeklyMetricTarget } from "./types"
 
 const issueLabels: Record<string, string> = {
   selection_not_saved: "Metric selection not saved.",
@@ -39,7 +40,7 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, onDatasetSearch, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, onDatasetSearch, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric, weeklyTargets = [], onWeeklyTargetChange }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
@@ -61,6 +62,8 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   dimensionFilters?: DimensionSelection[]
   onDimensionFilterChange?: (datasetId: number, filter: DimensionFilter | undefined) => void
   lockedMetric?: { dataset_id: number; metric_key: string } | null
+  weeklyTargets?: WeeklyMetricTarget[]
+  onWeeklyTargetChange?: (metricId: string, value?: WeeklyMetricTarget) => void
 }) {
   const { t } = useDecisionateText()
   const [search, setSearch] = useState("")
@@ -69,6 +72,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   const scoped = useMemo(() => singleDataset ? eligible.filter(dataset => dataset.dataset_id === selectedDatasetId) : eligible, [eligible, singleDataset, selectedDatasetId])
   const visible = useMemo(() => singleDataset ? scoped : filterReportDatasets(scoped, deferredSearch), [scoped, deferredSearch, singleDataset])
   const selected = useMemo(() => new Set(metrics.map(metricIdentity)), [metrics])
+  const targets = new Map(weeklyTargets.map(target => [metricIdentity(target), target]))
   const counts = useMemo(() => {
     const result = new Map<number, number>()
     for (const metric of metrics) result.set(metric.dataset_id, (result.get(metric.dataset_id) || 0) + 1)
@@ -130,11 +134,31 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
             </div>}
             {dataset.metrics.length > 0 ? <div className="mt-2 grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-2">
               {dataset.metrics.map(metric => {
-                const checked = selected.has(metricIdentity(metric))
-                return <label key={metric.metric_key} className="flex min-h-11 min-w-0 items-start gap-3 py-2 text-sm">
-                  <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" title={lockedMetric && metricIdentity(lockedMetric) === metricIdentity(metric) ? "Outcome metric from the decision" : undefined} disabled={Boolean(lockedMetric && metricIdentity(lockedMetric) === metricIdentity(metric)) || !checked && (!usableDate || (singleDataset ? count : metrics.length) >= 25)} checked={checked} onChange={() => onToggleMetric(dataset, metric.metric_key)} />
-                  <span className="min-w-0 break-words">{metric.label}<span className="block text-xs text-gray-500">{metric.currency || metric.unit} / {metric.aggregation}</span></span>
-                </label>
+                const metricId = metricIdentity(metric)
+                const checked = selected.has(metricId)
+                const target = targets.get(metricId)
+                const targetInput = "min-h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm disabled:opacity-50"
+                return <div key={metric.metric_key} className={checked && onWeeklyTargetChange ? "min-w-0 pb-2" : "min-w-0"}>
+                  <label className="flex min-h-11 min-w-0 items-start gap-3 py-2 text-sm">
+                    <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" title={lockedMetric && metricIdentity(lockedMetric) === metricId ? "Outcome metric from the decision" : undefined} disabled={Boolean(lockedMetric && metricIdentity(lockedMetric) === metricId) || !checked && (!usableDate || (singleDataset ? count : metrics.length) >= 25)} checked={checked} onChange={() => onToggleMetric(dataset, metric.metric_key)} />
+                    <span className="min-w-0 break-words">{metric.label}<span className="block text-xs text-gray-500">{metric.currency || metric.unit} / {metric.aggregation}</span></span>
+                  </label>
+                  {checked && onWeeklyTargetChange && <div className="max-w-sm space-y-1 pl-7">
+                    <span className="text-xs text-gray-600">{t("Weekly target (optional)")}</span>
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                      <input aria-label={`${t("Weekly target")}: ${metric.label} (${dataset.dataset_label})`} className={targetInput} type="number" step="any"
+                        value={target?.value ?? ""} disabled={selectionDisabled} onChange={event => {
+                          const { valueAsNumber, validity } = event.currentTarget
+                          if (Number.isFinite(valueAsNumber)) onWeeklyTargetChange(metricId, { dataset_id: metric.dataset_id, metric_key: metric.metric_key, value: valueAsNumber, direction: target?.direction ?? "at_least" })
+                          else if (!validity.badInput) onWeeklyTargetChange(metricId)
+                        }} />
+                      <select aria-label={`${t("Target direction")}: ${metric.label} (${dataset.dataset_label})`} className={targetInput} value={target?.direction ?? "at_least"}
+                        disabled={!target || selectionDisabled} onChange={event => {
+                          if (target) onWeeklyTargetChange(metricId, { ...target, direction: event.target.value === "at_most" ? "at_most" : "at_least" })
+                        }}><option value="at_least">{t("At least")}</option><option value="at_most">{t("At most")}</option></select>
+                    </div>
+                  </div>}
+                </div>
               })}
             </div> : <p className="mt-2 text-sm font-medium text-gray-700">{t("No report-ready metrics.")}</p>}
             {datasetIssues.map(issue => <p key={issue.code} className="mt-2 text-sm text-amber-800">{issueText(issue)}</p>)}

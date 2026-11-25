@@ -112,6 +112,17 @@ test("search and date selection are visibly labelled before any metrics are sele
   assert.doesNotMatch(html, /Selected metrics/)
 })
 
+test("optional weekly targets appear only for selected metrics in the weekly picker", () => {
+  const spend = reference()
+  assert.doesNotMatch(render({ metrics: [spend] }), /Weekly target/)
+  assert.doesNotMatch(render({ onWeeklyTargetChange() {} }), /Weekly target/)
+  const target = { dataset_id: 1, metric_key: "spend", value: 0, direction: "at_most" }
+  const html = render({ metrics: [spend], weeklyTargets: [target], onWeeklyTargetChange() {} })
+  assert.match(html, /aria-label="Weekly target: spend \(Advertising.csv\)"[^>]*value="0"/)
+  assert.match(html, /<option value="at_most" selected="">At most<\/option>/)
+  assert.doesNotMatch(html, /Weekly target: revenue/)
+})
+
 test("single reports expose only the chosen source's dimension selector while multi reports retain all sources", () => {
   for (const singleDataset of [true, false]) {
     dimensionProps.length = 0

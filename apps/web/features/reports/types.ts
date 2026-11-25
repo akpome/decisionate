@@ -5,7 +5,12 @@ import { MINIMUM_RELATIONSHIP_OBSERVATIONS, RELATIONSHIP_DEFAULTS } from "@/feat
 import type { ImpactAnalysis, ImpactStudy } from "./impact-types"
 
 export type ReportScope = "single" | "multi"
-export type ReportDefinition = CorrelationDefinition & { reporting_timezone?: string; scope: ReportScope; include_relationships?: boolean; include_anomalies?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null }
+export type WeeklyMetricTarget = { dataset_id: number; metric_key: string; value: number; direction: "at_least" | "at_most" }
+export type WeeklyTargetAssessment = WeeklyMetricTarget & {
+  metric_id: string; label: string; dataset_label: string; currency: string | null; actual: number | null; gap: number | null; observed_days: number
+  status: "met" | "missed" | "not_assessed"; reason: "incomplete_week" | "metric_unavailable" | "currency_unavailable" | null
+}
+export type ReportDefinition = CorrelationDefinition & { reporting_timezone?: string; scope: ReportScope; include_relationships?: boolean; include_anomalies?: boolean; dimension_filters?: DatasetDimensionFilter[]; business_question: string; seasonal_business: boolean; include_ai_analysis: boolean; included_findings: string[] | null; source_run_id?: string | null; pair_directions: ReportPairDirection[]; excluded_pairs: ReportMetricPair[]; impact?: ImpactStudy | null; weekly_targets?: WeeklyMetricTarget[] }
 export type ReportAnomalyPoint = { period: string; value: number; expected: number; lower: number; upper: number; deviation: number; deviation_percent: number | null; score: number | null; direction: "high" | "low"; seasonalities: string[]; unusual?: boolean }
 export type ReportAnomalyMetric = {
   metric_id: string; dataset_id: number; dataset_label: string; metric_key: string; label: string
@@ -46,6 +51,7 @@ export type BusinessReport = {
   intelligence?: import("./weekly-intelligence-types").WeeklyIntelligence
   weekly_report?: boolean
   weekly_current?: boolean
+  weekly_target_assessments?: WeeklyTargetAssessment[]
   analysis_job_id?: string
   report_id?: string; decision_report_id?: string | null; name: string; business_question: string; definition: ReportDefinition
   window: { start: string; end: string }; previous_window: { start: string; end: string }
@@ -75,6 +81,7 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
   return { name: value.name ?? "", business_question: value.business_question || "", scope: value.scope ?? "multi",
     include_relationships: value.include_relationships ?? true,
     include_anomalies: value.include_anomalies ?? true,
+    ...(value.weekly_targets ? { weekly_targets: selectedWeeklyTargets(value) } : {}),
     seasonal_business: value.seasonal_business ?? false,
     include_ai_analysis: true,
     impact: value.scope === "single" ? null : value.impact ?? null,
@@ -86,6 +93,11 @@ export function editableDefinition(value: Partial<ReportDefinition>): ReportDefi
     included_findings: relationships ? value.included_findings ?? null : null, source_run_id: relationships ? value.source_run_id ?? null : null,
     excluded_pairs: relationships ? reportExcludedPairs(value.metrics || [], value.excluded_pairs) : [],
     pair_directions: relationships ? reportPairDirections(value.metrics || [], value.pair_directions, value.pair_directions == null && value.lag ? value.lag.direction === "b_leads_a" ? "b_leads_a" : "a_leads_b" : undefined) : [] }
+}
+
+export function selectedWeeklyTargets(value: Pick<Partial<ReportDefinition>, "metrics" | "weekly_targets">) {
+  const selected = new Set((value.metrics || []).map(metric => `${metric.dataset_id}:${metric.metric_key}`))
+  return (value.weekly_targets || []).filter(target => selected.has(`${target.dataset_id}:${target.metric_key}`))
 }
 
 export function selectedReportDimensionFilters(value: Pick<ReportDefinition, "metrics" | "dimension_filters">) {

@@ -85,6 +85,7 @@ These guides explain how to use the tools; they do not inspect your workspace.
 | --- | --- |
 | [Test a future spending mix](customer/budget-planner.md#how-to-compare-advertising-spend-and-get-a-budget-recommendation) | How do I use Budget Planner? |
 | [Preview and save a weekly report](customer/weekly-reports.md#configure-weekly-analysis-and-sending-separately) | How do I use Weekly Reports? |
+| [Set and check weekly targets](customer/weekly-reports.md#check-weekly-targets) | How do I use weekly targets? |
 | [Schedule, test or pause email](customer/email-branding.md#set-up-scheduled-weekly-email) | How do I use Scheduled email? |
 | [Preview and save a relationship](customer/relationship-monitors.md#set-up-a-two-metric-monitor) | How do I use Relationships? |
 | [Forecast a metric](customer/forecasts.md#generate-a-forecast) | How do I use Forecasts? |
