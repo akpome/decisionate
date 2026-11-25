@@ -929,6 +929,29 @@ export type DashboardValueAggregation =
   | "max"
   | "count"
 
+export type DashboardGroupPreference = {
+  filter: DimensionFilter
+  metric: string
+  active: boolean
+  targets: (number | null)[]
+}
+
+export type DashboardGroupQuery = {
+  filter: DimensionFilter
+  metric: string
+  date_column: string
+  start_date: string
+  end_date: string
+  aggregation: DashboardAggregation
+  aggregation_type: DashboardValueAggregation
+}
+
+export type DashboardGroupResult = {
+  series: { value: string | null; points: { period: string; amount: number }[] }[]
+  has_summarized_data: boolean
+  metric_aggregation: string | null
+}
+
 export type ForecastPeriodFilter =
   | "1m"
   | "1q"
@@ -951,6 +974,7 @@ export type ForecastQueryOptions = {
 
 export type DashboardPreferencePayload = {
   dimensionFilter?: DimensionFilter | null
+  groupComparison?: DashboardGroupPreference | null
   title?: string
   subtitle?: string
   selectedMetrics?: string[]
@@ -2763,14 +2787,28 @@ function cleanDashboardPreference(
   preference: Record<string, unknown>
 ): DashboardPreferencePayload {
   const cleanPreference: DashboardPreferencePayload = {}
+  const validFilter = (filter: DimensionFilter | null | undefined, maxValues: number): filter is DimensionFilter =>
+    Boolean(filter && typeof filter.column === "string" && filter.column.length > 0 && filter.column.length <= 200
+      && Array.isArray(filter.values) && filter.values.length > 0 && filter.values.length <= maxValues
+      && filter.values.every(value => value === null || typeof value === "string" && value.length <= 1000))
   if ("dimensionFilter" in preference) {
     const filter = preference.dimensionFilter as DimensionFilter | null
     if (filter === null) cleanPreference.dimensionFilter = null
-    else if (filter && typeof filter.column === "string" && filter.column.length > 0 && filter.column.length <= 200
-      && Array.isArray(filter.values) && filter.values.length > 0 && filter.values.length <= 50
-      && filter.values.every(value => value === null || typeof value === "string" && value.length <= 1000)) {
+    else if (validFilter(filter, 50)) {
       cleanPreference.dimensionFilter = { column: filter.column, values: [...new Set(filter.values)] }
     } else throw new ApiError("The saved dashboard dimension filter is invalid.", 422)
+  }
+  if ("groupComparison" in preference) {
+    const comparison = preference.groupComparison as DashboardGroupPreference | null
+    if (comparison === null) cleanPreference.groupComparison = null
+    else if (comparison && validFilter(comparison.filter, 8)
+      && new Set(comparison.filter.values).size === comparison.filter.values.length
+      && typeof comparison.metric === "string" && comparison.metric.length > 0 && comparison.metric.length <= 200
+      && typeof comparison.active === "boolean" && Array.isArray(comparison.targets)
+      && (!comparison.targets.length || comparison.targets.length === comparison.filter.values.length)
+      && comparison.targets.every(target => target === null || Number.isFinite(target) && target > 0)) {
+      cleanPreference.groupComparison = { filter: comparison.filter, metric: comparison.metric, targets: comparison.targets, active: comparison.active }
+    } else throw new ApiError("The saved dashboard group comparison is invalid.", 422)
   }
   const cleanTitle =
     getCleanDashboardPreferenceText(
@@ -6724,6 +6762,19 @@ export async function getDatasetDimensions(
     signal: options.signal, headers: await workspaceHeaders(userId, workspaceId),
   })
   if (!response.ok) await throwApiError(response, "Dimension values could not be loaded")
+  return response.json()
+}
+
+export async function getDashboardGroupSeries(
+  datasetId: number, userId: string, workspaceId: string | undefined,
+  query: DashboardGroupQuery, signal?: AbortSignal,
+): Promise<DashboardGroupResult> {
+  const identity = cleanPositiveIntegerId(datasetId, "Dataset id")
+  const response = await apiFetch(`${API_URL}/datasets/${identity}/dashboard-groups`, {
+    method: "POST", signal, body: JSON.stringify(query),
+    headers: { ...await workspaceHeaders(userId, workspaceId), "Content-Type": "application/json" },
+  }, datasetDetailsRequestTimeoutMs, false)
+  if (!response.ok) await throwApiError(response, "The group comparison could not be loaded.")
   return response.json()
 }
 

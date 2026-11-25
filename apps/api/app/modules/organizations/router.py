@@ -404,6 +404,17 @@ def clean_dashboard_preferences(
                     clean_preference["dimensionFilter"] = DimensionFilter.model_validate(value).model_dump()
                 except ValidationError as error:
                     raise HTTPException(422, "The saved dashboard dimension filter is invalid.") from error
+        if "groupComparison" in preference:
+            from app.modules.datasets.services.dashboard_groups import DashboardGroupPreference
+            from pydantic import ValidationError
+
+            comparison = preference["groupComparison"]
+            try:
+                clean_preference["groupComparison"] = (
+                    None if comparison is None else DashboardGroupPreference.model_validate(comparison).model_dump()
+                )
+            except ValidationError as error:
+                raise HTTPException(422, "The saved dashboard group comparison is invalid.") from error
         title = clean_dashboard_preference_text(
             preference.get("title"),
             MAX_DASHBOARD_TITLE_LENGTH,

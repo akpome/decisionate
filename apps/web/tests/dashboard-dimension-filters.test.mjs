@@ -138,13 +138,16 @@ test("saved view cleaning preserves exact filters, explicit clear and rejects in
   assert.deepEqual(JSON.parse(JSON.stringify(cleanDashboardPreference({ dimensionFilter: east }))), { dimensionFilter: east })
   assert.equal(cleanDashboardPreference({ dimensionFilter: null }).dimensionFilter, null)
   assert.throws(() => cleanDashboardPreference({ dimensionFilter: { column: "region", values: [] } }), /invalid/)
+  const groupComparison = { filter: { column: "channel", values: ["Online", "Store"] }, metric: "revenue", targets: [200, null], active: true }
+  assert.deepEqual(JSON.parse(JSON.stringify(cleanDashboardPreference({ dimensionFilter: east, groupComparison }))), { dimensionFilter: east, groupComparison })
+  assert.throws(() => cleanDashboardPreference({ groupComparison: { ...groupComparison, targets: [200] } }), /group comparison is invalid/)
 })
 test("all dataset dashboard layouts share the control, joined source filters and export scope", () => {
   const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8")
   assert.match(page, /selectedDashboardNeedsDataset && selectedDatasetId && userId/)
   assert.match(page, /Source dimension filters/)
   assert.ok((page.match(/\{dimensionControls\}/g) || []).length >= 2)
-  assert.match(page, /dimensionFilter: dimensionFilter\?\.values\.length \? dimensionFilter : null/)
+  assert.match(page, /dimensionFilter: dimensionFilter\?\.values\.length \? dimensionFilter/)
   assert.match(page, /if \(dimensionBlocked\) return null/)
   const join = readFileSync(new URL("../features/dashboard/components/dataset-join-panel.tsx", import.meta.url), "utf8")
   assert.match(join, /DatasetDimensionFilter/)

@@ -72,13 +72,18 @@ def dimension_options(dataset, frame, column=None, search="", offset=0, limit=10
             "next_offset": offset + limit if len(values) > offset + limit else None}
 
 
-def apply_dimension_filter(dataset, frame, selection, *, metrics=()):
+def dimension_tokens(dataset, frame, column):
+    if column not in {item["column"] for item in dimension_columns(dataset, frame)}:
+        raise DimensionFilterError("The selected dimension column is unavailable")
+    return frame[column].map(dimension_value)
+
+
+def apply_dimension_filter(dataset, frame, selection, *, metrics=(), normalized=None):
     if selection is None:
         return frame
     selection = DimensionFilter.model_validate({key: selection[key] for key in ("column", "values")})
-    if selection.column not in {item["column"] for item in dimension_columns(dataset, frame)}:
-        raise DimensionFilterError("The selected dimension column is unavailable")
-    normalized = frame[selection.column].map(dimension_value)
+    if normalized is None:
+        normalized = dimension_tokens(dataset, frame, selection.column)
     mask = normalized.isin(selection.values)
     if None in selection.values:
         mask |= normalized.isna()

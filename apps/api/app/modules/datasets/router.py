@@ -284,6 +284,7 @@ from app.modules.datasets.services.connector_range_sync import (
     range_sync_pending, new_range_sync, next_range_sync_chunk, advance_range_sync,
 )
 from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter, dimension_options
+from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest, dashboard_group_series
 from app.modules.datasets.services.auth import (
     get_user_id,
     get_workspace_id,
@@ -10843,6 +10844,18 @@ def dataset_dimensions(
         frame = normalize_dataset_details_dataframe(frame)
         try:
             return dimension_options(dataset, frame, column, search, offset)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+
+
+@router.post("/{dataset_id}/dashboard-groups")
+def dataset_dashboard_groups(request: Request, dataset_id: int, selection: DashboardGroupRequest):
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    with SessionLocal() as db:
+        dataset, frame = _load_owned_dataset_dataframe(db, dataset_id, user_id, workspace_id, apply_metric_selection=False)
+        try:
+            return dashboard_group_series(dataset, normalize_dataset_details_dataframe(frame), selection)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 

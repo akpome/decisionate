@@ -390,6 +390,9 @@ const referenceChapters: ReferenceChapter[] = [
         title: "Set targets and inspect chart detail",
         steps: [
           "Open Edit dashboard on General Business Overview to set optional metric targets in Metrics & Targets.",
+          "In Metrics & Targets, choose a Dimension column and values to filter all selected metrics together.",
+          "Open Compare Groups, choose a dimension, check the values to compare, and select one metric. Enter a separate target for each checked value, or leave it blank.",
+          "Use the same dates and grouping to compare the colored lines. Use Save PDF to export the comparison.",
           "Use the chart expand action to open a larger view when the chart is mapped and the action is available.",
           "For a horizontal bar chart opened in a modal, use the expanded vertical presentation to compare category values more easily.",
           "Use the chart legend or direct labels to verify which dataset column each visual encoding represents.",

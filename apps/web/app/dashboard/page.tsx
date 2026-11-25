@@ -16,9 +16,11 @@ import dynamic from "next/dynamic"
 import { DatasetSelector } from "@/features/dashboard/components/dataset-selector"
 import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } from "@/features/dashboard/date-window"
 import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
+import { CompareGroupsEditor, DashboardGroupChart, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
+import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { sameDimensionFilter, useDashboardDimensionData } from "@/features/dashboard/lib/use-dimension-data"
-import type { DimensionFilter } from "@/lib/api"
+import type { DashboardGroupPreference, DashboardGroupQuery, DimensionFilter } from "@/lib/api"
 import { CorrelationWidgets } from "@/features/relationships/correlation-widgets"
 import {
   formatMetricLabel,
@@ -448,6 +450,7 @@ function getErrorMessage(
 ========================= */
 
 export default function DashboardPage() {
+  const { t } = useDecisionateText()
   const { user } = useUser()
   const {
     isLoaded: authLoaded,
@@ -581,8 +584,19 @@ export default function DashboardPage() {
   const [selectedDashboard, setSelectedDashboard] =
     useState(defaultDashboardKey)
   const [dimensionSelection, setDimensionSelection] = useState<{ context: string; value?: DimensionFilter }>()
+  const [groupSelection, setGroupSelection] = useState<{
+    context: string
+    filter?: DimensionFilter
+    metric: string
+    targets: (number | null)[]
+    active: boolean
+  }>()
   const dimensionContext = `${userId}:${activeWorkspaceId}:${workspaceVersion}:${selectedDatasetId}:${selectedDashboard}:${joinedDatasetResult ? "joined" : "source"}`
   const dimensionFilter = dimensionSelection?.context === dimensionContext ? dimensionSelection.value : undefined
+  const groupDraft = groupSelection?.context === dimensionContext ? groupSelection : undefined
+  const groupFilter = groupDraft?.filter
+  const groupMetric = groupDraft?.metric || ""
+  const groupTabActive = Boolean(groupDraft?.active)
   const selectedDashboardRef =
     useRef(defaultDashboardKey)
   const datasetSelectionRequestRef = useRef(0)
@@ -1339,6 +1353,13 @@ export default function DashboardPage() {
           context: `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:${savedJoinedDatasetResult ? "joined" : "source"}`,
           value: savedJoinedDatasetResult ? undefined : savedDashboardPreference.dimensionFilter || undefined,
         })
+        const savedComparison = savedDashboardPreference.groupComparison
+        setGroupSelection(selectedDashboard === defaultDashboardKey && !savedJoinedDatasetResult && savedComparison
+          ? {
+            ...savedComparison,
+            context: `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:source`,
+          }
+          : undefined)
         setJoinedDatasetResult(
           savedJoinedDatasetResult
         )
@@ -2052,6 +2073,26 @@ export default function DashboardPage() {
           selectedDashboardAutoMetric
         : undefined
 
+  const availableMetricColumns = useMemo(
+    () => metrics.map(metric => metric.column).filter(column => !isDashboardIdentifierColumn(column)),
+    [metrics]
+  )
+  const canCompareGroups = selectedDashboard === defaultDashboardKey && !joinedDatasetResult && Boolean(dataset) && dataset?.source_type !== "joined"
+  const groupPreference = useMemo<DashboardGroupPreference | null>(() =>
+    canCompareGroups && groupFilter?.values.length && availableMetricColumns.includes(groupMetric)
+      ? { filter: groupFilter, metric: groupMetric, targets: groupDraft?.targets ?? [], active: groupTabActive }
+      : null,
+  [canCompareGroups, groupFilter, availableMetricColumns, groupMetric, groupDraft?.targets, groupTabActive])
+  const showGroupComparison = Boolean(groupPreference?.active)
+  const groupQuery = useMemo<DashboardGroupQuery | undefined>(() => {
+    if (!canCompareGroups || !groupTabActive || !groupFilter?.values.length ||
+        !availableMetricColumns.includes(groupMetric) || !analysisDateColumn ||
+        loading || dateRange.start > dateRange.end) return undefined
+    return { filter: groupFilter, metric: groupMetric, date_column: analysisDateColumn, start_date: dateRange.start,
+      end_date: dateRange.end, aggregation, aggregation_type: aggregationType }
+  }, [canCompareGroups, groupTabActive, groupFilter, groupMetric, availableMetricColumns, analysisDateColumn, dateRange, loading, aggregation, aggregationType])
+  const groupSeries = useDashboardGroupSeries(selectedDatasetId, userId, activeWorkspaceId, groupQuery, `${dimensionContext}:${datasetLoadRetryKey}`)
+
   useEffect(() => {
     if (
       selectedDashboard !== defaultDashboardKey ||
@@ -2060,6 +2101,7 @@ export default function DashboardPage() {
       dataset?.id !== selectedDatasetId ||
       loading ||
       dimensionBlocked ||
+      showGroupComparison ||
       joinedDatasetResult
     ) {
       queueMicrotask(() => {
@@ -2131,6 +2173,7 @@ export default function DashboardPage() {
     dateRange,
     selectedDashboard,
     selectedDatasetId,
+    showGroupComparison,
     userId,
     xKey,
   ])
@@ -2153,16 +2196,6 @@ export default function DashboardPage() {
   const targetMet =
     selectedTarget > 0 &&
     targetProgress >= 100
-  const availableMetricColumns =
-    useMemo(
-      () =>
-        metrics.map(
-          (metric) => metric.column
-        ).filter(
-          column => !isDashboardIdentifierColumn(column)
-        ),
-      [metrics]
-    )
 
   const chartRows =
     scaleMode === "indexed" &&
@@ -2265,7 +2298,9 @@ export default function DashboardPage() {
   const currentDashboardPreference =
     useMemo<DashboardViewPreference>(
       () => ({
-        dimensionFilter: dimensionFilter?.values.length ? dimensionFilter : null,
+        dimensionFilter: dimensionFilter?.values.length ? dimensionFilter
+          : dimensionFilter ? currentSavedDashboardPreference.dimensionFilter ?? null : null,
+        ...(selectedDashboard === defaultDashboardKey ? { groupComparison: groupPreference } : {}),
         title: cleanDashboardText(
           dashboardTitle,
           maxDashboardTitleLength
@@ -2310,6 +2345,9 @@ export default function DashboardPage() {
       }),
       [
         dimensionFilter,
+        currentSavedDashboardPreference.dimensionFilter,
+        groupPreference,
+        selectedDashboard,
         availableMetricColumns,
         aggregation,
         aggregationType,
@@ -2338,7 +2376,6 @@ export default function DashboardPage() {
         !selectedDatasetId ||
         !dataset ||
         loading ||
-        Boolean(dimensionFilter && !dimensionFilter.values.length) ||
         dashboardDatasetHydrationRef.current !==
           dashboardDatasetContextKey
       ) {
@@ -2484,7 +2521,6 @@ export default function DashboardPage() {
       dashboardViewsByDataset,
       dataset,
       loading,
-      dimensionFilter,
       currentSavedDashboardPreference,
       selectedDashboardSharedMetric,
       selectedDatasetId,
@@ -2664,7 +2700,7 @@ export default function DashboardPage() {
   }
 
   async function handleDownloadDashboardPdf() {
-    if (dimensionBlocked) return
+    if (showGroupComparison ? !groupSeries.data : dimensionBlocked) return
     if (
       selectedDashboardNeedsDataset &&
       (!selectedDatasetId || !dataset)
@@ -2805,6 +2841,7 @@ export default function DashboardPage() {
   }
 
   const shareControlsDisabled =
+    showGroupComparison ||
     dimensionBlocked ||
     loading ||
     shareStatusLoading ||
@@ -2835,7 +2872,7 @@ export default function DashboardPage() {
     shareAction === "share"
       ? "Sending..."
       : "Share link"
-  const shareButtonTitle = `Email a read-only ${dashboardShareTitle.toLowerCase()} link.`
+  const shareButtonTitle = showGroupComparison ? t("Use Save PDF to share this group comparison.") : `Email a read-only ${dashboardShareTitle.toLowerCase()} link.`
   const shareButtonAriaLabel = `Email ${dashboardShareTitle.toLowerCase()} link`
 
   const dashboardIsInitializing =
@@ -2886,6 +2923,13 @@ export default function DashboardPage() {
     sourceDatasets.length > 1
 
   const filterLabel = templateProps.filterLabel
+  const metricDimensionFilter = selectedDatasetId && userId && !joinedDatasetResult
+    ? <DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+        value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />
+    : null
+  function selectEditTab(active: boolean) {
+    setGroupSelection({ context: dimensionContext, filter: groupFilter, metric: groupMetric, targets: groupDraft?.targets ?? [], active })
+  }
   const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <>
     <section id="dashboard-filters-panel" role="region" aria-labelledby="dashboard-filters-toggle" hidden={!showFiltersPanel}
       className="@container min-w-0 border-y border-gray-200 py-3 print:hidden">
@@ -2901,14 +2945,13 @@ export default function DashboardPage() {
         </div>
         {joinedDatasetResult ? <button type="button" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
           <Settings2 size={16} />Source dimension filters
-        </button> : <DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
-          value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />}
+        </button> : !showGroupComparison && !(canCompareGroups && dashboardEditMode) ? metricDimensionFilter : null}
       </div>
     </section>
-    {dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}
-    {dimensionData.error && <div className="mt-2 flex items-start gap-2 text-sm text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{dimensionData.error}</p>
+    {!showGroupComparison && dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}
+    {!showGroupComparison && dimensionData.error && <div className="mt-2 flex items-start gap-2 text-sm text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{dimensionData.error}</p>
       <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title="Retry filtered dashboard" aria-label="Retry filtered dashboard" onClick={dimensionData.retry}><RefreshCw size={16} /></button></div>}
-    {dimensionFilter && dimensionData.data && !allRows.length && <p role="status" className="mt-2 text-sm text-gray-600">No rows match the selected dimension values.</p>}
+    {!showGroupComparison && dimensionFilter && dimensionData.data && !allRows.length && <p role="status" className="mt-2 text-sm text-gray-600">No rows match the selected dimension values.</p>}
   </> : null
 
   const dashboardManagementActions = (
@@ -3011,47 +3054,67 @@ export default function DashboardPage() {
     <>
       {dimensionControls}
 
-      {dashboardEditMode && (
-        <DashboardCard>
-          <CardHeader
-            title="Metrics & Targets"
-            description="Choose which metrics appear in the chart and set optional targets."
-            icon={
-              <IconBadge
-                className="bg-[var(--decisionate-brand-accent-soft)] text-[var(--decisionate-brand-accent-text)]"
-                icon={<Gauge size={22} />}
-              />
-            }
-          />
+      {(dashboardEditMode || groupPreference) && (
+        <div role={dashboardEditMode ? "tablist" : "group"} aria-label={t("Dashboard view")}
+          className="flex flex-wrap gap-x-5 border-b border-gray-200 print:hidden">
+          {([["dashboard-metrics-tab", "Metrics & Targets", false], ["dashboard-groups-tab", "Compare Groups", true]] as const)
+            .map(([id, label, active]) => {
+              const selected = active === groupTabActive
+              return <button key={id} id={id} type="button" role={dashboardEditMode ? "tab" : undefined}
+                aria-selected={dashboardEditMode ? selected : undefined} aria-pressed={!dashboardEditMode ? selected : undefined}
+                aria-controls={dashboardEditMode ? "dashboard-view-editor" : undefined} tabIndex={dashboardEditMode && !selected ? -1 : 0}
+                onClick={() => selectEditTab(active)}
+                onKeyDown={event => {
+                  if (!dashboardEditMode || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+                  event.preventDefault()
+                  const next = event.key === "Home" ? false : event.key === "End" ? true : !active
+                  selectEditTab(next)
+                  document.getElementById(next ? "dashboard-groups-tab" : "dashboard-metrics-tab")?.focus()
+                }}
+                className={`min-h-11 border-b-2 text-sm ${selected ? "border-[var(--decisionate-brand-primary)] font-semibold text-[var(--decisionate-brand-primary-text)]" : "border-transparent text-gray-600"}`}>
+                {t(label)}
+              </button>
+            })}
+        </div>
+      )}
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {metrics.map((metric) => (
-              <MetricSelectionRow
-                key={metric.column}
-                metric={metric}
-                color={getMetricColor(
-                  getMetricIndex(
-                    metrics,
-                    metric.column
-                  )
-                )}
-                selected={selectedMetrics.includes(
-                  metric.column
-                )}
-                target={targets[metric.column] ?? 0}
-                onTargetChange={(value) =>
-                  setTargets((current) => ({
-                    ...current,
-                    [metric.column]: value,
-                  }))
-                }
-                onToggle={() =>
-                  handleMetricToggle(metric.column)
-                }
-              />
-            ))}
-          </div>
-        </DashboardCard>
+      {dashboardEditMode && (
+        <section id="dashboard-view-editor" role="tabpanel"
+          aria-labelledby={groupTabActive ? "dashboard-groups-tab" : "dashboard-metrics-tab"}
+          className="space-y-4 border-b border-gray-200 pb-4 print:hidden">
+          {groupTabActive ? canCompareGroups && selectedDatasetId ? (
+            <CompareGroupsEditor key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+              metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
+              targets={groupDraft?.targets ?? []}
+              onFilter={filter => setGroupSelection({
+                context: dimensionContext, filter, metric: groupMetric, active: true,
+                targets: filter?.values.map(value => filter.column === groupFilter?.column
+                  ? groupDraft?.targets[groupFilter.values.indexOf(value)] ?? null : null) ?? [],
+              })}
+              onMetric={metric => setGroupSelection({ context: dimensionContext, filter: groupFilter, metric, targets: [], active: true })}
+              onTarget={(index, target) => setGroupSelection({
+                context: dimensionContext, filter: groupFilter, metric: groupMetric, active: true,
+                targets: groupFilter?.values.map((_, i) => i === index ? target : groupDraft?.targets[i] ?? null) ?? [],
+              })} />
+          ) : (
+            <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a source dataset instead of a joined dataset to compare groups.")}</p>
+          ) : <>
+            {metricDimensionFilter}
+            <div className="grid gap-3 md:grid-cols-2">
+              {metrics.map(metric => (
+                <MetricSelectionRow
+                  key={metric.column}
+                  metric={metric}
+                  color={getMetricColor(getMetricIndex(metrics, metric.column))}
+                  selected={selectedMetrics.includes(metric.column)}
+                  target={targets[metric.column] ?? 0}
+                  onTargetChange={value => setTargets(current => ({ ...current, [metric.column]: value }))}
+                  onToggle={() => handleMetricToggle(metric.column)}
+                />
+              ))}
+            </div>
+          </>}
+        </section>
       )}
 
       {showJoinPanel && (
@@ -3462,16 +3525,18 @@ export default function DashboardPage() {
   return (
     <div className="screen-page space-y-4">
       {shareEmailModal}
-      {dataset && !loading && !dimensionBlocked && pdfExporting && (
+      {dataset && !loading && (showGroupComparison ? groupSeries.data : !dimensionBlocked) && pdfExporting && (
         <div
           aria-hidden="true"
           className="dashboard-print-page"
         >
-          <DashboardPrintPage
-            brand={activeBrand}
-            dashboardTemplate={dashboardTemplate}
-            props={templateProps}
-          />
+          {showGroupComparison && groupPreference ? (
+            <div>
+              <h1 className="text-xl font-semibold">{effectiveDashboardTitle}</h1>
+              <p className="text-xs">{dataset.file_name} / {dateRange.start} - {dateRange.end}</p>
+              <DashboardGroupChart comparison={groupPreference} state={groupSeries} print />
+            </div>
+          ) : <DashboardPrintPage brand={activeBrand} dashboardTemplate={dashboardTemplate} props={templateProps} />}
         </div>
       )}
 
@@ -3561,7 +3626,7 @@ export default function DashboardPage() {
                 !selectedDatasetId ||
                 !dataset ||
                 loading ||
-                dimensionBlocked ||
+                (showGroupComparison ? !groupSeries.data : dimensionBlocked) ||
                 pdfExporting
               }
               className="shadow-none"
@@ -3591,7 +3656,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex min-w-0 flex-wrap items-start gap-4">
-          <div className="w-full min-w-0 sm:w-auto">
+          {!showGroupComparison && <div className="w-full min-w-0 sm:w-auto">
             <p className="mb-1 text-xs font-medium text-gray-500">View</p>
             <div
               className="grid h-10 w-full grid-cols-3 rounded-lg border border-gray-200 bg-gray-100 p-1 sm:w-auto"
@@ -3619,7 +3684,7 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           <div className="grid w-full min-w-0 flex-1 gap-3 sm:min-w-80 sm:grid-cols-2">
             <div className="min-w-0">
@@ -3663,7 +3728,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {dataset && availableMetricColumns.length > 0 && (
+            {!showGroupComparison && dataset && availableMetricColumns.length > 0 && (
               <div className="min-w-0 space-y-1">
                 <p className="text-xs font-medium text-gray-500">Target metric</p>
                 <MetricSelector
@@ -3678,7 +3743,7 @@ export default function DashboardPage() {
           </div>
 
         </div>
-        {filterLabel && <p className="break-words text-sm text-gray-600">Filter: {filterLabel}</p>}
+        {!showGroupComparison && filterLabel && <p className="break-words text-sm text-gray-600">Filter: {filterLabel}</p>}
       </header>
 
       <CorrelationWidgets key={`${userId}:${activeWorkspaceId}:${selectedDashboard}`} userId={userId} workspaceId={activeWorkspaceId} dashboardKey={selectedDashboard} canManage={canManageWorkspaceData} />
@@ -3874,7 +3939,24 @@ export default function DashboardPage() {
         </>
       )}
 
-      {dataset && !loading && !dimensionBlocked && (
+      {dataset && !loading && showGroupComparison && groupPreference && (
+        <div className="min-w-0 space-y-3">
+          <div data-dashboard-export-control className="flex flex-wrap items-end gap-3 print:hidden">
+            <DashboardDateInputs range={dateRange} onChange={setDateRange} compact />
+            <CompactSelect label="Group by" value={aggregation} onChange={value => setAggregation(value as MetricAggregation)}
+              options={[["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["quarterly", "Quarterly"]]} />
+            {groupSeries.data?.metric_aggregation
+              ? <p className="py-2 text-xs text-gray-600">{t("Aggregation")}: {t(groupSeries.data.metric_aggregation)}</p>
+              : <CompactSelect label="Aggregate" value={aggregationType} onChange={value => setAggregationType(value as ValueAggregation)}
+                options={[["sum", "Sum"], ["count", "Count"], ["avg", "Average"], ["min", "Minimum"], ["max", "Maximum"]]} />}
+          </div>
+          {!analysisDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
+          {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
+          <DashboardGroupChart comparison={groupPreference} state={groupSeries} />
+        </div>
+      )}
+
+      {dataset && !loading && !showGroupComparison && !dimensionBlocked && (
         <div className="dashboard-report space-y-4">
           {dashboardTemplate === "executive" && (
             <ExecutiveTemplate

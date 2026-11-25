@@ -56,6 +56,18 @@ test("unique values use a dropdown with a search field instead of a checkbox lis
   assert.doesNotMatch(html, /type="checkbox"|role="checkbox"|<select[^>]*multiple/)
 })
 
+test("group comparison shows checkbox values with search while ordinary filters keep the dropdown", () => {
+  const value = { column: "region", values: ["East", "West", null] }
+  const html = render({ value, checkboxLimit: 8 })
+  assert.match(html, /aria-label="Groups to compare"/)
+  assert.match(html, /aria-label="Search unique values"/)
+  assert.equal((html.match(/type="checkbox"/g) || []).length, 3)
+  assert.equal((html.match(/checked=""/g) || []).length, 3)
+  assert.match(html, /Selected values.*3 \/ 8/)
+  assert.doesNotMatch(html, /Select values|Remove value:/)
+  assert.doesNotMatch(render({ value }), /type="checkbox"/)
+})
+
 test("a fixed grouping column starts unfiltered and does not ask the user to choose the column again", () => {
   const html = render({ fixedColumn: "campaign" })
   assert.equal((html.match(/<select/g) || []).length, 1)

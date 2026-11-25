@@ -32,13 +32,14 @@ function load(code, globals = {}) {
   return loaded.exports
 }
 function panel(overrides = {}) {
+  const filter = React.createElement("fieldset", null,
+    React.createElement("label", null, "Dimension column"), React.createElement("span", null, "region: East"))
   return load(`export function Panel() { return (${controls.initializer.getText(ast)}) }`, {
     selectedDashboardNeedsDataset: true, selectedDatasetId: 1, userId: "owner", activeWorkspaceId: "workspace",
     showFiltersPanel: false, dashboardDateColumns: ["date", "paid_date"], xKey: "paid_date", loading: false,
     joinedDatasetResult: null, dimensionContext: "workspace:1", dimensionFilter: { column: "region", values: ["East"] },
     dimensionData: { data: { id: 1 } }, allRows: [{ spend: 10 }], handleDateColumnChange() {}, setDimensionSelection() {},
-    DatasetDimensionFilter: ({ value }) => React.createElement("fieldset", null,
-      React.createElement("label", null, "Dimension column"), React.createElement("span", null, `${value.column}: ${value.values.join(", ")}`)),
+    metricDimensionFilter: filter, showGroupComparison: false, canCompareGroups: true, dashboardEditMode: false,
     Settings2: icon, RefreshCw: icon, ...overrides,
   }).Panel
 }
@@ -92,6 +93,28 @@ test("dashboards without a dataset do not expose date and dimension controls", (
   }
 })
 
+test("the normal dimension control appears in Metrics & Targets without duplicating the date filter", () => {
+  for (const scope of [{ dashboardEditMode: true }, { showGroupComparison: true }]) {
+    const html = renderToStaticMarkup(React.createElement(panel({ showFiltersPanel: true, ...scope })))
+    assert.match(html, /Date column/)
+    assert.doesNotMatch(html, /Dimension column/)
+  }
+  assert.match(source, /<CompareGroupsEditor[\s\S]+?\{metricDimensionFilter\}/)
+})
+
+test("Compare Groups is visible in Edit dashboard with a joined dataset selected", () => {
+  const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
+  const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {
+    dimensionControls: null, canCompareGroups: false, dashboardEditMode: true, groupPreference: null,
+    groupTabActive: true, showJoinPanel: false, t: text => text,
+  })
+  const html = renderToStaticMarkup(React.createElement(Editor))
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>Compare Groups<\/button>/)
+  assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>Metrics &amp; Targets<\/button>/)
+  assert.match(html, /role="tabpanel" aria-labelledby="dashboard-groups-tab"/)
+  assert.match(html, /Choose a source dataset instead of a joined dataset to compare groups\./)
+})
+
 test("General Business keeps its toolbar and Filters panel accessible when dimension data is blocked", () => {
   const toolbar = find(node => ts.isJsxElement(node) && attribute(node, "className") === "dashboard-management-toolbar print:hidden")
   let condition = toolbar.parent
@@ -102,5 +125,5 @@ test("General Business keeps its toolbar and Filters panel accessible when dimen
   const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
   assert.match(panels.getText(ast), /\{dimensionControls\}/)
   assert.match(source, /managementPanels=\{<>\{dimensionControls\}\{dashboardManagementPanels\}<\/?>\}/)
-  assert.match(source, /dataset && !loading && !dimensionBlocked &&/)
+  assert.match(source, /dataset && !loading && !showGroupComparison && !dimensionBlocked &&/)
 })
