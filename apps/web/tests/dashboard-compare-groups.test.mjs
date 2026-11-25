@@ -16,7 +16,6 @@ function reactChartElement(name) {
 const charts = Object.fromEntries(["CartesianGrid", "Line", "LineChart", "ReferenceLine", "ResponsiveContainer", "Tooltip", "XAxis", "YAxis"].map(name => [name, reactChartElement(name)]))
 const modules = {
   "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
-  "@/features/dashboard/components/metric-selector": { formatMetricLabel: column => column },
   "@/features/dashboard/lib/chart-palette": { dashboardChartPalette: ["#2563eb", "#14b8a6"] },
   "@/lib/api": { ApiError: Error },
   "@/components/searchable-select": {},
@@ -32,6 +31,8 @@ function load(path) {
 }
 const selectionRows = load("../features/dashboard/components/dashboard-selection-row.tsx")
 modules["@/features/dashboard/components/dashboard-selection-row"] = selectionRows
+const metricSelectors = load("../features/dashboard/components/metric-selector.tsx")
+modules["@/features/dashboard/components/metric-selector"] = metricSelectors
 modules["@/features/datasets/components/dimension-filter"] = load("../features/datasets/components/dimension-filter.tsx")
 const { alignDashboardGroupPoints, CompareGroupsEditor, DashboardGroupChart } = load("../features/dashboard/components/compare-groups.tsx")
 
@@ -68,16 +69,17 @@ test("one target field accompanies the metric and none appear on dimension value
   assert.match(html, /type="checkbox" aria-label="Online"[^>]*checked=""/)
   assert.match(html, /type="checkbox" aria-label="In-store"[^>]*checked=""/)
   assert.equal((html.match(/type="number"/g) || []).length, 1)
-  assert.match(html, /Metric target<input[^>]*value="700"[^>]*>.*Dimension column/)
-  assert.match(renderEditor({ metric: "" }), /Metric target<input[^>]*disabled=""[^>]*value=""/)
+  assert.match(html, /Metric target<\/span><input[^>]*value="700"[^>]*>.*Dimension column/)
+  assert.match(renderEditor({ metric: "" }), /Metric target<\/span><input[^>]*disabled=""[^>]*value=""/)
   assert.doesNotMatch(html, /aria-label="Target: (Online|In-store)"/)
 })
 
 test("the target field changes and clears only the chosen metric's target", () => {
   const updates = []
-  const tree = CompareGroupsEditor(editorProps({
-    metric: "Orders", onTargetChange: (metric, target) => updates.push([metric, target]),
-  }))
+  const tree = metricSelectors.DashboardMetricTargetFields({
+    metrics: ["Revenue", "Orders"], metric: "Orders", metricLabel: "Target metric", target: 0,
+    onMetricChange() {}, onTargetChange: (metric, target) => updates.push([metric, target]),
+  })
   function visit(node) {
     if (!React.isValidElement(node)) return
     if (node.type === "input") {
@@ -89,11 +91,20 @@ test("the target field changes and clears only the chosen metric's target", () =
   assert.deepEqual(updates, [["Orders", 42.5], ["Orders", null]])
 })
 
-test("metric rows still allow editing their target", () => {
+test("individual metric rows keep their checkbox without a target field", () => {
   const html = renderToStaticMarkup(React.createElement(selectionRows.DashboardSelectionRow, {
-    label: "Revenue", color: "#2563eb", checked: true, target: 500, onToggle() {}, onTargetChange() {},
+    label: "Revenue", color: "#2563eb", checked: true, onToggle() {},
   }))
-  assert.match(html, /aria-label="Target: Revenue"[^>]*value="500"/)
+  assert.match(html, /type="checkbox" aria-label="Revenue"[^>]*checked=""/)
+  assert.doesNotMatch(html, /type="number"|Target:/)
+})
+
+test("members can select a metric but its target is read-only", () => {
+  const html = renderToStaticMarkup(React.createElement(metricSelectors.DashboardMetricTargetFields, {
+    metrics: ["Revenue", "Orders"], metric: "Orders", metricLabel: "Target metric", target: 500, onMetricChange() {},
+  }))
+  assert.match(html, /<select aria-label="Target metric"(?![^>]* disabled="")/)
+  assert.match(html, /type="number"[^>]*readOnly=""[^>]*value="500"/i)
 })
 
 test("group colors match regardless of result order and saved group targets are not plotted", () => {

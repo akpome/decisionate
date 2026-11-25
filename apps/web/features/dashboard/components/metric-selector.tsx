@@ -95,6 +95,41 @@ export function MetricSelector({
   )
 }
 
+export function DashboardMetricTargetFields({ metrics, metric, metricLabel, placeholder, target, onMetricChange, onTargetChange }: {
+  metrics: string[]
+  metric: string
+  metricLabel: string
+  placeholder?: string
+  target: number
+  onMetricChange: (metric: string | undefined) => void
+  onTargetChange?: (metric: string, target: number | null) => void
+}) {
+  const { t } = useDecisionateText()
+  return (
+    <div className="@container">
+      <div className="grid min-w-0 gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_13rem]">
+        <label className="block min-w-0 space-y-1 text-xs font-medium text-gray-600">
+          <span>{t(metricLabel)}</span>
+          <MetricSelector metrics={metrics} value={metric} ariaLabel={metricLabel}
+            placeholder={metrics.length ? placeholder : "No numeric metrics available"}
+            disabled={!metrics.length} onChange={onMetricChange} />
+        </label>
+        <label className="block min-w-0 space-y-1 text-xs font-medium text-gray-600">
+          <span>{t("Metric target")}</span>
+          <input type="number" className="h-10 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:bg-gray-50 disabled:opacity-60 read-only:bg-gray-50"
+            inputMode="decimal" min={0} step="any" disabled={!metric} readOnly={!onTargetChange}
+            value={metric && target > 0 ? target : ""} placeholder={t("Optional")}
+            onChange={event => {
+              if (!metric) return
+              const amount = event.target.valueAsNumber
+              onTargetChange?.(metric, Number.isFinite(amount) && amount > 0 ? amount : null)
+            }} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 export function formatMetricLabel(
   metric: string
 ) {

@@ -24,8 +24,8 @@ import { sameDimensionFilter, useDashboardDimensionData } from "@/features/dashb
 import type { DashboardGroupPreference, DashboardGroupQuery, DimensionFilter } from "@/lib/api"
 import { CorrelationWidgets } from "@/features/relationships/correlation-widgets"
 import {
+  DashboardMetricTargetFields,
   formatMetricLabel,
-  MetricSelector,
 } from "@/features/dashboard/components/metric-selector"
 
 import { correlationRequest, getDatasetJoinCache, joinDatasets, type DatasetAnomaliesResponse, type DatasetJoinResult, type DatasetSummary, type DashboardPreferencePayload, type OrganizationRecord, type OrganizationWorkspaceRecord, getDatasetAnomalies, getDatasetDetails, getDatasetShareStatus, getDatasets, getDatasetPreference, getDashboardPreference, getMyOrganization, getOrganizationWorkspaces, updateDatasetPreference } from "@/lib/api";
@@ -511,6 +511,7 @@ export default function DashboardPage() {
 
   const [dashboardEditMode, setDashboardEditMode] =
     useState(false)
+  const [showMemberMetricControls, setShowMemberMetricControls] = useState(false)
   const [showJoinPanel, setShowJoinPanel] =
     useState(false)
   const [showDatasetPanel, setShowDatasetPanel] =
@@ -2937,6 +2938,18 @@ export default function DashboardPage() {
   function updateMetricTarget(metric: string, value: number | null) {
     setTargets(current => ({ ...current, [metric]: value ?? 0 }))
   }
+
+  const memberMetricsOpen = !canConfigureWorkspace && showMemberMetricControls && !groupTabActive
+  const primaryMetricFields = availableMetricColumns.length > 0 && (
+    <DashboardMetricTargetFields
+      metrics={availableMetricColumns}
+      metric={availableMetricColumns.includes(primaryMetric) ? primaryMetric : ""}
+      metricLabel="Target metric"
+      target={selectedTarget}
+      onMetricChange={handlePrimaryMetricChange}
+      onTargetChange={canConfigureWorkspace ? updateMetricTarget : undefined}
+    />
+  )
   const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <>
     <section id="dashboard-filters-panel" role="region" aria-labelledby="dashboard-filters-toggle" hidden={!showFiltersPanel}
       className="@container min-w-0 border-y border-gray-200 py-3 print:hidden">
@@ -2997,6 +3010,18 @@ export default function DashboardPage() {
         >
           <Settings2 size={14} />
           {dashboardEditMode ? "Done editing" : "Edit dashboard"}
+        </button>
+      )}
+
+      {!canConfigureWorkspace && !isCustomSelectedDashboard && availableMetricColumns.length > 0 && (
+        <button type="button" aria-expanded={memberMetricsOpen} aria-controls="dashboard-member-metrics"
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={() => {
+            if (groupTabActive) selectEditTab(false)
+            setShowMemberMetricControls(!memberMetricsOpen)
+          }}>
+          <Settings2 size={14} aria-hidden="true" />
+          {t("Metrics & Targets")}
         </button>
       )}
 
@@ -3098,6 +3123,7 @@ export default function DashboardPage() {
           ) : (
             <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a source dataset instead of a joined dataset to compare groups.")}</p>
           ) : <>
+            {primaryMetricFields}
             {metricDimensionFilter}
             <div className="grid gap-3 md:grid-cols-2">
               {metrics.map(metric => (
@@ -3106,13 +3132,18 @@ export default function DashboardPage() {
                   label={formatMetricName(metric.column)}
                   color={getMetricColor(getMetricIndex(metrics, metric.column))}
                   checked={selectedMetrics.includes(metric.column)}
-                  target={targets[metric.column] ?? 0}
-                  onTargetChange={value => updateMetricTarget(metric.column, value)}
                   onToggle={() => handleMetricToggle(metric.column)}
                 />
               ))}
             </div>
           </>}
+        </section>
+      )}
+
+      {!canConfigureWorkspace && availableMetricColumns.length > 0 && (
+        <section id="dashboard-member-metrics" aria-label={t("Metrics & Targets")} hidden={!memberMetricsOpen}
+          className="border-b border-gray-200 pb-4 print:hidden">
+          {primaryMetricFields}
         </section>
       )}
 
@@ -3685,7 +3716,7 @@ export default function DashboardPage() {
             </div>
           </div>}
 
-          <div className="grid w-full min-w-0 flex-1 gap-3 sm:min-w-80 sm:grid-cols-2">
+          <div className="w-full min-w-0 max-w-xl flex-1 sm:min-w-80">
             <div className="min-w-0">
               <p className="mb-1 text-xs font-medium text-gray-500">Dataset</p>
               <DatasetSelector
@@ -3727,18 +3758,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {!showGroupComparison && dataset && availableMetricColumns.length > 0 && (
-              <div className="min-w-0 space-y-1">
-                <p className="text-xs font-medium text-gray-500">Target metric</p>
-                <MetricSelector
-                  ariaLabel="Select target metric"
-                  metrics={availableMetricColumns}
-                  value={primaryMetric}
-                  onChange={handlePrimaryMetricChange}
-                  disabled={loading}
-                />
-              </div>
-            )}
           </div>
 
         </div>

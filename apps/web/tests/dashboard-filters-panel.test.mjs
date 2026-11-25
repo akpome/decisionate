@@ -106,13 +106,27 @@ test("Compare Groups is visible in Edit dashboard with a joined dataset selected
   const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
   const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {
     dimensionControls: null, canCompareGroups: false, dashboardEditMode: true, groupPreference: null,
-    groupTabActive: true, showJoinPanel: false, t: text => text,
+    groupTabActive: true, showJoinPanel: false, canConfigureWorkspace: true, t: text => text,
   })
   const html = renderToStaticMarkup(React.createElement(Editor))
   assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>Compare Groups<\/button>/)
   assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>Metrics &amp; Targets<\/button>/)
   assert.match(html, /role="tabpanel" aria-labelledby="dashboard-groups-tab"/)
   assert.match(html, /Choose a source dataset instead of a joined dataset to compare groups\./)
+})
+
+test("the General Business target metric picker is in Metrics & Targets, not beside the dataset", () => {
+  const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
+  const primaryMetricFields = React.createElement("input", { "aria-label": "Target metric" })
+  const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {
+    dimensionControls: null, dashboardEditMode: true, groupPreference: null, groupTabActive: false, showJoinPanel: false,
+    canConfigureWorkspace: true, primaryMetricFields, t: text => text, metricDimensionFilter: null, metrics: [],
+  })
+  const html = renderToStaticMarkup(React.createElement(Editor))
+  assert.match(html, /role="tabpanel" aria-labelledby="dashboard-metrics-tab".*aria-label="Target metric"/)
+  const header = find(node => ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "header" &&
+    node.getText(ast).includes("Open dataset details"))
+  assert.doesNotMatch(header.getText(ast), /MetricSelector|primaryMetricFields/)
 })
 
 test("General Business keeps its toolbar and Filters panel accessible when dimension data is blocked", () => {

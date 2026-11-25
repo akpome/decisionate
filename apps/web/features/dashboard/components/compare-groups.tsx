@@ -5,14 +5,13 @@ import { RefreshCw } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
-import { formatMetricLabel } from "@/features/dashboard/components/metric-selector"
+import { DashboardMetricTargetFields, formatMetricLabel } from "@/features/dashboard/components/metric-selector"
 import { dashboardChartPalette } from "@/features/dashboard/lib/chart-palette"
 import { DatasetDimensionFilter, dimensionValueLabel } from "@/features/datasets/components/dimension-filter"
 import {
   getDashboardGroupSeries, type DashboardGroupPreference, type DashboardGroupQuery, type DashboardGroupResult, type DimensionFilter,
 } from "@/lib/api"
 
-const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const maxGroups = dashboardChartPalette.length
 const metricTargetColor = "#475569"
 
@@ -68,27 +67,9 @@ export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, f
   const colors = groupColors(filter?.values ?? [])
   return (
     <div className="min-w-0 space-y-3">
-      <div className="@container">
-        <div className="grid min-w-0 gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_13rem]">
-          <label className="block min-w-0 text-xs font-medium text-gray-600">
-            {t("Metric to compare")}
-            <select className={input} value={metric} onChange={event => onMetric(event.target.value)} disabled={!metrics.length}>
-              <option value="">{t(metrics.length ? "Choose a metric" : "No numeric metrics available")}</option>
-              {metrics.map(column => <option key={column} value={column}>{formatMetricLabel(column)}</option>)}
-            </select>
-          </label>
-          <label className="block min-w-0 text-xs font-medium text-gray-600">
-            {t("Metric target")}
-            <input type="number" className={`${input} disabled:opacity-60`} inputMode="decimal" min={0} step="any"
-              disabled={!metric} value={metric && metricTarget > 0 ? metricTarget : ""} placeholder={t("Optional")}
-              onChange={event => {
-                if (!metric) return
-                const amount = event.target.valueAsNumber
-                onTargetChange(metric, Number.isFinite(amount) && amount > 0 ? amount : null)
-              }} />
-          </label>
-        </div>
-      </div>
+      <DashboardMetricTargetFields metrics={metrics} metric={metric} metricLabel="Metric to compare"
+        placeholder="Choose a metric" target={metricTarget} onMetricChange={value => onMetric(value ?? "")}
+        onTargetChange={onTargetChange} />
       <DatasetDimensionFilter datasetId={datasetId} userId={userId} workspaceId={workspaceId}
         value={filter} onChange={onFilter} embedded groupPicker={{
           limit: maxGroups,
