@@ -3003,7 +3003,7 @@ export default function DashboardPage() {
             setShowMemberMetricControls(!memberMetricsOpen)
           }}>
           <Settings2 size={14} aria-hidden="true" />
-          {t("Metrics & Targets")}
+          {t("Select Metrics")}
         </button>
       )}
 
@@ -3071,7 +3071,7 @@ export default function DashboardPage() {
       {(dashboardEditMode || groupPreference) && (
         <div role={dashboardEditMode ? "tablist" : "group"} aria-label={t("Dashboard view")}
           className="flex flex-wrap gap-x-5 border-b border-gray-200 print:hidden">
-          {([["dashboard-metrics-tab", "Metrics & Targets", false], ["dashboard-groups-tab", "Compare Groups", true]] as const)
+          {([["dashboard-metrics-tab", "Select Metrics", false], ["dashboard-groups-tab", "Compare Groups", true]] as const)
             .map(([id, label, active]) => {
               const selected = active === groupTabActive
               return <button key={id} id={id} type="button" role={dashboardEditMode ? "tab" : undefined}
@@ -3123,7 +3123,7 @@ export default function DashboardPage() {
       )}
 
       {!canConfigureWorkspace && availableMetricColumns.length > 0 && (
-        <section id="dashboard-member-metrics" aria-label={t("Metrics & Targets")} hidden={!memberMetricsOpen}
+        <section id="dashboard-member-metrics" aria-label={t("Select Metrics")} hidden={!memberMetricsOpen}
           className="border-b border-gray-200 pb-4 print:hidden">
           {primaryMetricFields}
         </section>

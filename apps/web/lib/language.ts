@@ -1283,7 +1283,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "5 years": "5 ans",
   "All data": "Toutes les données",
   "Group by": "Regrouper par",
-  "Metrics & Targets": "Indicateurs et objectifs",
+  "Select Metrics": "Sélectionner les indicateurs",
   "Compare Groups": "Comparer les groupes",
   "Choose a source dataset instead of a joined dataset to compare groups.": "Choisissez un jeu de données source plutôt qu'un jeu de données joint pour comparer les groupes.",
   "Dashboard view": "Vue du tableau de bord",

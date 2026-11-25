@@ -93,7 +93,7 @@ test("dashboards without a dataset do not expose date and dimension controls", (
   }
 })
 
-test("the normal dimension control appears in Metrics & Targets without duplicating the date filter", () => {
+test("the normal dimension control appears in Select Metrics without duplicating the date filter", () => {
   for (const scope of [{ dashboardEditMode: true }, { showGroupComparison: true }]) {
     const html = renderToStaticMarkup(React.createElement(panel({ showFiltersPanel: true, ...scope })))
     assert.match(html, /Date column/)
@@ -110,12 +110,12 @@ test("Compare Groups is visible in Edit dashboard with a joined dataset selected
   })
   const html = renderToStaticMarkup(React.createElement(Editor))
   assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>Compare Groups<\/button>/)
-  assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>Metrics &amp; Targets<\/button>/)
+  assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>Select Metrics<\/button>/)
   assert.match(html, /role="tabpanel" aria-labelledby="dashboard-groups-tab"/)
   assert.match(html, /Choose a source dataset instead of a joined dataset to compare groups\./)
 })
 
-test("the General Business target metric picker is in Metrics & Targets, not beside the dataset", () => {
+test("the General Business target metric picker is in Select Metrics, not beside the dataset", () => {
   const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
   const primaryMetricFields = React.createElement("input", { "aria-label": "Target metric" })
   const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {

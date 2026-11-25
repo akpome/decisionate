@@ -53,7 +53,7 @@ test("the dashboard page removes Analysis controls, their content, state and bac
   assert.match(page, /getDatasetAnomalies\(/)
   assert.match(page, /\{dimensionControls\}/)
   assert.match(page, /<DatasetJoinPanel/)
-  assert.match(page, /"Metrics & Targets"/)
+  assert.match(page, /"Select Metrics"/)
 })
 
 test("the shared dashboard renderer has no Analysis panels or analysis-only props", () => {
