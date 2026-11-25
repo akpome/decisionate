@@ -244,7 +244,7 @@ test("the read-only status stays within the mobile demo in both dashboard layout
 
 test("public demo charts draw immediately without changing workspace or export behavior", () => {
   const shared = read("../app/share/dashboard/page.tsx")
-  assert.equal(shared.match(/demoMode=\{sharedDemo\}/g).length, 4)
+  assert.equal(shared.match(/demoMode=\{sharedDemo\}/g).length, 3)
   assert.equal(shared.match(/isAnimationActive=\{!demoMode\}/g).length, 3)
   const industry = read("../features/dashboards/dashboard-registry.tsx")
   assert.equal(industry.match(/isAnimationActive=\{!exportMode && !demoMode\}/g).length, 5)

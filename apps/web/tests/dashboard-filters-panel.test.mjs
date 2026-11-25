@@ -181,7 +181,7 @@ test("executive, performance, and PDF layouts keep the main chart and only show 
         scaleMode: "actual", dateRange: { start: "2026-01-01", end: "2026-12-31" }, selectedTarget: targetMetric ? 100 : 0, chartTarget: 0,
       }
       const html = renderToStaticMarkup(React.createElement(Component,
-        name === "DashboardPrintPage" ? { brand: { name: "Test" }, dashboardTemplate: "executive", props } : props))
+        name === "DashboardPrintPage" ? { brand: { name: "Test" }, props } : props))
       assert.match(html, /data-chart-metrics="revenue" data-chart-target="0"/, name)
       assert.equal(html.includes("data-target-gauge"), Boolean(targetMetric), name)
       assert.equal(html.includes("dashboard-print-target-card"), Boolean(targetMetric), name)
@@ -189,6 +189,44 @@ test("executive, performance, and PDF layouts keep the main chart and only show 
       if (targetMetric) assert.match(html, />orders</, name)
     }
   }
+})
+
+test("the view switch keeps only Executive and Performance", () => {
+  const templates = load(readFileSync(new URL("../features/dashboard/lib/dashboard-template.ts", import.meta.url), "utf8"))
+  const toggle = find(node => ts.isJsxElement(node) && attribute(node, "aria-label") === "Dashboard template")
+  const changes = []
+  const { Switch } = load(`export function Switch() { return (${toggle.getText(ast)}) }`, {
+    dashboardViewOptions: templates.dashboardViewOptions, dashboardTemplate: "executive",
+    setDashboardTemplate: value => changes.push(value),
+  })
+  const ui = Switch()
+  const html = renderToStaticMarkup(ui)
+  assert.equal((html.match(/<button/g) || []).length, 2)
+  assert.match(html, /aria-pressed="true"[^>]*>Executive<\/button>/)
+  assert.match(html, /aria-pressed="false"[^>]*>Performance<\/button>/)
+  assert.doesNotMatch(html, /Comparison/)
+  React.Children.toArray(ui.props.children).at(-1).props.onClick()
+  assert.deepEqual(changes, ["performance"])
+  assert.equal(templates.resolveDashboardTemplate("comparison"), "executive")
+  assert.equal(templates.resolveDashboardTemplate("performance"), "performance")
+})
+
+test("legacy shared Comparison links keep their dataset and token and use Executive instead", () => {
+  const { resolveDashboardTemplate } = load(readFileSync(new URL("../features/dashboard/lib/dashboard-template.ts", import.meta.url), "utf8"))
+  const sharedSource = readFileSync(new URL("../app/share/dashboard/page.tsx", import.meta.url), "utf8")
+  const shared = ts.createSourceFile("shared.tsx", sharedSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const parse = shared.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getSharedDashboardConfig")
+  assert.ok(parse)
+  const { getSharedDashboardConfig } = load(`export ${parse.getText(shared)}`, {
+    URLSearchParams, resolveDashboardTemplate, getQueryDatasetId: Number, isDashboardKey: value => value === "general-business",
+  })
+  const config = getSharedDashboardConfig("dataset=73&dashboard=general-business&template=comparison&token=example")
+  assert.equal(config.datasetId, 73)
+  assert.equal(config.selectedDashboard, "general-business")
+  assert.equal(config.token, "example")
+  assert.equal(config.dashboardTemplate, "executive")
+  assert.match(sharedSource, /resolveDashboardTemplate\(effectDashboardTemplate \?\? dashboardPreference.dashboardTemplate\)/)
+  assert.doesNotMatch(sharedSource, /effectiveDashboardTemplate === "comparison"/)
 })
 
 test("General Business keeps its toolbar and Filters panel accessible when dimension data is blocked", () => {

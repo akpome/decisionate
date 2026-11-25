@@ -78,6 +78,7 @@ import {
   dashboardChartPalette,
 } from "@/features/dashboard/lib/chart-palette"
 import { dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
+import { resolveDashboardTemplate, type DashboardTemplate } from "@/features/dashboard/lib/dashboard-template"
 import type { DimensionFilter, DatasetDimensionFilter } from "@/lib/api"
 import { demoDashboardProfile, demoDashboardProfiles, demoKpiTarget } from "@/features/demo/lib/demo-dashboard-profiles"
 import {
@@ -92,10 +93,6 @@ type ChartType = "line" | "bar" | "area"
 type ScaleMode = "actual" | "indexed"
 type MetricAggregation = DashboardAggregation
 type ValueAggregation = DashboardValueAggregation
-type DashboardTemplate =
-  | "executive"
-  | "performance"
-  | "comparison"
 type DashboardCellValue =
   | string
   | number
@@ -167,11 +164,6 @@ const scaleModes: ScaleMode[] = [
   "indexed",
 ]
 
-const dashboardTemplates: DashboardTemplate[] = [
-  "executive",
-  "performance",
-  "comparison",
-]
 const maxDashboardKpiCards = 8
 const maxDashboardTitleLength = 120
 const maxDashboardSubtitleLength = 220
@@ -418,12 +410,7 @@ function SharedDashboardContent({
       demoJoinDataset !== effectDemoDataset
         ? demoJoinDataset
         : undefined
-    const effectDashboardTemplate =
-      dashboardTemplateValue
-        ? getSavedDashboardTemplate(
-            dashboardTemplateValue as DashboardTemplate
-          )
-        : undefined
+    const effectDashboardTemplate = dashboardTemplateValue ? resolveDashboardTemplate(dashboardTemplateValue) : undefined
     const effectSelectedDashboard =
       selectedDashboardValue || undefined
     const effectToken =
@@ -675,10 +662,7 @@ function SharedDashboardContent({
         setAggregation(safeAggregation)
         setAggregationType(safeAggregationType)
         setDashboardTemplate(
-          getSavedDashboardTemplate(
-            dashboardPreference.dashboardTemplate ??
-              effectDashboardTemplate
-          )
+          resolveDashboardTemplate(effectDashboardTemplate ?? dashboardPreference.dashboardTemplate)
         )
         setDashboardTitle(
           getSavedDashboardText(
@@ -1331,29 +1315,6 @@ function SharedDashboardContent({
           </>
         )}
 
-        {effectiveDashboardTemplate === "comparison" &&
-          demoStatusLine}
-
-        {effectiveDashboardTemplate === "comparison" && (
-          <MainChartCard
-            demoMode={sharedDemo}
-            key={`shared-comparison-${chartType}-${scaleMode}-${selectedMetrics.join(
-              "|"
-            )}-${chartRows.length}`}
-            chartType={chartType}
-            chartRows={chartRows}
-            xKey={xKey}
-            selectedMetrics={selectedMetrics}
-            metrics={metrics}
-            primaryMetric={primaryMetric}
-            selectedTarget={primaryMetricTarget}
-            scaleMode={scaleMode}
-            colorPalette={dashboardColorPalette}
-            className="w-full xl:h-[720px]"
-            chartAreaClassName="mt-4 h-[520px] flex-none xl:h-auto xl:min-h-[560px] xl:flex-1"
-          />
-        )}
-
         <SharedDashboardControls
           chartType={chartType}
           setChartType={setChartType}
@@ -1578,8 +1539,6 @@ function MainChartCard({
   scaleMode,
   colorPalette,
   headerControls,
-  className = "xl:h-[640px]",
-  chartAreaClassName = "mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1",
 }: {
   demoMode?: boolean
   chartType: ChartType
@@ -1592,9 +1551,8 @@ function MainChartCard({
   scaleMode: ScaleMode
   colorPalette: string[]
   headerControls?: React.ReactNode
-  className?: string
-  chartAreaClassName?: string
 }) {
+  const chartAreaClassName = "mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1"
   const hasChartData =
     chartRows.length > 0 &&
     selectedMetrics.length > 0
@@ -1673,7 +1631,7 @@ function MainChartCard({
 
   return (
     <>
-      <SharedCard className={`flex min-w-0 flex-col ${className}`}>
+      <SharedCard className="flex min-w-0 flex-col xl:h-[640px]">
         <CardHeader
           title={chartTitle}
           description="Main chart"
@@ -3008,12 +2966,7 @@ function getSharedDashboardConfig(
         ? params.get("dataset")?.trim() || demoDashboardProfiles[selectedDashboard ?? ""]?.dataset || "google-analytics"
         : undefined,
     datasetId,
-    dashboardTemplate:
-      template
-        ? getSavedDashboardTemplate(
-            template as DashboardTemplate
-          )
-        : undefined,
+    dashboardTemplate: template ? resolveDashboardTemplate(template) : undefined,
     selectedDashboard:
       isDashboardKey(selectedDashboard)
         ? selectedDashboard
@@ -3025,15 +2978,7 @@ function getSharedDashboardConfig(
 function getSharedDashboardTitle(
   dashboardTemplate: DashboardTemplate
 ) {
-  switch (dashboardTemplate) {
-    case "executive":
-      return "Executive Dashboard"
-    case "comparison":
-      return "Comparison Dashboard"
-    case "performance":
-    default:
-      return "Performance Dashboard"
-  }
+  return dashboardTemplate === "performance" ? "Performance Dashboard" : "Executive Dashboard"
 }
 
 function getDashboardDatasetDescription(
@@ -3236,16 +3181,6 @@ function getSavedAggregationType(
     : "sum"
 }
 
-function getSavedDashboardTemplate(
-  savedDashboardTemplate: unknown
-): DashboardTemplate {
-  return isSavedDashboardTemplate(
-    savedDashboardTemplate
-  )
-    ? savedDashboardTemplate
-    : "executive"
-}
-
 function isSavedChartType(
   value: unknown
 ): value is ChartType {
@@ -3284,17 +3219,6 @@ function isSavedAggregationType(
     value === "min" ||
     value === "max" ||
     value === "count"
-  )
-}
-
-function isSavedDashboardTemplate(
-  value: unknown
-): value is DashboardTemplate {
-  return (
-    typeof value === "string" &&
-    dashboardTemplates.includes(
-      value as DashboardTemplate
-    )
   )
 }
 

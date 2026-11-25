@@ -479,7 +479,7 @@ body {
   overflow: hidden;
 }
 
-.dashboard-print-main-grid-comparison {
+.dashboard-print-main-grid-full {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -521,10 +521,6 @@ body {
   min-width: 0;
   overflow: visible;
   width: 100%;
-}
-
-.dashboard-print-main-chart-area-comparison {
-  min-height: 5.35in;
 }
 
 .dashboard-print-kpi-column {
@@ -718,7 +714,7 @@ body:has(.dashboard-shell-layout) {
     overflow: hidden !important;
   }
 
-  .dashboard-print-main-grid-comparison {
+  .dashboard-print-main-grid-full {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
@@ -760,10 +756,6 @@ body:has(.dashboard-shell-layout) {
     min-width: 0 !important;
     overflow: visible !important;
     width: 100% !important;
-  }
-
-  .dashboard-print-main-chart-area-comparison {
-    min-height: 5.35in !important;
   }
 
   .dashboard-print-target-gauge {

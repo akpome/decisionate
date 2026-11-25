@@ -17,6 +17,7 @@ import { DatasetSelector } from "@/features/dashboard/components/dataset-selecto
 import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } from "@/features/dashboard/date-window"
 import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
+import { dashboardViewOptions, resolveDashboardTemplate, type DashboardTemplate } from "@/features/dashboard/lib/dashboard-template"
 import { CompareGroupsEditor, DashboardGroupChart, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
@@ -123,7 +124,6 @@ const DatasetJoinPanel = dynamic(() =>
 
 type ChartType = "line" | "bar" | "area"
 type ScaleMode = "actual" | "indexed"
-type DashboardTemplate = "executive" | "performance" | "comparison"
 type ShareAction = "share"
 
 type MetricAggregation = DashboardAggregation
@@ -224,11 +224,6 @@ const scaleModes: ScaleMode[] = [
   "indexed",
 ]
 
-const dashboardTemplates: DashboardTemplate[] = [
-  "executive",
-  "performance",
-  "comparison",
-]
 const maxDashboardKpiCards = 8
 const defaultDashboardTitle = "Dashboard"
 const defaultDashboardSubtitle =
@@ -1419,7 +1414,7 @@ export default function DashboardPage() {
         setAggregationType(safeAggregationType)
 
         setDashboardTemplate(
-          getSavedDashboardTemplate(
+          resolveDashboardTemplate(
             savedDashboardPreference.dashboardTemplate ??
               sharedConfig?.dashboardTemplate
           )
@@ -3553,7 +3548,7 @@ export default function DashboardPage() {
               <p className="text-xs">{dataset.file_name} / {dateRange.start} - {dateRange.end}</p>
               <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} print />
             </div>
-          ) : <DashboardPrintPage brand={activeBrand} dashboardTemplate={dashboardTemplate} props={templateProps} />}
+          ) : <DashboardPrintPage brand={activeBrand} props={templateProps} />}
         </div>
       )}
 
@@ -3676,15 +3671,11 @@ export default function DashboardPage() {
           {!showGroupComparison && <div className="w-full min-w-0 sm:w-auto">
             <p className="mb-1 text-xs font-medium text-gray-500">View</p>
             <div
-              className="grid h-10 w-full grid-cols-3 rounded-lg border border-gray-200 bg-gray-100 p-1 sm:w-auto"
+              className="grid h-10 w-full grid-cols-2 rounded-lg border border-gray-200 bg-gray-100 p-1 sm:w-auto"
               role="group"
               aria-label="Dashboard template"
             >
-              {([
-                ["executive", "Executive"],
-                ["performance", "Performance"],
-                ["comparison", "Comparison"],
-              ] as const).map(([value, label]) => (
+              {dashboardViewOptions.map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -3975,11 +3966,6 @@ export default function DashboardPage() {
             />
           )}
 
-          {dashboardTemplate === "comparison" && (
-            <ComparisonTemplate
-              {...templateProps}
-            />
-          )}
         </div>
       )}
     </div>
@@ -3992,11 +3978,9 @@ export default function DashboardPage() {
 
 function DashboardPrintPage({
   brand,
-  dashboardTemplate,
   props,
 }: {
   brand: WorkspaceBrand
-  dashboardTemplate: DashboardTemplate
   props: ReportSectionProps
 }) {
   const hasChartData =
@@ -4014,9 +3998,7 @@ function DashboardPrintPage({
     })
   const topMetrics =
     props.metrics.slice(0, maxDashboardKpiCards)
-  const isComparisonDashboard =
-    dashboardTemplate === "comparison"
-  const showTargetCard = Boolean(props.targetMetric) && !isComparisonDashboard
+  const showTargetCard = Boolean(props.targetMetric)
 
   return (
     <div className="dashboard-print-one-page">
@@ -4076,32 +4058,30 @@ function DashboardPrintPage({
         </div>
       </div>
 
-      {!isComparisonDashboard && (
-        <div className="dashboard-print-inline-kpis">
-          {topMetrics.map((metric) => (
-            <section
-              key={metric.column}
-              className="dashboard-print-inline-kpi-card rounded-xl border border-gray-200 bg-white shadow-sm"
-            >
-              <p className="truncate text-[10px] font-medium uppercase tracking-wide text-gray-400">
-                {formatMetricName(
-                  metric.column
-                )}
-              </p>
+      <div className="dashboard-print-inline-kpis">
+        {topMetrics.map((metric) => (
+          <section
+            key={metric.column}
+            className="dashboard-print-inline-kpi-card rounded-xl border border-gray-200 bg-white shadow-sm"
+          >
+            <p className="truncate text-[10px] font-medium uppercase tracking-wide text-gray-400">
+              {formatMetricName(
+                metric.column
+              )}
+            </p>
 
-              <p className="mt-1 truncate text-base font-bold text-gray-950">
-                {metric.total === null
-                  ? "Not available"
-                  : formatNumber(metric.total ?? 0)}
-              </p>
-            </section>
-          ))}
-        </div>
-      )}
+            <p className="mt-1 truncate text-base font-bold text-gray-950">
+              {metric.total === null
+                ? "Not available"
+                : formatNumber(metric.total ?? 0)}
+            </p>
+          </section>
+        ))}
+      </div>
 
       <div
         className={`dashboard-print-main-grid ${
-          showTargetCard ? "" : "dashboard-print-main-grid-comparison"
+          showTargetCard ? "" : "dashboard-print-main-grid-full"
         }`}
       >
         <section
@@ -4133,11 +4113,7 @@ function DashboardPrintPage({
 
           {hasChartData ? (
             <div
-              className={`dashboard-print-main-chart-area ${
-                isComparisonDashboard
-                  ? "dashboard-print-main-chart-area-comparison"
-                  : ""
-              }`}
+              className="dashboard-print-main-chart-area"
               role="img"
               aria-label={chartDescription}
             >
@@ -4171,11 +4147,7 @@ function DashboardPrintPage({
             </div>
           ) : (
             <ChartEmptyState
-              className={`dashboard-print-main-chart-area ${
-                isComparisonDashboard
-                  ? "dashboard-print-main-chart-area-comparison"
-                  : ""
-              }`}
+              className="dashboard-print-main-chart-area"
             />
           )}
         </section>
@@ -4411,132 +4383,6 @@ function PerformanceTemplate(
         anomalyError={props.anomalyError}
       />
 
-    </>
-  )
-}
-
-/* =========================
-   Template: Comparison
-========================= */
-
-function ComparisonTemplate({
-  metrics,
-  chartRows,
-  xKey,
-  selectedMetrics,
-  chartType,
-  scaleMode,
-  dateRange,
-  aggregation,
-  aggregationType,
-  primaryMetric,
-  chartTarget,
-  setChartType,
-  setScaleMode,
-  setDateRange,
-  setAggregation,
-  setAggregationType,
-  onResetView,
-  anomalies,
-  anomalyLoading,
-  anomalyError,
-}: ReportSectionProps) {
-  const hasChartData =
-    chartRows.length > 0 &&
-    selectedMetrics.length > 0
-  const chartDescription =
-    getDashboardChartDescription({
-      chartType,
-      rows: chartRows,
-      xKey,
-      metrics: selectedMetrics,
-      target: chartTarget,
-      showTarget: scaleMode === "actual",
-    })
-
-  return (
-    <>
-      <KpiCarousel
-        metrics={metrics}
-        anomalies={anomalies}
-        anomalyLoading={anomalyLoading}
-        anomalyError={anomalyError}
-      />
-
-      <DashboardCard className="flex min-w-0 flex-col xl:h-[720px]">
-        <CardHeader
-          title={
-            selectedMetrics.length > 3
-              ? `${formatMetricName(primaryMetric)} + ${
-                  selectedMetrics.length - 1
-                } more`
-              : selectedMetrics.length > 1
-                ? selectedMetrics
-                    .map(formatMetricName)
-                    .join(" vs ")
-                : `${formatMetricName(
-                    primaryMetric
-                  )} Performance`
-          }
-          icon={
-            <IconBadge
-              className="bg-[var(--decisionate-brand-primary-soft)] text-[var(--decisionate-brand-primary-text)]"
-              icon={<LineChartIcon size={22} />}
-            />
-          }
-        />
-
-        <DashboardControls
-          chartType={chartType}
-          scaleMode={scaleMode}
-          dateRange={dateRange}
-          aggregation={aggregation}
-          aggregationType={aggregationType}
-          selectedMetrics={selectedMetrics}
-          setChartType={setChartType}
-          setScaleMode={setScaleMode}
-          setDateRange={setDateRange}
-          setAggregation={setAggregation}
-          setAggregationType={setAggregationType}
-          onResetView={onResetView}
-        />
-
-        {hasChartData ? (
-          <FullscreenChartArea
-            title={
-              selectedMetrics.length > 1
-                ? selectedMetrics
-                    .map(formatMetricName)
-                    .join(" vs ")
-                : `${formatMetricName(primaryMetric)} Performance`
-            }
-            ariaLabel={chartDescription}
-            className="mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1"
-          >
-            <ResponsiveContainer
-              width="100%"
-              height="100%"
-              minWidth={0}
-              minHeight={1}
-              initialDimension={{ width: 1, height: 1 }}
-            >
-              <MainChart
-                chartType={chartType}
-                rows={chartRows}
-                xKey={xKey}
-                metrics={selectedMetrics}
-                allMetrics={metrics}
-                target={chartTarget}
-                showTarget={
-                  scaleMode === "actual"
-                }
-              />
-            </ResponsiveContainer>
-          </FullscreenChartArea>
-        ) : (
-          <ChartEmptyState className="mt-4 h-[360px] flex-none xl:h-auto xl:min-h-[360px] xl:flex-1" />
-        )}
-      </DashboardCard>
     </>
   )
 }
@@ -6077,16 +5923,6 @@ function getSavedAggregationType(
     : "sum"
 }
 
-function getSavedDashboardTemplate(
-  savedDashboardTemplate: unknown
-): DashboardTemplate {
-  return isSavedDashboardTemplate(
-    savedDashboardTemplate
-  )
-    ? savedDashboardTemplate
-    : "executive"
-}
-
 function cleanDashboardText(
   value: string,
   maxLength: number
@@ -6155,17 +5991,6 @@ function isSavedAggregationType(
   )
 }
 
-function isSavedDashboardTemplate(
-  value: unknown
-): value is DashboardTemplate {
-  return (
-    typeof value === "string" &&
-    dashboardTemplates.includes(
-      value as DashboardTemplate
-    )
-  )
-}
-
 function getSharedDashboardConfig(): SharedDashboardConfig {
   if (typeof window === "undefined") {
     return {}
@@ -6185,11 +6010,7 @@ function getSharedDashboardConfig(): SharedDashboardConfig {
   return {
     datasetId,
     dashboardTemplate:
-      template
-        ? getSavedDashboardTemplate(
-            template as DashboardTemplate
-          )
-        : undefined,
+      template ? resolveDashboardTemplate(template) : undefined,
   }
 }
 
