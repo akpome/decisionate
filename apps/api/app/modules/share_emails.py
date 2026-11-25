@@ -71,16 +71,14 @@ class ShareEmailRequest(BaseModel):
         return self
 
 
-def build_shared_group_chart(dataset, definition):
+def build_shared_group_chart(db, dataset, definition):
     from app.modules.datasets.router import normalize_dataset_details_dataframe
-    from app.modules.datasets.services.dashboard_groups import dashboard_group_series
+    from app.modules.datasets.services.dashboard_groups import dashboard_group_series_for_dataset
     from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
 
-    if dataset.source_type == "joined":
-        raise HTTPException(422, "Group comparisons cannot be shared from joined data.")
     frame = load_dataframe_from_dataset(dataset, apply_metric_selection=False)
     try:
-        return dashboard_group_series(dataset, normalize_dataset_details_dataframe(frame), definition.query)
+        return dashboard_group_series_for_dataset(db, dataset, normalize_dataset_details_dataframe(frame), definition.query)
     except ValueError as error:
         raise HTTPException(422, str(error)) from error
 
@@ -166,7 +164,7 @@ def send_share_email(db, auth, payload, key, request):
         raise HTTPException(429, "Too many sharing emails. Please try again in ten minutes.", headers={"Retry-After": "600"})
     require_email_delivery_configured()
     if payload.group_chart:
-        chart = build_shared_group_chart(target, payload.group_chart)
+        chart = build_shared_group_chart(db, target, payload.group_chart)
         if not any(group["points"] for group in chart["series"]):
             raise HTTPException(422, "There is no group data for the selected dates.")
         title += " / Group comparison"

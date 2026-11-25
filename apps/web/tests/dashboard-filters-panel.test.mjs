@@ -102,17 +102,24 @@ test("the normal dimension control appears in Select Metrics without duplicating
   assert.match(source, /<CompareGroupsEditor[\s\S]+?\{metricDimensionFilter\}/)
 })
 
-test("Compare Groups is visible in Edit dashboard with a joined dataset selected", () => {
+test("Compare Groups edits dimensions from the original metric source, not the joined file", () => {
   const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
   const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {
-    dimensionControls: null, canCompareGroups: false, dashboardEditMode: true, groupPreference: null,
+    dimensionControls: null, canCompareGroups: true, dashboardEditMode: true, groupPreference: null,
     groupTabActive: true, showJoinPanel: false, canConfigureWorkspace: true, t: text => text,
+    selectedDatasetId: 21, groupSourceId: 17, groupMetric: "Joined revenue", groupMetricTarget: 0,
+    dimensionContext: "joined", userId: "owner", activeWorkspaceId: "workspace",
+    availableMetricColumns: ["Joined revenue"], groupFilter: undefined, updateMetricTarget() {},
+    CompareGroupsEditor: ({ datasetId, dimensionDatasetId }) => React.createElement("output", null, `${datasetId} / ${dimensionDatasetId}`),
   })
   const html = renderToStaticMarkup(React.createElement(Editor))
   assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>Compare Groups<\/button>/)
   assert.match(html, /role="tab"[^>]*aria-selected="false"[^>]*>Select Metrics<\/button>/)
   assert.match(html, /role="tabpanel" aria-labelledby="dashboard-groups-tab"/)
-  assert.match(html, /Choose a source dataset instead of a joined dataset to compare groups\./)
+  assert.match(html, /<output>21 \/ 17<\/output>/)
+  assert.match(source, /groupDateColumn = compareJoinedGroups \? "period" : analysisDateColumn/)
+  assert.match(source, /groupAggregation = compareJoinedGroups \? "monthly" : aggregation/)
+  assert.match(source, /groupDimensionSource\(metric\) === groupSourceId \? groupFilter : undefined/)
 })
 
 test("the General Business target metric picker is in Select Metrics, not beside the dataset", () => {

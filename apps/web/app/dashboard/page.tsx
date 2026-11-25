@@ -40,6 +40,7 @@ import {
 } from "@/lib/use-workspace-access"
 import {
   getDatasetSourceDetails,
+  parseDatasetSourceConfig,
 } from "@/features/datasets/lib/source-config"
 import {
   WorkspaceBrandMark,
@@ -1340,7 +1341,7 @@ export default function DashboardPage() {
         })
         setTargetMetricSelection({ context: datasetContext, value: savedDashboardPreference.targetMetric ?? "" })
         const savedComparison = savedDashboardPreference.groupComparison
-        setGroupSelection(selectedDashboard === defaultDashboardKey && !savedJoinedDatasetResult && savedComparison
+        setGroupSelection(selectedDashboard === defaultDashboardKey && savedComparison
           ? {
             filter: savedComparison.filter,
             metric: savedComparison.metric,
@@ -2068,7 +2069,21 @@ export default function DashboardPage() {
   const targetMetric = targetMetricSelection?.context === dimensionContext && availableMetricColumns.includes(targetMetricSelection.value)
     ? targetMetricSelection.value
     : ""
-  const canCompareGroups = selectedDashboard === defaultDashboardKey && !joinedDatasetResult && Boolean(dataset) && dataset?.source_type !== "joined"
+  const canCompareGroups = selectedDashboard === defaultDashboardKey && Boolean(dataset && dataset.id === selectedDatasetId)
+  const compareJoinedGroups = Boolean(joinedDatasetResult || dataset?.source_type === "joined")
+  const joinSourceConfig = compareJoinedGroups ? parseDatasetSourceConfig(dataset?.source_config) : null
+  function groupDimensionSource(metric: string) {
+    if (!compareJoinedGroups) return selectedDatasetId
+    const identity = joinedDatasetResult?.datasets.find(column => column.label === metric)?.dataset_id
+      ?? joinSourceConfig?.join_metric_sources?.[metric]
+    return typeof identity === "number" && Number.isSafeInteger(identity) && identity > 0 ? identity : null
+  }
+  const groupSourceId = groupDimensionSource(groupMetric)
+  const groupDateColumn = compareJoinedGroups ? "period" : analysisDateColumn
+  const groupAggregation = compareJoinedGroups ? "monthly" : aggregation
+  const groupAggregationType = compareJoinedGroups
+    ? joinedDatasetResult?.aggregation_type ?? getSavedAggregationType(joinSourceConfig?.join_aggregation_type)
+    : aggregationType
   const groupMetricTarget = targets[groupMetric] ?? 0
   const groupPreference = useMemo<DashboardGroupPreference | null>(() =>
     canCompareGroups && groupFilter?.values.length && availableMetricColumns.includes(groupMetric)
@@ -2077,12 +2092,12 @@ export default function DashboardPage() {
   [canCompareGroups, groupFilter, availableMetricColumns, groupMetric, groupTabActive])
   const showGroupComparison = Boolean(groupPreference?.active)
   const groupQuery = useMemo<DashboardGroupQuery | undefined>(() => {
-    if (!canCompareGroups || !groupTabActive || !groupFilter?.values.length ||
-        !availableMetricColumns.includes(groupMetric) || !analysisDateColumn ||
+    if (!canCompareGroups || !groupTabActive || !groupSourceId || !groupFilter?.values.length ||
+        !availableMetricColumns.includes(groupMetric) || !groupDateColumn ||
         loading || dateRange.start > dateRange.end) return undefined
-    return { filter: groupFilter, metric: groupMetric, date_column: analysisDateColumn, start_date: dateRange.start,
-      end_date: dateRange.end, aggregation, aggregation_type: aggregationType }
-  }, [canCompareGroups, groupTabActive, groupFilter, groupMetric, availableMetricColumns, analysisDateColumn, dateRange, loading, aggregation, aggregationType])
+    return { filter: groupFilter, metric: groupMetric, date_column: groupDateColumn, start_date: dateRange.start,
+      end_date: dateRange.end, aggregation: groupAggregation, aggregation_type: groupAggregationType }
+  }, [canCompareGroups, groupTabActive, groupSourceId, groupFilter, groupMetric, availableMetricColumns, groupDateColumn, dateRange, loading, groupAggregation, groupAggregationType])
   const groupSeries = useDashboardGroupSeries(selectedDatasetId, userId, activeWorkspaceId, groupQuery, `${dimensionContext}:${datasetLoadRetryKey}`)
   const groupShareReady = Boolean(groupQuery && groupSeries.data?.series.some(group => group.points.length > 0))
 
@@ -2738,6 +2753,7 @@ export default function DashboardPage() {
       setShareAction("share")
 
       if (
+        !showGroupComparison &&
         joinedDatasetResult &&
         joinedDatasetResult.dataset_ids.length > 1
       ) {
@@ -3087,12 +3103,14 @@ export default function DashboardPage() {
           className="@container space-y-4 border-b border-gray-200 pb-4 print:hidden">
           {groupTabActive ? canCompareGroups && selectedDatasetId ? (
             <CompareGroupsEditor key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+              dimensionDatasetId={groupSourceId}
               metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
               metricTarget={groupMetricTarget} onTargetChange={updateMetricTarget}
               onFilter={filter => setGroupSelection({ context: dimensionContext, filter, metric: groupMetric, active: true })}
-              onMetric={metric => setGroupSelection({ context: dimensionContext, filter: groupFilter, metric, active: true })} />
+              onMetric={metric => setGroupSelection({ context: dimensionContext,
+                filter: groupDimensionSource(metric) === groupSourceId ? groupFilter : undefined, metric, active: true })} />
           ) : (
-            <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a source dataset instead of a joined dataset to compare groups.")}</p>
+            <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a dataset to compare groups.")}</p>
           ) : <>
             {primaryMetricFields}
             {metricDimensionFilter}
@@ -3929,11 +3947,14 @@ export default function DashboardPage() {
           <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType}
             scaleMode={scaleMode} controls={<>
               <DashboardControls chartType={chartType} scaleMode={scaleMode} dateRange={dateRange}
-                aggregation={aggregation} aggregationType={aggregationType} aggregationLabel={groupSeries.data?.metric_aggregation}
+                aggregation={groupAggregation} aggregationType={groupAggregationType}
+                aggregationLabel={compareJoinedGroups ? joinGroupAggregationLabels[groupAggregationType] : groupSeries.data?.metric_aggregation}
+                groupingLabel={compareJoinedGroups ? "Monthly" : undefined}
                 seriesCount={groupPreference.filter.values.length} seriesLabel="Groups"
                 setChartType={setChartType} setScaleMode={setScaleMode} setDateRange={setDateRange}
                 setAggregation={setAggregation} setAggregationType={setAggregationType} onResetView={handleResetView} />
-              {!analysisDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
+              {!groupDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
+              {!groupSourceId && <p role="status" className="text-sm text-gray-600">{t("Rebuild the join to compare groups for this metric.")}</p>}
               {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
             </>} />
         </DashboardCard>
@@ -4583,6 +4604,10 @@ function ReportSection({
    Shared: Dashboard Controls
 ========================= */
 
+const joinGroupAggregationLabels: Record<ValueAggregation, string> = {
+  sum: "Sum", avg: "Average", min: "Minimum", max: "Maximum", count: "Count",
+}
+
 function DashboardControls({
   chartType,
   scaleMode,
@@ -4590,6 +4615,7 @@ function DashboardControls({
   aggregation,
   aggregationType,
   aggregationLabel,
+  groupingLabel,
   seriesCount,
   seriesLabel = "Metrics",
   setChartType,
@@ -4605,6 +4631,7 @@ function DashboardControls({
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
   aggregationLabel?: string | null
+  groupingLabel?: string
   seriesCount: number
   seriesLabel?: string
   setChartType: (value: ChartType) => void
@@ -4642,7 +4669,11 @@ function DashboardControls({
 
       <DashboardDateInputs range={dateRange} onChange={setDateRange} compact />
 
-      <CompactSelect
+      {groupingLabel ? (
+        <div className="flex min-h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600 sm:min-h-9">
+          Group by: {groupingLabel}
+        </div>
+      ) : <CompactSelect
         label="Group by"
         value={aggregation}
         onChange={value =>
@@ -4654,7 +4685,7 @@ function DashboardControls({
           ["monthly", "Monthly"],
           ["quarterly", "Quarterly"],
         ]}
-      />
+      />}
 
       {aggregationLabel ? (
         <div className="flex min-h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600 sm:min-h-9">

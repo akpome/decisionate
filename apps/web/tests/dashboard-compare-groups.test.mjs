@@ -96,6 +96,12 @@ test("the target field changes and clears only the chosen metric's target", () =
   assert.deepEqual(updates, [["Orders", 42.5], ["Orders", null]])
 })
 
+test("joined comparisons show a metric picker before asking for dimensions", () => {
+  const html = renderEditor({ metric: "", filter: undefined, dimensionDatasetId: null })
+  assert.match(html, /Choose a metric to see the groups in its original dataset\./)
+  assert.doesNotMatch(html, /aria-label="Filter by column values"/)
+})
+
 test("individual metric rows keep their checkbox without a target field", () => {
   const html = renderToStaticMarkup(React.createElement(selectionRows.DashboardSelectionRow, {
     label: "Revenue", color: "#2563eb", checked: true, onToggle() {},

@@ -14,7 +14,7 @@ from app.modules.datasets.services.numeric import (
     get_numeric_columns,
     is_identifier_column,
 )
-from app.modules.datasets.services.dimension_filters import apply_dimension_filter
+from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter, dimension_tokens
 
 
 JOIN_PERIOD_MONTHS = {
@@ -421,6 +421,8 @@ def build_joined_dataset(
     aggregation: str = "monthly",
     aggregation_type: str = "sum",
     end_date: str | None = None,
+    *,
+    group_comparison: tuple[str, DimensionFilter] | None = None,
 ) -> dict:
     clean_aggregation = str(aggregation).strip().lower()
     if clean_aggregation not in JOIN_PERIODS:
@@ -457,6 +459,7 @@ def build_joined_dataset(
     details: list[dict] = []
     used_labels: set[str] = set()
     available_periods: set[str] = set()
+    group_series = None
     reference_year = None
     if str(start_date or "").strip():
         with warnings.catch_warnings():
@@ -701,6 +704,18 @@ def build_joined_dataset(
                 .rename(label)
                 .reset_index()
             )
+            if group_comparison and label == group_comparison[0] and is_numeric:
+                _, group_filter = group_comparison
+                tokens = dimension_tokens(dataset, dataframe, group_filter.column)
+                group_series = []
+                for value in group_filter.values:
+                    scoped = apply_dimension_filter(dataset, dataframe, {"column": group_filter.column, "values": [value]},
+                                                    metrics=[column_name], normalized=tokens)
+                    totals = metric_working.loc[metric_working.index.isin(scoped.index)].groupby("period")["value"].agg(aggregation_function)
+                    group_series.append({"value": value, "points": [
+                        {"period": _period_label(period), "amount": amount}
+                        for period, raw in totals.items() if (amount := _safe_number(raw)) is not None
+                    ]})
             dataset_grouped = (
                 grouped_metric
                 if dataset_grouped is None
@@ -821,4 +836,5 @@ def build_joined_dataset(
         "datasets": details,
         "rows": rows,
         "decision_context": decision_context,
+        **({"group_series": group_series} if group_comparison else {}),
     }

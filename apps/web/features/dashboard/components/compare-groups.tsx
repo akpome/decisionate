@@ -56,8 +56,9 @@ export function useDashboardGroupSeries(datasetId: number | undefined, userId: s
   return { data: current?.data, pending: Boolean(query && !current), error: current?.error, retry: () => setRetry(value => value + 1) }
 }
 
-export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, filter, metric, metricTarget, onFilter, onMetric, onTargetChange }: {
+export function CompareGroupsEditor({ datasetId, dimensionDatasetId = datasetId, userId, workspaceId, metrics, filter, metric, metricTarget, onFilter, onMetric, onTargetChange }: {
   datasetId: number; userId: string; workspaceId?: string
+  dimensionDatasetId?: number | null
   metrics: string[]; filter?: DimensionFilter; metric: string; metricTarget: number
   onFilter: (filter: DimensionFilter | undefined) => void
   onMetric: (metric: string) => void
@@ -70,7 +71,7 @@ export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, f
       <DashboardMetricTargetFields metrics={metrics} metric={metric} metricLabel="Metric to compare"
         placeholder="Choose a metric" target={metricTarget} onMetricChange={value => onMetric(value ?? "")}
         onTargetChange={onTargetChange} />
-      <DatasetDimensionFilter datasetId={datasetId} userId={userId} workspaceId={workspaceId}
+      {dimensionDatasetId ? <DatasetDimensionFilter key={dimensionDatasetId} datasetId={dimensionDatasetId} userId={userId} workspaceId={workspaceId}
         value={filter} onChange={onFilter} embedded groupPicker={{
           limit: maxGroups,
           renderValue(value, checked, disabled, toggle) {
@@ -78,7 +79,9 @@ export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, f
               label={t(dimensionValueLabel(value))} color={groupColor(value, colors)}
               checked={checked} disabled={disabled} onToggle={toggle} />
           },
-        }} />
+        }} /> : <p role="status" className="text-sm text-gray-600">{t(metric
+          ? "This metric's original dataset is unavailable. Rebuild the join to compare groups."
+          : "Choose a metric to see the groups in its original dataset.")}</p>}
     </div>
   )
 }

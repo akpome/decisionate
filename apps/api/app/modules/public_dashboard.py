@@ -630,7 +630,7 @@ def get_public_shared_dashboard(
             from app.modules.share_emails import SharedGroupChartDefinition, build_shared_group_chart
             definition = SharedGroupChartDefinition.model_validate(group_view.definition)
             try:
-                chart = build_shared_group_chart(dataset, definition)
+                chart = build_shared_group_chart(db, dataset, definition)
             except (FileNotFoundError, OSError):
                 raise_shared_dashboard_not_found()
             return {

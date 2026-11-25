@@ -1,15 +1,17 @@
 """Compare a selected dashboard metric across values of one source column."""
 
 from datetime import date
+from math import isclose
 from typing import Annotated, Literal
 
 import pandas as pd
+from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
 
 from .curated_metric_analytics import aggregate_metric, frame_policy
 from .dimension_filters import DimensionFilter, apply_dimension_filter, dimension_tokens
-from .joins import _bucket_dates, _parse_dates, _safe_number
-from .metric_selection import filter_dataframe_to_selected_metrics, get_effective_dataset_metric_columns
+from .joins import _bucket_dates, _parse_dates, _safe_number, build_join_dataset_metadata, build_joined_dataset
+from .metric_selection import filter_dataframe_to_selected_metrics, get_effective_dataset_metric_columns, parse_dataset_source_config
 from .numeric import coerce_numeric_series
 from .summary_query import SUMMARY_MARKER_COLUMN, _finalize_state, _merge_states, _summary_state, is_summary_dataframe
 
@@ -122,3 +124,67 @@ def dashboard_group_series(dataset, frame, selection: DashboardGroupRequest):
         })
     return {"series": series, "has_summarized_data": summarized,
             "metric_aggregation": descriptor.get("aggregation") if descriptor else None}
+
+
+def joined_dashboard_group_series(dataset, frame, selection: DashboardGroupRequest, load_source):
+    if selection.date_column != "period" or selection.aggregation != "monthly":
+        raise ValueError("Joined data can only be compared by month.")
+    definition = parse_dataset_source_config(dataset).get("join_definition")
+    sources = definition.get("selections") if isinstance(definition, dict) else None
+    if not sources or "period" not in frame or selection.metric not in frame:
+        raise ValueError("This joined metric is unavailable. Rebuild the join and try again.")
+
+    # The saved join has monthly totals, not a row-level match across sources.
+    # Split the selected metric only within its own source using the original join rules.
+    frames = []
+    for source in sources:
+        original, records = load_source(source["dataset_id"])
+        metadata = {} if source.get("date_column") else build_join_dataset_metadata(original, records)
+        frames.append((original, records, metadata))
+    aggregation_type = definition.get("aggregation_type", "sum")
+    rebuilt = build_joined_dataset(
+        frames, sources, definition.get("start_date"), definition.get("period_filter", "all"),
+        definition.get("aggregation", "monthly"), aggregation_type, end_date=definition.get("end_date"),
+        group_comparison=(selection.metric, selection.filter),
+    )
+    if rebuilt["group_series"] is None:
+        raise ValueError("This joined metric is unavailable. Rebuild the join and try again.")
+
+    first, last = selection.start_date.isoformat(), selection.end_date.isoformat()
+    periods = _parse_dates(frame["period"]).dt.strftime("%Y-%m-%d")
+    saved_totals = {period: amount for period, amount in zip(periods, frame[selection.metric])
+                    if isinstance(period, str) and first <= period <= last}
+    current_totals = {row["period"]: row[selection.metric] for row in rebuilt["rows"]}
+    for period, amount in saved_totals.items():
+        current = current_totals.get(period)
+        same_total = current is None if pd.isna(amount) else current is not None and isclose(amount, current, rel_tol=1e-9, abs_tol=1e-9)
+        if period not in current_totals or not same_total:
+            raise ValueError("The original data has changed. Rebuild the join to compare its groups.")
+
+    return {
+        "series": [{"value": group["value"], "points": [
+            point for point in group["points"] if point["period"] in saved_totals
+        ]} for group in rebuilt["group_series"]],
+        "has_summarized_data": False,
+        "metric_aggregation": {"avg": "Average", "min": "Minimum", "max": "Maximum"}.get(aggregation_type, aggregation_type.capitalize()),
+    }
+
+
+def dashboard_group_series_for_dataset(db, dataset, frame, selection):
+    if dataset.source_type != "joined":
+        return dashboard_group_series(dataset, frame, selection)
+
+    from .dataset_loader import load_dataset, load_dataframe_from_dataset
+
+    def load_source(identity):
+        try:
+            original = load_dataset(db, identity)
+        except HTTPException as error:
+            if error.status_code != 404:
+                raise
+            raise ValueError("A source for this join is unavailable.") from error
+        if (original.workspace_id or original.user_id) != (dataset.workspace_id or dataset.user_id) or original.source_type == "joined":
+            raise ValueError("A source for this join is unavailable.")
+        return original, load_dataframe_from_dataset(original, apply_metric_selection=False)
+
+    return joined_dashboard_group_series(dataset, frame, selection, load_source)

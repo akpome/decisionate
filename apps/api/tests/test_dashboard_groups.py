@@ -1,3 +1,4 @@
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,7 +9,10 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.modules.datasets import router as datasets
-from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest, dashboard_group_series
+from app.modules.datasets.services import dataset_loader
+from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest, dashboard_group_series, dashboard_group_series_for_dataset
+from app.modules.datasets.services.join_cache import build_join_definition
+from app.modules.datasets.services.joins import build_joined_dataset
 from app.modules.organizations.router import clean_dashboard_preferences
 from app.modules.public_dashboard import shared_view_settings
 
@@ -27,6 +31,33 @@ def selection(**overrides):
         "aggregation": "weekly", "aggregation_type": "sum",
         **overrides,
     })
+
+
+def joined_fixture():
+    left = SimpleNamespace(id=17, file_name="sales.csv", source_type="csv", source_config="{}", user_id="owner", workspace_id="workspace")
+    right = SimpleNamespace(id=18, file_name="ads.csv", source_type="csv", source_config="{}", user_id="owner", workspace_id="workspace")
+    records = {
+        17: (left, pd.DataFrame({
+            "date": ["2026-01-02", "2026-01-06", "2026-01-12", "2026-01-20", "2026-02-02", "2026-03-02"],
+            "channel": ["Online", "Online", "Store", "Store", "Online", "Store"],
+            "country": ["US", "CA", "CA", "US", "CA", "CA"],
+            "revenue": [999, 15, 30, 999, 50, 60],
+        })),
+        18: (right, pd.DataFrame({
+            "date": ["2026-01-10", "2026-03-12"], "spend": [5, 10], "campaign": ["Spring", "Summer"],
+        })),
+    }
+    selections = [
+        {"dataset_id": 17, "date_column": "date", "metric_columns": ["revenue", "channel"],
+         "dimension_filter": {"column": "country", "values": ["CA"]}},
+        {"dataset_id": 18, "date_column": "date", "metric_columns": ["spend"]},
+    ]
+    definition = build_join_definition(selections, None, "all", "monthly", "sum")
+    frames = [(source, frame, {}) for source, frame in records.values()]
+    result = build_joined_dataset(frames, selections)
+    joined = SimpleNamespace(id=21, source_type="joined", file_name="Joined Sales and Ads",
+                             user_id="owner", workspace_id="workspace", source_config=json.dumps({"join_definition": definition}))
+    return joined, pd.DataFrame(result["rows"]), records, result["datasets"][0]["label"]
 
 
 class DashboardGroupTests(unittest.TestCase):
@@ -98,3 +129,42 @@ class DashboardGroupTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(load.call_args.args[1:], (17, "actor", "workspace"))
         self.assertEqual(response.json()["series"][0]["value"], "Online")
+
+    def test_joined_endpoint_splits_the_original_metric_only_for_matched_months(self):
+        joined, frame, sources, metric = joined_fixture()
+        app = FastAPI()
+        app.include_router(datasets.router, prefix="/datasets")
+        query = selection(metric=metric, date_column="period", aggregation="monthly", end_date="2026-03-31",
+                          filter={"column": "channel", "values": ["Online", "Store"]}).model_dump(mode="json")
+        with patch.object(datasets, "get_user_id", return_value="owner"), patch.object(
+            datasets, "get_workspace_id", return_value="workspace",
+        ), patch.object(datasets, "_load_owned_dataset_dataframe", return_value=(joined, frame)), patch.object(
+            dataset_loader, "load_dataset", side_effect=lambda db, identity: sources[identity][0],
+        ), patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda source, **_: sources[source.id][1]):
+            client = TestClient(app)
+            response = client.post("/datasets/21/dashboard-groups", json=query)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["series"], [
+                {"value": "Online", "points": [{"period": "2026-01-01", "amount": 15}]},
+                {"value": "Store", "points": [{"period": "2026-01-01", "amount": 30}, {"period": "2026-03-01", "amount": 60}]},
+            ])
+            self.assertEqual(response.json()["metric_aggregation"], "Sum")
+            weekly = client.post("/datasets/21/dashboard-groups", json={**query, "aggregation": "weekly"})
+            self.assertEqual(weekly.status_code, 422)
+            wrong_source = client.post("/datasets/21/dashboard-groups", json={**query, "filter": {"column": "campaign", "values": ["Spring"]}})
+            self.assertEqual(wrong_source.status_code, 422)
+            sources[17][1].loc[1, "revenue"] = 20
+            stale = client.post("/datasets/21/dashboard-groups", json=query)
+            self.assertEqual(stale.status_code, 422)
+            self.assertIn("Rebuild the join", stale.json()["detail"])
+
+    def test_joined_comparison_never_loads_another_workspaces_source(self):
+        joined, frame, sources, metric = joined_fixture()
+        sources[17][0].workspace_id = "elsewhere"
+        query = selection(metric=metric, date_column="period", aggregation="monthly")
+        with patch.object(dataset_loader, "load_dataset", return_value=sources[17][0]), patch.object(
+            dataset_loader, "load_dataframe_from_dataset",
+        ) as load:
+            with self.assertRaisesRegex(ValueError, "A source for this join is unavailable"):
+                dashboard_group_series_for_dataset(None, joined, frame, query)
+            load.assert_not_called()

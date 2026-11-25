@@ -16,6 +16,7 @@ from app.modules.reports import public
 from app.modules.reports.cleanup import cleanup_source, cleanup_workspace
 from app.modules.reports.models import BusinessReport, ReportShare
 from tests import test_business_reports as fixtures
+from tests.test_dashboard_groups import joined_fixture
 
 
 class ShareEmailTests(unittest.TestCase):
@@ -243,11 +244,11 @@ class ShareEmailTests(unittest.TestCase):
              patch.object(datasets, "require_workspace_data_manager", side_effect=None if allowed else HTTPException(403, "Read only")):
             return asyncio.run(datasets.stop_dataset_sharing(SimpleNamespace(), Response(), 1, dashboard))
 
-    def public_dashboard(self, token, dashboard=None):
+    def public_dashboard(self, token, dashboard=None, dataset_id=1):
         from app.modules import public_dashboard
         with patch.object(public_dashboard, "SessionLocal", self.Session), \
              patch.object(public_dashboard, "load_dataframe_from_dataset", side_effect=lambda dataset: self.frames[dataset.id][1].copy()):
-            return public_dashboard.get_public_shared_dashboard(1, Response(), token, dashboard)
+            return public_dashboard.get_public_shared_dashboard(dataset_id, Response(), token, dashboard)
 
     def test_dashboard_revocation_disables_emailed_and_legacy_links_without_deleting_data(self):
         self.send()
@@ -348,6 +349,35 @@ class ShareEmailTests(unittest.TestCase):
             empty = self.group_chart(filter={"column": "channel", "values": ["Not present"]})
             self.assertEqual(self.send(self.dashboard(group_chart=empty)).status_code, 422)
         self.email.assert_not_called()
+
+    def test_joined_group_email_shares_only_the_comparison_and_can_be_revoked(self):
+        from app.modules.datasets.services import dataset_loader
+        joined, frame, sources, metric = joined_fixture()
+        self.frames.update(sources)
+        self.frames[joined.id] = joined, frame
+        with self.Session() as db:
+            for identity in (17, 18, 21):
+                source, records = self.frames[identity]
+                db.add(Dataset(id=identity, user_id="owner", workspace_id="owner", file_name=source.file_name,
+                               file_path="unused.csv", source_type=source.source_type, source_config=source.source_config,
+                               row_count=len(records), column_count=len(records.columns)))
+            db.commit()
+
+        chart = self.group_chart(metric=metric, date_column="period", aggregation="monthly", end_date="2026-03-31")
+        with patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda dataset, **_: self.frames[dataset.id][1].copy()):
+            result = self.send(self.dashboard(dataset_id=21, group_chart=chart, recipients=["reader@example.test"]))
+            self.assertEqual(result.status_code, 200, result.text)
+            token = self.emailed_token()
+            shared = self.public_dashboard(token, "general-business", dataset_id=21)
+            self.assertEqual(shared["group_chart"]["data"]["series"][0],
+                             {"value": "Online", "points": [{"period": "2026-01-01", "amount": 15}]})
+            self.assertEqual(shared["dataset"]["metrics"], [])
+            self.assertNotIn("campaign", json.dumps(shared))
+            link = self.listed_links(dataset_id=21).json()["items"][0]
+            self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{link['id']}").status_code, 200)
+            with self.assertRaises(HTTPException) as failure:
+                self.public_dashboard(token, "general-business", dataset_id=21)
+            self.assertEqual(failure.exception.status_code, 404)
 
     def test_each_recipient_has_an_independent_link_and_revoking_one_preserves_the_other(self):
         self.assertEqual(self.send().status_code, 200)

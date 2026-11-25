@@ -284,7 +284,7 @@ from app.modules.datasets.services.connector_range_sync import (
     range_sync_pending, new_range_sync, next_range_sync_chunk, advance_range_sync,
 )
 from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter, dimension_options
-from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest, dashboard_group_series
+from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest, dashboard_group_series_for_dataset
 from app.modules.datasets.services.auth import (
     get_user_id,
     get_workspace_id,
@@ -920,6 +920,9 @@ def materialize_joined_dataset_record(
             "dashboard_key": dashboard_key,
             "derived_from_dataset_ids": result["dataset_ids"],
             "join_definition": definition,
+            "join_metric_sources": {
+                column["label"]: column["dataset_id"] for column in result["datasets"] if column["column_type"] == "numeric"
+            },
             "join_result_version": result.get("join_version"),
             "generated_at": utc_now().isoformat(),
         },
@@ -10855,7 +10858,7 @@ def dataset_dashboard_groups(request: Request, dataset_id: int, selection: Dashb
     with SessionLocal() as db:
         dataset, frame = _load_owned_dataset_dataframe(db, dataset_id, user_id, workspace_id, apply_metric_selection=False)
         try:
-            return dashboard_group_series(dataset, normalize_dataset_details_dataframe(frame), selection)
+            return dashboard_group_series_for_dataset(db, dataset, normalize_dataset_details_dataframe(frame), selection)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 
