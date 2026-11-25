@@ -782,7 +782,7 @@ export function DashboardShell({
     activeBrandReady || (noHostedWorkspace && portalBranding)
       ? activeBrand
       : {
-          name: noHostedWorkspace ? "Agency portal" : "Loading workspace",
+          name: noHostedWorkspace ? "Hosted portal" : "Loading workspace",
           logoUrl: "",
           primaryColor: "#CBD5E1",
           accentColor: "#E2E8F0",
@@ -1215,7 +1215,7 @@ export function DashboardShell({
 
         {!workspaceSelectionReady ? (
           noHostedWorkspace ? <section className="py-6">
-            <h1 className="text-lg font-semibold">No workspace on this agency portal</h1>
+            <h1 className="text-lg font-semibold">No workspace on this portal</h1>
             <p className="mt-2 text-sm text-gray-600">If your workspace was unlinked, your data is still there. Open your workspace to review any agency invitations.</p>
             <a href={hostedWorkspaceRecoveryUrl} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium">Open my workspace</a>
           </section> : <section role={workspaceAccessError ? "alert" : "status"} className="py-6">

@@ -1,11 +1,12 @@
-# Set up a branded agency portal
+# Set up a branded workspace portal
 
 ## Can I offer a portal under my own brand?
 
-Agency includes a branded portal at an address such as agency.decisionate.app.
-Open Settings to configure Hosted portal settings, save a draft, preview and
-publish. Professional does not include an agency portal. Existing agencies keep
-their clients and data when upgraded to the hosted Agency offering.
+Professional and Agency both include a branded portal on a decisionate.app
+address. Professional hosts one business workspace for its owner and invited
+team. Agency also supports separate client workspaces. Open Settings to
+choose your address, save a draft, preview and publish. This uses the same
+workspace, login and subscription you already have.
 
 If Custom Domain White Label Agency is offered in Billing, its owner can open
 Settings and choose Set up a custom-domain portal. This separate offering appears
@@ -24,11 +25,12 @@ availability; do not assume either is open for new customers.
 
 ## How do I set up my portal?
 
-For the standard Agency plan, open Settings > Hosted portal settings. Choose an
-available subdomain, add your agency name, support email, logo, colors and welcome
+For Professional or the standard Agency plan, open Settings > Hosted portal
+settings. Choose an available subdomain, add your name, support email, logo, colors and welcome
 message, then Save draft. Preview the portal and explicitly activate or publish
-it. The saved address cannot be renamed. Invite client workspace owners through
-your existing client controls. You do not need your own Stripe or hosting account.
+it. Contact support to change a reserved address. Invite your team through
+Workspace Members. Agencies can also invite client workspace owners through
+their existing client controls. You do not need your own Stripe or hosting account.
 
 Only for the separately enabled custom-domain offering, follow these steps:
 Save your brand name, portal domain, support email, legal-page links, billing
@@ -75,16 +77,15 @@ agency workspace and Decisionate-managed authentication, billing and email. It d
 not require your own Stripe, Resend or hosting accounts. It does not create another
 copy of your clients or datasets. The custom-domain product above is different.
 
-## How do I get a hosted agency portal?
+## Which subscriptions include hosted portals?
 
-Choose Agency in Billing when the plan is available. Professional does not
-include a hosted portal. Agency is one complete subscription, not a portal add-on.
+Choose Professional for a single business workspace or Agency for client
+workspaces. The hosted address is included; there is no separate add-on.
 The former Decisionate-branded Agency tier has been upgraded to this Agency plan
 without deleting client workspaces or changing existing Stripe charges.
 Its monthly and annual prices for new subscriptions are set
 by the platform administrator. An eligible owner opens Settings, where Hosted
-portal settings is shown directly instead of the standard Workspace branding
-form. No separate setup link is required. Start with the portal address and
+portal settings is shown directly. No separate setup link is required. Start with the portal address and
 branding. Normal trial, renewal,
 cancellation and payment grace rules still apply. If plan access is inactive, use Billing to
 restore it. If new portals are unavailable, contact support. Branding alone cannot
@@ -92,12 +93,11 @@ enable one before the platform is ready.
 
 ## How do I brand and publish my hosted portal?
 
-An agency owner can edit their own Hosted portal settings from Settings in the
-main app or while signed in to their active agency portal. Client owners and
-staff cannot edit the agency's portal, and one agency cannot manage another's.
-The separate Workspace branding form is only shown to Professional owners.
-Agency and Custom Domain White Label Agency plans do not
-show that form; they use their own portal configuration instead.
+Professional and Agency owners can edit their own Hosted portal settings in the
+main app or while signed in to their active portal. A team member or agency
+client cannot change the owner's portal. Professional owners can still set
+general Workspace branding separately. Agency and Custom Domain White Label
+Agency plans use their own portal configuration instead.
 Decisionate product-update preferences are not shown on hosted portals; this
 does not disable invitations, alerts or weekly report emails.
 
@@ -147,11 +147,10 @@ Clerk plan alone does not confirm that the API server uses the correct instance
 or has permission to create its domains. Do not disconnect a Clerk integration
 or replace your production keys just to clear an unexplained error.
 
-## Where do hosted clients sign in and how are they invited?
+## How do team members and agency clients sign in?
 
-The public agency welcome page offers Continue to sign in, not open registration.
-Ordinary agency sign-in pages do not show New here or Create an account.
-Clients without a login should open their workspace invitation. Its sign-in page
+The public portal welcome page offers Continue to sign in, not open registration.
+People without a login should open their workspace invitation. Its sign-in page
 offers Create your login; on a hosted welcome screen, continue with Continue to
 sign up. Use the email address from the invitation and verify it. Clients who
 already have an account sign in instead. Switching between sign-in and sign-up
@@ -183,7 +182,7 @@ workspace starts on the main application before that workspace joins the agency.
 ## What happens when Agency access ends or a client leaves?
 
 There is no separate hosted subscription to cancel. Hosted access follows your
-white-label agency plan: cancellation at the end of the billing period retains access until
+Professional or Agency plan: cancellation at the end of the billing period retains access until
 then; expiry or the end of the existing payment grace period stops access. Agency
 pause or platform suspension can also stop portal access. Configuration and data
 are preserved. An unlinked client loses agency portal access but keeps the existing
@@ -194,7 +193,7 @@ support.
 ## Why does my portal show Portal unavailable?
 
 An unavailable hosted address shows a neutral page, without workspace details or
-a link to another application. Check the web address or ask the agency that shared
+a link to another application. Check the web address or ask the workspace owner who shared
 your link for help. Try again checks the same portal's home address. The message
 does not confirm whether an address is unregistered, access is paused or a service
 is temporarily unavailable. Ask Decisionate cannot check the portal's live status.

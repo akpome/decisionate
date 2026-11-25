@@ -26,6 +26,7 @@
         "Can my customers pay into my Stripe account?",
         "Why is my branded portal waiting for DNS?",
         "How do I get a hosted agency portal?",
+        "Can I use a subdomain with my Professional subscription?",
         "How do I add a logo to my hosted portal?",
         "Why does my portal show Portal unavailable?"
       ],
@@ -71,13 +72,14 @@
           "How do I set up a white-label portal?",
           "How do I create a branded customer portal?"
         ],
-        "How do I get a hosted agency portal?": [
+        "Which subscriptions include hosted portals?": [
+          "Can I use a subdomain with my Professional subscription?",
           "How do I get an agency.decisionate.app portal?",
           "How do I subscribe to a hosted agency portal?",
           "Is hosted white label included in my Agency plan?",
           "Do I need a separate Stripe price for hosted white label?"
         ],
-        "Where do hosted clients sign in and how are they invited?": [
+        "How do team members and agency clients sign in?": [
           "Where do my hosted portal clients log in?"
         ],
         "How do I brand and publish my hosted portal?": [

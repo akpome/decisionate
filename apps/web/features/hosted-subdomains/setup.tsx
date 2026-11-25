@@ -11,7 +11,7 @@ import { getHostedLogo, isHostedLogoUrl, type HostedBrand } from "./types"
 import { useHostedPortal } from "./provider"
 
 type PortalRecord = { id: string; slug: string; hostname: string; revision: number; status: string; configuration: HostedBrand; url: string; published: boolean; last_error: string | null }
-type Setup = { portal: PortalRecord | null; entitled: boolean; commercially_available: boolean; blockers: string[]; defaults: Partial<HostedBrand> }
+type Setup = { portal: PortalRecord | null; plan: string; entitled: boolean; commercially_available: boolean; blockers: string[]; defaults: Partial<HostedBrand> }
 type AddressCheck = { input: string; status: "available" | "reserved" | "taken" | "invalid" | "error"; message: string }
 const emptyBrand: HostedBrand = { name: "", logo_url: "", favicon_url: "", background_url: "", primary_color: "#2563EB", accent_color: "#059669", background_color: "#F8FAFC", support_email: "", welcome_heading: "Welcome back", welcome_text: "" }
 const inputClass = "mt-1 h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm"
@@ -149,9 +149,10 @@ function HostedSubdomainEditor({ userId, embedded }: { userId: string; embedded:
     {data && <>
       <section className="border-b border-gray-200 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Subheading className="font-semibold">Agency</Subheading><span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "Agency subscription required"}</span>
+          <Subheading className="font-semibold">{data.plan === "professional" ? "Professional" : "Agency"}</Subheading>
+          <span className="text-sm text-gray-600">{data.entitled ? "Hosted portal included" : "Active subscription required"}</span>
         </div>
-        {!data.entitled && <Link href="/billing" className="mt-3 inline-block text-sm text-blue-700 underline">Choose the Agency plan</Link>}
+        {!data.entitled && <Link href="/billing" className="mt-3 inline-block text-sm text-blue-700 underline">Open Billing</Link>}
         {!data.commercially_available && !data.portal?.published && <p className="mt-3 text-sm text-gray-600">New hosted portals are not available yet.</p>}
       </section>
       {data.portal && <section aria-label="Portal address" className="flex flex-wrap items-center gap-3 border-b border-gray-200 py-5">
@@ -159,7 +160,7 @@ function HostedSubdomainEditor({ userId, embedded }: { userId: string; embedded:
         <span className="text-sm text-gray-500">{data.portal.status}</span>
         {data.entitled && data.portal.status === "active" && <a href={data.portal.url} target="_blank" rel="noreferrer" className={buttonClass}>Open portal<ExternalLink size={16} /></a>}
         <button className={buttonClass} title="Copy portal URL" aria-label="Copy portal URL" onClick={() => void perform(async () => { await navigator.clipboard.writeText(data.portal!.url); setNotice("Portal URL copied.") })}><Copy size={16} /></button>
-        {!embedded && <Link href="/settings" className="text-sm text-blue-700 underline">Manage client invitations</Link>}
+        {!embedded && <Link href="/settings" className="text-sm text-blue-700 underline">{data.plan === "professional" ? "Manage workspace members" : "Manage client invitations"}</Link>}
       </section>}
       {canEdit && <form onSubmit={event => { event.preventDefault(); void perform(() => save(true)) }}>
         <fieldset disabled={busy} className="min-w-0 disabled:opacity-60">

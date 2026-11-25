@@ -303,7 +303,7 @@ class HostedSubdomainTests(unittest.TestCase):
                 self.assertNotIn("hosted_portal_colors", response.json())
         with self.Session() as db:
             db.query(HostedSubdomainPortal).one().status = "active"
-            db.query(WorkspaceSubscription).filter_by(workspace_id="agency").one().plan = "professional"
+            db.query(WorkspaceSubscription).filter_by(workspace_id="agency").one().plan = "free"
             db.commit()
         response = self.client.get("/organizations/me", headers=self.headers())
         self.assertEqual(response.status_code, 200, response.text)
@@ -652,13 +652,76 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(subscription.provider_subscription_id, "sub_agency")
             self.assertEqual(subscription.status, "active")
 
-    def test_other_plans_cannot_enable_hosted_access_even_with_billing_bypass(self):
+    def test_free_plan_cannot_enable_hosted_access_even_with_billing_bypass(self):
         with patch.dict(os.environ, {"BILLING_ENFORCEMENT_ENABLED": "false"}):
-            for plan in ("professional", "free"):
-                with self.Session() as db:
-                    db.get(WorkspaceSubscription, 1).plan = plan
-                    db.commit()
-                self.assertEqual(self.save().status_code, 403)
+            with self.Session() as db:
+                db.get(WorkspaceSubscription, 1).plan = "free"
+                db.commit()
+            self.assertEqual(self.save().status_code, 403)
+
+    def test_professional_owner_can_publish_without_changing_billing_or_granting_agency_access(self):
+        self.publish()
+        with self.Session() as db:
+            db.get(WorkspaceSubscription, 2).plan = "professional"
+            db.add(OrganizationMember(organization_id=2, clerk_user_id="staff", role="member"))
+            db.commit()
+        headers = self.headers(user="another")
+        with patch("app.modules.billing.service.stripe_request") as stripe:
+            setup = self.client.get(self.base, headers=headers)
+            self.assertEqual(setup.status_code, 200, setup.text)
+            self.assertEqual(setup.json()["plan"], "professional")
+            self.assertTrue(setup.json()["entitled"])
+            self.assertIsNone(setup.json()["portal"])
+            self.assertEqual(self.save(user="another").status_code, 409)
+            draft = self.save(user="another", slug="other-business")
+            self.assertEqual(draft.status_code, 200, draft.text)
+            with patch.object(portals, "ensure_satellite", return_value="domain_business") as provision:
+                published = self.client.post(self.base + "/activate", headers=headers, json={
+                    "revision": draft.json()["revision"], "confirmation": "PUBLISH PORTAL",
+                })
+            self.assertEqual(published.status_code, 200, published.text)
+            provision.assert_called_once_with("other-business.decisionate.app")
+            stripe.assert_not_called()
+        origin = "https://other-business.decisionate.app"
+        public = self.client.get(self.base + "/resolve?hostname=other-business.decisionate.app")
+        self.assertTrue(public.json()["active"])
+        owner_headers = self.headers(user="another", origin=origin)
+        self.assertEqual(self.client.get("/identity", headers=owner_headers).json()["workspace"], "another")
+        self.assertEqual(self.client.get("/identity", headers=headers).json()["workspace"], "another")
+        staff_headers = self.headers(user="staff", workspace="another", origin=origin)
+        self.assertEqual(self.client.get("/identity", headers=staff_headers).json()["workspace"], "another")
+        self.assertEqual(self.client.get(self.base, headers=staff_headers).status_code, 403)
+        self.assertEqual(self.client.get("/identity", headers=self.headers(user="agency", origin=origin)).status_code, 403)
+        client = self.client.get("/organizations/workspaces", headers=self.headers(user="client", origin=origin))
+        self.assertEqual((client.status_code, client.json()), (200, []))
+        new_client = self.client.post("/organizations/client-workspaces", headers=owner_headers,
+                                      json={"name": "Client", "client_email": "new@example.test"})
+        self.assertEqual(new_client.status_code, 403, new_client.text)
+        with self.Session() as db:
+            subscription = db.get(WorkspaceSubscription, 2)
+            self.assertEqual((subscription.plan, subscription.provider_subscription_id), ("professional", "sub_another"))
+            self.assertEqual(db.query(Organization).count(), 3)
+            subscription.status = "canceled"
+            db.commit()
+        self.assertFalse(self.client.get(self.base + "/resolve?hostname=other-business.decisionate.app").json()["active"])
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Organization, 2))
+            self.assertEqual(db.get(HostedSubdomainPortal, published.json()["id"]).status, "active")
+
+    def test_agency_that_switches_to_professional_keeps_its_portal_but_not_client_access(self):
+        row = self.publish()
+        origin = "https://north-star.decisionate.app"
+        with self.Session() as db:
+            db.get(WorkspaceSubscription, 1).plan = "professional"
+            db.commit()
+            self.assertIsNotNone(context.portal_for_workspace(db, "agency"))
+            self.assertIsNone(context.portal_for_workspace(db, "agency:client:1"))
+        owner = self.client.get(self.base, headers=self.headers(origin=origin))
+        self.assertEqual(owner.json()["portal"]["id"], row["id"])
+        client = self.client.get("/organizations/workspaces", headers=self.headers(user="client", origin=origin))
+        self.assertEqual((client.status_code, client.json()), (200, []))
+        self.assertEqual(self.client.get("/identity", headers=self.headers(
+            user="client", workspace="agency:client:1", origin=origin)).status_code, 403)
 
     def test_cors_requires_exact_active_portal_and_blocks_admin_even_for_valid_user(self):
         self.publish()

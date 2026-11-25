@@ -368,6 +368,7 @@ test("pricing offers Professional and hosted Agency, with custom domains hidden 
   for (const amount of ["123.45", "345.67"]) assert.ok(html.includes(amount))
   assert.ok(!html.includes("234.56"))
   const pricing = html.slice(html.indexOf('id="pricing"'), html.indexOf('id="questions"'))
+  assert.match(pricing, /Your portal at business\.decisionate\.app/)
   assert.equal((pricing.match(/Start trial/g) || []).length, 2)
   const enabled = renderSections("en", { ...catalog, plans: [...catalog.plans, { plan: "agency_custom_domain", monthly_price_cents: 45678, annual_price_cents: 456780, monthly_configured: true, annual_configured: true, available: true }] })
   assert.match(enabled, /Custom Domain White Label Agency/)

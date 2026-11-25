@@ -89,7 +89,7 @@ test("an invitation's hosted sign-in offers login creation and preserves its wor
     "https://app.decisionate.ca/sign-up?sdk-sync=1")
   assert.ok(html.includes(`href="${target.replaceAll("&", "&amp;")}"`))
   assert.match(html, /Accept your invitation/)
-  assert.match(html, /Use the email address from your agency invitation/)
+  assert.match(html, /Use the email address from your workspace invitation/)
   assert.match(html, /Create your login/)
   assert.doesNotMatch(html, /New here|Create an account/)
 })
@@ -99,7 +99,7 @@ test("hosted signup has its own heading and central signup action with an invita
   assert.deepEqual(calls, [{ mode: "sign-up", redirectUrl: "https://north.decisionate.app" + redirects.getAuthRedirectUrl(returnTo) }])
   assert.match(html, /Create your account/)
   assert.match(html, /Continue to sign up/)
-  assert.match(html, /email address from your agency invitation/)
+  assert.match(html, /email address from your workspace invitation/)
   assert.match(html, /Already have an account/)
   assert.doesNotMatch(html, /Welcome back|Your business results/)
   assert.ok(html.includes(`href="${redirects.getSignInUrl(returnTo)}"`))
@@ -178,7 +178,7 @@ test("hosted setup uses a native modal, immutable addresses, explicit publish an
   assert.match(source, /data.blockers.length > 0/)
   assert.match(source, /working.current = true/)
   assert.match(source, /Hosted portal included/)
-  assert.match(source, /Agency subscription required/)
+  assert.match(source, /Active subscription required/)
   assert.doesNotMatch(source, /HOSTED_PORTALS_|Stripe Connect|Clerk API key|subscription-offer|Add hosted white label|Cancel hosted white label|View subscription price|\/subscription["']/)
 })
 
@@ -233,11 +233,11 @@ test("hosted logo picker accepts exactly 1 MB while other images retain their 12
   assert.match(svg.state.error, /PNG, JPEG or WebP/)
 })
 
-function renderSetup({ entitled = true, available = true, slug = "", addressCheck = null, portal = null, embedded = false } = {}) {
+function renderSetup({ entitled = true, available = true, plan = "agency_subdomain", slug = "", addressCheck = null, portal = null, embedded = false } = {}) {
   const React = require("react"), { renderToStaticMarkup } = require("react-dom/server")
   const brand = { name: "North Star", support_email: "help@northstar.test", logo_url: "", favicon_url: "", background_url: "",
     primary_color: "#2563EB", accent_color: "#059669", background_color: "#FFFFFF", welcome_heading: "Welcome", welcome_text: "" }
-  const states = [{ portal, entitled, commercially_available: available, blockers: [], defaults: brand },
+  const states = [{ portal, plan, entitled, commercially_available: available, blockers: [], defaults: brand },
     brand, slug, "", "", false, false, false, 0, "", addressCheck, 0]
   let index = 0
   const { HostedSubdomainSetup } = load("../features/hosted-subdomains/setup.tsx", {
@@ -319,14 +319,22 @@ test("saved hosted logo URLs and uploads replace legacy icons without exposing e
   }
 })
 
-test("inactive Agency access and closed availability keep setup blocked without offering an add-on", () => {
+test("inactive subscription access and closed availability keep setup blocked without offering an add-on", () => {
   const inactive = renderSetup({ entitled: false })
-  assert.match(inactive, /Agency subscription required/)
+  assert.match(inactive, /Active subscription required/)
   assert.match(inactive, /href="\/billing"/)
   assert.doesNotMatch(inactive, /<form|Preview portal|Add hosted white label/)
   const closed = renderSetup({ available: false })
   assert.match(closed, /New hosted portals are not available yet/)
   assert.doesNotMatch(closed, /<form|Preview portal|Add hosted white label/)
+})
+
+test("Professional owners see the same hosted address setup without client invitation controls", () => {
+  const html = renderSetup({ plan: "professional", embedded: true })
+  assert.match(html, />Professional<\/h3>/)
+  assert.match(html, /Hosted portal included/)
+  assert.match(html, /aria-label="Subdomain"/)
+  assert.doesNotMatch(html, /Manage client invitations|Agency subscription/)
 })
 
 test("new portal saves wait for an available name, while existing reserved addresses remain editable", () => {

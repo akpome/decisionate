@@ -22,8 +22,8 @@ import { getHostedAuthUrl, hostedWorkspaceRecoveryUrl } from "@/features/hosted-
 const redirectErrors = {
   session: ["Your session could not be verified.", "Sign in again to continue."],
   access: ["Workspace access was denied.", "Try another account or contact support if you believe you should have access."],
-  portal: ["No workspace on this agency portal", "If your workspace was unlinked, open it directly to review any agency invitations."],
-  portalSession: ["This portal couldn't finish signing you in.", "Try again. If the problem continues, contact your agency."],
+  portal: ["No workspace on this portal", "Sign in with the email invited to this workspace, or open your workspace directly."],
+  portalSession: ["This portal couldn't finish signing you in.", "Try again. If the problem continues, contact your workspace owner."],
   workspace: ["We couldn't open your workspace.", "Your account is signed in, but the workspace service is unavailable. Please try again."],
 } as const
 

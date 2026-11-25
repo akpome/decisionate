@@ -20,7 +20,7 @@ export function HostedSignIn({ brand, returnTo, alternateUrl, signup = false }: 
         <img src={logo} alt={brand.name} referrerPolicy="no-referrer" className="mb-5 h-12 max-w-full object-contain object-left" />}
       <p className="break-words text-sm font-semibold text-gray-600">{brand.name}</p>
       <h1 className="mt-3 break-words text-2xl font-semibold text-gray-950">{signup ? "Create your account" : invitation ? "Accept your invitation" : brand.welcome_heading || "Welcome back"}</h1>
-      {signup || invitation ? <p className="mt-3 text-sm leading-6 text-gray-600">Use the email address from your agency invitation.</p>
+      {signup || invitation ? <p className="mt-3 text-sm leading-6 text-gray-600">Use the email address from your workspace invitation.</p>
         : brand.welcome_text && <p className="mt-3 break-words text-sm leading-6 text-gray-600">{brand.welcome_text}</p>}
       <a className="mt-6 flex min-h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold"
         style={{ backgroundColor: brand.primary_color, color: getBrandSurfaceTextColor(brand.primary_color) }}

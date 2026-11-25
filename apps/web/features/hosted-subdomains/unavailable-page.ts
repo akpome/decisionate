@@ -31,7 +31,7 @@ export const unavailablePortalPage = `<!doctype html>
       <img class="portal-icon" src="/icons/portal-unavailable.svg" width="64" height="64" alt="" aria-hidden="true">
       <p class="status">Portal unavailable</p>
       <h1 id="portal-unavailable-title">We can't open this portal.</h1>
-      <p class="description">Check the web address, or contact the agency that shared this link with you.</p>
+      <p class="description">Check the web address, or contact the workspace owner who shared this link with you.</p>
       <a class="retry" href="/">Try again</a>
     </main>
   </div>

@@ -225,6 +225,7 @@ const referenceChapters: ReferenceChapter[] = [
         steps: [
           "Sign in and open the onboarding or workspace setup page.",
           "Choose Professional for a single business workspace or Agency for an agency that manages client workspaces.",
+          "With an active Professional or Agency subscription, open Settings to publish a branded workspace at yourname.decisionate.app.",
           "Enter the organization or workspace name and submit the setup form.",
           "After setup, open the dashboard and confirm that the organization name and branding are correct.",
         ],

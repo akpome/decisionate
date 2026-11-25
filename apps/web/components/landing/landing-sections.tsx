@@ -272,6 +272,7 @@ export function PricingSection({ catalog }: { catalog?: PublicPlanCatalog | null
       description: "For a business managing its own workspace.",
       items: [
         "1 business workspace",
+        "Your portal at business.decisionate.app",
         "Unlimited datasets",
         "All industry dashboards",
         "Decision management and outcome tracking",

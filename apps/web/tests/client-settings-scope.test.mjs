@@ -171,14 +171,15 @@ test("current and legacy Agency owners get inline portal settings instead of wor
   }
 })
 
-test("only Professional owners have the default application's workspace branding controls", () => {
+test("Professional owners retain workspace branding and can set up a hosted portal without Agency controls", () => {
   const workspace = { id: 1, name: "Owner workspace", owner_user_id: "owner", role: "owner", is_managed_client: false }
   for (const plan of ["professional"]) {
     const Settings = components(workspace, {}, { billingStatus: { plan, billing_model: plan === "professional" ? "direct" : "agency" } }).Settings
     const html = render(Settings, { userId: "owner", fullName: "Owner", emailAddress: "owner@example.test" })
     assert.match(html, /Workspace Name/)
     assert.match(html, /Logo link or upload/)
-    assert.doesNotMatch(html, /data-hosted-settings/)
+    assert.match(html, /data-hosted-settings="true"/)
+    assert.doesNotMatch(html, /Client Workspaces|Create and invite owner/)
   }
 })
 

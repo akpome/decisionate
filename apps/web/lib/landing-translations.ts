@@ -179,6 +179,7 @@ export const refreshedLandingFrench: Record<string, string> = {
   "Decisionate-branded application": "Application à la marque Decisionate",
   "Your logo, colours and welcome screen": "Votre logo, vos couleurs et votre écran d'accueil",
   "Your portal at agency.decisionate.app": "Votre portail sur agence.decisionate.app",
+  "Your portal at business.decisionate.app": "Votre portail sur entreprise.decisionate.app",
   "All agency workspace features": "Toutes les fonctions des espaces d'agence",
   "Your portal at analytics.agency.com": "Votre portail sur analytics.agence.com",
   "Your branding and billing setup": "Votre marque et votre configuration de facturation",

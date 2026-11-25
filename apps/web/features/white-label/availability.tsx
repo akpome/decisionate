@@ -20,7 +20,7 @@ type Availability = {
   hosted_subdomain_portals?: HostedPortalRow[]
 }
 const offerings = [
-  { key: "hosted_subdomain", name: "Agency hosted portals", address: "agency.decisionate.app" },
+  { key: "hosted_subdomain", name: "Hosted workspace portals", address: "business.decisionate.app" },
   { key: "custom_domain", name: "Custom-domain white label", address: "analytics.agency.com" },
 ] as const
 
@@ -122,14 +122,15 @@ export function WhiteLabelAvailabilityPanel({ userId, onCustomDomainChange }: { 
         {offerings.map(offering => {
           const enabled = data[`${offering.key}_enabled`]
           const blockers = data[`${offering.key}_blockers`]
+          const label = offering.key === "hosted_subdomain" ? "Allow new portal setup" : "Accept new customers"
           return <div key={offering.key} className="min-w-0 border-b border-gray-200 py-5">
             <h3 className="font-semibold">{offering.name}</h3>
             <p className="mt-1 break-all text-sm text-gray-500">{offering.address}</p>
             <label className="mt-5 flex items-center gap-3 text-sm">
               <input type="checkbox" role="switch" checked={enabled} disabled={pending || (!enabled && offering.key === "hosted_subdomain" && blockers.length > 0)}
-                aria-label={`${offering.name}: accept new customers`}
+                aria-label={`${offering.name}: ${label}`}
                 onChange={event => void change(offering.key, event.target.checked)} className="h-4 w-4" />
-              Accept new customers: <strong>{enabled ? "On" : "Off"}</strong>
+              {label}: <strong>{enabled ? "On" : "Off"}</strong>
             </label>
             <p className={`mt-3 text-sm ${blockers.length ? "text-amber-800" : "text-emerald-700"}`}>
               Technical readiness: {blockers.length ? "Setup required" : "Configured"}
@@ -142,7 +143,7 @@ export function WhiteLabelAvailabilityPanel({ userId, onCustomDomainChange }: { 
         })}
       </div>
       <h3 className="mt-7 font-semibold">Hosted portals ({data.hosted_subdomain_portal_count || 0})</h3>
-      <p className="mt-1 text-sm text-gray-500">{data.hosted_subdomain_active_count || 0} published; included with an active Agency subscription.</p>
+      <p className="mt-1 text-sm text-gray-500">{data.hosted_subdomain_active_count || 0} published; included with active Professional and Agency subscriptions.</p>
       {!data.hosted_subdomain_portals?.length ? <p className="mt-2 text-sm text-gray-500">No hosted portals.</p> : <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left text-sm"><thead><tr className="border-b border-gray-200"><th className="py-3 pr-4">Address</th><th className="px-4">Status</th><th className="pl-4">Actions</th></tr></thead>
           <tbody>{data.hosted_subdomain_portals.map(portal => <tr key={portal.id} className="border-b border-gray-200"><td className="py-3 pr-4">
@@ -178,7 +179,7 @@ export function WhiteLabelAvailabilityPanel({ userId, onCustomDomainChange }: { 
           <button type="button" title="Close" aria-label="Close" disabled={pending} onClick={() => addressDialog.current?.close()}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border"><X size={16} aria-hidden="true" /></button>
         </div>
-        <p className="text-sm text-gray-600">The agency and its client workspaces will stay unchanged. Published addresses forward to the new address.</p>
+        <p className="text-sm text-gray-600">Workspace data and access stay unchanged. Published addresses forward to the new address.</p>
         <label className="block space-y-1 text-sm font-medium">
           <span>New subdomain</span>
           <span className="flex min-w-0 items-center gap-2 rounded-md border border-gray-300 bg-white px-3">

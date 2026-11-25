@@ -321,7 +321,7 @@ export function SettingsClient({
   const canManageClientWorkspaces =
     billingStatus?.billing_model === "agency" &&
     canConfigureWorkspace
-  const hostedPortalSettings = ["agency", "agency_subdomain"].includes(billingStatus?.plan || "") && !process.env.NEXT_PUBLIC_PORTAL_ID
+  const hostedPortalSettings = ["professional", "agency", "agency_subdomain"].includes(billingStatus?.plan || "") && !process.env.NEXT_PUBLIC_PORTAL_ID
   const canEditWorkspaceBranding = canConfigureWorkspace && (billingStatus?.plan === "professional" || Boolean(process.env.NEXT_PUBLIC_PORTAL_ID && billingStatus?.plan === "agency"))
 
   useEffect(() => {
@@ -1456,7 +1456,7 @@ export function SettingsClient({
 
       <EmailPreferences userId={userId} />
       {ownershipPanel}
-      {hostedPortalSettings && saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
+      {hostedPortalSettings && !canEditWorkspaceBranding && saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
       {canManageClientWorkspaces && !hostedPortalSettings && !process.env.NEXT_PUBLIC_PORTAL_ID && <WhiteLabelSettingsLink userId={userId} plan={billingStatus?.plan || ""} />}
       {isClientPortalUser && (
         <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
@@ -1513,8 +1513,8 @@ export function SettingsClient({
             className="rounded-md border border-red-200 bg-white px-3 py-2 font-medium hover:bg-red-100">Retry workspace load</button>
         </div>
       )}
-      {!isClientPortalUser && !organizationLoadError && billingStatus && (hostedPortalSettings
-        ? <HostedSubdomainSetup userId={userId} embedded /> : canEditWorkspaceBranding && (
+      {!isClientPortalUser && !organizationLoadError && hostedPortalSettings && <HostedSubdomainSetup userId={userId} embedded />}
+      {!isClientPortalUser && !organizationLoadError && canEditWorkspaceBranding && (
         <div className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -1843,7 +1843,7 @@ export function SettingsClient({
           </div>
         </div>
       </div>
-      ))}
+      )}
 
       {/* =========================
           Client Workspace Management Section For Owner And Member Access

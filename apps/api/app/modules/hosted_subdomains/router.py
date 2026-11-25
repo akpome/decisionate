@@ -1,4 +1,4 @@
-"""Agency-owned hosted setup. Existing workspace permissions remain authoritative."""
+"""Workspace-owned hosted setup. Existing workspace permissions remain authoritative."""
 
 import base64
 import json
@@ -13,7 +13,7 @@ from app.application_context import get_application
 from app.db.database import SessionLocal
 from app.db.models import HostedSubdomainAddress, HostedSubdomainPortal, Organization, WorkspaceSubscription, utc_now
 from app.modules.auth_context import get_auth_context
-from app.modules.hosted_subdomains.context import ROOT_DOMAIN, current_portal, entitled, resolve_portal, hosted_hostname
+from app.modules.hosted_subdomains.context import ROOT_DOMAIN, current_portal, eligible_hosted_plan, entitled, resolve_portal, hosted_hostname
 from app.modules.hosted_subdomains.service import Branding, TRANSPARENT_DECISIONATE_LOGO, audit, canonical_branding, ensure_satellite, launch_blockers, lock_hosted_addresses, normalize_slug, portal_record, public_configuration, reserved_address
 from app.modules.white_label_availability import availability
 
@@ -37,21 +37,19 @@ class PublishPortal(BaseModel):
     confirmation: str = Field(pattern=r"^PUBLISH PORTAL$")
 
 
-def require_agency(request, db):
+def require_portal_owner(request, db):
     auth = get_auth_context(request)
     portal = current_portal()
     if not get_application().is_default or auth.workspace_role not in {"owner", "admin"}:
-        raise HTTPException(403, "Only an agency owner can manage hosted portal settings.")
-    # An active portal can edit only its own agency, never a client's workspace or another agency.
-    if portal and auth.workspace_id != portal.agency_workspace_id:
-        raise HTTPException(403, "Only an agency owner can manage this hosted portal.")
-    agency = db.query(Organization).filter_by(owner_user_id=auth.workspace_id).first()
-    from app.modules.organizations.ownership import managing_agency_workspace_id, independent_client
-    from app.modules.billing.service import is_agency_plan
+        raise HTTPException(403, "Only workspace owners can manage hosted portal settings.")
+    # A hosted portal can manage only the workspace that owns its address.
+    if portal and auth.workspace_id != portal.owner_workspace_id:
+        raise HTTPException(403, "Only the workspace that owns this portal can manage it.")
+    organization = db.query(Organization).filter_by(owner_user_id=auth.workspace_id).first()
     subscription = db.query(WorkspaceSubscription).filter_by(workspace_id=auth.workspace_id).first()
-    if not agency or managing_agency_workspace_id(agency) or independent_client(agency) or not subscription or not is_agency_plan(subscription.plan):
-        raise HTTPException(403, "An Agency workspace is required.")
-    return auth, agency, subscription
+    if not eligible_hosted_plan(organization, subscription):
+        raise HTTPException(403, "A Professional or Agency subscription is required for hosted portal settings.")
+    return auth, organization, subscription
 
 
 def require_sales(db):
@@ -59,24 +57,24 @@ def require_sales(db):
         raise HTTPException(403, "New hosted portal setup is currently unavailable.")
 
 
-def require_entitlement(db, agency):
-    if not entitled(db, agency):
-        raise HTTPException(403, "An Agency subscription is required for your hosted portal.")
+def require_entitlement(db, organization):
+    if not entitled(db, organization):
+        raise HTTPException(403, "An active Professional or Agency subscription is required for your hosted portal.")
 
 
 @router.get("/availability")
 def check_availability(request: Request, response: Response, slug: str = Query(min_length=1, max_length=80)):
     response.headers["Cache-Control"] = "no-store"
     with SessionLocal() as db:
-        _, agency, _ = require_agency(request, db)
-        require_entitlement(db, agency)
+        _, organization, _ = require_portal_owner(request, db)
+        require_entitlement(db, organization)
         try:
             slug = normalize_slug(slug)
         except ValueError as error:
             return {"available": False, "status": "invalid", "message": str(error)}
         row = reserved_address(db, slug)
         if row:
-            owned = isinstance(row, HostedSubdomainPortal) and row.organization_id == agency.id
+            owned = isinstance(row, HostedSubdomainPortal) and row.organization_id == organization.id
             return {"available": False, "status": "reserved" if owned else "taken",
                     "message": "This is your reserved address." if owned else "This address is already taken. Choose another name."}
         return {"available": True, "status": "available", "message": "This address is available. Save your draft to reserve it."}
@@ -130,21 +128,22 @@ def published_asset(hostname: str, field: str):
 def read(request: Request, response: Response):
     response.headers["Cache-Control"] = "no-store"
     with SessionLocal() as db:
-        _, agency, subscription = require_agency(request, db)
-        row = db.query(HostedSubdomainPortal).filter_by(organization_id=agency.id).first()
-        return {"portal": portal_record(row) if row else None, "entitled": entitled(db, agency),
+        _, organization, subscription = require_portal_owner(request, db)
+        row = db.query(HostedSubdomainPortal).filter_by(organization_id=organization.id).first()
+        plan = eligible_hosted_plan(organization, subscription)
+        return {"portal": portal_record(row) if row else None, "entitled": entitled(db, organization), "plan": plan,
                 "commercially_available": availability(db)["hosted_subdomain_enabled"], "blockers": launch_blockers(),
                 "billing_interval": subscription.billing_interval,
-                "defaults": {"name": agency.report_display_name or agency.name, "primary_color": agency.primary_color or "#2563EB",
-                             "accent_color": agency.accent_color or "#059669"}}
+                "defaults": {"name": organization.report_display_name or organization.name, "primary_color": organization.primary_color or "#2563EB",
+                             "accent_color": organization.accent_color or "#059669"}}
 
 
 @router.put("")
 def save(request: Request, payload: SavePortal):
     with SessionLocal() as db:
-        auth, agency, _ = require_agency(request, db)
-        require_entitlement(db, agency)
-        row = db.query(HostedSubdomainPortal).filter_by(organization_id=agency.id).first()
+        auth, organization, _ = require_portal_owner(request, db)
+        require_entitlement(db, organization)
+        row = db.query(HostedSubdomainPortal).filter_by(organization_id=organization.id).first()
         if not row or not row.activated_at:
             require_sales(db)
         if row:
@@ -164,7 +163,7 @@ def save(request: Request, payload: SavePortal):
             lock_hosted_addresses(db)
             if reserved_address(db, payload.slug):
                 raise HTTPException(409, "This address is already taken. Choose another name.")
-            row = HostedSubdomainPortal(id=uuid4().hex, organization_id=agency.id, slug=payload.slug,
+            row = HostedSubdomainPortal(id=uuid4().hex, organization_id=organization.id, slug=payload.slug,
                 hostname=payload.slug + "." + ROOT_DOMAIN, configuration=payload.configuration.model_dump_json())
             db.add(row)
         try:
@@ -180,9 +179,9 @@ def save(request: Request, payload: SavePortal):
 @router.post("/activate")
 def activate(request: Request, payload: PublishPortal):
     with SessionLocal() as db:
-        auth, agency, _ = require_agency(request, db)
-        require_entitlement(db, agency)
-        row = db.query(HostedSubdomainPortal).filter_by(organization_id=agency.id).first()
+        auth, organization, _ = require_portal_owner(request, db)
+        require_entitlement(db, organization)
+        row = db.query(HostedSubdomainPortal).filter_by(organization_id=organization.id).first()
         if not row or row.revision != payload.revision or row.status in {"suspended", "retired"}:
             raise HTTPException(409, "Refresh the portal before publishing. Suspended portals require platform support.")
         if not row.activated_at:
@@ -200,11 +199,11 @@ def activate(request: Request, payload: PublishPortal):
             db.commit()
         raise
     with SessionLocal() as db:
-        # Recheck Agency access, revision and commercial state after the provider call.
-        auth, agency, _ = require_agency(request, db)
-        require_entitlement(db, agency)
+        # Recheck access, revision and commercial state after the provider call.
+        auth, organization, _ = require_portal_owner(request, db)
+        require_entitlement(db, organization)
         row = db.get(HostedSubdomainPortal, portal_id, with_for_update=True)
-        if not row or row.revision != payload.revision or row.status in {"suspended", "retired"}:
+        if not row or row.organization_id != organization.id or row.revision != payload.revision or row.status in {"suspended", "retired"}:
             raise HTTPException(409, "This portal changed. Refresh before publishing.")
         if not row.activated_at:
             require_sales(db)
