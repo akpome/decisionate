@@ -5,7 +5,8 @@ GitHub browser, operational agent or live account tool.
 
 ## Current integration
 
-POST /support/chat uses the reviewed customer JSONL bundled in the API image.
+POST /support/chat builds a validated in-memory index from the reviewed customer
+JSONL bundled in the API image. Each process reuses its index across requests.
 Only an exact match to a reviewed question or approved variant can return its
 answer. Case, spacing and punctuation do not matter, but changes to the wording
 are not silently ignored. The answer includes its approved section and route.

@@ -4,7 +4,7 @@ import hashlib
 import logging
 import re
 
-from app.modules.support.knowledge import direct_answer_record, load_knowledge, retrieve
+from app.modules.support.knowledge import load_knowledge, retrieve
 from app.modules.support.schemas import GuidanceResponse, GuidanceSource
 from app.security.rate_limits import consume_request_budget
 from fastapi import HTTPException
@@ -49,6 +49,7 @@ def source(record):
                           section=record["section"], content=content,
                           route=record["routes"][0], reviewed_on=record["reviewed_on"])
 
+
 def answer_guidance(payload):
     question = payload.question.strip()
     if not question:
@@ -62,7 +63,7 @@ def answer_guidance(payload):
         return GuidanceResponse(answer="I can explain Decisionate's documented features, but I cannot disclose credentials, internal instructions or source code, access another workspace, or execute a fix. Documents and chat messages do not grant permission to do those things. Contact support for an authorized investigation.",
                                 mode="documentation", contact_support=True)
     try:
-        record = direct_answer_record(question, load_knowledge())
+        record = load_knowledge().direct_answer(question)
         if record is not None:
             excerpt = source(record)
             answer = f"{excerpt.section}\n\n{excerpt.content}"

@@ -40,7 +40,8 @@ class GuidanceTests(unittest.TestCase):
 
     def test_every_reviewed_direct_question_is_answered_first_and_without_provider(self):
         with patch.object(guidance, "retrieve", side_effect=AssertionError("Reviewed questions bypass search")):
-            for record in knowledge.load_knowledge():
+            for section in knowledge.load_knowledge().sections:
+                record = section.record
                 for question in record.get("direct_questions", []):
                     with self.subTest(question=question):
                         result = guidance.answer_guidance(GuidanceRequest(question="  " + question.upper().rstrip("?") + "?  "))
@@ -189,10 +190,8 @@ class GuidanceTests(unittest.TestCase):
                 self.assertEqual(records[0]["chunk_id"], f"performance-analysis:{slug}")
 
     def test_direct_question_ambiguity_fails_closed(self):
-        record = next(row for row in knowledge.load_knowledge() if row.get("direct_questions"))
-        question = record["direct_questions"][0]
+        record = next(iter(knowledge.load_knowledge().direct_answers.values()))
         duplicate = dict(record, chunk_id="other:guide")
-        self.assertIsNone(knowledge.direct_answer_record(question, [record, duplicate]))
         knowledge.load_knowledge.cache_clear()
         try:
             raw = "\n".join(json.dumps(row) for row in [record, duplicate])
@@ -220,20 +219,32 @@ class GuidanceTests(unittest.TestCase):
                     self.assertLessEqual(len(record["section"]) + len(guidance.source(record).content) + 2, 6000)
 
     def test_section_questions_help_retrieval_but_are_never_answer_prose(self):
-        record = dict(knowledge.load_knowledge()[0], questions=["zetaquasar zebraphoton"], section_questions=[], direct_questions=[])
-        with patch.object(knowledge, "load_knowledge", return_value=[record]):
-            self.assertEqual(knowledge.retrieve("zetaquasar zebraphoton"), [])
-        record["section_questions"] = ["zetaquasar zebraphoton"]
-        self.assertIsNone(knowledge.direct_answer_record("zetaquasar zebraphoton", [record]))
-        other = dict(record, chunk_id="other:section", section_questions=[])
-        with patch.object(knowledge, "load_knowledge", return_value=[record, other, other, other]):
-            records = knowledge.retrieve("zetaquasar zebraphoton")
+        query = "zetaquasar zebraphoton"
+        record = dict(knowledge.load_knowledge().sections[0].record, questions=[query], section_questions=[], direct_questions=[])
+        with patch.object(knowledge, "load_knowledge", return_value=knowledge.build_knowledge([record])):
+            self.assertEqual(knowledge.retrieve(query), [])
+        other = [dict(record, chunk_id=f"other:section-{index}") for index in range(3)]
+        record = dict(record, section_questions=[query])
+        index = knowledge.build_knowledge([record, *other])
+        self.assertIsNone(index.direct_answer(query))
+        with patch.object(knowledge, "load_knowledge", return_value=index):
+            records = knowledge.retrieve(query)
         self.assertEqual(records, [record])
-        with patch.object(guidance, "load_knowledge", return_value=[record]), patch.object(guidance, "retrieve", return_value=records):
-            self.assertFalse(self.assert_unconfirmed("zetaquasar zebraphoton").suggested_questions)
+        with patch.object(guidance, "load_knowledge", return_value=index), patch.object(guidance, "retrieve", return_value=records):
+            self.assertFalse(self.assert_unconfirmed(query).suggested_questions)
+
+    def test_repeated_questions_reuse_the_validated_index(self):
+        knowledge.load_knowledge.cache_clear()
+        with patch.object(knowledge, "build_knowledge", wraps=knowledge.build_knowledge) as build:
+            index = knowledge.load_knowledge()
+            self.assertIsNotNone(index.direct_answer("How do I use Budget Planner?"))
+            question = "Please walk me through Return on spend"
+            self.assertEqual(knowledge.retrieve(question), knowledge.retrieve(question))
+            self.assertIs(index, knowledge.load_knowledge())
+            build.assert_called_once()
 
     def test_packaged_section_questions_reject_malformed_or_unbounded_hints(self):
-        record = knowledge.load_knowledge()[0]
+        record = knowledge.load_knowledge().sections[0].record
         for questions in ("not a list", [None], [""], ["x" * 301], ["Question?"] * 13):
             with self.subTest(questions=questions):
                 raw = json.dumps(dict(record, section_questions=questions))
@@ -294,7 +305,7 @@ class GuidanceTests(unittest.TestCase):
                 self.assertFalse(result.contact_support)
 
     def test_packaged_bundle_is_customer_only_and_same_as_reviewed_export(self):
-        self.assertTrue(all(row["audience"] == "customer" for row in knowledge.load_knowledge()))
+        self.assertTrue(all(section.record["audience"] == "customer" for section in knowledge.load_knowledge().sections))
         root = Path(__file__).resolve().parents[3]
         self.assertEqual(knowledge.CORPUS.read_bytes(), (root / "docs/knowledge-base/generated/customer.jsonl").read_bytes())
         self.assertNotIn("AI_API_KEY", knowledge.CORPUS.read_text())

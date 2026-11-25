@@ -4,6 +4,7 @@ import json
 import math
 import re
 from collections import Counter
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -14,6 +15,30 @@ KNOWLEDGE_ROUTE = re.compile(
     r"relationships|reports|settings|weekly-reports|white-label)(?:/[a-z0-9-]+)*|privacy|terms|security)"
 )
 STOP_WORDS = frozenset(["a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "could", "did", "do", "does", "for", "from", "had", "has", "have", "how", "i", "if", "in", "is", "it", "its", "me", "my", "of", "on", "or", "our", "please", "should", "so", "than", "that", "the", "their", "them", "there", "these", "they", "this", "to", "use", "using", "was", "we", "what", "when", "where", "which", "why", "will", "with", "would", "you", "your"])
+USAGE_REQUEST = re.compile(
+    r"\b(?:how (?:do|can|should) (?:i |we )?use|how to use|walk me through|guide me (?:on|through)|get started with)\b"
+)
+
+
+@dataclass(frozen=True)
+class SearchSection:
+    record: dict
+    terms: Counter[str]
+    headings: frozenset[str]
+    section_questions: frozenset[tuple[str, ...]]
+    usage_topics: tuple[str, ...]
+    length: int
+
+
+@dataclass(frozen=True)
+class KnowledgeIndex:
+    sections: tuple[SearchSection, ...]
+    direct_answers: dict[tuple[str, ...], dict]
+    weights: dict[str, float]
+    average_length: float
+
+    def direct_answer(self, question):
+        return self.direct_answers.get(question_key(question))
 
 
 def tokens(text):
@@ -30,35 +55,10 @@ def question_key(text):
     return tuple(re.findall(r"\w+", text.casefold()))
 
 
-def direct_answer_record(question, records):
-    key = question_key(question)
-    matches = [record for record in records if key and any(
-        question_key(approved) == key for approved in record.get("direct_questions", [])
-    )]
-    return matches[0] if len(matches) == 1 else None
-
-
-def usage_guide_record(question, records):
-    normalized = " ".join(question_key(question))
-    if not re.search(r"\b(?:how (?:do|can|should) (?:i |we )?use|how to use|walk me through|guide me (?:on|through)|get started with)\b", normalized):
-        return None
-    matches = []
-    for record in records:
-        for approved in record.get("direct_questions", []):
-            words = question_key(approved)
-            if words[:4] == ("how", "do", "i", "use") and words[4:] and " " + " ".join(words[4:]) + " " in " " + normalized + " ":
-                matches.append(record)
-                break
-    # This prioritizes instructions for retrieval, not complete answer coverage.
-    return matches[0] if len(matches) == 1 else None
-
-
-@lru_cache(maxsize=1)
-def load_knowledge():
-    records = tuple(json.loads(line) for line in CORPUS.read_text(encoding="utf-8").splitlines() if line)
+def build_knowledge(records):
     if not records or len(records) > 500:
         raise ValueError("Invalid customer knowledge bundle")
-    seen, direct_questions = set(), set()
+    seen, direct_answers, sections = set(), {}, []
     for record in records:
         if (record.get("audience") != "customer" or record["article_id"].startswith("operator-")
                 or record["chunk_id"] in seen or len(record["content"]) > 12000):
@@ -71,17 +71,46 @@ def load_knowledge():
             if (not isinstance(questions, list) or len(questions) > 12
                     or any(not isinstance(question, str) or not question_key(question) or len(question) > 300 for question in questions)):
                 raise ValueError("Invalid section questions")
+        usage_topics = []
         for question in record.get("direct_questions", []):
             key = question_key(question)
-            if key in direct_questions:
+            if key in direct_answers:
                 raise ValueError("Ambiguous direct question")
-            direct_questions.add(key)
+            direct_answers[key] = record
+            if key[:4] == ("how", "do", "i", "use") and key[4:]:
+                usage_topics.append(f" {' '.join(key[4:])} ")
         seen.add(record["chunk_id"])
-    return records
+
+        # Only section-specific hints count as search evidence.
+        hints = " ".join([*record.get("section_questions", []), *record.get("direct_questions", [])])
+        heading = f"{record['title']} {record['section']}"
+        terms = Counter(tokens(f"{heading} {' '.join(record['topics'])} {record['content']}"))
+        terms.update(set(tokens(hints)))
+        sections.append(SearchSection(
+            record, terms, frozenset(tokens(f"{heading} {hints}")),
+            frozenset(map(question_key, record.get("section_questions", []))),
+            tuple(usage_topics), sum(terms.values()),
+        ))
+
+    frequencies = Counter(word for section in sections for word in section.terms)
+    weights = {
+        word: math.log(1 + (len(sections) - count + 0.5) / (count + 0.5))
+        for word, count in frequencies.items()
+    }
+    return KnowledgeIndex(
+        tuple(sections), direct_answers, weights,
+        sum(section.length for section in sections) / len(sections),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_knowledge():
+    records = [json.loads(line) for line in CORPUS.read_text(encoding="utf-8").splitlines() if line]
+    return build_knowledge(records)
 
 
 def retrieve(question, history=(), limit=5):
-    records = load_knowledge()
+    index = load_knowledge()
     query = set(tokens(question))
     # Only dependent follow-ups borrow context; a new short question starts fresh.
     dependent = re.search(r"\b(this|that|these|those|it|they|them|same|above|earlier)\b", question, re.IGNORECASE)
@@ -91,41 +120,35 @@ def retrieve(question, history=(), limit=5):
                 query.update(tokens(turn.content))
     if not query:
         return []
-    # Article-wide questions are not evidence that every section answers them.
-    hints = [' '.join([*r.get("section_questions", []), *r.get("direct_questions", [])]) for r in records]
-    headings = [set(tokens(f"{r['title']} {r['section']} {hint}")) for r, hint in zip(records, hints)]
-    documents = [Counter(tokens(f"{r['title']} {r['section']} {' '.join(r['topics'])} {r['content']}"))
-                 + Counter(set(tokens(hint))) for r, hint in zip(records, hints)]
-    frequencies = Counter(word for document in documents for word in document)
-    average_length = sum(sum(document.values()) for document in documents) / len(documents)
+    key = question_key(question)
+    direct = index.direct_answers.get(key)
+    normalized = f" {' '.join(key)} "
+    guides = [
+        section.record for section in index.sections if any(topic in normalized for topic in section.usage_topics)
+    ] if USAGE_REQUEST.search(normalized) else []
+    guide = guides[0] if len(guides) == 1 else None
     ranked = []
-    for record, document, heading in zip(records, documents, headings):
-        matched = query & document.keys()
+    for section in index.sections:
+        matched = query & section.terms.keys()
         if not matched or (len(query) > 1 and len(matched) < 2):
             continue
         score = 0.0
-        length = sum(document.values())
+        length_weight = 1.2 * (0.25 + 0.75 * section.length / index.average_length)
         for word in matched:
-            weight = math.log(1 + (len(records) - frequencies[word] + 0.5) / (frequencies[word] + 0.5))
-            score += weight * document[word] * 2.2 / (document[word] + 1.2 * (0.25 + 0.75 * length / average_length))
-            if word in heading:
+            weight, count = index.weights[word], section.terms[word]
+            score += weight * count * 2.2 / (count + length_weight)
+            if word in section.headings:
                 score += weight * 0.8
-        if record["section"] == "Overview":
+        if section.record["section"] == "Overview":
             score *= 0.75
-        ranked.append((score, record))
-    direct = direct_answer_record(question, records)
-    guide = usage_guide_record(question, records)
-    key = question_key(question)
-    matched_questions = {
-        record["chunk_id"] for _, record in ranked
-        if any(question_key(hint) == key for hint in record.get("section_questions", []))
-    }
+        ranked.append((score, section))
     ranked.sort(key=lambda item: (
-        item[1] is not direct, item[1] is not guide,
-        item[1]["chunk_id"] not in matched_questions, -item[0], item[1]["chunk_id"],
+        item[1].record is not direct, item[1].record is not guide,
+        key not in item[1].section_questions, -item[0], item[1].record["chunk_id"],
     ))
     selected, per_article, characters = [], Counter(), 0
-    for score, record in ranked:
+    for score, section in ranked:
+        record = section.record
         if score < 2.0 or per_article[record["article_id"]] >= 2:
             continue
         if characters + len(record["content"]) > 16000:

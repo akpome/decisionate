@@ -1,16 +1,10 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-25",
-  "base_git_revision": "81d3061ff6c8c6cfe610ba9db28b629d620535aa",
+  "base_git_revision": "a05948adc5720841b93227fa3243118394919fdf",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/alerts/email_delivery.py",
-    "apps/api/app/modules/alerts/router.py",
-    "apps/api/app/modules/reports/schemas.py",
-    "apps/api/app/modules/reports/weekly_targets.py",
-    "apps/web/features/reports/report-metric-picker.tsx",
-    "apps/web/features/reports/report-workspace.tsx",
-    "apps/web/features/reports/types.ts",
-    "apps/web/features/reports/weekly-target-results.tsx"
+    "apps/api/app/modules/support/guidance.py",
+    "apps/api/app/modules/support/knowledge.py"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -113,8 +107,8 @@
     "apps/api/app/modules/reports/weekly_targets.py": "f7e682d27e5581876a5b7e76ce7924db402c4983a78de58d81b0a8fbc25fca90",
     "apps/api/app/modules/share_emails.py": "1f894f01ba85b21035a36f1885abae5f0e2bdc1149d3f1eb581844c0da1ee3b7",
     "apps/api/app/modules/sharing_links.py": "94161d89ab7993950d274bc5b104166afdcdfc0677a50d0fecc136ec3ccd4afb",
-    "apps/api/app/modules/support/guidance.py": "023929890d3a8ec448a9de91660c3248938bcb1078d74568e242079a41846d5f",
-    "apps/api/app/modules/support/knowledge.py": "3f9d1b100844d446048b64eff2588c764ec2dd12e14ff050b55b559b39fe31dc",
+    "apps/api/app/modules/support/guidance.py": "588e29abfa8b07c8eedb01a98f4576f6f8bf6d090918746f56ab39d64ef26840",
+    "apps/api/app/modules/support/knowledge.py": "c0fab2f60f54e03c9df1da66581f38472db108cd00e7d715dacd322516b7ab21",
     "apps/api/app/modules/support/router.py": "28368b36349c061351019c0cd4b96860e178c1d13489b964f9b3102318957775",
     "apps/api/app/modules/support/schemas.py": "4299fff979f03f455ffbf2e3e3e8d3b0a65b1e511bac2613f70b3f05ec1209fb",
     "apps/api/app/modules/white_label.py": "8d057fec0d8fec93d2b2fe7edfc0e82ec5dc867a6f8fce3e56884cd7bde9a980",
@@ -301,6 +295,6 @@
     "operator/ai-configuration.md": "faf7ffbfba84655f7d0f69f1d9bfbe5a1daa128ec14b36cfb2e86b1a1921b112",
     "operator/email-delivery.md": "0e95dc860b806cfa6243bf7c59e12d03dd2b807c669eb0a0adb2f1ec292b8dfd",
     "operator/incident-curation.md": "7a84ce80aa39d2c41b5ac7a411542a1f158ae421c594314e308fb00d44e270a0",
-    "operator/maintenance-integration.md": "ceb157b97c67ee3ef6a32de7f2c888d8aaae8f0993c667347eee47a0adb9ba74"
+    "operator/maintenance-integration.md": "ec78eb59ad73db5bcf2b2ef93fc7e583b5d02b157c70a26743f011d7f606c379"
   }
 }
