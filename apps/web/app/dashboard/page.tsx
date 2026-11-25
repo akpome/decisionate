@@ -3100,7 +3100,7 @@ export default function DashboardPage() {
       {dashboardEditMode && (
         <section id="dashboard-view-editor" role="tabpanel"
           aria-labelledby={groupTabActive ? "dashboard-groups-tab" : "dashboard-metrics-tab"}
-          className="space-y-4 border-b border-gray-200 pb-4 print:hidden">
+          className="@container space-y-4 border-b border-gray-200 pb-4 print:hidden">
           {groupTabActive ? canCompareGroups && selectedDatasetId ? (
             <CompareGroupsEditor key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
               metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
@@ -3112,7 +3112,7 @@ export default function DashboardPage() {
           ) : <>
             {primaryMetricFields}
             {metricDimensionFilter}
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 @min-[28rem]:grid-cols-2 @min-[46rem]:grid-cols-4">
               {metrics.map(metric => (
                 <DashboardSelectionRow
                   key={metric.column}

@@ -131,7 +131,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
     {column && <div className="min-w-0 space-y-2">
       {groupPicker && searchField}
       {groupPicker && visible.length > 0 && (
-        <div role="group" aria-label={t("Groups to compare")} className={`grid min-w-0 gap-3 md:grid-cols-2 ${visible.length > groupPicker.limit ? "max-h-[28rem] overflow-y-auto overscroll-contain p-1" : ""}`}>
+        <div role="group" aria-label={t("Groups to compare")} className={`grid min-w-0 grid-cols-1 gap-3 @min-[28rem]:grid-cols-2 @min-[46rem]:grid-cols-4 ${visible.length > groupPicker.limit ? "max-h-[28rem] overflow-y-auto overscroll-contain p-1" : ""}`}>
           {visible.map(item => {
             const checked = selectedValues.includes(item)
             return groupPicker.renderValue(item, checked, !checked && selectedValues.length >= groupPicker.limit,

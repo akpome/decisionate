@@ -65,6 +65,7 @@ test("group comparison shows checkbox values with search while ordinary filters 
   const value = { column: "region", values: ["East", "West", null] }
   const html = render({ value, groupPicker })
   assert.match(html, /aria-label="Groups to compare"/)
+  assert.match(html, /aria-label="Groups to compare"[^>]*@min-\[28rem\]:grid-cols-2 @min-\[46rem\]:grid-cols-4/)
   assert.match(html, /aria-label="Search unique values"/)
   assert.equal((html.match(/type="checkbox"/g) || []).length, 3)
   assert.equal((html.match(/checked=""/g) || []).length, 3)

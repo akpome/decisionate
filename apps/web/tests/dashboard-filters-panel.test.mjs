@@ -124,6 +124,7 @@ test("the General Business target metric picker is in Metrics & Targets, not bes
   })
   const html = renderToStaticMarkup(React.createElement(Editor))
   assert.match(html, /role="tabpanel" aria-labelledby="dashboard-metrics-tab".*aria-label="Target metric"/)
+  assert.match(html, /class="@container [^"]*"[^>]*>.*class="[^"]*@min-\[28rem\]:grid-cols-2 @min-\[46rem\]:grid-cols-4"/)
   const header = find(node => ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "header" &&
     node.getText(ast).includes("Open dataset details"))
   assert.doesNotMatch(header.getText(ast), /MetricSelector|primaryMetricFields/)
