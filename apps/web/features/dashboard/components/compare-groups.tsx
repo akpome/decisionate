@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { RefreshCw } from "lucide-react"
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { formatMetricLabel } from "@/features/dashboard/components/metric-selector"
@@ -14,6 +14,7 @@ import {
 
 const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
 const maxGroups = dashboardChartPalette.length
+const metricTargetColor = "#475569"
 
 function groupColor(value: string | null, colors: Map<string | null, string>) {
   const selected = colors.get(value)
@@ -56,23 +57,37 @@ export function useDashboardGroupSeries(datasetId: number | undefined, userId: s
   return { data: current?.data, pending: Boolean(query && !current), error: current?.error, retry: () => setRetry(value => value + 1) }
 }
 
-export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, filter, metric, onFilter, onMetric }: {
+export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, filter, metric, metricTarget, onFilter, onMetric, onTargetChange }: {
   datasetId: number; userId: string; workspaceId?: string
-  metrics: string[]; filter?: DimensionFilter; metric: string
+  metrics: string[]; filter?: DimensionFilter; metric: string; metricTarget: number
   onFilter: (filter: DimensionFilter | undefined) => void
   onMetric: (metric: string) => void
+  onTargetChange: (metric: string, value: number | null) => void
 }) {
   const { t } = useDecisionateText()
-  const id = useId()
   const colors = groupColors(filter?.values ?? [])
   return (
     <div className="min-w-0 space-y-3">
-      <div className="min-w-0">
-        <label htmlFor={id} className="block text-xs font-medium text-gray-600">{t("Metric to compare")}</label>
-        <select id={id} className={input} value={metric} onChange={event => onMetric(event.target.value)} disabled={!metrics.length}>
-          <option value="">{t(metrics.length ? "Choose a metric" : "No numeric metrics available")}</option>
-          {metrics.map(column => <option key={column} value={column}>{formatMetricLabel(column)}</option>)}
-        </select>
+      <div className="@container">
+        <div className="grid min-w-0 gap-3 @min-[28rem]:grid-cols-[minmax(0,1fr)_13rem]">
+          <label className="block min-w-0 text-xs font-medium text-gray-600">
+            {t("Metric to compare")}
+            <select className={input} value={metric} onChange={event => onMetric(event.target.value)} disabled={!metrics.length}>
+              <option value="">{t(metrics.length ? "Choose a metric" : "No numeric metrics available")}</option>
+              {metrics.map(column => <option key={column} value={column}>{formatMetricLabel(column)}</option>)}
+            </select>
+          </label>
+          <label className="block min-w-0 text-xs font-medium text-gray-600">
+            {t("Metric target")}
+            <input type="number" className={`${input} disabled:opacity-60`} inputMode="decimal" min={0} step="any"
+              disabled={!metric} value={metric && metricTarget > 0 ? metricTarget : ""} placeholder={t("Optional")}
+              onChange={event => {
+                if (!metric) return
+                const amount = event.target.valueAsNumber
+                onTargetChange(metric, Number.isFinite(amount) && amount > 0 ? amount : null)
+              }} />
+          </label>
+        </div>
       </div>
       <DatasetDimensionFilter datasetId={datasetId} userId={userId} workspaceId={workspaceId}
         value={filter} onChange={onFilter} embedded groupPicker={{
@@ -102,14 +117,16 @@ export function alignDashboardGroupPoints(series: DashboardGroupResult["series"]
   }))
 }
 
-export function DashboardGroupChart({ comparison, state, print = false }: {
+export function DashboardGroupChart({ comparison, state, metricTarget = 0, print = false }: {
   comparison: DashboardGroupPreference
   state: ReturnType<typeof useDashboardGroupSeries>
+  metricTarget?: number
   print?: boolean
 }) {
   const { t } = useDecisionateText()
   const data = state.data
   const rows = useMemo(() => alignDashboardGroupPoints(data?.series ?? []), [data])
+  const showMetricTarget = rows.length > 0 && Number.isFinite(metricTarget) && metricTarget > 0
   const colors = groupColors(comparison.filter.values)
   const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
   return (
@@ -131,6 +148,7 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
               <XAxis dataKey="period" minTickGap={32} tick={{ fontSize: 11 }} tickMargin={8} tickFormatter={period => period.slice(2)} />
               <YAxis width={57} domain={["auto", "auto"]} tickFormatter={value => format.format(value)} tick={{ fontSize: 11 }} />
               <Tooltip formatter={value => typeof value === "number" ? format.format(value) : value} />
+              {showMetricTarget && <ReferenceLine y={metricTarget} stroke={metricTargetColor} strokeDasharray="5 4" ifOverflow="extendDomain" />}
               {data?.series.map((group, index) => (
                 <Line key={JSON.stringify(group.value)} type="linear" dataKey={`group${index}`} name={t(dimensionValueLabel(group.value))}
                   stroke={groupColor(group.value, colors)} strokeWidth={2} dot={group.points.length < 90 ? { r: 2 } : false}
@@ -142,6 +160,10 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
       )}
       {data && (
         <ul className="grid grid-cols-1 gap-x-5 gap-y-2 border-y py-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          {showMetricTarget && <li className="flex items-center gap-2 font-medium">
+            <span className="w-5 shrink-0 border-t-2 border-dashed" style={{ borderColor: metricTargetColor }} aria-hidden="true" />
+            {t("Metric target")}: {format.format(metricTarget)}
+          </li>}
           {data.series.map(group => {
             const color = groupColor(group.value, colors)
             return <li key={JSON.stringify(group.value)} className="min-w-0 space-y-1">

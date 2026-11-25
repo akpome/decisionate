@@ -2080,6 +2080,7 @@ export default function DashboardPage() {
     [metrics]
   )
   const canCompareGroups = selectedDashboard === defaultDashboardKey && !joinedDatasetResult && Boolean(dataset) && dataset?.source_type !== "joined"
+  const groupMetricTarget = targets[groupMetric] ?? 0
   const groupPreference = useMemo<DashboardGroupPreference | null>(() =>
     canCompareGroups && groupFilter?.values.length && availableMetricColumns.includes(groupMetric)
       ? { filter: groupFilter, metric: groupMetric, active: groupTabActive }
@@ -2932,6 +2933,10 @@ export default function DashboardPage() {
   function selectEditTab(active: boolean) {
     setGroupSelection({ context: dimensionContext, filter: groupFilter, metric: groupMetric, active })
   }
+
+  function updateMetricTarget(metric: string, value: number | null) {
+    setTargets(current => ({ ...current, [metric]: value ?? 0 }))
+  }
   const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <>
     <section id="dashboard-filters-panel" role="region" aria-labelledby="dashboard-filters-toggle" hidden={!showFiltersPanel}
       className="@container min-w-0 border-y border-gray-200 py-3 print:hidden">
@@ -3087,6 +3092,7 @@ export default function DashboardPage() {
           {groupTabActive ? canCompareGroups && selectedDatasetId ? (
             <CompareGroupsEditor key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
               metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
+              metricTarget={groupMetricTarget} onTargetChange={updateMetricTarget}
               onFilter={filter => setGroupSelection({ context: dimensionContext, filter, metric: groupMetric, active: true })}
               onMetric={metric => setGroupSelection({ context: dimensionContext, filter: groupFilter, metric, active: true })} />
           ) : (
@@ -3101,7 +3107,7 @@ export default function DashboardPage() {
                   color={getMetricColor(getMetricIndex(metrics, metric.column))}
                   checked={selectedMetrics.includes(metric.column)}
                   target={targets[metric.column] ?? 0}
-                  onTargetChange={value => setTargets(current => ({ ...current, [metric.column]: value ?? 0 }))}
+                  onTargetChange={value => updateMetricTarget(metric.column, value)}
                   onToggle={() => handleMetricToggle(metric.column)}
                 />
               ))}
@@ -3527,7 +3533,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-xl font-semibold">{effectiveDashboardTitle}</h1>
               <p className="text-xs">{dataset.file_name} / {dateRange.start} - {dateRange.end}</p>
-              <DashboardGroupChart comparison={groupPreference} state={groupSeries} print />
+              <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} print />
             </div>
           ) : <DashboardPrintPage brand={activeBrand} dashboardTemplate={dashboardTemplate} props={templateProps} />}
         </div>
@@ -3945,7 +3951,7 @@ export default function DashboardPage() {
           </div>
           {!analysisDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
           {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
-          <DashboardGroupChart comparison={groupPreference} state={groupSeries} />
+          <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} />
         </div>
       )}
 

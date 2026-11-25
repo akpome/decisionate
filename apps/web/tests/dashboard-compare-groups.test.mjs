@@ -49,21 +49,44 @@ test("groups align by period, retain recorded zero, and never fill missing value
   ])
 })
 
-function renderEditor() {
-  return renderToStaticMarkup(React.createElement(CompareGroupsEditor, {
+function editorProps(overrides = {}) {
+  return {
     ...comparison, datasetId: 17, userId: "owner", metrics: ["Revenue", "Orders"],
-    onFilter() {}, onMetric() {},
-  }))
+    metricTarget: 700, onFilter() {}, onMetric() {}, onTargetChange() {}, ...overrides,
+  }
 }
 
-test("metric and dimension dropdowns are stacked above group checkboxes without target fields", () => {
+function renderEditor(overrides) {
+  return renderToStaticMarkup(React.createElement(CompareGroupsEditor, editorProps(overrides)))
+}
+
+test("one target field accompanies the metric and none appear on dimension value rows", () => {
   const html = renderEditor()
   assert.equal((html.match(/<select/g) || []).length, 2)
   assert.match(html, /Metric to compare.*<\/select>.*Dimension column.*<\/select>.*Groups to compare/)
   assert.match(html, /value="Revenue" selected=""/)
   assert.match(html, /type="checkbox" aria-label="Online"[^>]*checked=""/)
   assert.match(html, /type="checkbox" aria-label="In-store"[^>]*checked=""/)
-  assert.doesNotMatch(html, /type="number"|aria-label="Target:/)
+  assert.equal((html.match(/type="number"/g) || []).length, 1)
+  assert.match(html, /Metric target<input[^>]*value="700"[^>]*>.*Dimension column/)
+  assert.match(renderEditor({ metric: "" }), /Metric target<input[^>]*disabled=""[^>]*value=""/)
+  assert.doesNotMatch(html, /aria-label="Target: (Online|In-store)"/)
+})
+
+test("the target field changes and clears only the chosen metric's target", () => {
+  const updates = []
+  const tree = CompareGroupsEditor(editorProps({
+    metric: "Orders", onTargetChange: (metric, target) => updates.push([metric, target]),
+  }))
+  function visit(node) {
+    if (!React.isValidElement(node)) return
+    if (node.type === "input") {
+      for (const amount of [42.5, NaN]) node.props.onChange({ target: { valueAsNumber: amount } })
+    }
+    React.Children.forEach(node.props.children, visit)
+  }
+  visit(tree)
+  assert.deepEqual(updates, [["Orders", 42.5], ["Orders", null]])
 })
 
 test("metric rows still allow editing their target", () => {
@@ -77,9 +100,12 @@ test("group colors match regardless of result order and saved group targets are 
   const swatches = [...renderEditor().matchAll(/style="background-color:(#[\da-f]{6})"/g)].map(match => match[1])
   assert.equal(new Set(swatches).size, 2)
   const html = renderToStaticMarkup(React.createElement(DashboardGroupChart, {
-    comparison: { ...comparison, targets: [500, null] }, state: { data: { series: [...series].reverse() } },
+    comparison: { ...comparison, targets: [500, null] }, metricTarget: 700, state: { data: { series: [...series].reverse() } },
   }))
   assert.ok(html.includes(`data-element="Line" data-value="Online" data-color="${swatches[0]}"`))
   assert.ok(html.includes(`data-element="Line" data-value="In-store" data-color="${swatches[1]}"`))
-  assert.doesNotMatch(html, /data-element="ReferenceLine"|Target:/)
+  assert.deepEqual([...html.matchAll(/data-element="ReferenceLine" data-value="([^"]+)"/g)].map(match => match[1]), ["700"])
+  assert.match(html, /Metric target: 700/)
+  const noTarget = renderToStaticMarkup(React.createElement(DashboardGroupChart, { comparison, state: { data: { series } } }))
+  assert.doesNotMatch(noTarget, /data-element="ReferenceLine"|Metric target:/)
 })

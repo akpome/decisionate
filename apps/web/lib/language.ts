@@ -1292,6 +1292,7 @@ const frenchLandingTranslations: Record<string, string> = {
   "This column is no longer available as a dimension.": "Cette colonne ne peut plus être utilisée comme dimension.",
   "Groups to compare": "Groupes à comparer",
   "Metric to compare": "Indicateur à comparer",
+  "Metric target": "Objectif de l’indicateur",
   "Choose a metric": "Choisir un indicateur",
   "No numeric metrics available": "Aucun indicateur numérique disponible",
   "Included in chart": "Inclus dans le graphique",
