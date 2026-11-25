@@ -100,7 +100,7 @@ export const refreshedLandingFrench: Record<string, string> = {
   Files: "Fichiers",
   "Import signed file links from Google Drive or OneDrive.":
     "Importez des liens de fichiers signés depuis Google Drive ou OneDrive.",
-  "Pending provider approval": "Approbation du fournisseur en attente",
+  "Google API access required": "Accès à l’API Google requis",
   "Work with the systems you already use.":
     "Travaillez avec les systèmes que vous utilisez déjà.",
   "Accounting, commerce, marketing and CRM data, alongside databases and files. Choose the source that fits the question.":
@@ -137,8 +137,8 @@ export const refreshedLandingFrench: Record<string, string> = {
     "Combien de temps les données des connecteurs sont-elles conservées ?",
   "Use Business Analysis to compare metrics, check ad returns and profitability, or assess a change you made. Dashboards help you monitor performance, Forecasts shows what might come next, and Decisions keeps track of what you tried and what happened.":
     "Dans Analyse d'entreprise, comparez les indicateurs, mesurez le rendement publicitaire et la rentabilité, ou évaluez un changement. Les tableaux de bord suivent la performance, Prévisions indique ce qui pourrait suivre, et Décisions consigne les essais et leurs résultats.",
-  "The integrations above reflect the current connector catalog. Sage Cloud Accounting and Zoho Books are supported. Connecting a provider requires an authorized account and any required provider approvals. Google Business Profile is pending provider approval.":
-    "Les intégrations ci-dessus reflètent le catalogue actuel. Sage Cloud Accounting et Zoho Books sont pris en charge. Une connexion nécessite un compte autorisé et les approbations du fournisseur. Google Business Profile attend l'approbation du fournisseur.",
+  "See Connections for the providers you can add to your workspace. To connect, sign in with an account that has access to the data you want to import. Some providers, including Google Business Profile, also require API approval.":
+    "Consultez Connexions pour connaître les fournisseurs que vous pouvez ajouter à votre espace de travail. Connectez-vous avec un compte qui a accès aux données à importer. Certains fournisseurs, dont Google Business Profile, exigent aussi une approbation d’accès à l’API.",
   "Yes. Upload CSV, Excel, JSON or Parquet files, then choose metrics and a date column. Filter by selected unique values in a dimension column, such as a channel or product category, where those fields are available. You do not need to connect an external service to get started.":
     "Oui. Importez des fichiers CSV, Excel, JSON ou Parquet, puis choisissez les mesures et une colonne de dates. Filtrez par les valeurs uniques choisies dans une colonne de dimension, comme un canal ou une catégorie de produits, si ces champs sont disponibles. Aucun service externe n'est nécessaire pour commencer.",
   "Yes. In Business Analysis, choose Compare metrics, then Multi-dataset report. Select metrics from two or more datasets, choose each source's date column and dimension filters, and align their time periods. Indexed trends use a shared baseline of 100. Turn on relationship analysis to check timing for individual metric pairs. Relationships show associations, not proof of causation. Creating a report does not automatically record a business action.":

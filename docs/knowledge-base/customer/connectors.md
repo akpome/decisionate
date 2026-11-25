@@ -50,6 +50,13 @@ that its provider grants access to a particular customer's account.
 4. Run the available connection/pull operation and inspect the resulting dataset.
 5. Enable scheduled sync only after the manual result is correct.
 
+For Google Business Profile, sign in with a Google account that manages your
+business locations. The import brings in daily profile performance, such as
+website clicks and direction requests. Google must also grant the app API access.
+For Lightspeed Retail, select your actual series: R-Series uses your retail
+account ID; X-Series uses your store prefix and lets you choose which records
+to import.
+
 Permissions, provider limits, regional support and available history can constrain
 the result. A token refresh does not create new permissions or missing history.
 If reauthorization is requested, use the connection's authorization workflow.

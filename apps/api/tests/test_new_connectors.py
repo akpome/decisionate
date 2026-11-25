@@ -315,25 +315,27 @@ class NewConnectorTests(unittest.TestCase):
             datasets_router.INITIAL_CONNECTOR_SYNC_DAYS,
         )
 
-    def test_google_business_profile_stays_planned_pending_google_approval(self):
-        with patch.object(
-            sources,
-            "is_oauth_provider_configured",
-            return_value=True,
-        ), patch.object(
-            sources,
-            "get_missing_provider_settings",
-            return_value=[],
-        ):
-            source = sources.get_dataset_source(
-                "google_business_profile"
-            )
-
-        self.assertEqual(source["status"], "planned")
-        self.assertIn(
-            "pending Google Business Profile API approval",
-            source["availability_note"],
-        )
+    def test_business_profile_and_lightspeed_retail_require_oauth_and_api_settings(self):
+        for source_type in ("google_business_profile", "lightspeed", "lightspeed_x"):
+            for oauth_ready, settings_ready, expected_status in (
+                (False, True, "needs_setup"),
+                (True, False, "needs_setup"),
+                (True, True, "available"),
+            ):
+                with (
+                    self.subTest(
+                        source_type=source_type, oauth_ready=oauth_ready, settings_ready=settings_ready
+                    ),
+                    patch.object(
+                        sources, "is_oauth_provider_configured", return_value=oauth_ready
+                    ),
+                    patch.object(
+                        sources,
+                        "get_missing_provider_settings",
+                        return_value=[] if settings_ready else ["TEST_PROVIDER_SETTING"],
+                    ),
+                ):
+                    self.assertEqual(sources.get_dataset_source(source_type)["status"], expected_status)
 
     def test_lightspeed_restaurant_connectors_remain_planned(self):
         with patch.object(
@@ -1160,6 +1162,7 @@ class NewConnectorTests(unittest.TestCase):
                 url,
             )
             self.assertIn("dailyMetrics=", url)
+            self.assertNotIn("BUSINESS_CONVERSATIONS", url)
             self.assertIn("dailyRange.start_date.year=2026", url)
             return {
                 "multiDailyMetricTimeSeries": [{

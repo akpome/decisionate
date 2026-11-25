@@ -149,7 +149,7 @@ DATASET_SOURCES = [
         "type": "google_business_profile",
         "label": "Google Business Profile",
         "category": "business_apps",
-        "status": "planned",
+        "status": "needs_setup",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": [],
@@ -300,7 +300,7 @@ DATASET_SOURCES = [
         "type": "lightspeed",
         "label": "Lightspeed Retail (R-Series)",
         "category": "commerce",
-        "status": "planned",
+        "status": "needs_setup",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["account_id"],
@@ -313,7 +313,7 @@ DATASET_SOURCES = [
         "type": "lightspeed_x",
         "label": "Lightspeed Retail (X-Series)",
         "category": "commerce",
-        "status": "planned",
+        "status": "needs_setup",
         "connection_type": "oauth",
         "sync_modes": ["manual", "scheduled"],
         "config_keys": ["domain_prefix", "resource_types"],
@@ -835,14 +835,6 @@ def clone_dataset_source(source):
                 )
             )
 
-    if source["type"] == "google_business_profile":
-        cloned_source["status"] = "planned"
-        cloned_source["availability_note"] = (
-            "Planned pending Google Business Profile API approval. "
-            "The connector will become available after Google approves "
-            "the Cloud project."
-        )
-
     if source["type"] in {
         "shopify",
         "square",
@@ -858,6 +850,7 @@ def clone_dataset_source(source):
         "salesforce",
         "google_ads",
         "google_search_console",
+        "google_business_profile",
     } and source["type"] not in FORCED_PLANNED_CONNECTOR_TYPES:
         if (
             is_oauth_provider_configured(source["type"])

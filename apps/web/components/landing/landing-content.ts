@@ -8,7 +8,7 @@ export const integrationGroups = [
       {
         type: "google_business_profile",
         name: "Google Business Profile",
-        note: "Pending provider approval"
+        note: "Google API access required"
       },
       { type: "meta_ads", name: "Meta Ads" }
     ]
@@ -29,6 +29,8 @@ export const integrationGroups = [
       { type: "stripe", name: "Stripe" },
       { type: "shopify", name: "Shopify" },
       { type: "square", name: "Square" },
+      { type: "lightspeed", name: "Lightspeed Retail (R-Series)" },
+      { type: "lightspeed_x", name: "Lightspeed Retail (X-Series)" },
       { type: "woocommerce", name: "WooCommerce" }
     ]
   },
@@ -67,7 +69,7 @@ export const faqs = [
   {
     question: "Which connectors are available?",
     answer:
-      "The integrations above reflect the current connector catalog. Sage Cloud Accounting and Zoho Books are supported. Connecting a provider requires an authorized account and any required provider approvals. Google Business Profile is pending provider approval."
+      "See Connections for the providers you can add to your workspace. To connect, sign in with an account that has access to the data you want to import. Some providers, including Google Business Profile, also require API approval."
   },
   {
     question: "Can I upload files?",

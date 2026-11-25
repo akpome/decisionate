@@ -44,7 +44,8 @@ the numeric blanket for financial connectors, independently of rollout flags.
 | Shopify | GraphQL orders expanded into lines | Current query does not request current* order totals; use verified discounted line totals instead of claiming current-order semantics. |
 | WooCommerce | v3 orders expanded into lines | Exact line totals/quantity; exclude canceled/refunded states from automatic money recommendations. |
 | Lightspeed R/X | Sales expanded into lines; X also products/customers | Per-series references must be used; R Sale/SaleLine receipt fields were verified in the 2026-10-16 follow-up. Curated monetary policy certification remains separate. |
-| Lightspeed K/O, Business Profile | Marked planned by source registry | No defaults enabled. |
+| Google Business Profile | Daily performance metrics by location | No curated defaults enabled. |
+| Lightspeed K/O | Marked planned by source registry | No defaults enabled. |
 | CSV, Excel, JSON, Parquet, SQL | User-defined schemas | No guessed defaults; explicit saved selections remain supported. |
 
 `scripts/export_metric_schema_inventory.py` executes mocked connector

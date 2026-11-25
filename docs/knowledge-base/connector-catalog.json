@@ -115,7 +115,7 @@
       "label": "Google Business Profile",
       "category": "business_apps",
       "connection_type": "oauth",
-      "declared_status": "planned",
+      "declared_status": "needs_setup",
       "implemented_connector_flag": true,
       "forced_planned": false,
       "sync_modes": [
@@ -261,7 +261,7 @@
       "label": "Lightspeed Retail (R-Series)",
       "category": "commerce",
       "connection_type": "oauth",
-      "declared_status": "planned",
+      "declared_status": "needs_setup",
       "implemented_connector_flag": true,
       "forced_planned": false,
       "sync_modes": [
@@ -278,7 +278,7 @@
       "label": "Lightspeed Retail (X-Series)",
       "category": "commerce",
       "connection_type": "oauth",
-      "declared_status": "planned",
+      "declared_status": "needs_setup",
       "implemented_connector_flag": true,
       "forced_planned": false,
       "sync_modes": [

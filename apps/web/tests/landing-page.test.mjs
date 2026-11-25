@@ -73,11 +73,11 @@ function renderSections(language = "en", catalog) {
   ))
 }
 
-test("landing catalog includes every source except all Lightspeed variants", () => {
+test("landing catalog includes Lightspeed Retail but not planned Restaurant variants", () => {
   const backend = read("../../api/app/modules/datasets/services/sources.py").split("DATASET_SOURCES = [")[1].split("\ndef ")[0]
   const sources = [...backend.matchAll(/"type": "([^"]+)"[\s\S]*?"label": "([^"]+)"/g)].map(match => ({ type: match[1], name: match[2] }))
   assert.ok(sources.length > 20)
-  const expected = sources.filter(item => !item.type.startsWith("lightspeed"))
+  const expected = sources.filter(item => !["lightspeed_k", "lightspeed_o"].includes(item.type))
   assert.deepEqual(Array.from(connectors, item => item.type).sort(), expected.map(item => item.type).sort())
   assert.equal(new Set(connectors.map(item => item.type)).size, connectors.length)
   for (const source of expected) assert.equal(connectors.find(item => item.type === source.type)?.name, source.name)
@@ -85,7 +85,8 @@ test("landing catalog includes every source except all Lightspeed variants", () 
 
 test("supported connectors and provider-approval disclosures are preserved", () => {
   for (const type of ["sage", "zoho_books"]) assert.equal(connectors.find(item => item.type === type)?.note, undefined)
-  assert.match(connectors.find(item => item.type === "google_business_profile").note, /provider approval/i)
+  assert.equal(connectors.find(item => item.type === "google_business_profile")?.note, "Google API access required")
+  assert.match(faqs.find(item => item.question === "Which connectors are available?").answer, /Google Business Profile.*require API approval/)
   assert.doesNotMatch(read("../components/landing/landing-content.ts"), /Upcoming/)
   assert.match(faqs.find(item => item.question === "How long is connector data kept?").answer, /three years, then deleted/)
 })
