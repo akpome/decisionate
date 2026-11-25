@@ -32,16 +32,16 @@ export function DashboardSelectionRow({ label, color, checked, disabled, target,
             <span className="block text-xs text-gray-500">{t(checked ? "Included in chart" : "Hidden from chart")}</span>
           </span>
         </label>
-        <label className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-500 focus-within:ring-2 focus-within:ring-blue-500 has-[:disabled]:opacity-60 @min-[19rem]:w-36 @min-[19rem]:shrink-0 @min-[28rem]:w-52"
+        {onTargetChange && <label className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-500 focus-within:ring-2 focus-within:ring-blue-500 @min-[19rem]:w-36 @min-[19rem]:shrink-0 @min-[28rem]:w-52"
           style={checked ? { borderColor: colorTint(27) } : undefined}>
           <span className="shrink-0 font-medium">{t("Target")}</span>
           <input type="number" aria-label={`${t("Target")}: ${label}`} min={0} step="any"
-            value={target && target > 0 ? target : ""} placeholder={t("Optional")} disabled={!onTargetChange}
+            value={target && target > 0 ? target : ""} placeholder={t("Optional")}
             onChange={event => {
               const amount = event.target.valueAsNumber
-              onTargetChange?.(Number.isFinite(amount) && amount > 0 ? amount : null)
+              onTargetChange(Number.isFinite(amount) && amount > 0 ? amount : null)
             }} className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none" />
-        </label>
+        </label>}
       </div>
     </div>
   )

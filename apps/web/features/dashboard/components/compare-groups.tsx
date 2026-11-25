@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react"
 import { RefreshCw } from "lucide-react"
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { formatMetricLabel } from "@/features/dashboard/components/metric-selector"
@@ -56,12 +56,11 @@ export function useDashboardGroupSeries(datasetId: number | undefined, userId: s
   return { data: current?.data, pending: Boolean(query && !current), error: current?.error, retry: () => setRetry(value => value + 1) }
 }
 
-export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, filter, metric, targets, onFilter, onMetric, onTarget }: {
+export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, filter, metric, onFilter, onMetric }: {
   datasetId: number; userId: string; workspaceId?: string
-  metrics: string[]; filter?: DimensionFilter; metric: string; targets: (number | null)[]
+  metrics: string[]; filter?: DimensionFilter; metric: string
   onFilter: (filter: DimensionFilter | undefined) => void
   onMetric: (metric: string) => void
-  onTarget: (index: number, target: number | null) => void
 }) {
   const { t } = useDecisionateText()
   const id = useId()
@@ -79,11 +78,9 @@ export function CompareGroupsEditor({ datasetId, userId, workspaceId, metrics, f
         value={filter} onChange={onFilter} embedded groupPicker={{
           limit: maxGroups,
           renderValue(value, checked, disabled, toggle) {
-            const index = filter?.values.indexOf(value) ?? -1
             return <DashboardSelectionRow key={JSON.stringify(value)}
               label={t(dimensionValueLabel(value))} color={groupColor(value, colors)}
-              checked={checked} disabled={disabled} onToggle={toggle} target={targets[index]}
-              onTargetChange={metric && checked ? target => onTarget(index, target) : undefined} />
+              checked={checked} disabled={disabled} onToggle={toggle} />
           },
         }} />
     </div>
@@ -134,12 +131,6 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
               <XAxis dataKey="period" minTickGap={32} tick={{ fontSize: 11 }} tickMargin={8} tickFormatter={period => period.slice(2)} />
               <YAxis width={57} domain={["auto", "auto"]} tickFormatter={value => format.format(value)} tick={{ fontSize: 11 }} />
               <Tooltip formatter={value => typeof value === "number" ? format.format(value) : value} />
-              {data?.series.map(group => {
-                const color = groupColor(group.value, colors)
-                const target = comparison.targets[comparison.filter.values.indexOf(group.value)]
-                return target ? <ReferenceLine key={`target-${JSON.stringify(group.value)}`} y={target} stroke={color}
-                  strokeOpacity={0.8} strokeDasharray="5 4" ifOverflow="extendDomain" /> : null
-              })}
               {data?.series.map((group, index) => (
                 <Line key={JSON.stringify(group.value)} type="linear" dataKey={`group${index}`} name={t(dimensionValueLabel(group.value))}
                   stroke={groupColor(group.value, colors)} strokeWidth={2} dot={group.points.length < 90 ? { r: 2 } : false}
@@ -153,19 +144,12 @@ export function DashboardGroupChart({ comparison, state, print = false }: {
         <ul className="grid grid-cols-1 gap-x-5 gap-y-2 border-y py-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
           {data.series.map(group => {
             const color = groupColor(group.value, colors)
-            const target = comparison.targets[comparison.filter.values.indexOf(group.value)]
             return <li key={JSON.stringify(group.value)} className="min-w-0 space-y-1">
               <div className="flex min-w-0 items-center gap-2 font-medium">
                 <span className="w-5 shrink-0 border-t-2" style={{ borderColor: color }} aria-hidden="true" />
                 <span className="min-w-0 [overflow-wrap:anywhere]">{t(dimensionValueLabel(group.value))}</span>
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 pl-7 text-xs text-gray-600">
-                {!group.points.length && <span>{t("No data")}</span>}
-                {target && <span className="flex items-center gap-1.5">
-                  <span className="w-3 border-t-2 border-dashed" style={{ borderColor: color }} aria-hidden="true" />
-                  {t("Target")}: {format.format(target)}
-                </span>}
-              </div>
+              {!group.points.length && <div className="pl-7 text-xs text-gray-600">{t("No data")}</div>}
             </li>
           })}
         </ul>

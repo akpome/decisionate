@@ -933,7 +933,6 @@ export type DashboardGroupPreference = {
   filter: DimensionFilter
   metric: string
   active: boolean
-  targets: (number | null)[]
 }
 
 export type DashboardGroupQuery = {
@@ -2804,10 +2803,8 @@ function cleanDashboardPreference(
     else if (comparison && validFilter(comparison.filter, 8)
       && new Set(comparison.filter.values).size === comparison.filter.values.length
       && typeof comparison.metric === "string" && comparison.metric.length > 0 && comparison.metric.length <= 200
-      && typeof comparison.active === "boolean" && Array.isArray(comparison.targets)
-      && (!comparison.targets.length || comparison.targets.length === comparison.filter.values.length)
-      && comparison.targets.every(target => target === null || Number.isFinite(target) && target > 0)) {
-      cleanPreference.groupComparison = { filter: comparison.filter, metric: comparison.metric, targets: comparison.targets, active: comparison.active }
+      && typeof comparison.active === "boolean") {
+      cleanPreference.groupComparison = { filter: comparison.filter, metric: comparison.metric, active: comparison.active }
     } else throw new ApiError("The saved dashboard group comparison is invalid.", 422)
   }
   const cleanTitle =

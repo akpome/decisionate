@@ -30,12 +30,13 @@ function load(path) {
   } }).outputText, { module: loaded, exports: loaded.exports, require: name => modules[name] ?? require(name) })
   return loaded.exports
 }
-modules["@/features/dashboard/components/dashboard-selection-row"] = load("../features/dashboard/components/dashboard-selection-row.tsx")
+const selectionRows = load("../features/dashboard/components/dashboard-selection-row.tsx")
+modules["@/features/dashboard/components/dashboard-selection-row"] = selectionRows
 modules["@/features/datasets/components/dimension-filter"] = load("../features/datasets/components/dimension-filter.tsx")
 const { alignDashboardGroupPoints, CompareGroupsEditor, DashboardGroupChart } = load("../features/dashboard/components/compare-groups.tsx")
 
 const filter = { column: "channel", values: ["Online", "In-store"] }
-const comparison = { filter, targets: [500, 750], metric: "Revenue", active: true }
+const comparison = { filter, metric: "Revenue", active: true }
 const series = [
   { value: "Online", points: [{ period: "2026-02-01", amount: 0 }, { period: "2026-01-01", amount: 200 }] },
   { value: "In-store", points: [{ period: "2026-02-01", amount: 300 }] },
@@ -51,22 +52,28 @@ test("groups align by period, retain recorded zero, and never fill missing value
 function renderEditor() {
   return renderToStaticMarkup(React.createElement(CompareGroupsEditor, {
     ...comparison, datasetId: 17, userId: "owner", metrics: ["Revenue", "Orders"],
-    onFilter() {}, onMetric() {}, onTarget() {},
+    onFilter() {}, onMetric() {},
   }))
 }
 
-test("metric and dimension dropdowns are stacked above group checkboxes and inline targets", () => {
+test("metric and dimension dropdowns are stacked above group checkboxes without target fields", () => {
   const html = renderEditor()
   assert.equal((html.match(/<select/g) || []).length, 2)
   assert.match(html, /Metric to compare.*<\/select>.*Dimension column.*<\/select>.*Groups to compare/)
   assert.match(html, /value="Revenue" selected=""/)
   assert.match(html, /type="checkbox" aria-label="Online"[^>]*checked=""/)
   assert.match(html, /type="checkbox" aria-label="In-store"[^>]*checked=""/)
-  assert.match(html, /aria-label="Target: Online"[^>]*value="500"/)
-  assert.match(html, /aria-label="Target: In-store"[^>]*value="750"/)
+  assert.doesNotMatch(html, /type="number"|aria-label="Target:/)
 })
 
-test("group swatches, lines, and targets match even if the chart returns the groups in a different order", () => {
+test("metric rows still allow editing their target", () => {
+  const html = renderToStaticMarkup(React.createElement(selectionRows.DashboardSelectionRow, {
+    label: "Revenue", color: "#2563eb", checked: true, target: 500, onToggle() {}, onTargetChange() {},
+  }))
+  assert.match(html, /aria-label="Target: Revenue"[^>]*value="500"/)
+})
+
+test("group colors match regardless of result order and saved group targets are not plotted", () => {
   const swatches = [...renderEditor().matchAll(/style="background-color:(#[\da-f]{6})"/g)].map(match => match[1])
   assert.equal(new Set(swatches).size, 2)
   const html = renderToStaticMarkup(React.createElement(DashboardGroupChart, {
@@ -74,6 +81,5 @@ test("group swatches, lines, and targets match even if the chart returns the gro
   }))
   assert.ok(html.includes(`data-element="Line" data-value="Online" data-color="${swatches[0]}"`))
   assert.ok(html.includes(`data-element="Line" data-value="In-store" data-color="${swatches[1]}"`))
-  assert.ok(html.includes(`data-element="ReferenceLine" data-value="500" data-color="${swatches[0]}"`))
-  assert.equal((html.match(/data-element="ReferenceLine"/g) || []).length, 1)
+  assert.doesNotMatch(html, /data-element="ReferenceLine"|Target:/)
 })

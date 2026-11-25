@@ -589,7 +589,6 @@ export default function DashboardPage() {
     context: string
     filter?: DimensionFilter
     metric: string
-    targets: (number | null)[]
     active: boolean
   }>()
   const dimensionContext = `${userId}:${activeWorkspaceId}:${workspaceVersion}:${selectedDatasetId}:${selectedDashboard}:${joinedDatasetResult ? "joined" : "source"}`
@@ -1357,7 +1356,9 @@ export default function DashboardPage() {
         const savedComparison = savedDashboardPreference.groupComparison
         setGroupSelection(selectedDashboard === defaultDashboardKey && !savedJoinedDatasetResult && savedComparison
           ? {
-            ...savedComparison,
+            filter: savedComparison.filter,
+            metric: savedComparison.metric,
+            active: savedComparison.active,
             context: `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:source`,
           }
           : undefined)
@@ -2081,9 +2082,9 @@ export default function DashboardPage() {
   const canCompareGroups = selectedDashboard === defaultDashboardKey && !joinedDatasetResult && Boolean(dataset) && dataset?.source_type !== "joined"
   const groupPreference = useMemo<DashboardGroupPreference | null>(() =>
     canCompareGroups && groupFilter?.values.length && availableMetricColumns.includes(groupMetric)
-      ? { filter: groupFilter, metric: groupMetric, targets: groupDraft?.targets ?? [], active: groupTabActive }
+      ? { filter: groupFilter, metric: groupMetric, active: groupTabActive }
       : null,
-  [canCompareGroups, groupFilter, availableMetricColumns, groupMetric, groupDraft?.targets, groupTabActive])
+  [canCompareGroups, groupFilter, availableMetricColumns, groupMetric, groupTabActive])
   const showGroupComparison = Boolean(groupPreference?.active)
   const groupQuery = useMemo<DashboardGroupQuery | undefined>(() => {
     if (!canCompareGroups || !groupTabActive || !groupFilter?.values.length ||
@@ -2929,7 +2930,7 @@ export default function DashboardPage() {
         value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />
     : null
   function selectEditTab(active: boolean) {
-    setGroupSelection({ context: dimensionContext, filter: groupFilter, metric: groupMetric, targets: groupDraft?.targets ?? [], active })
+    setGroupSelection({ context: dimensionContext, filter: groupFilter, metric: groupMetric, active })
   }
   const dimensionControls = selectedDashboardNeedsDataset && selectedDatasetId && userId ? <>
     <section id="dashboard-filters-panel" role="region" aria-labelledby="dashboard-filters-toggle" hidden={!showFiltersPanel}
@@ -3086,17 +3087,8 @@ export default function DashboardPage() {
           {groupTabActive ? canCompareGroups && selectedDatasetId ? (
             <CompareGroupsEditor key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
               metrics={availableMetricColumns} filter={groupFilter} metric={availableMetricColumns.includes(groupMetric) ? groupMetric : ""}
-              targets={groupDraft?.targets ?? []}
-              onFilter={filter => setGroupSelection({
-                context: dimensionContext, filter, metric: groupMetric, active: true,
-                targets: filter?.values.map(value => filter.column === groupFilter?.column
-                  ? groupDraft?.targets[groupFilter.values.indexOf(value)] ?? null : null) ?? [],
-              })}
-              onMetric={metric => setGroupSelection({ context: dimensionContext, filter: groupFilter, metric, targets: [], active: true })}
-              onTarget={(index, target) => setGroupSelection({
-                context: dimensionContext, filter: groupFilter, metric: groupMetric, active: true,
-                targets: groupFilter?.values.map((_, i) => i === index ? target : groupDraft?.targets[i] ?? null) ?? [],
-              })} />
+              onFilter={filter => setGroupSelection({ context: dimensionContext, filter, metric: groupMetric, active: true })}
+              onMetric={metric => setGroupSelection({ context: dimensionContext, filter: groupFilter, metric, active: true })} />
           ) : (
             <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a source dataset instead of a joined dataset to compare groups.")}</p>
           ) : <>

@@ -138,9 +138,11 @@ test("saved view cleaning preserves exact filters, explicit clear and rejects in
   assert.deepEqual(JSON.parse(JSON.stringify(cleanDashboardPreference({ dimensionFilter: east }))), { dimensionFilter: east })
   assert.equal(cleanDashboardPreference({ dimensionFilter: null }).dimensionFilter, null)
   assert.throws(() => cleanDashboardPreference({ dimensionFilter: { column: "region", values: [] } }), /invalid/)
-  const groupComparison = { filter: { column: "channel", values: ["Online", "Store"] }, metric: "revenue", targets: [200, null], active: true }
-  assert.deepEqual(JSON.parse(JSON.stringify(cleanDashboardPreference({ dimensionFilter: east, groupComparison }))), { dimensionFilter: east, groupComparison })
-  assert.throws(() => cleanDashboardPreference({ groupComparison: { ...groupComparison, targets: [200] } }), /group comparison is invalid/)
+  const groupComparison = { filter: { column: "channel", values: ["Online", "Store"] }, metric: "revenue", active: true }
+  for (const stored of [groupComparison, { ...groupComparison, targets: [200, null] }]) {
+    assert.deepEqual(JSON.parse(JSON.stringify(cleanDashboardPreference({ dimensionFilter: east, groupComparison: stored }))), { dimensionFilter: east, groupComparison })
+  }
+  assert.throws(() => cleanDashboardPreference({ groupComparison: { ...groupComparison, metric: "" } }), /group comparison is invalid/)
 })
 test("all dataset dashboard layouts share the control, joined source filters and export scope", () => {
   const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8")
