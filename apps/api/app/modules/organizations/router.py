@@ -447,6 +447,10 @@ def clean_dashboard_preferences(
             if clean_metrics:
                 clean_preference["selectedMetrics"] = clean_metrics
 
+        if "targetMetric" in preference:
+            target_metric = clean_optional_selected_metric(preference["targetMetric"])
+            clean_preference["targetMetric"] = target_metric if target_metric and len(target_metric) <= 200 else None
+
         controlled_fields = {
             "aggregation": {
                 "daily",

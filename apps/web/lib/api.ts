@@ -974,6 +974,7 @@ export type ForecastQueryOptions = {
 export type DashboardPreferencePayload = {
   dimensionFilter?: DimensionFilter | null
   groupComparison?: DashboardGroupPreference | null
+  targetMetric?: string | null
   title?: string
   subtitle?: string
   selectedMetrics?: string[]
@@ -2806,6 +2807,10 @@ function cleanDashboardPreference(
       && typeof comparison.active === "boolean") {
       cleanPreference.groupComparison = { filter: comparison.filter, metric: comparison.metric, active: comparison.active }
     } else throw new ApiError("The saved dashboard group comparison is invalid.", 422)
+  }
+  if ("targetMetric" in preference) {
+    const metric = typeof preference.targetMetric === "string" ? preference.targetMetric.trim() : ""
+    cleanPreference.targetMetric = metric && metric.length <= 200 ? metric : null
   }
   const cleanTitle =
     getCleanDashboardPreferenceText(

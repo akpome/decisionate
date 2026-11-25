@@ -129,6 +129,67 @@ test("the General Business target metric picker is in Metrics & Targets, not bes
   assert.doesNotMatch(header.getText(ast), /MetricSelector|primaryMetricFields/)
 })
 
+test("the KPI picker defaults to no metric and clearing it leaves chart selection alone", () => {
+  const target = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "targetMetric")
+  for (const [selection, expected] of [
+    [undefined, ""],
+    [{ context: "dataset:1", value: "orders" }, "orders"],
+    [{ context: "dataset:2", value: "orders" }, ""],
+    [{ context: "dataset:1", value: "removed" }, ""],
+  ]) {
+    const { targetMetric } = load(`export const ${target.getText(ast)}`, {
+      dimensionContext: "dataset:1", availableMetricColumns: ["revenue", "orders"], targetMetricSelection: selection,
+    })
+    assert.equal(targetMetric, expected)
+  }
+  const handler = find(node => ts.isFunctionDeclaration(node) && node.name?.getText(ast) === "handleTargetMetricChange")
+  const changes = []
+  const { handleTargetMetricChange } = load(`export ${handler.getText(ast)}`, {
+    availableMetricColumns: ["revenue", "orders"], dimensionContext: "dataset:1",
+    setTargetMetricSelection: selection => changes.push([selection.context, selection.value]),
+  })
+  handleTargetMetricChange("orders")
+  handleTargetMetricChange(undefined)
+  handleTargetMetricChange("removed")
+  assert.deepEqual(changes, [["dataset:1", "orders"], ["dataset:1", ""]])
+  assert.match(source, /metric=\{targetMetric\}\s+metricLabel="Target metric"\s+placeholder="Choose a metric"/)
+})
+
+test("executive, performance, and PDF layouts keep the main chart and only show the gauge after a target metric is chosen", () => {
+  function Panel({ children, className }) { return React.createElement("section", { className }, children) }
+  function GaugeMarker() { return React.createElement("span", { "data-target-gauge": true }) }
+  function ChartMarker({ metrics, target }) {
+    return React.createElement("div", { "data-chart-metrics": metrics.join(","), "data-chart-target": target })
+  }
+  function Title({ title }) { return React.createElement("h3", null, title) }
+  function Value({ value }) { return React.createElement("span", null, value) }
+  const globals = {
+    getDashboardChartDescription: () => "Chart", getDashboardDatasetDescription: () => "Dataset",
+    formatMetricName: value => value, formatNumber: value => value, getTargetInsight: () => "",
+    ResponsiveContainer: Panel, FullscreenChartArea: Panel, DashboardCard: Panel,
+    TargetGauge: GaugeMarker, MainChart: ChartMarker, CardHeader: Title, SnapshotRow: Value, PrintMetricLine: Value,
+    DashboardControls: icon, KpiCarousel: icon, IconBadge: icon, Gauge: icon, LineChartIcon: icon,
+    WorkspaceBrandMark: icon, maxDashboardKpiCards: 8,
+  }
+  for (const name of ["ReportSection", "PerformanceTemplate", "DashboardPrintPage"]) {
+    const template = find(node => ts.isFunctionDeclaration(node) && node.name?.getText(ast) === name)
+    const Component = load(`export ${template.getText(ast)}`, globals)[name]
+    for (const targetMetric of ["", "orders"]) {
+      const props = {
+        primaryMetric: "revenue", targetMetric, selectedMetrics: ["revenue"], metrics: [], chartRows: [{}],
+        scaleMode: "actual", dateRange: { start: "2026-01-01", end: "2026-12-31" }, selectedTarget: targetMetric ? 100 : 0, chartTarget: 0,
+      }
+      const html = renderToStaticMarkup(React.createElement(Component,
+        name === "DashboardPrintPage" ? { brand: { name: "Test" }, dashboardTemplate: "executive", props } : props))
+      assert.match(html, /data-chart-metrics="revenue" data-chart-target="0"/, name)
+      assert.equal(html.includes("data-target-gauge"), Boolean(targetMetric), name)
+      assert.equal(html.includes("dashboard-print-target-card"), Boolean(targetMetric), name)
+      assert.match(html, /revenue (Trend|Performance)/, name)
+      if (targetMetric) assert.match(html, />orders</, name)
+    }
+  }
+})
+
 test("General Business keeps its toolbar and Filters panel accessible when dimension data is blocked", () => {
   const toolbar = find(node => ts.isJsxElement(node) && attribute(node, "className") === "dashboard-management-toolbar print:hidden")
   let condition = toolbar.parent

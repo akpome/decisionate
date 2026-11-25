@@ -185,7 +185,9 @@ type ReportSectionProps = {
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
   primaryMetric: string
+  targetMetric: string
   selectedTarget: number
+  chartTarget: number
   latestValue: number
   targetProgress: number
   targetMet: boolean
@@ -586,6 +588,7 @@ export default function DashboardPage() {
   const [selectedDashboard, setSelectedDashboard] =
     useState(defaultDashboardKey)
   const [dimensionSelection, setDimensionSelection] = useState<{ context: string; value?: DimensionFilter }>()
+  const [targetMetricSelection, setTargetMetricSelection] = useState<{ context: string; value: string }>()
   const [groupSelection, setGroupSelection] = useState<{
     context: string
     filter?: DimensionFilter
@@ -1348,19 +1351,21 @@ export default function DashboardPage() {
             savedDashboardPreference.aggregationType
           )
         const savedDateRange = dashboardDateRange(savedDashboardPreference)
+        const datasetContext = `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:${savedJoinedDatasetResult ? "joined" : "source"}`
 
         setDataset(data)
         setDimensionSelection({
-          context: `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:${savedJoinedDatasetResult ? "joined" : "source"}`,
+          context: datasetContext,
           value: savedJoinedDatasetResult ? undefined : savedDashboardPreference.dimensionFilter || undefined,
         })
+        setTargetMetricSelection({ context: datasetContext, value: savedDashboardPreference.targetMetric ?? "" })
         const savedComparison = savedDashboardPreference.groupComparison
         setGroupSelection(selectedDashboard === defaultDashboardKey && !savedJoinedDatasetResult && savedComparison
           ? {
             filter: savedComparison.filter,
             metric: savedComparison.metric,
             active: savedComparison.active,
-            context: `${userId}:${activeWorkspaceId}:${workspaceVersion}:${datasetId}:${selectedDashboard}:source`,
+            context: datasetContext,
           }
           : undefined)
         setJoinedDatasetResult(
@@ -2080,6 +2085,9 @@ export default function DashboardPage() {
     () => metrics.map(metric => metric.column).filter(column => !isDashboardIdentifierColumn(column)),
     [metrics]
   )
+  const targetMetric = targetMetricSelection?.context === dimensionContext && availableMetricColumns.includes(targetMetricSelection.value)
+    ? targetMetricSelection.value
+    : ""
   const canCompareGroups = selectedDashboard === defaultDashboardKey && !joinedDatasetResult && Boolean(dataset) && dataset?.source_type !== "joined"
   const groupMetricTarget = targets[groupMetric] ?? 0
   const groupPreference = useMemo<DashboardGroupPreference | null>(() =>
@@ -2183,12 +2191,13 @@ export default function DashboardPage() {
   ])
 
   const selectedTarget =
-    targets[primaryMetric] ?? 0
+    targets[targetMetric] ?? 0
+  const chartTarget = selectedMetrics.includes(targetMetric) ? selectedTarget : 0
 
   const latestValue =
     getLatestValue(
       aggregatedRows,
-      primaryMetric
+      targetMetric
     )
 
   const targetProgress =
@@ -2304,7 +2313,7 @@ export default function DashboardPage() {
       () => ({
         dimensionFilter: dimensionFilter?.values.length ? dimensionFilter
           : dimensionFilter ? currentSavedDashboardPreference.dimensionFilter ?? null : null,
-        ...(selectedDashboard === defaultDashboardKey ? { groupComparison: groupPreference } : {}),
+        ...(selectedDashboard === defaultDashboardKey ? { groupComparison: groupPreference, targetMetric: targetMetric || null } : {}),
         title: cleanDashboardText(
           dashboardTitle,
           maxDashboardTitleLength
@@ -2351,6 +2360,7 @@ export default function DashboardPage() {
         dimensionFilter,
         currentSavedDashboardPreference.dimensionFilter,
         groupPreference,
+        targetMetric,
         selectedDashboard,
         availableMetricColumns,
         aggregation,
@@ -2596,7 +2606,9 @@ export default function DashboardPage() {
     aggregation,
     aggregationType,
     primaryMetric,
+    targetMetric,
     selectedTarget,
+    chartTarget,
     latestValue,
     targetProgress,
     targetMet,
@@ -2644,35 +2656,9 @@ export default function DashboardPage() {
     ).catch(() => undefined)
   }
 
-  function handlePrimaryMetricChange(
-    metric: string | undefined
-  ) {
-    if (
-      !metric ||
-      selectedMetrics[0] === metric
-    ) {
-      return
-    }
-
-    const nextMetrics = [
-      metric,
-      ...selectedMetrics.filter(
-        item => item !== metric
-      ),
-    ]
-    setSelectedMetrics(nextMetrics)
-    persistSelectedMetrics(
-      getSelectedMetricsStorageKey(
-        activeWorkspaceId,
-        userId,
-        selectedDatasetId,
-        selectedDashboard
-      ),
-      nextMetrics
-    )
-    void saveDashboardViewPreference(
-      nextMetrics
-    ).catch(() => undefined)
+  function handleTargetMetricChange(metric: string | undefined) {
+    if (metric && !availableMetricColumns.includes(metric)) return
+    setTargetMetricSelection({ context: dimensionContext, value: metric ?? "" })
   }
 
   function handleDateColumnChange(column: string) {
@@ -2943,10 +2929,11 @@ export default function DashboardPage() {
   const primaryMetricFields = availableMetricColumns.length > 0 && (
     <DashboardMetricTargetFields
       metrics={availableMetricColumns}
-      metric={availableMetricColumns.includes(primaryMetric) ? primaryMetric : ""}
+      metric={targetMetric}
       metricLabel="Target metric"
+      placeholder="Choose a metric"
       target={selectedTarget}
-      onMetricChange={handlePrimaryMetricChange}
+      onMetricChange={handleTargetMetricChange}
       onTargetChange={canConfigureWorkspace ? updateMetricTarget : undefined}
     />
   )
@@ -4021,7 +4008,7 @@ function DashboardPrintPage({
       rows: props.chartRows,
       xKey: props.xKey,
       metrics: props.selectedMetrics,
-      target: props.selectedTarget,
+      target: props.chartTarget,
       showTarget:
         props.scaleMode === "actual",
     })
@@ -4029,6 +4016,7 @@ function DashboardPrintPage({
     props.metrics.slice(0, maxDashboardKpiCards)
   const isComparisonDashboard =
     dashboardTemplate === "comparison"
+  const showTargetCard = Boolean(props.targetMetric) && !isComparisonDashboard
 
   return (
     <div className="dashboard-print-one-page">
@@ -4113,16 +4101,12 @@ function DashboardPrintPage({
 
       <div
         className={`dashboard-print-main-grid ${
-          isComparisonDashboard
-            ? "dashboard-print-main-grid-comparison"
-            : ""
+          showTargetCard ? "" : "dashboard-print-main-grid-comparison"
         }`}
       >
         <section
           className={`dashboard-print-main-chart rounded-2xl border border-gray-200 bg-white p-4 shadow-sm ${
-            isComparisonDashboard
-              ? "dashboard-print-main-chart-full"
-              : ""
+            showTargetCard ? "" : "dashboard-print-main-chart-full"
           }`}
         >
           <div className="flex items-start justify-between gap-4">
@@ -4177,7 +4161,7 @@ function DashboardPrintPage({
                     bottom: 32,
                   }}
                   yAxisWidth={52}
-                  target={props.selectedTarget}
+                  target={props.chartTarget}
                   showTarget={
                     props.scaleMode === "actual"
                   }
@@ -4196,7 +4180,7 @@ function DashboardPrintPage({
           )}
         </section>
 
-        {!isComparisonDashboard && (
+        {showTargetCard && (
           <aside className="dashboard-print-kpi-column">
             <section className="dashboard-print-target-card rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
               <div>
@@ -4206,7 +4190,7 @@ function DashboardPrintPage({
 
                 <p className="mt-1 truncate text-sm font-semibold text-gray-950">
                   {formatMetricName(
-                    props.primaryMetric
+                    props.targetMetric
                   )}
                 </p>
               </div>
@@ -4287,14 +4271,14 @@ function PerformanceTemplate(
       rows: props.chartRows,
       xKey: props.xKey,
       metrics: props.selectedMetrics,
-      target: props.selectedTarget,
+      target: props.chartTarget,
       showTarget: props.scaleMode === "actual",
     })
 
   return (
     <>
-      <div className="dashboard-print-target-grid dashboard-print-target-grid-left grid min-w-0 gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-[660px]">
+      <div className={`dashboard-print-target-grid grid min-w-0 gap-5 ${props.targetMetric ? "dashboard-print-target-grid-left lg:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
+        {props.targetMetric && <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-[660px]">
           <CardHeader
             title="Performance Target"
             description={getDashboardDatasetDescription(
@@ -4325,7 +4309,7 @@ function PerformanceTemplate(
               <SnapshotRow
                 label="Primary Metric"
                 value={formatMetricName(
-                  props.primaryMetric
+                  props.targetMetric
                 )}
               />
 
@@ -4352,13 +4336,13 @@ function PerformanceTemplate(
               }`}
             >
               {getTargetInsight(
-                props.primaryMetric,
+                props.targetMetric,
                 props.latestValue,
                 props.selectedTarget
               )}
             </div>
           </div>
-        </DashboardCard>
+        </DashboardCard>}
 
         <DashboardCard className="dashboard-print-chart-card flex min-w-0 flex-col xl:h-[660px]">
           <CardHeader
@@ -4407,7 +4391,7 @@ function PerformanceTemplate(
                   xKey={props.xKey}
                   metrics={props.selectedMetrics}
                   allMetrics={props.metrics}
-                  target={props.selectedTarget}
+                  target={props.chartTarget}
                   showTarget={
                     props.scaleMode === "actual"
                   }
@@ -4446,7 +4430,7 @@ function ComparisonTemplate({
   aggregation,
   aggregationType,
   primaryMetric,
-  selectedTarget,
+  chartTarget,
   setChartType,
   setScaleMode,
   setDateRange,
@@ -4466,7 +4450,7 @@ function ComparisonTemplate({
       rows: chartRows,
       xKey,
       metrics: selectedMetrics,
-      target: selectedTarget,
+      target: chartTarget,
       showTarget: scaleMode === "actual",
     })
 
@@ -4542,7 +4526,7 @@ function ComparisonTemplate({
                 xKey={xKey}
                 metrics={selectedMetrics}
                 allMetrics={metrics}
-                target={selectedTarget}
+                target={chartTarget}
                 showTarget={
                   scaleMode === "actual"
                 }
@@ -4573,7 +4557,9 @@ function ReportSection({
   aggregation,
   aggregationType,
   primaryMetric,
+  targetMetric,
   selectedTarget,
+  chartTarget,
   latestValue,
   targetProgress,
   targetMet,
@@ -4596,7 +4582,7 @@ function ReportSection({
       rows: chartRows,
       xKey,
       metrics: selectedMetrics,
-      target: selectedTarget,
+      target: chartTarget,
       showTarget: scaleMode === "actual",
     })
 
@@ -4611,7 +4597,7 @@ function ReportSection({
       />
 
       {/* Main Executive Grid */}
-      <div className="dashboard-print-target-grid dashboard-print-target-grid-right grid min-w-0 items-stretch gap-5 lg:h-[660px] lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className={`dashboard-print-target-grid grid min-w-0 items-stretch gap-5 lg:h-[660px] ${targetMetric ? "dashboard-print-target-grid-right lg:grid-cols-[minmax(0,1fr)_340px]" : ""}`}>
         {/* Executive Chart Card */}
         <DashboardCard
           id="dashboard-evidence"
@@ -4679,7 +4665,7 @@ function ReportSection({
                   xKey={xKey}
                   metrics={selectedMetrics}
                   allMetrics={metrics}
-                  target={selectedTarget}
+                  target={chartTarget}
                   showTarget={
                     scaleMode === "actual"
                   }
@@ -4692,7 +4678,7 @@ function ReportSection({
         </DashboardCard>
 
         {/* Executive Target Card */}
-        <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-full">
+        {targetMetric && <DashboardCard className="dashboard-print-target-card flex min-w-0 flex-col xl:h-full">
           <div>
             <CardHeader
               title="Target Snapshot"
@@ -4725,7 +4711,7 @@ function ReportSection({
               <SnapshotRow
                 label="Primary Metric"
                 value={formatMetricName(
-                  primaryMetric
+                  targetMetric
                 )}
               />
 
@@ -4748,13 +4734,13 @@ function ReportSection({
               }`}
             >
               {getTargetInsight(
-                primaryMetric,
+                targetMetric,
                 latestValue,
                 selectedTarget
               )}
             </div>
           </div>
-        </DashboardCard>
+        </DashboardCard>}
       </div>
     </>
   )

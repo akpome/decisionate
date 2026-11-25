@@ -1,3 +1,4 @@
+import json
 import unittest
 from types import SimpleNamespace
 
@@ -9,6 +10,7 @@ from app.modules.organizations.router import (
     clean_optional_logo_url,
     clean_optional_organization_text,
     clean_dashboard_preferences,
+    clean_dashboard_views,
     clean_selected_dashboard,
     clean_member_role,
     clean_member_user_id,
@@ -571,6 +573,29 @@ class OrganizationPreferenceTests(unittest.TestCase):
                 "8": {},
             },
         )
+
+    def test_target_metric_selection_is_optional_and_saved_per_dashboard_view(self):
+        views = {
+            "7": {"general-business": {"selectedMetrics": ["revenue"], "targetMetric": " orders "}},
+            "8": {"general-business": {"selectedMetrics": ["revenue"], "targetMetric": None}},
+            "9": {"general-business": {"selectedMetrics": ["revenue"]}},
+        }
+        expected = {**views, "7": {"general-business": {"selectedMetrics": ["revenue"], "targetMetric": "orders"}}}
+        saved_views = clean_dashboard_views(views)
+        self.assertEqual(saved_views, expected)
+        reloaded = serialize_user_preference(SimpleNamespace(
+            selected_dataset_id=7,
+            selected_metric="revenue",
+            metric_targets='{"7":{"orders":100}}',
+            dashboard_preferences=None,
+            dashboard_views=json.dumps(saved_views),
+        ))
+        self.assertEqual(reloaded["dashboard_views"], expected)
+        self.assertEqual(reloaded["selected_metric"], "revenue")
+        self.assertEqual(reloaded["metric_targets"], {"7": {"orders": 100}})
+        for invalid in (" ", 17, "m" * 201):
+            with self.subTest(invalid=invalid):
+                self.assertEqual(clean_dashboard_preferences({"7": {"targetMetric": invalid}}), {"7": {"targetMetric": None}})
 
     def test_serialize_user_preference_ignores_corrupt_json_preferences(self):
         preference = SimpleNamespace(

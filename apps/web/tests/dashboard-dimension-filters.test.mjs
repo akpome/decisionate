@@ -137,6 +137,10 @@ test("saved view cleaning preserves exact filters, explicit clear and rejects in
   })
   assert.deepEqual(JSON.parse(JSON.stringify(cleanDashboardPreference({ dimensionFilter: east }))), { dimensionFilter: east })
   assert.equal(cleanDashboardPreference({ dimensionFilter: null }).dimensionFilter, null)
+  assert.equal(cleanDashboardPreference({ targetMetric: " orders " }).targetMetric, "orders")
+  for (const cleared of [null, "", "x".repeat(201), 17]) {
+    assert.equal(cleanDashboardPreference({ targetMetric: cleared }).targetMetric, null)
+  }
   assert.throws(() => cleanDashboardPreference({ dimensionFilter: { column: "region", values: [] } }), /invalid/)
   const groupComparison = { filter: { column: "channel", values: ["Online", "Store"] }, metric: "revenue", active: true }
   for (const stored of [groupComparison, { ...groupComparison, targets: [200, null] }]) {

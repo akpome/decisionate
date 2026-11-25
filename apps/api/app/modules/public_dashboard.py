@@ -135,6 +135,7 @@ def shared_view_settings(preference, dataset_id, dashboard_key):
             return {}
         fields = {} if maps_only else raw.copy()
         fields.pop("groupComparison", None)
+        fields.pop("targetMetric", None)
         for name in ("metricMappings", "chartTitles"):
             mapping = raw.get(name)
             fields[name] = {dashboard_key: mapping[dashboard_key]} if isinstance(mapping, dict) and dashboard_key in mapping else {}

@@ -72,10 +72,10 @@ class DashboardGroupTests(unittest.TestCase):
             clean_dashboard_preferences({"17": preference})
         self.assertEqual(error.exception.status_code, 422)
 
-    def test_existing_shared_dashboard_never_exposes_private_comparison_values_or_targets(self):
+    def test_existing_shared_dashboard_never_exposes_private_comparison_values_or_target_selection(self):
         stored = SimpleNamespace(
             dashboard_preferences='{"17":{"groupComparison":{"filter":{"column":"channel","values":["Private"]},"metric":"revenue","targets":[200]}}}',
-            dashboard_views='{"17":{"general-business":{"groupComparison":{"filter":{"column":"channel","values":["Private"]},"metric":"revenue","targets":[200]}}}}',
+            dashboard_views='{"17":{"general-business":{"targetMetric":"revenue","groupComparison":{"filter":{"column":"channel","values":["Private"]},"metric":"revenue","targets":[200]}}}}',
         )
         self.assertEqual(shared_view_settings(stored, 17, "general-business"), ({}, {}))
 
