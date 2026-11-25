@@ -3,7 +3,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app.db.models import Dataset, DatasetJoinCache
+from app.modules.datasets import router as datasets
 from app.modules.datasets.services.joins import (
     build_join_dataset_metadata,
     build_joined_dataset,
@@ -110,6 +117,76 @@ class DatasetJoinMetadataTests(unittest.TestCase):
             [column for column, _series in numeric_columns],
             ["revenue"],
         )
+
+
+class FilteredJoinCopyTests(unittest.TestCase):
+    def test_metrics_only_join_can_be_filtered_by_an_original_dimension_without_replacing_it(self):
+        engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
+        self.addCleanup(engine.dispose)
+        for model in (Dataset, DatasetJoinCache):
+            model.__table__.create(engine)
+        sessions = sessionmaker(bind=engine)
+        with sessions() as db:
+            for identity, name in [(1, "Sales"), (2, "Ads")]:
+                db.add(Dataset(id=identity, user_id="owner", workspace_id="workspace", file_name=name,
+                               file_path=f"{name}.csv", row_count=2, column_count=3))
+            db.commit()
+
+        frames = {
+            1: pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "region": ["East", "West"], "revenue": [5, 100]}),
+            2: pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "spend": [10, 10]}),
+        }
+        stored = {}
+
+        def persist(frame, *_):
+            key = f"join-{len(stored) + 1}.parquet"
+            stored[key] = frame.copy()
+            return key, "local", key
+
+        app = FastAPI()
+        app.include_router(datasets.router, prefix="/datasets")
+        with patch.object(datasets, "SessionLocal", sessions), patch.object(
+            datasets, "get_user_id", return_value="owner",
+        ), patch.object(datasets, "get_workspace_id", return_value="workspace"), patch.object(
+            datasets, "require_workspace_data_manager",
+        ) as require_manager, patch.object(
+            datasets, "load_dataframe", side_effect=lambda db, identity, **_: (db.get(Dataset, identity), frames[identity]),
+        ), patch.object(
+            datasets, "load_dataframe_from_dataset", side_effect=lambda dataset, **_: stored[dataset.file_path],
+        ), patch.object(datasets, "persist_joined_dataset_dataframe", side_effect=persist), patch.object(
+            datasets, "remove_dataset_file",
+        ) as remove:
+            client = TestClient(app)
+            payload = {"dashboard_key": "general-business", "start_date": "2026-01-01", "end_date": "2026-01-31", "selections": [
+                {"dataset_id": 1, "date_column": "date", "metric_columns": ["revenue"]},
+                {"dataset_id": 2, "date_column": "date", "metric_columns": ["spend"]},
+            ]}
+            original = client.post("/datasets/join", json=payload)
+            self.assertEqual(original.status_code, 200, original.text)
+            original_id = original.json()["derived_dataset_id"]
+            catalog = client.get(f"/datasets/{original_id}/dimensions")
+            self.assertEqual(catalog.status_code, 200, catalog.text)
+            self.assertEqual(catalog.json()["columns"], [])
+            change = {"dashboard_key": payload["dashboard_key"], "source_dataset_id": 1,
+                      "dimension_filter": {"column": "region", "values": ["East"]}}
+            path = f"/datasets/{original_id}/join/filtered-copy"
+            require_manager.side_effect = HTTPException(403, "Workspace data manager required.")
+            self.assertEqual(client.post(path, json=change).status_code, 403)
+            self.assertEqual(len(stored), 1)
+            require_manager.side_effect = None
+            self.assertEqual(client.post(path, json={**change, "source_dataset_id": 999}).status_code, 422)
+            filtered = client.post(path, json=change)
+            self.assertEqual(filtered.status_code, 200, filtered.text)
+            filtered_id = filtered.json()["derived_dataset_id"]
+            self.assertNotEqual(filtered_id, original_id)
+            self.assertEqual(filtered.json()["rows"], [{"period": "2026-01-01", "Sales · revenue": 5, "Ads · spend": 20}])
+            self.assertEqual(filtered.json()["end_date"], "2026-01-31")
+            remove.assert_not_called()
+
+        with sessions() as db:
+            self.assertEqual(db.get(Dataset, original_id).file_path, "join-1.parquet")
+            self.assertEqual(stored["join-1.parquet"]["Sales · revenue"].tolist(), [105])
+            self.assertEqual(db.get(Dataset, filtered_id).file_path, "join-2.parquet")
 
 
 if __name__ == "__main__":

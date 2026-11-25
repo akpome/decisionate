@@ -37,6 +37,24 @@ test("dimension control defaults to all rows with no preselected values", () => 
   assert.doesNotMatch(html, /type="checkbox"|Clear dimension filter|Unique values/)
 })
 
+test("a metrics-only joined catalog opens the source filter instead of an empty dropdown", () => {
+  let slot = 0
+  const { DatasetDimensionFilter: Control } = load(readFileSync(new URL("../features/datasets/components/dimension-filter.tsx", import.meta.url), "utf8"), {
+    require: name => name === "react" ? {
+      ...React, useId: () => "dimension", useRef: () => ({ current: null }), useEffect() {},
+      useState(initial) {
+        const index = slot++
+        if (index === 0) return [{ columns: [], values: [], next_offset: null, datasetScope: '[30,"owner","workspace",null]' }, () => {}]
+        return [index === 5 ? false : initial, () => {}]
+      },
+    } : name === "@/app/use-decisionate-language" ? { useDecisionateText: () => ({ t: value => value }) }
+      : name === "@/lib/api" ? {} : name === "@/components/searchable-select" ? { SearchableSelect } : require(name),
+  })
+  const fallback = React.createElement("aside", null, "Filter source dataset")
+  const html = renderToStaticMarkup(Control({ datasetId: 30, userId: "owner", workspaceId: "workspace", onChange() {}, emptyFallback: fallback }))
+  assert.equal(html, "<aside>Filter source dataset</aside>")
+})
+
 test("saved selected values remain visible before options load and distinguish missing from empty", () => {
   const html = render({ value: { column: "channel", values: ["East", null, "", "null"] } })
   assert.doesNotMatch(html, /type="checkbox"|role="checkbox"/)

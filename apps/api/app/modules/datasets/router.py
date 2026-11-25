@@ -80,7 +80,7 @@ from app.modules.datasets.schemas import DataSourceConnectionSchedule
 from app.modules.datasets.schemas import DatasetCreate
 from app.modules.datasets.schemas import DatasetMetricSelectionUpdate
 from app.modules.datasets.schemas import DatasetSignedUrlImport
-from app.modules.datasets.schemas import DatasetJoinRequest
+from app.modules.datasets.schemas import DatasetJoinRequest, FilteredJoinCopyRequest
 from app.modules.datasets.schemas import DatasetRelationshipRequest
 from app.modules.datasets.schemas import DatasetMultiMetricAnalysisRequest
 from app.modules.datasets.schemas import EntityMatchingPreviewResponse
@@ -4847,6 +4847,37 @@ async def join_datasets(
     request: Request,
     payload: DatasetJoinRequest,
 ):
+    return await _join_datasets(request, payload)
+
+
+@router.post("/{dataset_id}/join/filtered-copy")
+async def create_filtered_join_copy(request: Request, dataset_id: int, payload: FilteredJoinCopyRequest):
+    require_workspace_data_manager(request)
+    user_id = get_user_id(request)
+    workspace_id = get_workspace_id(request, user_id)
+    with SessionLocal() as db:
+        dataset = load_dataset(db, dataset_id)
+        verify_dataset_owner(dataset, user_id, workspace_id)
+        if dataset.source_type != "joined":
+            raise HTTPException(422, "Choose a joined dataset.")
+        try:
+            join = DatasetJoinRequest.model_validate(parse_dataset_source_config(dataset).get("join_definition"))
+        except ValueError as error:
+            raise HTTPException(422, "The saved join definition is no longer available. Rebuild the join first.") from error
+    if not any(source.dataset_id == payload.source_dataset_id for source in join.selections):
+        raise HTTPException(422, "Choose one of the original datasets in this join.")
+    selections = [
+        source.model_copy(update={"dimension_filter": payload.dimension_filter})
+        if source.dataset_id == payload.source_dataset_id else source
+        for source in join.selections
+    ]
+    return await _join_datasets(
+        request, join.model_copy(update={"selections": selections, "dashboard_key": payload.dashboard_key}),
+        preserve_previous=True,
+    )
+
+
+async def _join_datasets(request: Request, payload: DatasetJoinRequest, *, preserve_previous=False):
     clean_dataset_ids = [
         selection.dataset_id
         for selection in payload.selections
@@ -4953,7 +4984,7 @@ async def join_datasets(
                 workspace_id,
                 dashboard_key,
                 definition,
-                previous_result,
+                {} if preserve_previous else previous_result,
             )
 
             source_fingerprint = build_dataset_source_fingerprint(

@@ -85,6 +85,12 @@ class DatasetJoinRequest(BaseModel):
         return self
 
 
+class FilteredJoinCopyRequest(BaseModel):
+    source_dataset_id: int = Field(ge=1)
+    dimension_filter: DimensionFilter | None
+    dashboard_key: str = Field(min_length=1, max_length=120)
+
+
 class DatasetRelationshipSelection(BaseModel):
     dataset_id: int = Field(ge=1)
     date_column: str = Field(min_length=1, max_length=120)

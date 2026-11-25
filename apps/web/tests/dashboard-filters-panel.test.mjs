@@ -40,6 +40,7 @@ function panel(overrides = {}) {
     joinedDatasetResult: null, dimensionContext: "workspace:1", dimensionFilter: { column: "region", values: ["East"] },
     dimensionData: { data: { id: 1 } }, allRows: [{ spend: 10 }], handleDateColumnChange() {}, setDimensionSelection() {},
     metricDimensionFilter: filter, showGroupComparison: false, canCompareGroups: true, dashboardEditMode: false,
+    memberMetricsOpen: false,
     Settings2: icon, RefreshCw: icon, ...overrides,
   }).Panel
 }
@@ -113,13 +114,29 @@ test("Select Metrics shows the joined dataset's dimension filter and retains the
     groupPreference: null, showJoinPanel: false, canConfigureWorkspace: true, t: text => text,
     joinedDatasetResult: { derived_dataset_id: 30 }, selectedDatasetId: 30, userId: "owner",
     activeWorkspaceId: "workspace", dimensionContext: "joined:30", loading: false, primaryMetricFields: null,
+    joinedSourceFilter: React.createElement("aside", null, "Source filter"),
     dimensionFilter: { column: "sales.csv · channel", values: ["Online"] }, metrics: [],
-    DatasetDimensionFilter: ({ datasetId, value }) => React.createElement("output", null, `${datasetId}: ${value.column} = ${value.values[0]}`),
+    DatasetDimensionFilter: ({ datasetId, value, emptyFallback }) =>
+      React.createElement("output", null, `${datasetId}: ${value.column} = ${value.values[0]}; ${emptyFallback.props.children}`),
   })
   const html = renderToStaticMarkup(React.createElement(Editor))
   assert.match(html, /aria-labelledby="dashboard-metrics-tab"/)
-  assert.match(html, /<output>30: sales\.csv · channel = Online<\/output>/)
+  assert.match(html, /<output>30: sales\.csv · channel = Online; Source filter<\/output>/)
   assert.match(source, /setDimensionSelection\(\{\s*context: datasetContext,\s*value: savedDashboardPreference\.dimensionFilter/)
+})
+
+test("workspace members see the dimension picker in their Select Metrics panel without changing targets", () => {
+  const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
+  const filter = React.createElement("label", null, "Dimension column")
+  const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {
+    dimensionControls: null, dashboardEditMode: false, groupPreference: null, showJoinPanel: false,
+    canConfigureWorkspace: false, availableMetricColumns: ["Orders"], memberMetricsOpen: true,
+    primaryMetricFields: null, metricDimensionFilter: filter, t: text => text,
+  })
+  const html = renderToStaticMarkup(React.createElement(Editor))
+  assert.match(html, /id="dashboard-member-metrics"[^>]*><label>Dimension column<\/label>/)
+  const toolbar = renderToStaticMarkup(React.createElement(panel({ showFiltersPanel: true, memberMetricsOpen: true })))
+  assert.doesNotMatch(toolbar, /Dimension column/)
 })
 
 test("Compare Groups requests dimensions for the selected joined dataset", () => {

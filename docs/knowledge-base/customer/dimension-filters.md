@@ -16,8 +16,11 @@ does not become a numerical outcome merely by being selected.
 
 On the General Business Overview dashboard, Dimension column is also available
 under Select Metrics. For joined data, it filters whole months by columns saved
-in the joined dataset. To filter a source's individual rows before joining,
-use Source dimension filters instead.
+in the joined dataset. If the join saved only metrics, select an original
+dataset and its dimension values in the same tab, then choose Create filtered
+join. This filters that source's rows before joining and saves a separate
+dataset without replacing the original join. You can also use Source dimension
+filters when reviewing the join.
 
 The current report contract supports one dimension column per selected dataset,
 with up to 50 selected values for that column. Report filters are dataset-local:

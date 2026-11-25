@@ -3743,6 +3743,20 @@ export async function joinDatasets(
   return response.json()
 }
 
+export async function createFilteredJoinCopy(
+  datasetId: number, userId: string, workspaceId: string | undefined,
+  selection: { source_dataset_id: number; dimension_filter: DimensionFilter | null; dashboard_key: string },
+): Promise<DatasetJoinResult> {
+  const identity = cleanPositiveIntegerId(datasetId, "Dataset id")
+  const response = await apiFetch(`${API_URL}/datasets/${identity}/join/filtered-copy`, {
+    method: "POST",
+    headers: await workspaceJsonHeaders(userId, workspaceId),
+    body: JSON.stringify(selection),
+  }, datasetDetailsRequestTimeoutMs)
+  if (!response.ok) await throwApiError(response, "Could not create the filtered join")
+  return response.json()
+}
+
 function verifyDatasetRelationshipFilters(result: DatasetRelationship, payload: DatasetRelationshipPayload) {
   for (const side of ["left", "right"] as const) {
     const expected = payload[side].dimension_filter

@@ -10,11 +10,12 @@ const input = "mt-1 min-h-10 w-full min-w-0 rounded-md border border-gray-300 bg
 export const dimensionValueLabel = (value: string | null) => value === null ? "Missing" : value === "" ? "Empty string" : value
 export const dimensionFilterLabel = (value: DimensionFilter) => `${value.column}: ${value.values.map(dimensionValueLabel).join(", ")}`
 
-export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false, singleValue = false, fixedColumn, groupPicker, groupMetric }: {
+export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, onChange, disabled = false, deferLoad = false, embedded = false, singleValue = false, fixedColumn, groupPicker, groupMetric, emptyFallback }: {
   datasetId: number; userId: string; workspaceId?: string; value?: DimensionFilter
   onChange: (value: DimensionFilter | undefined) => void; disabled?: boolean; deferLoad?: boolean; embedded?: boolean; singleValue?: boolean
   fixedColumn?: string
   groupMetric?: string
+  emptyFallback?: ReactNode
   groupPicker?: {
     limit: number
     renderValue: (value: string | null, checked: boolean, disabled: boolean, toggle: () => void) => ReactNode
@@ -85,6 +86,9 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
     : "@min-[28rem]:grid-cols-[repeat(3,minmax(0,1fr))_auto]" : ""
   const moreValues = currentOptions && options.next_offset !== null && <button type="button" className="min-h-10 text-sm font-medium text-blue-700 underline disabled:opacity-50" disabled={loading} onClick={() => setOffset(options.next_offset!)}>{t("Load more values")}</button>
   const errorFeedback = error && <div className="flex min-w-0 items-start gap-2 text-xs text-red-700"><p role="alert" className="min-w-0 flex-1 break-words">{error}</p><button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300" title={t("Retry dimension values")} aria-label={t("Retry dimension values")} onClick={() => setVersion(current => current + 1)}><RefreshCw size={15} /></button></div>
+  if (emptyFallback && !value && hasCatalog && !columns.length && !loading && !error) {
+    return emptyFallback
+  }
   const searchField = column && !singleValue && <div className={groupPicker ? "min-w-0 max-w-sm" : "col-span-full min-w-0 @min-[28rem]:col-span-1"}>
     <label className="block text-xs font-medium text-gray-600" htmlFor={`${id}-search`}>{t("Search values")}</label>
     <div className="relative"><Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-gray-400" /><input id={`${id}-search`} aria-label={t("Search unique values")} type="search" className={`${input} pl-9`} placeholder={t("Search values")} value={search} onChange={event => { setSearch(event.target.value); setOffset(0) }} /></div>

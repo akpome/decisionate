@@ -17,6 +17,7 @@ import { DatasetSelector } from "@/features/dashboard/components/dataset-selecto
 import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } from "@/features/dashboard/date-window"
 import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
+import { getJoinedFilterSources, JoinedSourceFilter } from "@/features/dashboard/components/joined-source-filter"
 import { dashboardViewOptions, resolveDashboardTemplate, type DashboardTemplate } from "@/features/dashboard/lib/dashboard-template"
 import { CompareGroupsEditor, DashboardGroupChart, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
 import { DashboardTrendChart, FullscreenChartArea, indexDashboardChartRows } from "@/features/dashboard/components/dashboard-chart"
@@ -2906,8 +2907,16 @@ export default function DashboardPage() {
     sourceDatasets.length > 1
 
   const filterLabel = templateProps.filterLabel
+  const joinedFilterSources = canManageWorkspaceData && dataset?.id === selectedDatasetId && dataset?.source_type === "joined"
+    ? getJoinedFilterSources(dataset.source_config, sourceDatasets) : []
+  const joinedSourceFilter = selectedDatasetId && userId && joinedFilterSources.length > 0
+    ? <JoinedSourceFilter datasetId={selectedDatasetId} sources={joinedFilterSources} userId={userId} workspaceId={activeWorkspaceId}
+        dashboardKey={selectedDashboard}
+        onJoined={result => { handleJoinedDatasetResult(result); setShowJoinPanel(false) }} />
+    : undefined
   const metricDimensionFilter = selectedDatasetId && userId
     ? <DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
+        emptyFallback={joinedSourceFilter}
         value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />
     : null
   function selectEditTab(active: boolean) {
@@ -2944,7 +2953,7 @@ export default function DashboardPage() {
           </select>
         </div>
         <div className="min-w-0">
-          {!showGroupComparison && !(canCompareGroups && dashboardEditMode) && metricDimensionFilter}
+          {!showGroupComparison && !(canCompareGroups && dashboardEditMode) && !memberMetricsOpen && metricDimensionFilter}
           {joinedDatasetResult && <button type="button" className="mt-2 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
             <Settings2 size={16} />Source dimension filters
           </button>}
@@ -3129,6 +3138,7 @@ export default function DashboardPage() {
         <section id="dashboard-member-metrics" aria-label={t("Select Metrics")} hidden={!memberMetricsOpen}
           className="border-b border-gray-200 pb-4 print:hidden">
           {primaryMetricFields}
+          {memberMetricsOpen && metricDimensionFilter}
         </section>
       )}
 
