@@ -26,7 +26,8 @@ from app.modules.datasets.services.metrics import (
 )
 from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
 from app.modules.sharing_links import SharedDashboardGroupView, find_shared_link
-from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter
+from app.modules.datasets.services.dimension_filters import DimensionFilter, apply_dimension_filter
+from app.modules.datasets.services.serialization import dataframe_to_json_records
 from app.modules.datasets.services.joins import (
     JOIN_RESULT_VERSION,
 )
@@ -694,13 +695,15 @@ def get_public_shared_dashboard(
         if dimension_filter is not None:
             try:
                 dimension_filter = DimensionFilter.model_validate(dimension_filter).model_dump()
-                if joined_dataset_result is not None:
-                    raise DimensionFilterError("This shared view has incompatible saved joined data.")
                 dataframe = apply_dimension_filter(dataset, dataframe, dimension_filter)
             except ValueError as error:
                 raise HTTPException(422, "The shared dashboard dimension filter is unavailable. Ask the owner to update the saved view.") from error
 
         if joined_dataset_result is not None:
+            if dimension_filter is not None:
+                # The saved filter applies to monthly rows in the joined dataset,
+                # not to the original sources or the unfiltered public cache.
+                joined_dataset_result = {**joined_dataset_result, "rows": dataframe_to_json_records(dataframe)}
             joined_dataset_result = shared_join_data(joined_dataset_result, dataset.id)
             dataframe = pd.DataFrame(joined_dataset_result["rows"])
             date_column = "period"

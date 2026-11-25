@@ -35,9 +35,20 @@ test("join membership never substitutes joined rows for either original source o
     const restored = compile(`${helpers}\nconst cachedJoinedDatasetResult = ${variable("cachedJoinedDatasetResult").initializer.getText(ast)};\n${variable("savedJoinedDatasetResult").initializer.getText(ast)}`, globals)
     assert.equal(restored, datasetId === 30 ? joined : null)
     const originalRows = [{ period: "2026-01-01", revenue: datasetId * 10 }]
-    const rows = compile(`(${callback("allRows")})()`, { joinedDatasetResult: restored,
+    const rows = compile(`(${callback("allRows")})()`, { joinedDatasetResult: restored, dimensionFilter: undefined,
       dimensionData: { data: { chart: { data: originalRows } } }, dataset: {}, filterDashboardRowsToSelectedMetrics: rows => rows })
     assert.equal(rows, datasetId === 30 ? joined.rows : originalRows)
+  }
+})
+
+test("a joined dashboard never falls back to cached months when a dimension filter is active", () => {
+  const filteredRows = [{ period: "2026-02-01", revenue: 20 }]
+  const dimensionFilter = { column: "sales / region", values: ["East"] }
+  for (const [data, expected] of [[null, []], [{ chart: null, preview: [] }, []], [{ chart: { data: filteredRows } }, filteredRows]]) {
+    const rows = compile(`(${callback("allRows")})()`, {
+      joinedDatasetResult: joined, dimensionFilter, dimensionData: { data }, dataset: {},
+    })
+    assert.deepEqual(JSON.parse(JSON.stringify(rows)), expected)
   }
 })
 

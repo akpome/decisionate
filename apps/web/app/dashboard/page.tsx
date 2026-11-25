@@ -1337,7 +1337,7 @@ export default function DashboardPage() {
         setDataset(data)
         setDimensionSelection({
           context: datasetContext,
-          value: savedJoinedDatasetResult ? undefined : savedDashboardPreference.dimensionFilter || undefined,
+          value: savedDashboardPreference.dimensionFilter || undefined,
         })
         setTargetMetricSelection({ context: datasetContext, value: savedDashboardPreference.targetMetric ?? "" })
         const savedComparison = savedDashboardPreference.groupComparison
@@ -1769,7 +1769,7 @@ export default function DashboardPage() {
   const allRows = useMemo(
     () => {
       const sourceRows =
-        joinedDatasetResult?.rows.length
+        !dimensionFilter && joinedDatasetResult?.rows.length
           ? joinedDatasetResult.rows
           : dimensionData.data?.chart?.data?.length
           ? dimensionData.data.chart.data
@@ -1782,7 +1782,7 @@ export default function DashboardPage() {
             dataset
           )
     },
-    [dataset, dimensionData.data, joinedDatasetResult]
+    [dataset, dimensionData.data, dimensionFilter, joinedDatasetResult]
   )
   const joinedNumericMetrics = useMemo(
     () =>
@@ -2906,7 +2906,7 @@ export default function DashboardPage() {
     sourceDatasets.length > 1
 
   const filterLabel = templateProps.filterLabel
-  const metricDimensionFilter = selectedDatasetId && userId && !joinedDatasetResult
+  const metricDimensionFilter = selectedDatasetId && userId
     ? <DatasetDimensionFilter key={dimensionContext} datasetId={selectedDatasetId} userId={userId} workspaceId={activeWorkspaceId}
         value={dimensionFilter} embedded disabled={loading} onChange={value => setDimensionSelection({ context: dimensionContext, value })} />
     : null
@@ -2943,9 +2943,12 @@ export default function DashboardPage() {
             {dashboardDateColumns.map(column => <option key={column} value={column}>{column}</option>)}
           </select>
         </div>
-        {joinedDatasetResult ? <button type="button" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
-          <Settings2 size={16} />Source dimension filters
-        </button> : !showGroupComparison && !(canCompareGroups && dashboardEditMode) ? metricDimensionFilter : null}
+        <div className="min-w-0">
+          {!showGroupComparison && !(canCompareGroups && dashboardEditMode) && metricDimensionFilter}
+          {joinedDatasetResult && <button type="button" className="mt-2 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-blue-700 underline" onClick={() => setShowJoinPanel(current => !current)} aria-expanded={showJoinPanel}>
+            <Settings2 size={16} />Source dimension filters
+          </button>}
+        </div>
       </div>
     </section>
     {!showGroupComparison && dimensionData.pending && <p role="status" className="mt-2 text-sm text-gray-600">Loading filtered dashboard...</p>}

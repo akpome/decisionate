@@ -14,6 +14,11 @@ does not become a numerical outcome merely by being selected.
 4. Check the selected values and resulting data. Clear the dimension filter to
    return to all eligible rows. Closing a dashboard's Filters tab retains it.
 
+On the General Business Overview dashboard, Dimension column is also available
+under Select Metrics. For joined data, it filters whole months by columns saved
+in the joined dataset. To filter a source's individual rows before joining,
+use Source dimension filters instead.
+
 The current report contract supports one dimension column per selected dataset,
 with up to 50 selected values for that column. Report filters are dataset-local:
 filtering one source's channel does not automatically find or filter equivalent

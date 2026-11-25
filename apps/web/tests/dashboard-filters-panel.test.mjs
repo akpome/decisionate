@@ -102,6 +102,26 @@ test("the normal dimension control appears in Select Metrics without duplicating
   assert.match(source, /<CompareGroupsEditor[\s\S]+?\{metricDimensionFilter\}/)
 })
 
+test("Select Metrics shows the joined dataset's dimension filter and retains the saved choice", () => {
+  const filter = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "metricDimensionFilter")
+  const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
+  const { Editor } = load(`export function Editor() {
+    const metricDimensionFilter = ${filter.initializer.getText(ast)}
+    return (${panels.initializer.getText(ast)})
+  }`, {
+    dimensionControls: null, canCompareGroups: true, dashboardEditMode: true, groupTabActive: false,
+    groupPreference: null, showJoinPanel: false, canConfigureWorkspace: true, t: text => text,
+    joinedDatasetResult: { derived_dataset_id: 30 }, selectedDatasetId: 30, userId: "owner",
+    activeWorkspaceId: "workspace", dimensionContext: "joined:30", loading: false, primaryMetricFields: null,
+    dimensionFilter: { column: "sales.csv · channel", values: ["Online"] }, metrics: [],
+    DatasetDimensionFilter: ({ datasetId, value }) => React.createElement("output", null, `${datasetId}: ${value.column} = ${value.values[0]}`),
+  })
+  const html = renderToStaticMarkup(React.createElement(Editor))
+  assert.match(html, /aria-labelledby="dashboard-metrics-tab"/)
+  assert.match(html, /<output>30: sales\.csv · channel = Online<\/output>/)
+  assert.match(source, /setDimensionSelection\(\{\s*context: datasetContext,\s*value: savedDashboardPreference\.dimensionFilter/)
+})
+
 test("Compare Groups requests dimensions for the selected joined dataset", () => {
   const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
   const { Editor } = load(`export function Editor() { return (${panels.initializer.getText(ast)}) }`, {

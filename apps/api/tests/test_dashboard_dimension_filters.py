@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from fastapi import HTTPException, Response
+from app.db.models import Dataset
 from app.modules.datasets import router as datasets
 from app.modules.datasets.services.insights import generate_dataset_ai_analysis
 from app.modules.datasets.services.joins import build_join_dataset_metadata, build_joined_dataset
@@ -12,6 +13,18 @@ from app.modules.datasets.services.join_cache import build_join_definition
 from app.modules.organizations.router import clean_dashboard_preferences, clean_dashboard_views
 from app.modules import public_dashboard
 from tests import test_business_reports as fixtures
+
+
+JOINED_REVENUE = "Sales.csv · revenue"
+JOINED_REGION = "Sales.csv · region"
+
+
+def joined_period_frame():
+    return pd.DataFrame({
+        "period": ["2026-01-01", "2026-02-01"],
+        JOINED_REVENUE: [10, 9999],
+        JOINED_REGION: ["East", "West"],
+    })
 
 
 class DashboardDimensionRouteTests(unittest.TestCase):
@@ -49,6 +62,25 @@ class DashboardDimensionRouteTests(unittest.TestCase):
         self.assertEqual(result["preview"], [])
         self.assertFalse((result["chart"] or {}).get("data"))
         self.assertEqual(result["selected_metric_columns"], ["spend"])
+
+    def test_joined_filter_uses_the_saved_dimension_and_limits_selected_metrics_to_matching_months(self):
+        with self.Session() as db:
+            dataset = db.get(Dataset, 1)
+            dataset.source_type = "joined"
+            dataset.source_config = "{}"
+            db.commit()
+        self.frames[1] = self.frames[1][0], joined_period_frame()
+        catalog = self.client.get("/datasets/1/dimensions", params={"column": JOINED_REGION})
+        self.assertEqual(catalog.status_code, 200, catalog.text)
+        self.assertEqual(catalog.json()["values"], ["East", "West"])
+        response = self.client.post("/datasets/1/details?include_all_rows=true&include_ai_analysis=false",
+                                    json={"column": JOINED_REGION, "values": ["East"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["row_count"], 1)
+        self.assertEqual(result["selected_metric_columns"], [JOINED_REVENUE])
+        self.assertEqual(result["metrics"][0]["total"], 10)
+        self.assertEqual(result["chart"]["data"], [joined_period_frame().iloc[0].to_dict()])
 
     def test_unfiltered_get_is_backward_compatible(self):
         result = self.client.get("/datasets/1/details?include_ai_analysis=false").json()
@@ -113,7 +145,6 @@ class DashboardDimensionRouteTests(unittest.TestCase):
             read.assert_not_called()
 
     def test_filtered_details_cannot_reuse_persisted_whole_dataset_analysis(self):
-        from app.db.models import Dataset
         with self.Session() as db:
             dataset = db.get(Dataset, 1)
             with patch.object(datasets, "generate_dataset_ai_analysis", return_value={"summary": "East only"}) as generate:
@@ -233,3 +264,28 @@ class FilteredPublicDashboardTests(unittest.TestCase):
         self.assertEqual(result["dataset"]["dimension_filters"], joined["dimension_filters"])
         self.assertEqual(result["dataset"]["metrics"][0]["total"], 30)
         self.assertNotIn("9999", json.dumps(result))
+
+    def test_joined_dashboard_filter_replaces_cached_rows_in_the_public_data_and_preferences(self):
+        self.dataset.source_type = "joined"
+        self.dataset.source_config = "{}"
+        self.frame = joined_period_frame().assign(unlisted_field="private")
+        joined = {
+            "datasets": [
+                {"label": JOINED_REVENUE, "column_type": "numeric"},
+                {"label": JOINED_REGION, "column_type": "categorical"},
+            ],
+            "rows": self.frame.to_dict("records"),
+        }
+        for selected, expected in [("East", [joined["rows"][0]]), ("Gone", [])]:
+            with self.subTest(selected=selected):
+                self.preference.dashboard_views = json.dumps({
+                    "1": {"general-business": {"dimensionFilter": {"column": JOINED_REGION, "values": [selected]}}},
+                })
+                with patch.object(public_dashboard, "get_public_join_cache_result", return_value=joined):
+                    result = public_dashboard.get_public_shared_dashboard(1, Response(), "token")
+                public_rows = [{key: value for key, value in row.items() if key != "unlisted_field"} for row in expected]
+                self.assertEqual(result["preference"]["joined_dataset_result"]["rows"], public_rows)
+                self.assertEqual((result["dataset"]["chart"] or {}).get("data", []), public_rows)
+                self.assertEqual(result["dataset"]["row_count"], len(expected))
+                self.assertNotIn("9999", json.dumps(result))
+                self.assertNotIn("private", json.dumps(result))
