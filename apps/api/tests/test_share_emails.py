@@ -196,12 +196,19 @@ class ShareEmailTests(unittest.TestCase):
             self.assertEqual(self.client.get(f"/public/reports/{token}").status_code, 404)
 
     def test_workspace_cleanup_deletes_recipient_delivery_records(self):
-        self.send()
+        from app.modules.datasets.services import dataset_loader
+        source, frame = self.frames[1]
+        self.frames[1] = source, frame.assign(channel="Online")
+        with patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda dataset, **_: self.frames[dataset.id][1].copy()):
+            result = self.send(self.dashboard(group_chart=self.group_chart()))
+        self.assertEqual(result.status_code, 200, result.text)
         with self.Session() as db:
             cleanup_workspace(db, "someone-else"); db.commit()
             self.assertEqual(db.query(sharing.ShareEmailDelivery).count(), 1)
+            self.assertEqual(db.query(sharing_links.SharedDashboardGroupView).count(), 1)
             cleanup_workspace(db, "owner"); db.commit()
             self.assertEqual(db.query(sharing.ShareEmailDelivery).count(), 0)
+            self.assertEqual(db.query(sharing_links.SharedDashboardGroupView).count(), 0)
 
     def test_secondary_application_links_and_public_access_keep_their_application_scope(self):
         registration = {"id": "decisionate-ai", "name": "International", "web_url": "https://decisionate.ai",
@@ -291,6 +298,56 @@ class ShareEmailTests(unittest.TestCase):
 
     def listed_links(self, **query):
         return self.client.get("/api/v2/share-emails/links", params={"kind": "dashboard", "dataset_id": 1, "dashboard": "general-business", **query})
+
+    def group_chart(self, **query):
+        return {"chart_type": "area", "scale_mode": "indexed", "metric_target": 125,
+                "query": {"metric": "spend", "filter": {"column": "channel", "values": ["Online", "Store"]},
+                          "date_column": "date", "start_date": "2026-01-01", "end_date": "2026-01-04",
+                          "aggregation": "daily", "aggregation_type": "sum", **query}}
+
+    def test_group_links_pin_the_chart_selection_and_only_expose_selected_totals(self):
+        from app.modules.datasets.services import dataset_loader
+        source, frame = self.frames[1]
+        self.frames[1] = source, frame.assign(channel=[("Online", "Store", "Online", "Private")[i % 4] for i in range(len(frame))])
+        self.assertEqual(self.send().status_code, 200)
+        metric_token = self.emailed_token()
+        with patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda dataset, **_: self.frames[dataset.id][1].copy()):
+            chart = self.group_chart()
+            response = self.send(self.dashboard(group_chart=chart), key="share-group-comparison")
+            self.assertEqual(response.status_code, 200, response.text)
+            tokens = [self.emailed_token(index) for index in (2, 3)]
+            self.assertEqual(self.send(self.dashboard(group_chart=chart), key="share-group-comparison").status_code, 200)
+            self.assertEqual(self.email.call_count, 4)
+            shared = self.public_dashboard(tokens[0], "general-business")
+            self.assertEqual(shared["dataset"], {"file_name": "Source 1.csv", "metrics": []})
+            self.assertEqual(shared["preference"], {})
+            self.assertEqual({key: shared["group_chart"][key] for key in chart}, chart)
+            self.assertEqual(shared["group_chart"]["data"]["series"], [
+                {"value": "Online", "points": [{"period": "2026-01-01", "amount": 1}, {"period": "2026-01-03", "amount": 3}]},
+                {"value": "Store", "points": [{"period": "2026-01-02", "amount": 2}]},
+            ])
+            self.assertNotIn("Private", json.dumps(shared))
+            self.assertNotIn("group_chart", self.public_dashboard(metric_token, "general-business"))
+            group_links = [item for item in self.listed_links().json()["items"] if item["title"].endswith("/ Group comparison")]
+            self.assertEqual(len(group_links), 2)
+            first = next(item for item in group_links if item["recipient"] == "first@example.test")
+            self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{first['id']}").status_code, 200)
+            with self.assertRaises(HTTPException) as failure:
+                self.public_dashboard(tokens[0], "general-business")
+            self.assertEqual(failure.exception.status_code, 404)
+            self.assertEqual(self.public_dashboard(tokens[1], "general-business"), shared)
+
+    def test_group_email_rejects_wrong_dashboard_empty_selection_and_cross_workspace_data(self):
+        from app.modules.datasets.services import dataset_loader
+        source, frame = self.frames[1]
+        self.frames[1] = source, frame.assign(channel="Online")
+        with patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda dataset, **_: self.frames[dataset.id][1].copy()):
+            chart = self.group_chart()
+            self.assertEqual(self.send(self.dashboard(dashboard="retail-performance", group_chart=chart)).status_code, 422)
+            self.assertIn(self.send(self.dashboard(dataset_id=3, group_chart=chart)).status_code, {403, 404})
+            empty = self.group_chart(filter={"column": "channel", "values": ["Not present"]})
+            self.assertEqual(self.send(self.dashboard(group_chart=empty)).status_code, 422)
+        self.email.assert_not_called()
 
     def test_each_recipient_has_an_independent_link_and_revoking_one_preserves_the_other(self):
         self.assertEqual(self.send().status_code, 200)

@@ -951,6 +951,14 @@ export type DashboardGroupResult = {
   metric_aggregation: string | null
 }
 
+export type SharedDashboardGroupChart = {
+  query: DashboardGroupQuery
+  chart_type: "line" | "bar" | "area"
+  scale_mode: "actual" | "indexed"
+  metric_target: number
+  data: DashboardGroupResult
+}
+
 export type ForecastPeriodFilter =
   | "1m"
   | "1q"
@@ -1496,6 +1504,7 @@ export type PlatformAdminCreditSettingsUpdate = Partial<
 >
 
 export type PublicSharedDashboardResponse = {
+  group_chart?: SharedDashboardGroupChart
   branding: {
     name: string
     logo_url?: string | null

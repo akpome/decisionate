@@ -16,7 +16,7 @@ function reactChartElement(name) {
     }, props.children)
   }
 }
-const charts = Object.fromEntries(["Area", "Bar", "CartesianGrid", "ComposedChart", "Line", "ReferenceLine", "ResponsiveContainer", "Tooltip", "XAxis", "YAxis"].map(name => [name, reactChartElement(name)]))
+const charts = Object.fromEntries(["Area", "Bar", "CartesianGrid", "ComposedChart", "Legend", "Line", "ReferenceLine", "ResponsiveContainer", "Tooltip", "XAxis", "YAxis"].map(name => [name, reactChartElement(name)]))
 const modules = {
   "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
   "@/features/dashboard/lib/chart-palette": { dashboardChartPalette: ["#2563eb", "#14b8a6"] },
@@ -36,6 +36,8 @@ const selectionRows = load("../features/dashboard/components/dashboard-selection
 modules["@/features/dashboard/components/dashboard-selection-row"] = selectionRows
 const metricSelectors = load("../features/dashboard/components/metric-selector.tsx")
 modules["@/features/dashboard/components/metric-selector"] = metricSelectors
+const dashboardChart = load("../features/dashboard/components/dashboard-chart.tsx")
+modules["@/features/dashboard/components/dashboard-chart"] = dashboardChart
 modules["@/features/datasets/components/dimension-filter"] = load("../features/datasets/components/dimension-filter.tsx")
 const { alignDashboardGroupPoints, CompareGroupsEditor, DashboardGroupChart } = load("../features/dashboard/components/compare-groups.tsx")
 
@@ -119,9 +121,9 @@ test("group colors match regardless of result order and saved group targets are 
   assert.ok(html.includes(`data-element="Line" data-value="Online" data-color="${swatches[0]}"`))
   assert.ok(html.includes(`data-element="Line" data-value="In-store" data-color="${swatches[1]}"`))
   assert.deepEqual([...html.matchAll(/data-element="ReferenceLine" data-value="([^"]+)"/g)].map(match => match[1]), ["700"])
-  assert.match(html, /Metric target: 700/)
+  assert.match(html, /full screen/)
   const noTarget = renderToStaticMarkup(React.createElement(DashboardGroupChart, { comparison, state: { data: { series } } }))
-  assert.doesNotMatch(noTarget, /data-element="ReferenceLine"|Metric target:/)
+  assert.doesNotMatch(noTarget, /data-element="ReferenceLine"/)
 })
 
 test("Compare Groups supports smooth lines and areas with gaps, and grouped bars", () => {
@@ -137,4 +139,16 @@ test("Compare Groups supports smooth lines and areas with gaps, and grouped bars
     if (chartType === "bar") assert.doesNotMatch(html, /data-stack=/)
     else assert.equal((html.match(/data-curve="monotone" data-connect-nulls="false"/g) || []).length, 2)
   }
+})
+
+test("indexed charts use the first nonzero point per series and preserve gaps and recorded zero", () => {
+  const { indexDashboardChartRows } = dashboardChart
+  const rows = [{ period: "Jan", a: 0, b: null, c: null }, { period: "Feb", a: 12, b: 3, c: 0 }, { period: "Mar", a: 18, b: 0, c: null }]
+  assert.deepEqual(JSON.parse(JSON.stringify(indexDashboardChartRows(rows, ["a", "b", "c"], "period"))), [
+    { period: "Jan", a: 0, b: null, c: null }, { period: "Feb", a: 100, b: 100, c: null }, { period: "Mar", a: 150, b: 0, c: null },
+  ])
+  const html = renderToStaticMarkup(React.createElement(DashboardGroupChart, {
+    comparison, state: { data: { series } }, scaleMode: "indexed", metricTarget: 700,
+  }))
+  assert.doesNotMatch(html, /data-element="ReferenceLine"/)
 })

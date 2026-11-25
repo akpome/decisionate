@@ -5,7 +5,7 @@ from hashlib import sha256
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from sqlalchemy import Column, DateTime, Integer, String, cast, func, inspect, literal, select, union_all
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, case, cast, func, inspect, literal, select, union_all
 
 from app.db.database import Base, SessionLocal
 from app.db.models import DashboardShare, Dataset, utc_now
@@ -31,6 +31,14 @@ class SharedLink(Base):
     token_hash = Column(String(64), nullable=False, unique=True, index=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     revoked_at = Column(DateTime, nullable=True)
+
+
+class SharedDashboardGroupView(Base):
+    __tablename__ = "shared_dashboard_group_views"
+
+    delivery_id = Column(String, primary_key=True)
+    dataset_id = Column(Integer, ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    definition = Column(JSON, nullable=False)
 
 
 router = APIRouter()
@@ -116,11 +124,16 @@ def list_shared_links(db, auth, *, kind, dataset_id=None, report_id=None, dashbo
     from app.modules.datasets.router import filter_datasets_for_workspace
     queries = []
     if link_table_exists(db):
+        title = func.coalesce(Dataset.file_name, BusinessReport.name)
+        if kind == "dashboard":
+            title = case((SharedDashboardGroupView.delivery_id.isnot(None), Dataset.file_name + " / Group comparison"), else_=title)
         query = select(SharedLink.id, SharedLink.kind, SharedLink.dataset_id, SharedLink.report_id,
-                       SharedLink.dashboard_key.label("dashboard"), func.coalesce(Dataset.file_name, BusinessReport.name).label("title"),
+                       SharedLink.dashboard_key.label("dashboard"), title.label("title"),
                        SharedLink.recipient, SharedLink.created_at).select_from(SharedLink).outerjoin(Dataset, SharedLink.dataset_id == Dataset.id).outerjoin(
                            BusinessReport, SharedLink.report_id == BusinessReport.id).where(
                                SharedLink.workspace_id == auth.workspace_id, SharedLink.kind == kind, SharedLink.revoked_at.is_(None))
+        if kind == "dashboard":
+            query = query.outerjoin(SharedDashboardGroupView, SharedLink.delivery_id == SharedDashboardGroupView.delivery_id)
         query = query.where(Dataset.id.isnot(None) if kind == "dashboard" else BusinessReport.id.isnot(None))
         if dataset_id is not None:
             query = query.where(SharedLink.dataset_id == dataset_id)

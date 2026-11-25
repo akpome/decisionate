@@ -25,7 +25,7 @@ from app.modules.datasets.services.metrics import (
     generate_metrics,
 )
 from app.modules.datasets.services.metric_selection import filter_dataframe_to_selected_metrics
-from app.modules.sharing_links import find_shared_link
+from app.modules.sharing_links import SharedDashboardGroupView, find_shared_link
 from app.modules.datasets.services.dimension_filters import DimensionFilter, DimensionFilterError, apply_dimension_filter
 from app.modules.datasets.services.joins import (
     JOIN_RESULT_VERSION,
@@ -622,6 +622,23 @@ def get_public_shared_dashboard(
         from app.modules.workspace_lifecycle import workspace_is_paused
         if workspace_is_paused(db, dataset.workspace_id or dataset.user_id):
             raise_shared_dashboard_not_found()
+
+        group_view = db.get(SharedDashboardGroupView, email_link.delivery_id) if email_link else None
+        if group_view is not None:
+            if group_view.dataset_id != dataset.id:
+                raise_shared_dashboard_not_found()
+            from app.modules.share_emails import SharedGroupChartDefinition, build_shared_group_chart
+            definition = SharedGroupChartDefinition.model_validate(group_view.definition)
+            try:
+                chart = build_shared_group_chart(dataset, definition)
+            except (FileNotFoundError, OSError):
+                raise_shared_dashboard_not_found()
+            return {
+                "branding": get_public_dashboard_brand(db, dataset),
+                "dataset": {"file_name": dataset.file_name, "metrics": []},
+                "preference": {},
+                "group_chart": {**group_view.definition, "data": chart},
+            }
 
         try:
             dataframe = load_dataframe_from_dataset(

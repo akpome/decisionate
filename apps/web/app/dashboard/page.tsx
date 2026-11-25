@@ -19,6 +19,7 @@ import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-d
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { dashboardViewOptions, resolveDashboardTemplate, type DashboardTemplate } from "@/features/dashboard/lib/dashboard-template"
 import { CompareGroupsEditor, DashboardGroupChart, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
+import { DashboardTrendChart, FullscreenChartArea, indexDashboardChartRows } from "@/features/dashboard/components/dashboard-chart"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
 import { sameDimensionFilter, useDashboardDimensionData } from "@/features/dashboard/lib/use-dimension-data"
@@ -88,30 +89,14 @@ import {
   GitCompare,
   GitMerge,
   LineChart as LineChartIcon,
-  Maximize2,
   RefreshCw,
   Settings2,
   Share2,
   SlidersHorizontal,
   Link2,
-  X,
 } from "lucide-react"
 
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { ResponsiveContainer } from "recharts"
 
 const DatasetJoinPanel = dynamic(() =>
   import("@/features/dashboard/components/dataset-join-panel")
@@ -2099,6 +2084,7 @@ export default function DashboardPage() {
       end_date: dateRange.end, aggregation, aggregation_type: aggregationType }
   }, [canCompareGroups, groupTabActive, groupFilter, groupMetric, availableMetricColumns, analysisDateColumn, dateRange, loading, aggregation, aggregationType])
   const groupSeries = useDashboardGroupSeries(selectedDatasetId, userId, activeWorkspaceId, groupQuery, `${dimensionContext}:${datasetLoadRetryKey}`)
+  const groupShareReady = Boolean(groupQuery && groupSeries.data?.series.some(group => group.points.length > 0))
 
   useEffect(() => {
     if (
@@ -2207,8 +2193,8 @@ export default function DashboardPage() {
 
   const chartRows =
     scaleMode === "indexed" &&
-    selectedMetrics.length > 1
-      ? buildIndexedRows(
+    selectedMetrics.length > 0
+      ? indexDashboardChartRows(
           aggregatedRows,
           selectedMetrics,
           xKey
@@ -2738,7 +2724,7 @@ export default function DashboardPage() {
   async function emailDashboard(recipients: string[], requestKey: string): Promise<ShareEmailResult> {
     if (
       shareAction ||
-      dimensionBlocked ||
+      (showGroupComparison ? !groupShareReady : dimensionBlocked) ||
       !canConfigureWorkspace
     ) {
       throw new Error("The dashboard is not ready to share.")
@@ -2801,11 +2787,14 @@ export default function DashboardPage() {
         }
       }
 
-      await saveDashboardViewPreference()
+      if (!showGroupComparison) await saveDashboardViewPreference()
 
       const result = await correlationRequest<ShareEmailResult>(userId, "/share-emails", {
         method: "POST", headers: { "Idempotency-Key": requestKey },
-        body: JSON.stringify({ kind: "dashboard", dataset_id: selectedDatasetId, dashboard: selectedDashboard, template: dashboardTemplate, recipients }),
+        body: JSON.stringify({
+          kind: "dashboard", dataset_id: selectedDatasetId, dashboard: selectedDashboard, template: dashboardTemplate, recipients,
+          group_chart: showGroupComparison ? { query: groupQuery, chart_type: chartType, scale_mode: scaleMode, metric_target: groupMetricTarget } : undefined,
+        }),
       }, activeWorkspaceId)
       sharingStatusRequest.current++
       setShareEnabled(result.share_enabled)
@@ -2826,8 +2815,7 @@ export default function DashboardPage() {
   }
 
   const shareControlsDisabled =
-    showGroupComparison ||
-    dimensionBlocked ||
+    (showGroupComparison ? !groupShareReady : dimensionBlocked) ||
     loading ||
     shareStatusLoading ||
     !selectedDatasetId ||
@@ -2848,17 +2836,18 @@ export default function DashboardPage() {
     isCustomSelectedDashboard
       ? selectedDashboardDefinition.name
       : effectiveDashboardTitle
-  const currentShareTarget = JSON.stringify([userId, activeWorkspaceId, selectedDatasetId, selectedDashboard])
+  const shareTitle = showGroupComparison ? t("Group comparison") : dashboardShareTitle
+  const currentShareTarget = JSON.stringify([userId, activeWorkspaceId, selectedDatasetId, selectedDashboard, showGroupComparison])
   const shareEmailModal = shareModalTarget === currentShareTarget && userId && selectedDatasetId && <ShareEmailModal
-    key={currentShareTarget} title={dashboardShareTitle} kind="dashboard" onSend={emailDashboard} userId={userId} workspaceId={activeWorkspaceId}
+    key={currentShareTarget} title={shareTitle} kind="dashboard" onSend={emailDashboard} userId={userId} workspaceId={activeWorkspaceId}
     target={{ kind: "dashboard", dataset_id: selectedDatasetId, dashboard: selectedDashboard }}
     onChanged={active => { sharingStatusRequest.current++; setShareEnabled(active) }} onClose={() => setShareModalTarget("")} />
   const shareButtonLabel =
     shareAction === "share"
       ? "Sending..."
       : "Share link"
-  const shareButtonTitle = showGroupComparison ? t("Use Save PDF to share this group comparison.") : `Email a read-only ${dashboardShareTitle.toLowerCase()} link.`
-  const shareButtonAriaLabel = `Email ${dashboardShareTitle.toLowerCase()} link`
+  const shareButtonTitle = `Email a read-only ${shareTitle.toLowerCase()} link.`
+  const shareButtonAriaLabel = `Email ${shareTitle.toLowerCase()} link`
 
   const dashboardIsInitializing =
     !authLoaded ||
@@ -3546,7 +3535,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-xl font-semibold">{effectiveDashboardTitle}</h1>
               <p className="text-xs">{dataset.file_name} / {dateRange.start} - {dateRange.end}</p>
-              <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType} print />
+              <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType} scaleMode={scaleMode} print />
             </div>
           ) : <DashboardPrintPage brand={activeBrand} props={templateProps} />}
         </div>
@@ -3936,21 +3925,18 @@ export default function DashboardPage() {
       )}
 
       {dataset && !loading && showGroupComparison && groupPreference && (
-        <div className="min-w-0 space-y-3">
-          <div data-dashboard-export-control className="grid gap-2 sm:flex sm:flex-wrap sm:items-center print:hidden">
-            <CompactSelect label="Chart" value={chartType} onChange={value => setChartType(value as ChartType)} options={chartTypeOptions} />
-            <DashboardDateInputs range={dateRange} onChange={setDateRange} compact />
-            <CompactSelect label="Group by" value={aggregation} onChange={value => setAggregation(value as MetricAggregation)}
-              options={[["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["quarterly", "Quarterly"]]} />
-            {groupSeries.data?.metric_aggregation
-              ? <p className="py-2 text-xs text-gray-600">{t("Aggregation")}: {t(groupSeries.data.metric_aggregation)}</p>
-              : <CompactSelect label="Aggregate" value={aggregationType} onChange={value => setAggregationType(value as ValueAggregation)}
-                options={[["sum", "Sum"], ["count", "Count"], ["avg", "Average"], ["min", "Minimum"], ["max", "Maximum"]]} />}
-          </div>
-          {!analysisDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
-          {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
-          <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType} />
-        </div>
+        <DashboardCard className="min-w-0 xl:h-[660px]">
+          <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType}
+            scaleMode={scaleMode} controls={<>
+              <DashboardControls chartType={chartType} scaleMode={scaleMode} dateRange={dateRange}
+                aggregation={aggregation} aggregationType={aggregationType} aggregationLabel={groupSeries.data?.metric_aggregation}
+                seriesCount={groupPreference.filter.values.length} seriesLabel="Groups"
+                setChartType={setChartType} setScaleMode={setScaleMode} setDateRange={setDateRange}
+                setAggregation={setAggregation} setAggregationType={setAggregationType} onResetView={handleResetView} />
+              {!analysisDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
+              {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
+            </>} />
+        </DashboardCard>
       )}
 
       {dataset && !loading && !showGroupComparison && !dimensionBlocked && (
@@ -4336,7 +4322,7 @@ function PerformanceTemplate(
             dateRange={props.dateRange}
             aggregation={props.aggregation}
             aggregationType={props.aggregationType}
-            selectedMetrics={props.selectedMetrics}
+            seriesCount={props.selectedMetrics.length}
             setChartType={props.setChartType}
             setScaleMode={props.setScaleMode}
             setDateRange={props.setDateRange}
@@ -4478,7 +4464,7 @@ function ReportSection({
             dateRange={dateRange}
             aggregation={aggregation}
             aggregationType={aggregationType}
-            selectedMetrics={selectedMetrics}
+            seriesCount={selectedMetrics.length}
             setChartType={setChartType}
             setScaleMode={setScaleMode}
             setDateRange={setDateRange}
@@ -4603,7 +4589,9 @@ function DashboardControls({
   dateRange,
   aggregation,
   aggregationType,
-  selectedMetrics,
+  aggregationLabel,
+  seriesCount,
+  seriesLabel = "Metrics",
   setChartType,
   setScaleMode,
   setDateRange,
@@ -4616,7 +4604,9 @@ function DashboardControls({
   dateRange: DashboardDateRange
   aggregation: MetricAggregation
   aggregationType: ValueAggregation
-  selectedMetrics: string[]
+  aggregationLabel?: string | null
+  seriesCount: number
+  seriesLabel?: string
   setChartType: (value: ChartType) => void
   setScaleMode: (value: ScaleMode) => void
   setDateRange: (value: DashboardDateRange) => void
@@ -4666,7 +4656,11 @@ function DashboardControls({
         ]}
       />
 
-      <CompactSelect
+      {aggregationLabel ? (
+        <div className="flex min-h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600 sm:min-h-9">
+          Aggregate: {aggregationLabel}
+        </div>
+      ) : <CompactSelect
         label="Aggregate"
         value={aggregationType}
         onChange={value =>
@@ -4679,7 +4673,7 @@ function DashboardControls({
           ["min", "Minimum"],
           ["max", "Maximum"],
         ]}
-      />
+      />}
 
       <div className="flex min-h-10 w-full flex-wrap items-center rounded-lg border border-[var(--decisionate-brand-primary-ring)] bg-[var(--decisionate-brand-primary-soft)] px-3 py-2 text-xs text-[var(--decisionate-brand-primary-text)] sm:min-h-9 sm:w-auto sm:py-0">
         Showing&nbsp;
@@ -4701,15 +4695,15 @@ function DashboardControls({
       </button>
 
       <div className="flex h-10 w-full items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600 sm:h-9 sm:w-auto">
-        Metrics:&nbsp;
+        {seriesLabel}:&nbsp;
         <span className="font-semibold text-gray-800">
-          {selectedMetrics.length}
+          {seriesCount}
         </span>
       </div>
 
-      {selectedMetrics.length > 5 && (
+      {seriesCount > 5 && (
         <div className="flex min-h-10 w-full items-center rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 sm:min-h-9 sm:w-auto sm:py-0">
-          Many metrics selected. Use Indexed scale.
+          Many series selected. Use Indexed scale.
         </div>
       )}
     </div>
@@ -4748,135 +4742,9 @@ function MainChart({
   showTarget: boolean
   exportMode?: boolean
 }) {
-  const margin = chartMargin ?? {
-    top: 0,
-    right: 32,
-    left: 8,
-    bottom: 42,
-  }
-
-  const common = (
-    <>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis
-        dataKey={xKey}
-        angle={-35}
-        textAnchor="end"
-        height={48}
-        tickLine={false}
-        tickMargin={8}
-        label={{
-          value: formatMetricName(xKey),
-          position: "insideBottom",
-          offset: -28,
-          style: {
-            fill: "#6b7280",
-            fontSize: 10,
-          },
-        }}
-      />
-      <YAxis
-        width={yAxisWidth}
-        tickLine={false}
-        domain={["auto", "auto"]}
-      />
-      <Tooltip />
-      <Legend
-        verticalAlign="top"
-        height={28}
-      />
-
-      {showTarget && target > 0 && (
-        <ReferenceLine
-          y={target}
-          stroke="var(--decisionate-brand-primary)"
-          strokeDasharray="4 4"
-          label={{
-            value: "Target",
-            position: "insideTopRight",
-            fill: "var(--decisionate-brand-primary)",
-            fontSize: 12,
-          }}
-        />
-      )}
-    </>
-  )
-
-  if (chartType === "bar") {
-    return (
-      <BarChart data={rows} margin={margin}>
-        {common}
-
-        {metrics.map(metric => (
-          <Bar
-            key={metric}
-            dataKey={metric}
-            name={formatMetricName(metric)}
-            fill={getMetricColor(
-              getMetricIndex(allMetrics, metric)
-            )}
-            radius={[8, 8, 0, 0]}
-            isAnimationActive={!exportMode}
-          />
-        ))}
-      </BarChart>
-    )
-  }
-
-  if (chartType === "area") {
-    return (
-      <AreaChart data={rows} margin={margin}>
-        {common}
-
-        {metrics.map((metric, index) => (
-          <Area
-            key={metric}
-            type="monotone"
-            dataKey={metric}
-            name={formatMetricName(metric)}
-            stroke={getMetricColor(
-              getMetricIndex(allMetrics, metric)
-            )}
-            fill={getMetricColor(
-              getMetricIndex(allMetrics, metric)
-            )}
-            fillOpacity={
-              index === 0 ? 0.18 : 0.1
-            }
-            strokeWidth={
-              index === 0 ? 4 : 3
-            }
-            dot={false}
-            isAnimationActive={!exportMode}
-          />
-        ))}
-      </AreaChart>
-    )
-  }
-
-  return (
-    <LineChart data={rows} margin={margin}>
-      {common}
-
-      {metrics.map((metric, index) => (
-        <Line
-          key={metric}
-          type="monotone"
-          dataKey={metric}
-          name={formatMetricName(metric)}
-          stroke={getMetricColor(
-            getMetricIndex(allMetrics, metric)
-          )}
-          strokeWidth={
-            index === 0 ? 5 : 4
-          }
-          dot={false}
-          activeDot={{ r: 7 }}
-          isAnimationActive={!exportMode}
-        />
-      ))}
-    </LineChart>
-  )
+  return <DashboardTrendChart rows={rows} chartType={chartType} xKey={xKey} xLabel={formatMetricName(xKey)}
+    series={metrics.map(metric => ({ dataKey: metric, label: formatMetricName(metric), color: getMetricColor(getMetricIndex(allMetrics, metric)) }))}
+    margin={chartMargin} yAxisWidth={yAxisWidth} target={showTarget ? target : 0} extendTargetDomain animate={!exportMode} />
 }
 
 function getDashboardChartDescription({
@@ -5194,106 +5062,6 @@ function ChartEmptyState({
         No chartable metrics are available for this dashboard.
       </p>
     </div>
-  )
-}
-
-function FullscreenChartArea({
-  title,
-  ariaLabel,
-  className,
-  children,
-}: {
-  title: string
-  ariaLabel: string
-  className: string
-  children: React.ReactNode
-}) {
-  const [isFullscreen, setIsFullscreen] =
-    useState(false)
-
-  useEffect(() => {
-    if (!isFullscreen) {
-      return
-    }
-
-    const previousOverflow =
-      document.body.style.overflow
-    document.body.style.overflow = "hidden"
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsFullscreen(false)
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [isFullscreen])
-
-  return (
-    <>
-      <div
-        className={`relative ${className}`}
-        role="img"
-        aria-label={ariaLabel}
-      >
-        {!isFullscreen && (
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(true)}
-            title={`View ${title} full screen`}
-            aria-label={`View ${title} full screen`}
-            className="dashboard-print-hidden absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900"
-          >
-            <Maximize2 size={15} />
-          </button>
-        )}
-
-        {!isFullscreen && children}
-      </div>
-
-      {isFullscreen && (
-        <div
-          className="dashboard-print-hidden fixed inset-0 z-[80] flex items-center justify-center bg-gray-950/60 p-3 sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${title} full screen chart`}
-          onMouseDown={event => {
-            if (event.target === event.currentTarget) {
-              setIsFullscreen(false)
-            }
-          }}
-        >
-          <div className="flex h-full w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-              <h2 className="truncate text-base font-semibold text-gray-950 sm:text-lg">
-                {title}
-              </h2>
-
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(false)}
-                title="Close full screen chart"
-                aria-label="Close full screen chart"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 p-4 sm:p-8">
-              <div className="h-full min-h-0 w-full">
-                {children}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
   )
 }
 
@@ -6030,35 +5798,6 @@ function waitForNextFrame() {
         resolve()
       })
     })
-  })
-}
-
-function buildIndexedRows(
-  rows: DashboardRow[],
-  metrics: string[],
-  xKey: string
-) {
-  return rows.map((row) => {
-    const next: DashboardRow = {
-      [xKey]: row[xKey],
-    }
-
-    metrics.forEach((metric) => {
-      const first =
-        toFiniteDashboardNumber(
-          rows[0]?.[metric]
-        )
-
-      next[metric] =
-        getSafeRatioPercent(
-          toFiniteDashboardNumber(
-            row[metric]
-          ),
-          first
-        )
-    })
-
-    return next
   })
 }
 

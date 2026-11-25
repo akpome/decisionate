@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { RefreshCw } from "lucide-react"
-import { Area, Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { ResponsiveContainer } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
+import { DashboardTrendChart, FullscreenChartArea, indexDashboardChartRows } from "@/features/dashboard/components/dashboard-chart"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { DashboardMetricTargetFields, formatMetricLabel } from "@/features/dashboard/components/metric-selector"
 import { dashboardChartPalette } from "@/features/dashboard/lib/chart-palette"
@@ -13,7 +14,6 @@ import {
 } from "@/lib/api"
 
 const maxGroups = dashboardChartPalette.length
-const metricTargetColor = "#475569"
 
 function groupColor(value: string | null, colors: Map<string | null, string>) {
   const selected = colors.get(value)
@@ -98,76 +98,49 @@ export function alignDashboardGroupPoints(series: DashboardGroupResult["series"]
   }))
 }
 
-export function DashboardGroupChart({ comparison, state, chartType = "line", metricTarget = 0, print = false }: {
-  comparison: DashboardGroupPreference
-  state: ReturnType<typeof useDashboardGroupSeries>
+export function DashboardGroupChart({ comparison, state, chartType = "line", scaleMode = "actual", metricTarget = 0, print = false, controls }: {
+  comparison: Pick<DashboardGroupPreference, "metric" | "filter">
+  state: { data?: DashboardGroupResult; pending?: boolean; error?: string; retry?: () => void }
   chartType?: DashboardPreferencePayload["chartType"]
+  scaleMode?: DashboardPreferencePayload["scaleMode"]
   metricTarget?: number
   print?: boolean
+  controls?: ReactNode
 }) {
   const { t } = useDecisionateText()
   const data = state.data
   const rows = useMemo(() => alignDashboardGroupPoints(data?.series ?? []), [data])
-  const showMetricTarget = rows.length > 0 && Number.isFinite(metricTarget) && metricTarget > 0
   const colors = groupColors(comparison.filter.values)
-  const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+  const title = `${formatMetricLabel(comparison.metric)} / ${comparison.filter.column}`
+  const series = data?.series.map((group, index) => ({
+    dataKey: `group${index}`, label: t(dimensionValueLabel(group.value)), color: groupColor(group.value, colors),
+  })) ?? []
+  const plottedRows = scaleMode === "indexed" ? indexDashboardChartRows(rows, series.map(group => group.dataKey), "period") : rows
+  const chart = (
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}
+      initialDimension={{ width: print ? 900 : 1, height: print ? 270 : 1 }}>
+      <DashboardTrendChart rows={plottedRows} series={series} chartType={chartType} xKey="period" xLabel={t("Period")}
+        target={scaleMode === "actual" && Number.isFinite(metricTarget) ? metricTarget : 0} extendTargetDomain animate={!print} />
+    </ResponsiveContainer>
+  )
+  const emptyGroups = data?.series.filter(group => !group.points.length).map(group => t(dimensionValueLabel(group.value))) ?? []
   return (
-    <section className="min-w-0 space-y-3 border-t pt-4" aria-label={t("Group comparison")}>
-      <h2 className="break-words text-lg font-semibold">{formatMetricLabel(comparison.metric)} / {comparison.filter.column}</h2>
+    <section className={print ? "min-w-0 space-y-3" : "flex h-full min-w-0 flex-col"} aria-label={t("Group comparison")}>
+      <h2 className="break-words text-base font-semibold">{title}</h2>
+      {controls}
       {state.pending && <p role="status" className="text-sm text-gray-600">{t("Loading group comparison...")}</p>}
       {state.error && <div className="flex items-start gap-2 text-sm text-red-700">
         <p role="alert" className="min-w-0 flex-1 break-words">{state.error}</p>
-        <button type="button" title={t("Retry group comparison")} aria-label={t("Retry group comparison")} onClick={state.retry}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"><RefreshCw size={16} aria-hidden="true" /></button>
+        {state.retry && <button type="button" title={t("Retry group comparison")} aria-label={t("Retry group comparison")} onClick={state.retry}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"><RefreshCw size={16} aria-hidden="true" /></button>}
       </div>}
       {data?.has_summarized_data && <p role="status" className="text-xs text-amber-800">{t("Older monthly totals are included only for complete months when grouped by month or quarter.")}</p>}
       {data && !rows.length && <p role="status" className="text-sm text-gray-600">{t("No group data matches these dates.")}</p>}
-      {rows.length > 0 && (
-        <div className={print ? "h-[270px] w-full min-w-0" : "h-[320px] w-full min-w-0 sm:h-[400px]"}>
-          <ResponsiveContainer minWidth={0} initialDimension={{ width: print ? 900 : 1, height: print ? 270 : 1 }}>
-            <ComposedChart data={rows} margin={{ top: 12, right: 18, bottom: 6, left: 0 }} accessibilityLayer>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="period" minTickGap={32} tick={{ fontSize: 11 }} tickMargin={8} tickFormatter={period => period.slice(2)} />
-              <YAxis width={57}
-                domain={chartType === "bar" ? [min => Math.min(0, min), max => Math.max(0, max)] : ["auto", "auto"]}
-                tickFormatter={value => format.format(value)} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={value => typeof value === "number" ? format.format(value) : value} />
-              {showMetricTarget && <ReferenceLine y={metricTarget} stroke={metricTargetColor} strokeDasharray="5 4" ifOverflow="extendDomain" />}
-              {data?.series.map((group, index) => {
-                const key = JSON.stringify(group.value)
-                const color = groupColor(group.value, colors)
-                const series = { dataKey: `group${index}`, name: t(dimensionValueLabel(group.value)), isAnimationActive: false }
-                if (chartType === "bar") return <Bar key={key} {...series} fill={color} />
-                const curve = {
-                  ...series, type: "monotone" as const, stroke: color, strokeWidth: 2,
-                  dot: group.points.length < 90 ? { r: 2 } : false, connectNulls: false,
-                }
-                return chartType === "area"
-                  ? <Area key={key} {...curve} fill={color} fillOpacity={0.15} />
-                  : <Line key={key} {...curve} />
-              })}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      {data && (
-        <ul className="grid grid-cols-1 gap-x-5 gap-y-2 border-y py-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          {showMetricTarget && <li className="flex items-center gap-2 font-medium">
-            <span className="w-5 shrink-0 border-t-2 border-dashed" style={{ borderColor: metricTargetColor }} aria-hidden="true" />
-            {t("Metric target")}: {format.format(metricTarget)}
-          </li>}
-          {data.series.map(group => {
-            const color = groupColor(group.value, colors)
-            return <li key={JSON.stringify(group.value)} className="min-w-0 space-y-1">
-              <div className="flex min-w-0 items-center gap-2 font-medium">
-                <span className="w-5 shrink-0 border-t-2" style={{ borderColor: color }} aria-hidden="true" />
-                <span className="min-w-0 [overflow-wrap:anywhere]">{t(dimensionValueLabel(group.value))}</span>
-              </div>
-              {!group.points.length && <div className="pl-7 text-xs text-gray-600">{t("No data")}</div>}
-            </li>
-          })}
-        </ul>
-      )}
+      {rows.length > 0 && (print
+        ? <div className="h-[270px] w-full min-w-0">{chart}</div>
+        : <FullscreenChartArea title={title} ariaLabel={`${title}: ${series.map(group => group.label).join(", ")}`}
+            className="dashboard-print-chart-area mt-4 h-[320px] w-full min-w-0 flex-none xl:h-auto xl:min-h-[320px] xl:flex-1">{chart}</FullscreenChartArea>)}
+      {rows.length > 0 && emptyGroups.length > 0 && <p className="break-words text-xs text-gray-600">{t("No data")}: {emptyGroups.join(", ")}</p>}
     </section>
   )
 }

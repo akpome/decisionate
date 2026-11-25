@@ -28,9 +28,11 @@ def delete_reports(db, identities):
 
 
 def cleanup_source(db, dataset_id):
-    from app.modules.sharing_links import SharedLink
+    from app.modules.sharing_links import SharedDashboardGroupView, SharedLink
     if inspect(db.connection()).has_table(SharedLink.__tablename__):
         db.query(SharedLink).filter_by(dataset_id=dataset_id).delete(synchronize_session=False)
+    if inspect(db.connection()).has_table(SharedDashboardGroupView.__tablename__):
+        db.query(SharedDashboardGroupView).filter_by(dataset_id=dataset_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):
         for analysis in db.query(PerformanceAnalysis):
             definition = json.loads(analysis.definition)
@@ -78,11 +80,16 @@ def cleanup_source(db, dataset_id):
 
 def cleanup_workspace(db, workspace_id):
     from app.modules.share_emails import ShareEmailDelivery
-    from app.modules.sharing_links import SharedLink
+    from app.modules.sharing_links import SharedDashboardGroupView, SharedLink
     if inspect(db.connection()).has_table(SharedLink.__tablename__):
         db.query(SharedLink).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(ShareEmailDelivery.__tablename__):
-        db.query(ShareEmailDelivery).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
+        deliveries = db.query(ShareEmailDelivery).filter_by(workspace_id=workspace_id)
+        if inspect(db.connection()).has_table(SharedDashboardGroupView.__tablename__):
+            db.query(SharedDashboardGroupView).filter(
+                SharedDashboardGroupView.delivery_id.in_(deliveries.with_entities(ShareEmailDelivery.id))
+            ).delete(synchronize_session=False)
+        deliveries.delete(synchronize_session=False)
     if inspect(db.connection()).has_table(PerformanceAnalysis.__tablename__):
         db.query(PerformanceAnalysis).filter_by(workspace_id=workspace_id).delete(synchronize_session=False)
     if inspect(db.connection()).has_table(BudgetPlan.__tablename__):

@@ -62,6 +62,15 @@ test("single and multi dataset previews share one modal and preserve explicit sn
   assert.doesNotMatch(source, /revokeReportShare|Previously emailed links will no longer work/)
 })
 
+test("Compare Groups shares the ready comparison rather than updating the regular dashboard's shared view", () => {
+  const source = read("../app/dashboard/page.tsx")
+  assert.match(source, /groupShareReady = Boolean\(groupQuery && groupSeries.data\?\.series.some/)
+  assert.match(source, /shareControlsDisabled =\s*\(showGroupComparison \? !groupShareReady : dimensionBlocked\)/)
+  assert.match(source, /if \(!showGroupComparison\) await saveDashboardViewPreference\(\)/)
+  assert.match(source, /group_chart: showGroupComparison \? \{ query: groupQuery, chart_type: chartType, scale_mode: scaleMode, metric_target: groupMetricTarget \}/)
+  assert.match(read("../app/share/dashboard/page.tsx"), /<DashboardGroupChart comparison=\{chart.query\} state=\{\{ data: chart.data \}\} chartType=\{chart.chart_type\}/)
+})
+
 test("the public report view shows saved evidence without workspace links, edits or new analysis requests", () => {
   const page = read("../app/share/report/page.tsx")
   assert.match(page, /\/public\/reports\//)

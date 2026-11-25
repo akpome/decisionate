@@ -229,17 +229,20 @@ test("legacy shared Comparison links keep their dataset and token and use Execut
   assert.doesNotMatch(sharedSource, /effectiveDashboardTemplate === "comparison"/)
 })
 
-test("the Compare Groups chart and its PDF use the dashboard chart type", () => {
-  const chart = /<DashboardGroupChart[^>]*chartType=\{chartType\}[^>]*\/>/g
-  const renders = [...source.matchAll(chart)].map(match => match[0])
+test("Compare Groups uses the shared controls and carries chart type and scale into its PDF", () => {
+  const renders = []
+  function visit(node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === "DashboardGroupChart") renders.push(node.getText(ast))
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
   assert.equal(renders.length, 2)
-  assert.equal(renders.filter(render => render.includes(" print")).length, 1)
-  const selector = find(node => ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === "CompactSelect" &&
-    node.attributes.properties.some(prop => prop.name?.getText(ast) === "label" && prop.initializer?.text === "Chart") &&
-    node.parent?.parent?.getText(ast).includes("<DashboardGroupChart"))
-  assert.match(selector.getText(ast), /setChartType/)
-  assert.match(selector.getText(ast), /options=\{chartTypeOptions\}/)
-  assert.match(selector.getText(ast), /value=\{chartType\}/)
+  for (const render of renders) {
+    assert.match(render, /chartType=\{chartType\}/)
+    assert.match(render, /scaleMode=\{scaleMode\}/)
+  }
+  assert.match(renders[0], /print/)
+  assert.match(renders[1], /<DashboardControls.*scaleMode=\{scaleMode\}/)
 })
 
 test("General Business keeps its toolbar and Filters panel accessible when dimension data is blocked", () => {

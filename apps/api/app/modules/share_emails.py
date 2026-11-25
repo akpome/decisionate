@@ -20,7 +20,8 @@ from app.modules.alerts.router import clean_recipient_emails, get_weekly_report_
 from app.modules.auth_context import get_auth_context
 from app.modules.applications import workspace_scoped
 from app.modules.datasets.services.auth import require_workspace_data_manager
-from app.modules.sharing_links import SharedLink, active_link_count, router as shared_links_router
+from app.modules.datasets.services.dashboard_groups import DashboardGroupRequest
+from app.modules.sharing_links import SharedDashboardGroupView, SharedLink, active_link_count, router as shared_links_router
 
 
 class ShareEmailDelivery(Base):
@@ -37,6 +38,14 @@ class ShareEmailDelivery(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now, index=True)
 
 
+class SharedGroupChartDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: DashboardGroupRequest
+    chart_type: Literal["line", "bar", "area"]
+    scale_mode: Literal["actual", "indexed"]
+    metric_target: float = Field(ge=0, allow_inf_nan=False)
+
+
 class ShareEmailRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["dashboard", "report"]
@@ -45,6 +54,7 @@ class ShareEmailRequest(BaseModel):
     dashboard: str | None = Field(default=None, max_length=100)
     template: Literal["executive", "performance", "comparison"] | None = None
     report_id: str | None = Field(default=None, min_length=1, max_length=120)
+    group_chart: SharedGroupChartDefinition | None = None
 
     @model_validator(mode="after")
     def validate_target(self):
@@ -54,9 +64,25 @@ class ShareEmailRequest(BaseModel):
         if self.kind == "dashboard":
             if not self.dataset_id or not self.dashboard or not self.template or self.report_id:
                 raise ValueError("Choose a dashboard to share.")
-        elif not self.report_id or self.dataset_id or self.dashboard or self.template:
+            if self.group_chart and self.dashboard != "general-business":
+                raise ValueError("Group comparisons can only be shared from the General Business Overview.")
+        elif not self.report_id or self.dataset_id or self.dashboard or self.template or self.group_chart:
             raise ValueError("Choose a saved report to share.")
         return self
+
+
+def build_shared_group_chart(dataset, definition):
+    from app.modules.datasets.router import normalize_dataset_details_dataframe
+    from app.modules.datasets.services.dashboard_groups import dashboard_group_series
+    from app.modules.datasets.services.dataset_loader import load_dataframe_from_dataset
+
+    if dataset.source_type == "joined":
+        raise HTTPException(422, "Group comparisons cannot be shared from joined data.")
+    frame = load_dataframe_from_dataset(dataset, apply_metric_selection=False)
+    try:
+        return dashboard_group_series(dataset, normalize_dataset_details_dataframe(frame), definition.query)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
 
 
 router = APIRouter(prefix="/api/v2/share-emails", tags=["sharing"])
@@ -114,7 +140,7 @@ def send_share_email(db, auth, payload, key, request):
         title = target.name
     if not 8 <= len(key) <= 120:
         raise HTTPException(400, "A sharing request identifier is required.")
-    encoded = payload.model_dump_json()
+    encoded = payload.model_dump_json(exclude={"group_chart"} if payload.group_chart is None else None)
     fingerprint = sha256(encoded.encode()).hexdigest()
     request_key = sha256(json.dumps([auth.workspace_id, auth.user_id, key]).encode()).hexdigest()
     lock_workspace_queue(db, "share-email:" + auth.workspace_id)
@@ -139,6 +165,11 @@ def send_share_email(db, auth, payload, key, request):
     if recent >= 10:
         raise HTTPException(429, "Too many sharing emails. Please try again in ten minutes.", headers={"Retry-After": "600"})
     require_email_delivery_configured()
+    if payload.group_chart:
+        chart = build_shared_group_chart(target, payload.group_chart)
+        if not any(group["points"] for group in chart["series"]):
+            raise HTTPException(422, "There is no group data for the selected dates.")
+        title += " / Group comparison"
     branding = get_weekly_report_branding(db, auth.workspace_id)
     organization = db.query(Organization).filter_by(owner_user_id=auth.workspace_id).first()
     workspace_name = " ".join(str(organization.name if organization else branding["brand_name"]).split())
@@ -147,6 +178,9 @@ def send_share_email(db, auth, payload, key, request):
                                   payload_hash=fingerprint, target=f"{payload.kind}:{target.id}",
                                   recipients=json.dumps(payload.recipients), accepted="[]", status="sending")
     db.add(delivery)
+    if payload.group_chart:
+        db.add(SharedDashboardGroupView(delivery_id=delivery.id, dataset_id=target.id,
+                                       definition=payload.group_chart.model_dump(mode="json")))
     links = []
     for recipient in payload.recipients:
         token = token_urlsafe(32)

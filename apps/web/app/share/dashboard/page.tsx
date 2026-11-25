@@ -2,6 +2,8 @@
 
 import { dashboardCalendarDate, dashboardDateRange, type DashboardDateRange } from "@/features/dashboard/date-window"
 import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-date-inputs"
+import { DashboardTrendChart, indexDashboardChartRows } from "@/features/dashboard/components/dashboard-chart"
+import { DashboardGroupChart } from "@/features/dashboard/components/compare-groups"
 
 import {
   useEffect,
@@ -10,21 +12,7 @@ import {
   useState,
   type CSSProperties,
 } from "react"
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { ResponsiveContainer } from "recharts"
 import {
   Maximize2,
   X,
@@ -39,6 +27,7 @@ import {
   type DatasetJoinResult,
   type PublicDemoDashboardResponse,
   type PublicDemoDatasetOption,
+  type SharedDashboardGroupChart,
 } from "@/lib/api"
 import {
   getDatasetSourceDetails,
@@ -311,6 +300,7 @@ function SharedDashboardContent({
     )
   const [dataset, setDataset] =
     useState<DashboardDataset | null>(null)
+  const [sharedGroupChart, setSharedGroupChart] = useState<{ key: string; chart: SharedDashboardGroupChart; fileName: string } | null>(null)
   const [joinedDatasetResult, setJoinedDatasetResult] =
     useState<DatasetJoinResult | null>(null)
   const [sharedBrand, setSharedBrand] =
@@ -438,6 +428,7 @@ function SharedDashboardContent({
       }
 
       setDataset(null)
+      setSharedGroupChart(null)
       setJoinedDatasetResult(null)
       setDemoDatasets([])
       setSharedBrand(
@@ -515,6 +506,15 @@ function SharedDashboardContent({
           setSharedPageError(
             unavailableSharedDashboardMessage
           )
+          return
+        }
+
+        if (!effectDemo && response.group_chart) {
+          if (!isCurrent) return
+          const brand = getWorkspaceBrandFromPayload(response.branding)
+          setSharedBrand(brand)
+          cacheSharedBrand(effectBrandStorageKey, brand)
+          setSharedGroupChart({ key: sharedConfigKey, chart: response.group_chart, fileName: response.dataset.file_name })
           return
         }
 
@@ -626,6 +626,7 @@ function SharedDashboardContent({
           return
         }
 
+        setSharedGroupChart(null)
         setDataset(data)
         if (effectDemo && "demo_datasets" in response) {
           setDemoDatasets(
@@ -891,8 +892,8 @@ function SharedDashboardContent({
     )
   const chartRows =
     scaleMode === "indexed" &&
-    selectedMetrics.length > 1
-      ? buildIndexedRows(
+    selectedMetrics.length > 0
+      ? indexDashboardChartRows(
           aggregatedRows,
           selectedMetrics,
           xKey
@@ -1050,6 +1051,36 @@ function SharedDashboardContent({
           <p className="text-sm text-gray-500">
             Loading {sharedDashboardTitle.toLowerCase()}...
           </p>
+        </SharedCard>
+      </SharedPageShell>
+    )
+  }
+
+  if (!pageError && sharedGroupChart?.key === sharedConfigKey) {
+    const { chart, fileName } = sharedGroupChart
+    return (
+      <SharedPageShell brand={sharedBrand}>
+        <SharedCard className="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <WorkspaceBrandMark name={sharedBrand.name} logoUrl={sharedBrand.logoUrl} primaryColor={sharedBrand.primaryColor}
+              className="h-12 w-12 shrink-0 rounded-lg" />
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500">Shared by</p>
+              <p className="break-words font-semibold">{sharedBrand.name}</p>
+            </div>
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold">Group comparison</h1>
+            <p className="break-words text-sm text-gray-600">{fileName}</p>
+          </div>
+        </SharedCard>
+        <SharedCard className="min-w-0 xl:h-[640px]">
+          <DashboardGroupChart comparison={chart.query} state={{ data: chart.data }} chartType={chart.chart_type}
+            scaleMode={chart.scale_mode} metricTarget={chart.metric_target} controls={
+              <p className="mt-2 text-sm text-gray-600">
+                {chart.query.start_date} to {chart.query.end_date} / {formatMetricLabel(chart.query.aggregation)} / {chart.scale_mode === "indexed" ? "Indexed scale" : "Actual values"}
+              </p>
+            } />
         </SharedCard>
       </SharedPageShell>
     )
@@ -2563,140 +2594,9 @@ function MainChart({
   showTarget: boolean
   colorPalette: string[]
 }) {
-  const margin = {
-    top: 0,
-    right: 32,
-    left: 8,
-    bottom: 42,
-  }
-
-  const common = (
-    <>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis
-        dataKey={xKey}
-        angle={-35}
-        textAnchor="end"
-        height={48}
-        tickLine={false}
-        tickMargin={8}
-        label={{
-          value: formatMetricName(xKey),
-          position: "insideBottom",
-          offset: -28,
-          style: {
-            fill: "#6b7280",
-            fontSize: 10,
-          },
-        }}
-      />
-      <YAxis
-        width={70}
-        tickLine={false}
-        domain={["auto", "auto"]}
-      />
-      <Tooltip />
-      <Legend
-        verticalAlign="top"
-        height={28}
-      />
-
-      {showTarget && target > 0 && (
-        <ReferenceLine
-          y={target}
-          ifOverflow={demoMode ? "extendDomain" : "discard"}
-          stroke="var(--decisionate-brand-primary)"
-          strokeDasharray="4 4"
-          label={{
-            value: "Target",
-            position: "insideTopRight",
-            fill: "var(--decisionate-brand-primary)",
-            fontSize: 12,
-          }}
-        />
-      )}
-    </>
-  )
-
-  if (chartType === "bar") {
-    return (
-      <BarChart data={rows} margin={margin}>
-        {common}
-
-        {metrics.map((metric) => (
-          <Bar
-            key={metric}
-            isAnimationActive={!demoMode}
-            dataKey={metric}
-            name={formatMetricName(metric)}
-            fill={getMetricColor(
-              getMetricIndex(allMetrics, metric),
-              colorPalette
-            )}
-            radius={[8, 8, 0, 0]}
-          />
-        ))}
-      </BarChart>
-    )
-  }
-
-  if (chartType === "area") {
-    return (
-      <AreaChart data={rows} margin={margin}>
-        {common}
-
-        {metrics.map((metric, index) => (
-          <Area
-            key={metric}
-            isAnimationActive={!demoMode}
-            type="monotone"
-            dataKey={metric}
-            name={formatMetricName(metric)}
-            stroke={getMetricColor(
-              getMetricIndex(allMetrics, metric),
-              colorPalette
-            )}
-            fill={getMetricColor(
-              getMetricIndex(allMetrics, metric),
-              colorPalette
-            )}
-            fillOpacity={
-              index === 0 ? 0.18 : 0.1
-            }
-            strokeWidth={
-              index === 0 ? 4 : 3
-            }
-            dot={false}
-          />
-        ))}
-      </AreaChart>
-    )
-  }
-
-  return (
-    <LineChart data={rows} margin={margin}>
-      {common}
-
-      {metrics.map((metric, index) => (
-        <Line
-          key={metric}
-          isAnimationActive={!demoMode}
-          type="monotone"
-          dataKey={metric}
-          name={formatMetricName(metric)}
-          stroke={getMetricColor(
-            getMetricIndex(allMetrics, metric),
-            colorPalette
-          )}
-          strokeWidth={
-            index === 0 ? 5 : 4
-          }
-          dot={false}
-          activeDot={{ r: 7 }}
-        />
-      ))}
-    </LineChart>
-  )
+  return <DashboardTrendChart rows={rows} chartType={chartType} xKey={xKey} xLabel={formatMetricName(xKey)}
+    series={metrics.map(metric => ({ dataKey: metric, label: formatMetricName(metric), color: getMetricColor(getMetricIndex(allMetrics, metric), colorPalette) }))}
+    target={showTarget ? target : 0} extendTargetDomain animate={!demoMode} />
 }
 
 function getSharedDashboardChartDescription({
@@ -3465,35 +3365,6 @@ function getRowPeriodStartDate(
   }
 
   return new Date(2000, index, 1)
-}
-
-function buildIndexedRows(
-  rows: DashboardRow[],
-  metrics: string[],
-  xKey: string
-) {
-  return rows.map((row) => {
-    const next: DashboardRow = {
-      [xKey]: row[xKey],
-    }
-
-    metrics.forEach((metric) => {
-      const first =
-        toFiniteDashboardNumber(
-          rows[0]?.[metric]
-        )
-
-      next[metric] =
-        getSafeRatioPercent(
-          toFiniteDashboardNumber(
-            row[metric]
-          ),
-          first
-        )
-    })
-
-    return next
-  })
 }
 
 function getSharedDashboardMetrics(
