@@ -104,7 +104,7 @@ export function DatasetDimensionFilter({ datasetId, userId, workspaceId, value, 
           <option value="">{t(groupPicker ? "Choose a dimension" : "All rows")}</option>
           {loading && !columns.length && <option disabled>{t("Loading columns...")}</option>}
           {unavailableColumn && <option value={selectedColumn} disabled>{t("Unavailable dimension")}</option>}
-          {!hasCatalog && column && <option value={column}>{column}</option>}
+          {!hasCatalog && column && <option value={column}>{groupPicker ? t("Loading columns...") : column}</option>}
           {columns.map(item => <option key={item.column} value={item.column}>{item.label}</option>)}
         </select>
       </div>}

@@ -102,6 +102,17 @@ test("joined comparisons show the dimension picker even before choosing a metric
   assert.match(html, /aria-label="Filter by column values"/)
 })
 
+test("cross-source charts show the source label and make omitted months explicit", () => {
+  const joinedComparison = { ...comparison, filter: { ...filter, column: "__join_source_18_b81" } }
+  const html = renderToStaticMarkup(React.createElement(DashboardGroupChart, {
+    comparison: joinedComparison, state: { data: { series, dimension_label: "ads.csv / campaign", cross_source_months_omitted: 2 } },
+  }))
+  assert.match(html, /Revenue \/ ads\.csv \/ campaign/)
+  assert.match(html, /Grouped by matching month, not individual records/)
+  assert.match(html, /Months skipped because there was no single known group: 2/)
+  assert.doesNotMatch(html, /__join_source_/)
+})
+
 test("individual metric rows keep their checkbox without a target field", () => {
   const html = renderToStaticMarkup(React.createElement(selectionRows.DashboardSelectionRow, {
     label: "Revenue", color: "#2563eb", checked: true, onToggle() {},

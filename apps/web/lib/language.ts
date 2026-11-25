@@ -1304,6 +1304,8 @@ const frenchLandingTranslations: Record<string, string> = {
   "Loading group comparison...": "Chargement de la comparaison...",
   "Retry group comparison": "Relancer la comparaison",
   "Older monthly totals are included only for complete months when grouped by month or quarter.": "Les anciens totaux mensuels ne sont inclus que pour les mois complets, avec un regroupement par mois ou par trimestre.",
+  "Grouped by matching month, not individual records.": "Regroupement par mois commun, et non par enregistrement individuel.",
+  "Months skipped because there was no single known group": "Mois ignorés faute d’un seul groupe connu",
   "No group data matches these dates.": "Aucune donnée de groupe ne correspond à ces dates.",
   "Choose a date column in Filters to compare groups over time.": "Choisissez une colonne de date dans Filtres pour comparer les groupes dans le temps.",
   "End date must be on or after the start date.": "La date de fin doit être égale ou postérieure à la date de début.",

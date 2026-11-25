@@ -352,6 +352,7 @@ class ShareEmailTests(unittest.TestCase):
 
     def test_joined_group_email_shares_only_the_comparison_and_can_be_revoked(self):
         from app.modules.datasets.services import dataset_loader
+        from app.modules.datasets.services.dashboard_groups import joined_dashboard_dimension_options
         joined, frame, sources, metric = joined_fixture()
         self.frames.update(sources)
         self.frames[joined.id] = joined, frame
@@ -363,16 +364,22 @@ class ShareEmailTests(unittest.TestCase):
                                row_count=len(records), column_count=len(records.columns)))
             db.commit()
 
-        chart = self.group_chart(metric=metric, date_column="period", aggregation="monthly", end_date="2026-03-31")
         with patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda dataset, **_: self.frames[dataset.id][1].copy()):
+            with self.Session() as db:
+                options = joined_dashboard_dimension_options(db, db.get(Dataset, 21), frame, metric, None, "", 0)
+            campaign = next(item["column"] for item in options["columns"] if item["label"] == "ads.csv / campaign")
+            chart = self.group_chart(metric=metric, date_column="period", aggregation="monthly", end_date="2026-03-31",
+                                     filter={"column": campaign, "values": ["Spring"]})
             result = self.send(self.dashboard(dataset_id=21, group_chart=chart, recipients=["reader@example.test"]))
             self.assertEqual(result.status_code, 200, result.text)
             token = self.emailed_token()
             shared = self.public_dashboard(token, "general-business", dataset_id=21)
-            self.assertEqual(shared["group_chart"]["data"]["series"][0],
-                             {"value": "Online", "points": [{"period": "2026-01-01", "amount": 15}]})
+            data = shared["group_chart"]["data"]
+            self.assertEqual(data["series"], [{"value": "Spring", "points": [{"period": "2026-01-01", "amount": 45}]}])
+            self.assertEqual(data["dimension_label"], "ads.csv / campaign")
             self.assertEqual(shared["dataset"]["metrics"], [])
-            self.assertNotIn("campaign", json.dumps(shared))
+            self.assertNotIn("Summer", json.dumps(shared))
+            self.assertNotIn("channel", json.dumps(shared))
             link = self.listed_links(dataset_id=21).json()["items"][0]
             self.assertEqual(self.client.delete(f"/api/v2/share-emails/links/{link['id']}").status_code, 200)
             with self.assertRaises(HTTPException) as failure:

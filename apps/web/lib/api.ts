@@ -949,6 +949,8 @@ export type DashboardGroupResult = {
   series: { value: string | null; points: { period: string; amount: number }[] }[]
   has_summarized_data: boolean
   metric_aggregation: string | null
+  dimension_label?: string
+  cross_source_months_omitted?: number
 }
 
 export type SharedDashboardGroupChart = {

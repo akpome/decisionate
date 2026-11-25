@@ -1,6 +1,7 @@
 """Compare a selected dashboard metric across values of one source column."""
 
 from datetime import date
+from hashlib import sha256
 from math import isclose
 from typing import Annotated, Literal
 
@@ -17,6 +18,7 @@ from .summary_query import SUMMARY_MARKER_COLUMN, _finalize_state, _merge_states
 
 
 MAX_DASHBOARD_GROUPS = 8
+JOIN_SOURCE_COLUMN_PREFIX = "__join_source_"
 ColumnName = Annotated[StrictStr, Field(min_length=1, max_length=200)]
 
 
@@ -145,20 +147,32 @@ def joined_dashboard_group_series(dataset, frame, selection: DashboardGroupReque
     if not sources:
         raise ValueError("This joined metric is unavailable. Rebuild the join and try again.")
 
-    # The saved join has monthly totals, not a row-level match across sources.
-    # Split the selected metric only within its own source using the original join rules.
     frames = []
+    group_filter = selection.filter
+    group_source_id = None
+    dimension_label = None
+    source_key = group_filter.column.startswith(JOIN_SOURCE_COLUMN_PREFIX)
     for source in sources:
         original, records = load_source(source["dataset_id"])
         metadata = {} if source.get("date_column") else build_join_dataset_metadata(original, records)
         frames.append((original, records, metadata))
+        if source_key and group_filter.column.startswith(f"{JOIN_SOURCE_COLUMN_PREFIX}{original.id}_"):
+            for item in _join_source_dimensions(source, original, records):
+                if _join_source_column_key(original.id, item["column"]) == group_filter.column:
+                    group_filter = group_filter.model_copy(update={"column": item["column"]})
+                    group_source_id = original.id
+                    dimension_label = _join_source_dimension_label(original, item)
+                    break
+    if source_key and group_source_id is None:
+        raise ValueError("The selected dimension column is unavailable")
+
     aggregation_type = definition.get("aggregation_type", "sum")
     rebuilt = build_joined_dataset(
         frames, sources, definition.get("start_date"), definition.get("period_filter", "all"),
         definition.get("aggregation", "monthly"), aggregation_type, end_date=definition.get("end_date"),
-        group_comparison=(selection.metric, selection.filter),
+        group_comparison=(selection.metric, group_filter, group_source_id),
     )
-    if rebuilt["group_series"] is None:
+    if not any(item["label"] == selection.metric and item["column_type"] == "numeric" for item in rebuilt["datasets"]):
         raise ValueError("This joined metric is unavailable. Rebuild the join and try again.")
 
     first, last = selection.start_date.isoformat(), selection.end_date.isoformat()
@@ -172,12 +186,34 @@ def joined_dashboard_group_series(dataset, frame, selection: DashboardGroupReque
         if period not in current_totals or not same_total:
             raise ValueError("The original data has changed. Rebuild the join to compare its groups.")
 
-    return {
-        "series": [{"value": group["value"], "points": [
+    if rebuilt["group_series"] is not None:
+        series = [{"value": group["value"], "points": [
             point for point in group["points"] if point["period"] in saved_totals
-        ]} for group in rebuilt["group_series"]],
+        ]} for group in rebuilt["group_series"]]
+        coverage = {}
+    elif group_source_id is not None:
+        labels = rebuilt["group_period_values"]
+        points = {value: [] for value in group_filter.values}
+        omitted_months = 0
+        for period, raw in sorted(saved_totals.items()):
+            amount = _safe_number(raw)
+            if amount is None:
+                continue
+            if period not in labels:
+                omitted_months += 1
+            elif labels[period] in points:
+                points[labels[period]].append({"period": period, "amount": amount})
+        series = [{"value": value, "points": values} for value, values in points.items()]
+        coverage = {"cross_source_months_omitted": omitted_months}
+    else:
+        raise ValueError("This joined metric is unavailable. Rebuild the join and try again.")
+
+    return {
+        "series": series,
         "has_summarized_data": False,
         "metric_aggregation": _join_aggregation_label(aggregation_type),
+        **({"dimension_label": dimension_label} if dimension_label else {}),
+        **coverage,
     }
 
 
@@ -199,6 +235,19 @@ def _load_join_source(db, dataset, identity):
     return original
 
 
+def _join_source_dimensions(selection, dataset, frame):
+    return [item for item in dimension_columns(dataset, frame) if item["column"] != selection.get("date_column")]
+
+
+def _join_source_column_key(identity, column):
+    # Keep saved filter keys within the column length limit even for long source names.
+    return f"{JOIN_SOURCE_COLUMN_PREFIX}{identity}_{sha256(column.encode('utf-8')).hexdigest()}"
+
+
+def _join_source_dimension_label(dataset, item):
+    return f"{dataset.file_name} / {item['label']}"
+
+
 def joined_dashboard_dimension_options(db, dataset, frame, metric, column, search, offset):
     from .dataset_loader import load_dataframe_from_dataset
 
@@ -207,44 +256,52 @@ def joined_dashboard_dimension_options(db, dataset, frame, metric, column, searc
     is_joined_column = column in {item["column"] for item in joined_columns}
     if is_joined_column:
         joined_result = dimension_options(dataset, frame, column, search, offset)
-    original = None
+    source_columns = []
+    seen = {item["column"] for item in joined_columns}
     if metric and metric in frame:
         config = parse_dataset_source_config(dataset)
         definition = config.get("join_definition")
         sources = (definition.get("selections") or []) if isinstance(definition, dict) else []
         metric_sources = config.get("join_metric_sources")
         identity = metric_sources.get(metric) if isinstance(metric_sources, dict) else None
-        candidates = [source for source in sources if not identity or source["dataset_id"] == identity]
         file_name, _, metric_name = metric.rpartition(" · ")
+        originals = []
         matches = []
-        for source in candidates:
+        for source in sources:
             try:
                 candidate = _load_join_source(db, dataset, source["dataset_id"])
             except ValueError:
                 continue
+            originals.append((source, candidate))
             # Older joins did not store a metric-to-source map. Use only
             # unambiguous labels from their saved definition.
             names = source.get("metric_columns") or ([source["metric_column"]] if source.get("metric_column") else None)
-            if identity or (candidate.file_name == file_name and (names is None or metric_name in names)):
-                matches.append(candidate)
-        if len(matches) == 1:
-            original = matches[0]
+            if (candidate.id == identity if identity is not None
+                    else candidate.file_name == file_name and (names is None or metric_name in names)):
+                matches.append(candidate.id)
+        metric_source_id = matches[0] if len(matches) == 1 else None
+        for source, original in originals:
+            try:
+                records = load_dataframe_from_dataset(original, apply_metric_selection=False)
+            except HTTPException as error:
+                if error.status_code != 404:
+                    raise
+                continue
+            for item in _join_source_dimensions(source, original, records):
+                name = item["column"]
+                # Preserve existing saved comparisons using plain names on the metric's source.
+                key = name if original.id == metric_source_id and name not in seen and len(name) <= 200 else _join_source_column_key(original.id, name)
+                source_columns.append({"column": key, "label": _join_source_dimension_label(original, item)})
+                if column == key and not is_joined_column:
+                    joined_result = dimension_options(original, records, name, search, offset)
 
-    source_columns = []
-    if original:
-        records = load_dataframe_from_dataset(original, apply_metric_selection=False)
-        source_result = dimension_options(original, records, None if is_joined_column else column, search, offset)
-        source_columns = source_result["columns"]
-        if not is_joined_column:
-            joined_result = source_result
-    elif column and not is_joined_column:
+    if column and not is_joined_column and not any(item["column"] == column for item in source_columns):
         raise ValueError("The selected dimension column is unavailable")
 
-    seen = {item["column"] for item in joined_columns}
     return {
         **joined_result,
         "columns": [{**item, "label": f"{item['label']} (joined months)"} for item in joined_columns]
-        + [item for item in source_columns if item["column"] not in seen],
+        + source_columns,
     }
 
 

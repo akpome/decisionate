@@ -169,8 +169,9 @@ class DashboardGroupTests(unittest.TestCase):
                 dashboard_group_series_for_dataset(None, joined, frame, query)
             load.assert_not_called()
 
-    def test_joined_group_dimension_catalog_includes_saved_columns_and_follows_the_metric_source(self):
+    def test_joined_group_dimension_catalog_includes_all_sources_and_keeps_legacy_keys(self):
         joined, frame, sources, metric = joined_fixture()
+        sources[18][1]["channel"] = ["Search", "Social"]
         app = FastAPI()
         app.include_router(datasets.router, prefix="/datasets")
         joined_columns = {"sales.csv · channel", "ads.csv · campaign"}
@@ -186,13 +187,66 @@ class DashboardGroupTests(unittest.TestCase):
             self.assertEqual({item["column"] for item in base.json()["columns"]}, joined_columns)
             self.assertTrue(all(item["label"].endswith("(joined months)") for item in base.json()["columns"]))
             load.assert_not_called()
-            for selected_metric, expected in [(metric, {"country", "channel"}), ("ads.csv · spend", {"campaign"})]:
+            for selected_metric, legacy in [(metric, {"country", "channel"}), ("ads.csv · spend", {"campaign", "channel"})]:
                 response = client.get(path, params={"group_metric": selected_metric})
                 self.assertEqual(response.status_code, 200, response.text)
-                self.assertEqual({item["column"] for item in response.json()["columns"]}, joined_columns | expected)
+                columns = {item["label"]: item["column"] for item in response.json()["columns"]}
+                self.assertEqual(set(columns), {"sales.csv / country", "sales.csv / channel", "ads.csv / campaign", "ads.csv / channel"}
+                                 | {f"{column} (joined months)" for column in joined_columns})
+                self.assertTrue(legacy <= set(columns.values()))
+                self.assertNotEqual(columns["sales.csv / channel"], columns["ads.csv / channel"])
+                self.assertNotIn("ads.csv / spend", columns)
             response = client.get(path, params={"group_metric": metric, "column": "ads.csv · campaign", "search": "spring"})
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["values"], ["Spring"])
+
+    def test_joined_cross_source_groups_use_monthly_totals_once_and_skip_ambiguous_or_missing_months(self):
+        joined, _, sources, metric = joined_fixture()
+        sales, history = sources[17]
+        ads, _ = sources[18]
+        sources[17] = sales, pd.concat([history, pd.DataFrame({
+            "date": ["2026-04-01"], "channel": ["Store"], "country": ["CA"], "revenue": [90],
+        })], ignore_index=True)
+        sources[18] = ads, pd.DataFrame({
+            "date": ["2026-01-10", "2026-01-11", "2026-02-12", "2026-03-11", "2026-03-12", "2026-04-01", "2026-05-01"],
+            "spend": [5, 7, 10, 15, 20, 21, 25], "campaign": ["Spring", "Spring", "Spring", "Spring", "Summer", None, "Autumn"],
+        })
+        config = json.loads(joined.source_config)
+        config["join_definition"]["selections"][1]["metric_columns"] = ["spend"]
+        joined.source_config = json.dumps(config)
+        frame = pd.DataFrame(build_joined_dataset([(source, rows, {}) for source, rows in sources.values()],
+                                                 config["join_definition"]["selections"])["rows"])
+        self.assertNotIn("ads.csv · campaign", frame)
+        app = FastAPI()
+        app.include_router(datasets.router, prefix="/datasets")
+        with patch.object(datasets, "get_user_id", return_value="owner"), patch.object(
+            datasets, "get_workspace_id", return_value="workspace",
+        ), patch.object(datasets, "_load_owned_dataset_dataframe", return_value=(joined, frame)), patch.object(
+            dataset_loader, "load_dataset", side_effect=lambda db, identity: sources[identity][0],
+        ), patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda source, **_: sources[source.id][1]):
+            client = TestClient(app)
+            path = "/datasets/21/dimensions"
+            catalog = client.get(path, params={"group_metric": metric})
+            self.assertEqual(catalog.status_code, 200, catalog.text)
+            column = next(item["column"] for item in catalog.json()["columns"] if item["label"] == "ads.csv / campaign")
+            options = client.get(path, params={"group_metric": metric, "column": column, "search": "spring"})
+            self.assertEqual(options.status_code, 200, options.text)
+            self.assertEqual(options.json()["values"], ["Spring"])
+            query = selection(metric=metric, date_column="period", aggregation="monthly", end_date="2026-05-31",
+                              filter={"column": column, "values": ["Spring", "Summer", None, "Autumn"]}).model_dump(mode="json")
+            result = client.post("/datasets/21/dashboard-groups", json=query)
+            self.assertEqual(result.status_code, 200, result.text)
+            self.assertEqual(result.json()["dimension_label"], "ads.csv / campaign")
+            self.assertEqual(result.json()["cross_source_months_omitted"], 2)
+            self.assertEqual(result.json()["series"], [
+                {"value": "Spring", "points": [{"period": "2026-01-01", "amount": 45}, {"period": "2026-02-01", "amount": 50}]},
+                {"value": "Summer", "points": []},
+                {"value": None, "points": []},
+                {"value": "Autumn", "points": []},
+            ])
+            self.assertEqual(client.post("/datasets/21/dashboard-groups", json={
+                **query, "filter": {"column": column.replace("_18_", "_19_"), "values": ["Spring"]},
+            }).status_code, 422)
 
     def test_saved_joined_dimensions_group_monthly_values_without_reaggregating(self):
         joined, frame, _, metric = joined_fixture()

@@ -113,7 +113,8 @@ export function DashboardGroupChart({ comparison, state, chartType = "line", sca
   const data = state.data
   const rows = useMemo(() => alignDashboardGroupPoints(data?.series ?? []), [data])
   const colors = groupColors(comparison.filter.values)
-  const title = `${formatMetricLabel(comparison.metric)} / ${comparison.filter.column}`
+  const dimension = data?.dimension_label ?? (comparison.filter.column.startsWith("__join_source_") ? "" : comparison.filter.column)
+  const title = [formatMetricLabel(comparison.metric), dimension].filter(Boolean).join(" / ")
   const series = data?.series.map((group, index) => ({
     dataKey: `group${index}`, label: t(dimensionValueLabel(group.value)), color: groupColor(group.value, colors),
   })) ?? []
@@ -137,6 +138,10 @@ export function DashboardGroupChart({ comparison, state, chartType = "line", sca
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"><RefreshCw size={16} aria-hidden="true" /></button>}
       </div>}
       {data?.has_summarized_data && <p role="status" className="text-xs text-amber-800">{t("Older monthly totals are included only for complete months when grouped by month or quarter.")}</p>}
+      {data?.cross_source_months_omitted !== undefined && <p role="status" className="text-xs text-gray-600">
+        {t("Grouped by matching month, not individual records.")}{" "}
+        {data.cross_source_months_omitted > 0 && <span className="text-amber-800">{t("Months skipped because there was no single known group")}: {data.cross_source_months_omitted}.</span>}
+      </p>}
       {data && !rows.length && <p role="status" className="text-sm text-gray-600">{t("No group data matches these dates.")}</p>}
       {rows.length > 0 && (print
         ? <div className="h-[270px] w-full min-w-0">{chart}</div>

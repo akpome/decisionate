@@ -422,7 +422,7 @@ def build_joined_dataset(
     aggregation_type: str = "sum",
     end_date: str | None = None,
     *,
-    group_comparison: tuple[str, DimensionFilter] | None = None,
+    group_comparison: tuple[str, DimensionFilter, int | None] | None = None,
 ) -> dict:
     clean_aggregation = str(aggregation).strip().lower()
     if clean_aggregation not in JOIN_PERIODS:
@@ -460,6 +460,7 @@ def build_joined_dataset(
     used_labels: set[str] = set()
     available_periods: set[str] = set()
     group_series = None
+    group_period_values = {}
     reference_year = None
     if str(start_date or "").strip():
         with warnings.catch_warnings():
@@ -704,8 +705,9 @@ def build_joined_dataset(
                 .rename(label)
                 .reset_index()
             )
-            if group_comparison and label == group_comparison[0] and is_numeric:
-                _, group_filter = group_comparison
+            if (group_comparison and label == group_comparison[0] and is_numeric
+                    and group_comparison[2] in (None, dataset_id)):
+                _, group_filter, _ = group_comparison
                 tokens = dimension_tokens(dataset, dataframe, group_filter.column)
                 group_series = []
                 for value in group_filter.values:
@@ -742,6 +744,16 @@ def build_joined_dataset(
                     ),
                 }
             )
+
+        if group_comparison and group_comparison[2] == dataset_id and group_series is None:
+            tokens = dimension_tokens(dataset, dataframe, group_comparison[1].column)
+            labels = working[["period"]].assign(value=tokens).drop_duplicates()
+            # A monthly total cannot be split using rows from a different dataset.
+            # Keep only months whose source rows all carry the same known value.
+            labels = labels.drop_duplicates(subset="period", keep=False).dropna(subset=["value"])
+            group_period_values = {
+                _period_label(period): value for period, value in labels.itertuples(index=False, name=None) if value.strip()
+            }
 
         if dataset_grouped is None:
             continue
@@ -836,5 +848,5 @@ def build_joined_dataset(
         "datasets": details,
         "rows": rows,
         "decision_context": decision_context,
-        **({"group_series": group_series} if group_comparison else {}),
+        **({"group_series": group_series, "group_period_values": group_period_values} if group_comparison else {}),
     }
