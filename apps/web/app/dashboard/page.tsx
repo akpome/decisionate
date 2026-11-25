@@ -122,7 +122,7 @@ const DatasetJoinPanel = dynamic(() =>
    Types
 ========================= */
 
-type ChartType = "line" | "bar" | "area"
+type ChartType = NonNullable<DashboardPreferencePayload["chartType"]>
 type ScaleMode = "actual" | "indexed"
 type ShareAction = "share"
 
@@ -213,10 +213,10 @@ type SharedDashboardConfig = {
    Constants
 ========================= */
 
-const chartTypes: ChartType[] = [
-  "line",
-  "bar",
-  "area",
+const chartTypeOptions: [ChartType, string][] = [
+  ["line", "Line"],
+  ["bar", "Bar"],
+  ["area", "Area"],
 ]
 
 const scaleModes: ScaleMode[] = [
@@ -3546,7 +3546,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-xl font-semibold">{effectiveDashboardTitle}</h1>
               <p className="text-xs">{dataset.file_name} / {dateRange.start} - {dateRange.end}</p>
-              <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} print />
+              <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType} print />
             </div>
           ) : <DashboardPrintPage brand={activeBrand} props={templateProps} />}
         </div>
@@ -3937,7 +3937,8 @@ export default function DashboardPage() {
 
       {dataset && !loading && showGroupComparison && groupPreference && (
         <div className="min-w-0 space-y-3">
-          <div data-dashboard-export-control className="flex flex-wrap items-end gap-3 print:hidden">
+          <div data-dashboard-export-control className="grid gap-2 sm:flex sm:flex-wrap sm:items-center print:hidden">
+            <CompactSelect label="Chart" value={chartType} onChange={value => setChartType(value as ChartType)} options={chartTypeOptions} />
             <DashboardDateInputs range={dateRange} onChange={setDateRange} compact />
             <CompactSelect label="Group by" value={aggregation} onChange={value => setAggregation(value as MetricAggregation)}
               options={[["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["quarterly", "Quarterly"]]} />
@@ -3948,7 +3949,7 @@ export default function DashboardPage() {
           </div>
           {!analysisDateColumn && <p role="status" className="text-sm text-gray-600">{t("Choose a date column in Filters to compare groups over time.")}</p>}
           {dateRange.start > dateRange.end && <p role="alert" className="text-sm text-red-700">{t("End date must be on or after the start date.")}</p>}
-          <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} />
+          <DashboardGroupChart comparison={groupPreference} state={groupSeries} metricTarget={groupMetricTarget} chartType={chartType} />
         </div>
       )}
 
@@ -4634,11 +4635,7 @@ function DashboardControls({
         onChange={(value) =>
           setChartType(value as ChartType)
         }
-        options={[
-          ["line", "Line"],
-          ["bar", "Bar"],
-          ["area", "Area"],
-        ]}
+        options={chartTypeOptions}
       />
 
       <CompactSelect
@@ -5953,10 +5950,7 @@ function getSavedDashboardText(
 function isSavedChartType(
   value: unknown
 ): value is ChartType {
-  return (
-    typeof value === "string" &&
-    chartTypes.includes(value as ChartType)
-  )
+  return chartTypeOptions.some(([chartType]) => chartType === value)
 }
 
 function isSavedScaleMode(

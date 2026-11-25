@@ -392,7 +392,7 @@ const referenceChapters: ReferenceChapter[] = [
           "Open Edit dashboard on General Business Overview, then choose a Target metric in Select Metrics to show the gauge. To hide it, return the selector to 'Choose a metric'. The checkboxes control which metrics appear in the main chart.",
           "In Select Metrics, choose a Dimension column and values to filter all selected metrics together.",
           "Open Compare Groups, choose one metric and a dimension column, then check the values to compare. The optional Metric target is shared with Select Metrics and appears as one dashed line across the chart.",
-          "Use the same dates and grouping to compare the colored lines. Use Save PDF to export the comparison.",
+          "Choose Line, Bar, or Area under Chart. Use the same dates and grouping to compare the colored series. Use Save PDF to export the comparison.",
           "Use the chart expand action to open a larger view when the chart is mapped and the action is available.",
           "For a horizontal bar chart opened in a modal, use the expanded vertical presentation to compare category values more easily.",
           "Use the chart legend or direct labels to verify which dataset column each visual encoding represents.",

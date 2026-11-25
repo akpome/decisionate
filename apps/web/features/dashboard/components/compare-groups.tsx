@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { RefreshCw } from "lucide-react"
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { DashboardMetricTargetFields, formatMetricLabel } from "@/features/dashboard/components/metric-selector"
 import { dashboardChartPalette } from "@/features/dashboard/lib/chart-palette"
 import { DatasetDimensionFilter, dimensionValueLabel } from "@/features/datasets/components/dimension-filter"
 import {
-  getDashboardGroupSeries, type DashboardGroupPreference, type DashboardGroupQuery, type DashboardGroupResult, type DimensionFilter,
+  getDashboardGroupSeries, type DashboardGroupPreference, type DashboardGroupQuery, type DashboardGroupResult, type DashboardPreferencePayload, type DimensionFilter,
 } from "@/lib/api"
 
 const maxGroups = dashboardChartPalette.length
@@ -98,9 +98,10 @@ export function alignDashboardGroupPoints(series: DashboardGroupResult["series"]
   }))
 }
 
-export function DashboardGroupChart({ comparison, state, metricTarget = 0, print = false }: {
+export function DashboardGroupChart({ comparison, state, chartType = "line", metricTarget = 0, print = false }: {
   comparison: DashboardGroupPreference
   state: ReturnType<typeof useDashboardGroupSeries>
+  chartType?: DashboardPreferencePayload["chartType"]
   metricTarget?: number
   print?: boolean
 }) {
@@ -124,18 +125,28 @@ export function DashboardGroupChart({ comparison, state, metricTarget = 0, print
       {rows.length > 0 && (
         <div className={print ? "h-[270px] w-full min-w-0" : "h-[320px] w-full min-w-0 sm:h-[400px]"}>
           <ResponsiveContainer minWidth={0} initialDimension={{ width: print ? 900 : 1, height: print ? 270 : 1 }}>
-            <LineChart data={rows} margin={{ top: 12, right: 18, bottom: 6, left: 0 }} accessibilityLayer>
+            <ComposedChart data={rows} margin={{ top: 12, right: 18, bottom: 6, left: 0 }} accessibilityLayer>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="period" minTickGap={32} tick={{ fontSize: 11 }} tickMargin={8} tickFormatter={period => period.slice(2)} />
-              <YAxis width={57} domain={["auto", "auto"]} tickFormatter={value => format.format(value)} tick={{ fontSize: 11 }} />
+              <YAxis width={57}
+                domain={chartType === "bar" ? [min => Math.min(0, min), max => Math.max(0, max)] : ["auto", "auto"]}
+                tickFormatter={value => format.format(value)} tick={{ fontSize: 11 }} />
               <Tooltip formatter={value => typeof value === "number" ? format.format(value) : value} />
               {showMetricTarget && <ReferenceLine y={metricTarget} stroke={metricTargetColor} strokeDasharray="5 4" ifOverflow="extendDomain" />}
-              {data?.series.map((group, index) => (
-                <Line key={JSON.stringify(group.value)} type="linear" dataKey={`group${index}`} name={t(dimensionValueLabel(group.value))}
-                  stroke={groupColor(group.value, colors)} strokeWidth={2} dot={group.points.length < 90 ? { r: 2 } : false}
-                  connectNulls={false} isAnimationActive={false} />
-              ))}
-            </LineChart>
+              {data?.series.map((group, index) => {
+                const key = JSON.stringify(group.value)
+                const color = groupColor(group.value, colors)
+                const series = { dataKey: `group${index}`, name: t(dimensionValueLabel(group.value)), isAnimationActive: false }
+                if (chartType === "bar") return <Bar key={key} {...series} fill={color} />
+                const curve = {
+                  ...series, type: "monotone" as const, stroke: color, strokeWidth: 2,
+                  dot: group.points.length < 90 ? { r: 2 } : false, connectNulls: false,
+                }
+                return chartType === "area"
+                  ? <Area key={key} {...curve} fill={color} fillOpacity={0.15} />
+                  : <Line key={key} {...curve} />
+              })}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}

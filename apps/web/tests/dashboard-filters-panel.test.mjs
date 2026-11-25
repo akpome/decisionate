@@ -229,6 +229,19 @@ test("legacy shared Comparison links keep their dataset and token and use Execut
   assert.doesNotMatch(sharedSource, /effectiveDashboardTemplate === "comparison"/)
 })
 
+test("the Compare Groups chart and its PDF use the dashboard chart type", () => {
+  const chart = /<DashboardGroupChart[^>]*chartType=\{chartType\}[^>]*\/>/g
+  const renders = [...source.matchAll(chart)].map(match => match[0])
+  assert.equal(renders.length, 2)
+  assert.equal(renders.filter(render => render.includes(" print")).length, 1)
+  const selector = find(node => ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === "CompactSelect" &&
+    node.attributes.properties.some(prop => prop.name?.getText(ast) === "label" && prop.initializer?.text === "Chart") &&
+    node.parent?.parent?.getText(ast).includes("<DashboardGroupChart"))
+  assert.match(selector.getText(ast), /setChartType/)
+  assert.match(selector.getText(ast), /options=\{chartTypeOptions\}/)
+  assert.match(selector.getText(ast), /value=\{chartType\}/)
+})
+
 test("General Business keeps its toolbar and Filters panel accessible when dimension data is blocked", () => {
   const toolbar = find(node => ts.isJsxElement(node) && attribute(node, "className") === "dashboard-management-toolbar print:hidden")
   let condition = toolbar.parent

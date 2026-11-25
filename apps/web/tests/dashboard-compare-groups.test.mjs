@@ -10,10 +10,13 @@ const React = require("react")
 const { renderToStaticMarkup } = require("react-dom/server")
 function reactChartElement(name) {
   return function ChartElement(props) {
-    return React.createElement("div", { "data-element": name, "data-value": props.name || props.y, "data-color": props.stroke }, props.children)
+    return React.createElement("div", {
+      "data-element": name, "data-value": props.name || props.y, "data-color": props.stroke ?? props.fill,
+      "data-curve": props.type, "data-connect-nulls": props.connectNulls?.toString(), "data-stack": props.stackId,
+    }, props.children)
   }
 }
-const charts = Object.fromEntries(["CartesianGrid", "Line", "LineChart", "ReferenceLine", "ResponsiveContainer", "Tooltip", "XAxis", "YAxis"].map(name => [name, reactChartElement(name)]))
+const charts = Object.fromEntries(["Area", "Bar", "CartesianGrid", "ComposedChart", "Line", "ReferenceLine", "ResponsiveContainer", "Tooltip", "XAxis", "YAxis"].map(name => [name, reactChartElement(name)]))
 const modules = {
   "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
   "@/features/dashboard/lib/chart-palette": { dashboardChartPalette: ["#2563eb", "#14b8a6"] },
@@ -119,4 +122,19 @@ test("group colors match regardless of result order and saved group targets are 
   assert.match(html, /Metric target: 700/)
   const noTarget = renderToStaticMarkup(React.createElement(DashboardGroupChart, { comparison, state: { data: { series } } }))
   assert.doesNotMatch(noTarget, /data-element="ReferenceLine"|Metric target:/)
+})
+
+test("Compare Groups supports smooth lines and areas with gaps, and grouped bars", () => {
+  const swatches = [...renderEditor().matchAll(/style="background-color:(#[\da-f]{6})"/g)].map(match => match[1])
+  for (const [chartType, element] of [["line", "Line"], ["area", "Area"], ["bar", "Bar"]]) {
+    const html = renderToStaticMarkup(React.createElement(DashboardGroupChart, {
+      comparison, chartType, metricTarget: 700, state: { data: { series } },
+    }))
+    assert.equal((html.match(new RegExp(`data-element="${element}"`, "g")) || []).length, 2)
+    assert.ok(html.includes(`data-element="${element}" data-value="Online" data-color="${swatches[0]}"`))
+    assert.ok(html.includes(`data-element="${element}" data-value="In-store" data-color="${swatches[1]}"`))
+    assert.equal((html.match(/data-element="ReferenceLine"/g) || []).length, 1)
+    if (chartType === "bar") assert.doesNotMatch(html, /data-stack=/)
+    else assert.equal((html.match(/data-curve="monotone" data-connect-nulls="false"/g) || []).length, 2)
+  }
 })
