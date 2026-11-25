@@ -1146,6 +1146,26 @@ function SharedDashboardContent({
           operationsValue: selectedMetrics[0],
         }
       : dashboardMetricMapping
+  const viewSettings = sharedDemo ? (
+    <DemoDashboardControls
+      chartType={chartType}
+      setChartType={setChartType}
+      scaleMode={scaleMode}
+      setScaleMode={setScaleMode}
+      dateRange={dateRange}
+      setDateRange={setDateRange}
+      aggregation={aggregation}
+      setAggregation={setAggregation}
+      aggregationType={aggregationType}
+      setAggregationType={setAggregationType}
+      showChartControls={isGeneralBusinessOverview}
+    />
+  ) : (
+    <p className="text-sm text-gray-600">
+      {dateRange.start} to {dateRange.end} / Grouped {aggregation}
+      {isGeneralBusinessOverview && (scaleMode === "indexed" ? " / Indexed scale" : " / Actual values")}
+    </p>
+  )
 
   if (
     selectedDashboardDefinition.key !==
@@ -1198,14 +1218,7 @@ function SharedDashboardContent({
           showActions={false}
         />
 
-        <SharedDashboardControls
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          aggregation={aggregation}
-          setAggregation={setAggregation}
-          aggregationType={aggregationType}
-          setAggregationType={setAggregationType}
-        />
+        {viewSettings}
         {demoBanner}
       </SharedPageShell>
     )
@@ -1347,26 +1360,14 @@ function SharedDashboardContent({
           </>
         )}
 
-        <SharedDashboardControls
-          chartType={chartType}
-          setChartType={setChartType}
-          scaleMode={scaleMode}
-          setScaleMode={setScaleMode}
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          aggregation={aggregation}
-          setAggregation={setAggregation}
-          aggregationType={aggregationType}
-          setAggregationType={setAggregationType}
-          showChartControls
-        />
+        {viewSettings}
         {demoBanner}
       </div>
     </SharedPageShell>
   )
 }
 
-function SharedDashboardControls({
+function DemoDashboardControls({
   chartType,
   setChartType,
   scaleMode,

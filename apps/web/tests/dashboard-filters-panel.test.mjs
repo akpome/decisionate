@@ -344,6 +344,39 @@ test("shared Executive and Performance views only show an explicitly selected ta
   }
 })
 
+test("shared dashboard settings are fixed for recipients and editable only in the demo", () => {
+  const sharedSource = readFileSync(new URL("../app/share/dashboard/page.tsx", import.meta.url), "utf8")
+  const shared = ts.createSourceFile("shared.tsx", sharedSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const settings = find(node => ts.isVariableDeclaration(node) && node.name.getText(shared) === "viewSettings", shared)
+  const controls = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "DemoDashboardControls", shared)
+  const { View } = load(`${controls.getText(shared)}
+    export function View({ sharedDemo, isGeneralBusinessOverview }) {
+      const ${settings.getText(shared)}
+      return viewSettings
+    }
+  `, {
+    chartType: "bar", scaleMode: "indexed", aggregation: "weekly", aggregationType: "avg",
+    dateRange: { start: "2026-05-01", end: "2026-05-31" },
+    setChartType() {}, setScaleMode() {}, setDateRange() {}, setAggregation() {}, setAggregationType() {},
+    DashboardDateInputs: ({ range }) => React.createElement("input", { type: "date", value: range.start, readOnly: true }),
+  })
+  assert.equal((sharedSource.match(/\{viewSettings\}/g) || []).length, 2)
+  assert.equal((sharedSource.match(/<DemoDashboardControls\b/g) || []).length, 1)
+
+  for (const isGeneralBusinessOverview of [true, false]) {
+    const render = sharedDemo => renderToStaticMarkup(React.createElement(View, { sharedDemo, isGeneralBusinessOverview }))
+    const sharedView = render(false)
+    assert.doesNotMatch(sharedView, /<(input|select|button)\b/)
+    assert.match(sharedView, /2026-05-01 to 2026-05-31 \/ Grouped weekly/)
+    assert.equal(sharedView.includes("Indexed scale"), isGeneralBusinessOverview)
+    const demo = render(true)
+    assert.match(demo, /type="date"/)
+    assert.match(demo, /Group by/)
+    assert.match(demo, /Aggregate/)
+    assert.equal((demo.match(/<select/g) || []).length, isGeneralBusinessOverview ? 4 : 2)
+  }
+})
+
 test("the view switch keeps only Executive and Performance", () => {
   const templates = load(readFileSync(new URL("../features/dashboard/lib/dashboard-template.ts", import.meta.url), "utf8"))
   const toggle = find(node => ts.isJsxElement(node) && attribute(node, "aria-label") === "Dashboard template")
