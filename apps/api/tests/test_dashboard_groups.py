@@ -182,20 +182,24 @@ class DashboardGroupTests(unittest.TestCase):
         ), patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda source, **_: sources[source.id][1]) as load:
             client = TestClient(app)
             path = "/datasets/21/dimensions"
+            ordinary = client.get(path)
+            self.assertEqual({item["column"] for item in ordinary.json()["columns"]}, joined_columns)
+            load.assert_not_called()
             base = client.get(path, params={"group_metric": ""})
             self.assertEqual(base.status_code, 200, base.text)
-            self.assertEqual({item["column"] for item in base.json()["columns"]}, joined_columns)
-            self.assertTrue(all(item["label"].endswith("(joined months)") for item in base.json()["columns"]))
-            load.assert_not_called()
-            for selected_metric, legacy in [(metric, {"country", "channel"}), ("ads.csv · spend", {"campaign", "channel"})]:
+            columns = {item["label"]: item["column"] for item in base.json()["columns"]}
+            self.assertEqual(set(columns), {"sales.csv / country", "sales.csv / channel", "ads.csv / campaign", "ads.csv / channel"}
+                             | {f"{column} (joined months)" for column in joined_columns})
+            self.assertNotEqual(columns["sales.csv / channel"], columns["ads.csv / channel"])
+            for selected_metric in (metric, "ads.csv · spend", "stale metric"):
                 response = client.get(path, params={"group_metric": selected_metric})
                 self.assertEqual(response.status_code, 200, response.text)
-                columns = {item["label"]: item["column"] for item in response.json()["columns"]}
-                self.assertEqual(set(columns), {"sales.csv / country", "sales.csv / channel", "ads.csv / campaign", "ads.csv / channel"}
-                                 | {f"{column} (joined months)" for column in joined_columns})
-                self.assertTrue(legacy <= set(columns.values()))
-                self.assertNotEqual(columns["sales.csv / channel"], columns["ads.csv / channel"])
-                self.assertNotIn("ads.csv / spend", columns)
+                self.assertEqual(response.json()["columns"], base.json()["columns"])
+            for selected_metric, value in [(metric, "Store"), ("ads.csv · spend", "Social")]:
+                legacy = client.get(path, params={"group_metric": selected_metric, "column": "channel"})
+                self.assertEqual(legacy.status_code, 200, legacy.text)
+                self.assertIn(value, legacy.json()["values"])
+                self.assertIn("channel", {item["column"] for item in legacy.json()["columns"]})
             response = client.get(path, params={"group_metric": metric, "column": "ads.csv · campaign", "search": "spring"})
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["values"], ["Spring"])
@@ -226,10 +230,10 @@ class DashboardGroupTests(unittest.TestCase):
         ), patch.object(dataset_loader, "load_dataframe_from_dataset", side_effect=lambda source, **_: sources[source.id][1]):
             client = TestClient(app)
             path = "/datasets/21/dimensions"
-            catalog = client.get(path, params={"group_metric": metric})
+            catalog = client.get(path, params={"group_metric": ""})
             self.assertEqual(catalog.status_code, 200, catalog.text)
             column = next(item["column"] for item in catalog.json()["columns"] if item["label"] == "ads.csv / campaign")
-            options = client.get(path, params={"group_metric": metric, "column": column, "search": "spring"})
+            options = client.get(path, params={"group_metric": "", "column": column, "search": "spring"})
             self.assertEqual(options.status_code, 200, options.text)
             self.assertEqual(options.json()["values"], ["Spring"])
             query = selection(metric=metric, date_column="period", aggregation="monthly", end_date="2026-05-31",
@@ -243,6 +247,14 @@ class DashboardGroupTests(unittest.TestCase):
                 {"value": "Summer", "points": []},
                 {"value": None, "points": []},
                 {"value": "Autumn", "points": []},
+            ])
+            sales_channel = next(item["column"] for item in catalog.json()["columns"] if item["label"] == "sales.csv / channel")
+            same_source = client.post("/datasets/21/dashboard-groups", json={
+                **query, "filter": {"column": sales_channel, "values": ["Online"]},
+            })
+            self.assertEqual(same_source.status_code, 200, same_source.text)
+            self.assertEqual(same_source.json()["series"], [
+                {"value": "Online", "points": [{"period": "2026-01-01", "amount": 15}, {"period": "2026-02-01", "amount": 50}]},
             ])
             self.assertEqual(client.post("/datasets/21/dashboard-groups", json={
                 **query, "filter": {"column": column.replace("_18_", "_19_"), "values": ["Spring"]},

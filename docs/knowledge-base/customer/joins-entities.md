@@ -19,8 +19,8 @@ can prevent a useful joined comparison. A join does not create missing business
 activity or make different currencies equivalent. Use Reports for a broader
 multi-metric review and a frozen analysis snapshot.
 
-In Compare Groups, choose a metric first. The dimension dropdown lists columns
-saved in the join and available dimensions from each original dataset. The
+In Compare Groups, the dimension dropdown lists columns saved in the join and
+available dimensions from each original dataset, even before you choose a metric. The
 dataset name identifies the source of each dimension. A dimension from the
 metric's own dataset can split the original rows into groups. A dimension from
 another dataset can only group the metric's monthly totals: a shared month must

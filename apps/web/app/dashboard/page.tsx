@@ -19,7 +19,7 @@ import { DashboardDateInputs } from "@/features/dashboard/components/dashboard-d
 import { DashboardSelectionRow } from "@/features/dashboard/components/dashboard-selection-row"
 import { getJoinedFilterSources, JoinedSourceFilter } from "@/features/dashboard/components/joined-source-filter"
 import { dashboardViewOptions, resolveDashboardTemplate, type DashboardTemplate } from "@/features/dashboard/lib/dashboard-template"
-import { CompareGroupsEditor, DashboardGroupChart, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
+import { CompareGroupsEditor, DashboardGroupChart, isJoinedSourceDimension, useDashboardGroupSeries } from "@/features/dashboard/components/compare-groups"
 import { DashboardTrendChart, FullscreenChartArea, indexDashboardChartRows } from "@/features/dashboard/components/dashboard-chart"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { DatasetDimensionFilter, dimensionFilterLabel } from "@/features/datasets/components/dimension-filter"
@@ -3113,7 +3113,8 @@ export default function DashboardPage() {
               metricTarget={groupMetricTarget} onTargetChange={updateMetricTarget}
               onFilter={filter => setGroupSelection({ context: dimensionContext, filter, metric: groupMetric, active: true })}
               onMetric={metric => setGroupSelection({ context: dimensionContext,
-                filter: compareJoinedGroups && groupMetric && groupMetric !== metric ? undefined : groupFilter, metric, active: true })} />
+                filter: compareJoinedGroups && groupMetric && groupMetric !== metric && !isJoinedSourceDimension(groupFilter?.column)
+                  ? undefined : groupFilter, metric, active: true })} />
           ) : (
             <p role="status" className="py-2 text-sm text-gray-600">{t("Choose a dataset to compare groups.")}</p>
           ) : <>

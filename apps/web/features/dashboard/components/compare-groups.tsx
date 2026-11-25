@@ -15,6 +15,8 @@ import {
 
 const maxGroups = dashboardChartPalette.length
 
+export const isJoinedSourceDimension = (column?: string) => column?.startsWith("__join_source_") === true
+
 function groupColor(value: string | null, colors: Map<string | null, string>) {
   const selected = colors.get(value)
   if (selected) return selected
@@ -66,13 +68,14 @@ export function CompareGroupsEditor({ datasetId, joined = false, userId, workspa
 }) {
   const { t } = useDecisionateText()
   const colors = groupColors(filter?.values ?? [])
+  const catalogMetric = joined ? (filter && !isJoinedSourceDimension(filter.column) ? metric : "") : undefined
   return (
     <div className="min-w-0 space-y-3">
       <DashboardMetricTargetFields metrics={metrics} metric={metric} metricLabel="Metric to compare"
         placeholder="Choose a metric" target={metricTarget} onMetricChange={value => onMetric(value ?? "")}
         onTargetChange={onTargetChange} />
-      <DatasetDimensionFilter key={joined ? metric : datasetId} datasetId={datasetId} userId={userId} workspaceId={workspaceId}
-        groupMetric={joined ? metric : undefined}
+      <DatasetDimensionFilter key={datasetId} datasetId={datasetId} userId={userId} workspaceId={workspaceId}
+        groupMetric={catalogMetric}
         value={filter} onChange={onFilter} embedded groupPicker={{
           limit: maxGroups,
           renderValue(value, checked, disabled, toggle) {
@@ -113,7 +116,7 @@ export function DashboardGroupChart({ comparison, state, chartType = "line", sca
   const data = state.data
   const rows = useMemo(() => alignDashboardGroupPoints(data?.series ?? []), [data])
   const colors = groupColors(comparison.filter.values)
-  const dimension = data?.dimension_label ?? (comparison.filter.column.startsWith("__join_source_") ? "" : comparison.filter.column)
+  const dimension = data?.dimension_label ?? (isJoinedSourceDimension(comparison.filter.column) ? "" : comparison.filter.column)
   const title = [formatMetricLabel(comparison.metric), dimension].filter(Boolean).join(" / ")
   const series = data?.series.map((group, index) => ({
     dataKey: `group${index}`, label: t(dimensionValueLabel(group.value)), color: groupColor(group.value, colors),

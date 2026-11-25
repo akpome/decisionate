@@ -256,44 +256,45 @@ def joined_dashboard_dimension_options(db, dataset, frame, metric, column, searc
     is_joined_column = column in {item["column"] for item in joined_columns}
     if is_joined_column:
         joined_result = dimension_options(dataset, frame, column, search, offset)
-    source_columns = []
-    seen = {item["column"] for item in joined_columns}
-    if metric and metric in frame:
-        config = parse_dataset_source_config(dataset)
-        definition = config.get("join_definition")
-        sources = (definition.get("selections") or []) if isinstance(definition, dict) else []
-        metric_sources = config.get("join_metric_sources")
-        identity = metric_sources.get(metric) if isinstance(metric_sources, dict) else None
-        file_name, _, metric_name = metric.rpartition(" · ")
-        originals = []
-        matches = []
-        for source in sources:
-            try:
-                candidate = _load_join_source(db, dataset, source["dataset_id"])
-            except ValueError:
-                continue
-            originals.append((source, candidate))
-            # Older joins did not store a metric-to-source map. Use only
-            # unambiguous labels from their saved definition.
+
+    config = parse_dataset_source_config(dataset)
+    definition = config.get("join_definition")
+    sources = (definition.get("selections") or []) if isinstance(definition, dict) else []
+    legacy_column = column and not is_joined_column and not column.startswith(JOIN_SOURCE_COLUMN_PREFIX)
+    metric_sources = config.get("join_metric_sources")
+    identity = metric_sources.get(metric) if isinstance(metric_sources, dict) else None
+    file_name, _, metric_name = (metric or "").rpartition(" · ")
+    originals = []
+    matches = []
+    for source in sources:
+        try:
+            original = _load_join_source(db, dataset, source["dataset_id"])
+        except ValueError:
+            continue
+        originals.append((source, original))
+        if legacy_column and metric in frame:
             names = source.get("metric_columns") or ([source["metric_column"]] if source.get("metric_column") else None)
-            if (candidate.id == identity if identity is not None
-                    else candidate.file_name == file_name and (names is None or metric_name in names)):
-                matches.append(candidate.id)
-        metric_source_id = matches[0] if len(matches) == 1 else None
-        for source, original in originals:
-            try:
-                records = load_dataframe_from_dataset(original, apply_metric_selection=False)
-            except HTTPException as error:
-                if error.status_code != 404:
-                    raise
-                continue
-            for item in _join_source_dimensions(source, original, records):
-                name = item["column"]
-                # Preserve existing saved comparisons using plain names on the metric's source.
-                key = name if original.id == metric_source_id and name not in seen and len(name) <= 200 else _join_source_column_key(original.id, name)
-                source_columns.append({"column": key, "label": _join_source_dimension_label(original, item)})
-                if column == key and not is_joined_column:
-                    joined_result = dimension_options(original, records, name, search, offset)
+            # Older joins did not store a metric-to-source map.
+            if (original.id == identity if identity is not None
+                    else original.file_name == file_name and (names is None or metric_name in names)):
+                matches.append(original.id)
+
+    metric_source_id = matches[0] if len(matches) == 1 else None
+    source_columns = []
+    for source, original in originals:
+        try:
+            records = load_dataframe_from_dataset(original, apply_metric_selection=False)
+        except HTTPException as error:
+            if error.status_code != 404:
+                raise
+            continue
+        for item in _join_source_dimensions(source, original, records):
+            name = item["column"]
+            # New choices have stable keys. Accept old raw names only when restoring one for its metric's source.
+            key = name if name == column and original.id == metric_source_id else _join_source_column_key(original.id, name)
+            source_columns.append({"column": key, "label": _join_source_dimension_label(original, item)})
+            if column == key and not is_joined_column:
+                joined_result = dimension_options(original, records, name, search, offset)
 
     if column and not is_joined_column and not any(item["column"] == column for item in source_columns):
         raise ValueError("The selected dimension column is unavailable")

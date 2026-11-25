@@ -102,6 +102,13 @@ test("joined comparisons show the dimension picker even before choosing a metric
   assert.match(html, /aria-label="Filter by column values"/)
 })
 
+test("joined dimension requests do not depend on the selected metric unless restoring a legacy column", () => {
+  const catalogMetric = overrides => React.Children.toArray(CompareGroupsEditor(editorProps({ joined: true, ...overrides })).props.children)[1].props.groupMetric
+  assert.equal(catalogMetric({ metric: "", filter: undefined }), "")
+  assert.equal(catalogMetric({ metric: "Orders", filter: { ...filter, column: "__join_source_18_b81" } }), "")
+  assert.equal(catalogMetric({ metric: "Orders", filter }), "Orders")
+})
+
 test("cross-source charts show the source label and make omitted months explicit", () => {
   const joinedComparison = { ...comparison, filter: { ...filter, column: "__join_source_18_b81" } }
   const html = renderToStaticMarkup(React.createElement(DashboardGroupChart, {

@@ -156,7 +156,7 @@ test("Compare Groups requests dimensions for the selected joined dataset", () =>
   assert.match(html, /<output>21 \/ true<\/output>/)
   assert.match(source, /groupDateColumn = compareJoinedGroups \? "period" : analysisDateColumn/)
   assert.match(source, /groupAggregation = compareJoinedGroups \? "monthly" : aggregation/)
-  assert.match(source, /filter: compareJoinedGroups && groupMetric && groupMetric !== metric \? undefined : groupFilter/)
+  assert.match(source, /filter: compareJoinedGroups && groupMetric && groupMetric !== metric && !isJoinedSourceDimension\(groupFilter\?\.column\)\s*\? undefined : groupFilter/)
 })
 
 test("the General Business target metric picker is in Select Metrics, not beside the dataset", () => {

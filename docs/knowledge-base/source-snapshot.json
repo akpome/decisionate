@@ -5,6 +5,7 @@
   "referenced_sources_modified_in_worktree": [
     "apps/api/app/modules/datasets/services/joins.py",
     "apps/web/app/dashboard/help/page.tsx",
+    "apps/web/app/dashboard/page.tsx",
     "apps/web/features/datasets/components/data-source-panel.tsx",
     "apps/web/features/datasets/components/dimension-filter.tsx",
     "apps/web/lib/api.ts"
@@ -139,7 +140,7 @@
     "apps/web/app/dashboard/entity-matching/page.tsx": "91fa627970d00b5e83471d9d13ded635e1a42fd99d3eebbd7ceef0eed18fbcd4",
     "apps/web/app/dashboard/forecasts/page.tsx": "35c64b06035e9b1a11b50787ae22a3a665f119b81f9e023ee5b5aba5c9fa9be0",
     "apps/web/app/dashboard/help/page.tsx": "4774f22130085ac7825b58f083264d2d57403b04e4b17b54096a53ff13ddf347",
-    "apps/web/app/dashboard/page.tsx": "378bdcd7199482ae6dd34980e709a525630a95815a8c949a7e46feda7c51ff60",
+    "apps/web/app/dashboard/page.tsx": "04684b1b5d07ee7a641a16a0c6f45204b14e39df5b2b95e73ad139fa67445cd0",
     "apps/web/app/dashboard/relationships/page.tsx": "1ebef014f6c5cb4b5e0c70fb75aad6da4ec15d8b43e2e92d26ccded18ed89e86",
     "apps/web/app/dashboard/reports/combined/page.tsx": "3ef973956705f169c5d3b7d137bead3794cbe92859bfb798fbcee7cf3d2ae8b1",
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
@@ -282,7 +283,7 @@
     "customer/sharing-exports.md": "39a57df8059d63631c4a262ec8be19636cd48b72c0e34780665b9919127715a0",
     "customer/troubleshooting-support.md": "d48930248bde6598a8b621c50b4a614a9473ecb39cbffb575ab9280e3159086c",
     "customer/privacy-preferences.md": "966adf5656363523d0bfc192b109865922ad8545d99178dcad876b2dc3c7995a",
-    "customer/joins-entities.md": "99b879bf459d3e767d5d97dcec2f2a34ac64836fe9dbd9bb23401a8dcf2aad7b",
+    "customer/joins-entities.md": "23e35f858f105663c6d012915305bef9cf05e643bb5fb1e4089abf949b49670a",
     "operator/architecture.md": "df658dbffd747e149576131d1e71a0b6606a74d3e66784eba050d37a9bde17f6",
     "operator/worker-verification.md": "0361853c7eeee8b3ee28d38e0a0899fd6be66452df559762be49172a321d3432",
     "operator/ai-configuration.md": "faf7ffbfba84655f7d0f69f1d9bfbe5a1daa128ec14b36cfb2e86b1a1921b112",
