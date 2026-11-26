@@ -22,11 +22,11 @@ test("Select Metrics can filter an original dataset using only the saved join de
   }
   const Filter = () => null
   const result = { derived_dataset_id: 32 }
-  const module = { exports: {} }
+  const compiledModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022,
   } }).outputText, {
-    module, exports: module.exports,
+    module: compiledModule, exports: compiledModule.exports,
     require: name => name === "react" ? react : name === "@/app/use-decisionate-language"
       ? { useDecisionateText: () => ({ t: text => text }) } : name === "@/features/datasets/components/dimension-filter"
         ? { DatasetDimensionFilter: Filter } : name === "@/lib/api"
@@ -37,7 +37,7 @@ test("Select Metrics can filter an original dataset using only the saved join de
   const config = JSON.stringify({ join_definition: { selections: [
     { dataset_id: 1, dimension_filter: advertisingFilter }, { dataset_id: 2 },
   ] } })
-  const sources = module.exports.getJoinedFilterSources(config, datasetOptions)
+  const sources = compiledModule.exports.getJoinedFilterSources(config, datasetOptions)
   assert.deepEqual(JSON.parse(JSON.stringify(sources)), [
     { id: 1, file_name: "Ads", filter: advertisingFilter }, { id: 2, file_name: "Sales" },
   ])
@@ -49,7 +49,7 @@ test("Select Metrics can filter an original dataset using only the saved join de
       elements.push(node)
       React.Children.forEach(node.props.children, walk)
     }
-    walk(module.exports.JoinedSourceFilter({ datasetId: 30, sources, userId: "owner", workspaceId: "test", dashboardKey: "general-business", onJoined: value => applied.push(value) }))
+    walk(compiledModule.exports.JoinedSourceFilter({ datasetId: 30, sources, userId: "owner", workspaceId: "test", dashboardKey: "general-business", onJoined: value => applied.push(value) }))
     return {
       source: elements.find(node => node.type === "select").props,
       filter: elements.find(node => node.type === Filter).props,

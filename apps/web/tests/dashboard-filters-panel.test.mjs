@@ -399,6 +399,7 @@ test("the view switch keeps only Executive and Performance", () => {
 
 test("legacy shared Comparison links keep their dataset and token and use Executive instead", () => {
   const { resolveDashboardTemplate } = load(readFileSync(new URL("../features/dashboard/lib/dashboard-template.ts", import.meta.url), "utf8"))
+  const { readSharedLinkLocation } = load(readFileSync(new URL("../features/sharing/shared-link-location.ts", import.meta.url), "utf8"), { URL })
   const sharedSource = readFileSync(new URL("../app/share/dashboard/page.tsx", import.meta.url), "utf8")
   const shared = ts.createSourceFile("shared.tsx", sharedSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const parse = shared.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "getSharedDashboardConfig")
@@ -406,10 +407,19 @@ test("legacy shared Comparison links keep their dataset and token and use Execut
   const { getSharedDashboardConfig } = load(`export ${parse.getText(shared)}`, {
     URLSearchParams, resolveDashboardTemplate, getQueryDatasetId: Number, isDashboardKey: value => value === "general-business",
   })
-  const config = getSharedDashboardConfig("dataset=73&dashboard=general-business&template=comparison&token=example")
+  const token = "example_" + "a".repeat(35)
+  const origin = "https://app.example.test"
+  const location = { href: `${origin}/share/dashboard?dataset=73&dashboard=general-business&template=comparison&token=${token}` }
+  const history = {
+    state: null,
+    replaceState(state, _title, path) { this.state = state; location.href = origin + path },
+  }
+  const sharedLink = readSharedLinkLocation({ location, history })
+  const config = getSharedDashboardConfig(sharedLink.search)
   assert.equal(config.datasetId, 73)
   assert.equal(config.selectedDashboard, "general-business")
-  assert.equal(config.token, "example")
+  assert.equal(sharedLink.token, token)
+  assert.doesNotMatch(location.href, /[?&]token=/)
   assert.equal(config.dashboardTemplate, "executive")
   assert.match(sharedSource, /resolveDashboardTemplate\(effectDashboardTemplate \?\? dashboardPreference.dashboardTemplate\)/)
   assert.doesNotMatch(sharedSource, /effectiveDashboardTemplate === "comparison"/)
