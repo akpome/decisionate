@@ -21,7 +21,11 @@ from xml.etree import ElementTree
 
 import pandas as pd
 
+from app.infrastructure.ingestion_limits import (
+    IngestionLimitExceeded, accept_connector_response, connector_response_limit, count_connector_request,
+)
 from app.modules.datasets.services.connector_schema import normalize_connector_row_schema as normalize_connector_row_schema
+from app.modules.datasets.services.file_loader import collect_table_chunks
 from app.modules.datasets.services.receipt_metrics import receipt_document_columns
 from app.configuration import get_provider_setting
 from app.db.models import DataSourceConnection
@@ -42,6 +46,7 @@ from app.modules.oauth.service import (
 )
 
 try:
+    from curl_cffi.curl import CURL_WRITEFUNC_ERROR
     from curl_cffi import requests as curl_requests
 except ModuleNotFoundError:  # Keep local installs without the optional transport usable.
     curl_requests = None
@@ -7232,10 +7237,17 @@ def load_database_dataframe(
     )
     try:
         with engine.connect() as database_connection:
-            dataframe = pd.read_sql_query(
-                sqlalchemy.text(bounded_query),
-                database_connection,
+            # Keep existing read-only query semantics, but bound materialization
+            # and stop the cursor as soon as the returned table exceeds the limit.
+            dataframe = collect_table_chunks(
+                pd.read_sql_query(
+                    sqlalchemy.text(bounded_query),
+                    database_connection.execution_options(stream_results=True),
+                    chunksize=2_000,
+                )
             )
+    except IngestionLimitExceeded:
+        raise
     except Exception as error:
         raise ConnectorUnavailable(
             f"{connection.source_type} query could not be loaded"
@@ -7464,6 +7476,36 @@ def refresh_oauth_access_token_if_due(
     return True
 
 
+def _read_connector_response(response):
+    limit = connector_response_limit()
+    body = response.read(limit + 1)
+    accept_connector_response(len(body), limit)
+    return body.decode("utf-8")
+
+
+def _curl_connector_response(url, headers):
+    limit = connector_response_limit()
+    body = bytearray()
+    exceeded = False
+
+    def write(chunk):
+        nonlocal exceeded
+        if len(body) + len(chunk) > limit:
+            exceeded = True
+            return CURL_WRITEFUNC_ERROR
+        body.extend(chunk)
+        return len(chunk)
+
+    count_connector_request()
+    try:
+        response = curl_requests.get(url, headers=headers, timeout=30, impersonate="chrome", content_callback=write)
+    finally:
+        if exceeded:
+            accept_connector_response(limit + 1, limit)
+    accept_connector_response(len(body), limit)
+    return response, body.decode("utf-8", errors="replace")
+
+
 def connector_json_request(
     url: str,
     headers: dict[str, str],
@@ -7494,12 +7536,9 @@ def connector_json_request_with_headers(
     for attempt in range(max_attempts):
         if normalized_source_type in {"sage", "lightspeed"} and curl_requests is not None:
             try:
-                response = curl_requests.get(
-                    url,
-                    headers=request_headers,
-                    timeout=30,
-                    impersonate="chrome",
-                )
+                response, body = _curl_connector_response(url, request_headers)
+            except IngestionLimitExceeded:
+                raise
             except Exception as error:
                 # A browser-compatible client avoids Sage's edge rejecting
                 # the default Python urllib fingerprint. If that optional
@@ -7513,7 +7552,6 @@ def connector_json_request_with_headers(
                     error,
                 )
             else:
-                body = response.text
                 response_headers = {
                     str(key): str(value)
                     for key, value in response.headers.items()
@@ -7575,15 +7613,17 @@ def connector_json_request_with_headers(
             method="GET",
         )
         try:
+            count_connector_request()
             with urlopen(request, timeout=30) as response:
-                body = response.read().decode("utf-8")
+                body = _read_connector_response(response)
                 response_headers = {
                     key: value
                     for key, value in response.headers.items()
                 }
             break
         except HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")
+            with error:
+                detail = error.read(65_536).decode("utf-8", errors="replace")
             retryable = error.code in {429, 500, 502, 503, 504}
             if (
                 normalized_source_type == "sage"
@@ -7655,11 +7695,13 @@ def connector_json_post_request(
             method="POST",
         )
         try:
+            count_connector_request()
             with urlopen(request, timeout=60) as response:
-                body = response.read().decode("utf-8")
+                body = _read_connector_response(response)
             break
         except HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")
+            with error:
+                detail = error.read(65_536).decode("utf-8", errors="replace")
             retryable = error.code in {429, 500, 502, 503, 504}
             if (
                 normalized_source_type == "shopify"

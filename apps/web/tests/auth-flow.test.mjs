@@ -181,6 +181,18 @@ test("an independent former client still opens the same workspace after an agenc
   assert.equal(workspaces.chooseAuthWorkspace([own, independent], "reviewer", independent.owner_user_id), independent)
 })
 
+test("ordinary login prefers a linked portal and explicit workspace links still win", () => {
+  const staff = { ...shared, role: "member", portal_origin: "https://agency.decisionate.app" }
+  const independent = { ...own, id: 3, owner_user_id: "former:client:shop", agency_removed: true }
+  const otherPortal = { ...staff, id: 4, owner_user_id: "another", portal_origin: "https://another.decisionate.app" }
+  for (const saved of ["reviewer", "stale", independent.owner_user_id]) {
+    assert.equal(workspaces.chooseAuthWorkspace([own, independent, staff], "reviewer", saved), staff)
+  }
+  assert.equal(workspaces.chooseAuthWorkspace([staff, otherPortal], "reviewer", otherPortal.owner_user_id), otherPortal)
+  assert.equal(workspaces.chooseAuthWorkspace([own, independent, staff], "reviewer", "reviewer", independent.owner_user_id), independent)
+  assert.equal(workspaces.chooseAuthWorkspace([own, independent, staff], "reviewer", "reviewer", own.owner_user_id), own)
+})
+
 test("invitation links choose only their authorized workspace and never fall back to another account", () => {
   assert.equal(workspaces.chooseAuthWorkspace([own, shared], "reviewer", "reviewer", shared.owner_user_id), shared)
   assert.equal(workspaces.chooseAuthWorkspace([own, shared], "reviewer", shared.owner_user_id, "unrelated:client:other"), undefined)

@@ -18,6 +18,10 @@ export function isHostedLogoUrl(value: string) {
 }
 export const hostedPrimaryOrigin = "https://app.decisionate.ca"
 export const hostedWorkspaceRecoveryUrl = `${hostedPrimaryOrigin}/sign-in?redirect_url=${encodeURIComponent("/settings")}`
+export const isPrimaryOnlyPortalPath = (pathname: string) =>
+  ["/platform-admin", "/white-label", "/hosted-portal", "/onboarding", "/demo"]
+    .some(path => pathname === path || pathname.startsWith(path + "/"))
+
 export function getHostedAuthReturnUrl(returnTo: string) {
   const destination = new URL(returnTo)
   if (destination.protocol !== "https:" || !isHostedHostname(destination.hostname) || destination.username || destination.password || destination.port) {
@@ -27,12 +31,15 @@ export function getHostedAuthReturnUrl(returnTo: string) {
   destination.searchParams.set("__clerk_synced", "false")
   return destination.href
 }
-export function getHostedWorkspaceReturnUrl(portalOrigin: string | null | undefined, workspaceId: string) {
-  if (!portalOrigin || !workspaceId) return null
+export function getHostedWorkspaceReturnUrl(portalOrigin: string | null | undefined, workspaceId: string, workspacePath = "/dashboard") {
+  if (!portalOrigin || !workspaceId || !workspacePath.startsWith("/") || workspacePath.startsWith("//")) return null
   try {
     const destination = new URL("/auth/redirect", portalOrigin)
     if (destination.origin !== portalOrigin) return null
-    destination.searchParams.set("redirect_url", `/dashboard?workspace_id=${encodeURIComponent(workspaceId)}`)
+    const workspace = new URL(workspacePath, destination.origin)
+    if (workspace.origin !== destination.origin || isPrimaryOnlyPortalPath(workspace.pathname)) return null
+    workspace.searchParams.set("workspace_id", workspaceId)
+    destination.searchParams.set("redirect_url", `${workspace.pathname}${workspace.search}${workspace.hash}`)
     return getHostedAuthReturnUrl(destination.href)
   } catch {
     return null

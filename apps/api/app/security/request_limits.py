@@ -1,12 +1,17 @@
 """Bound request bodies before multipart parsing can exhaust disk space."""
 
+from asyncio import Semaphore
+
 from starlette.responses import JSONResponse
 from fastapi import HTTPException
 from starlette.formparsers import MultiPartException
 
 
-UPLOAD_MAX_BYTES = 100 * 1024 * 1024
+from app.infrastructure.ingestion_limits import UPLOAD_MAX_BYTES as UPLOAD_MAX_BYTES
+
+
 REQUEST_MAX_BYTES = 10 * 1024 * 1024
+MAX_CONCURRENT_UPLOADS = 4
 
 
 class RequestBodyTooLarge(HTTPException, MultiPartException):
@@ -18,15 +23,22 @@ class RequestBodyTooLarge(HTTPException, MultiPartException):
 class RequestBodyLimitMiddleware:
     def __init__(self, app):
         self.app = app
+        self.upload_slots = Semaphore(MAX_CONCURRENT_UPLOADS)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        limit = (
-            UPLOAD_MAX_BYTES + 1024 * 1024
-            if scope["path"] == "/datasets/upload"
-            else REQUEST_MAX_BYTES
-        )
+        if scope.get("method") == "POST" and scope["path"] == "/datasets/upload":
+            if self.upload_slots.locked():
+                return await JSONResponse(
+                    {"detail": "File uploads are busy. Please try again shortly."},
+                    status_code=429, headers={"Retry-After": "10"},
+                )(scope, receive, send)
+            async with self.upload_slots:
+                return await self._bounded_request(scope, receive, send, UPLOAD_MAX_BYTES + 1024 * 1024)
+        return await self._bounded_request(scope, receive, send, REQUEST_MAX_BYTES)
+
+    async def _bounded_request(self, scope, receive, send, limit):
         headers = dict(scope.get("headers", []))
         try:
             length = int(headers.get(b"content-length", b"0"))

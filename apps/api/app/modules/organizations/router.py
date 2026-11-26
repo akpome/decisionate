@@ -25,6 +25,7 @@ from app.modules.auth_context import (
     get_auth_jwks_url,
 )
 from app.modules.identity.clerk import get_verified_clerk_primary_email
+from app.modules.hosted_subdomains.context import current_portal, portal_for_workspace
 from app.modules.organizations.email_association import require_unassigned_workspace_email, WORKSPACE_EMAIL_CONFLICT
 from app.modules.organizations.invitations import send_invitation_email
 from app.modules.organizations.ownership import (
@@ -1018,7 +1019,6 @@ def build_organization_response(
         "independent_trial_started": organization.independent_trial_started_at is not None,
     }
     if get_application().is_default and not managing_agency_workspace_id(organization) and not independent_client(organization):
-        from app.modules.hosted_subdomains.context import portal_for_workspace
         portal = portal_for_workspace(db, organization.owner_user_id)
         if portal:
             response["hosted_portal_logo_url"] = portal.branding["logo_url"]
@@ -1438,6 +1438,7 @@ def clean_member_role(
 def get_accessible_workspaces(
     request: Request,
     include_managed_client_workspaces: bool = False,
+    include_portal_origins: bool = False,
 ):
     auth_context = get_auth_context(
         request,
@@ -1450,6 +1451,18 @@ def get_accessible_workspaces(
     db = SessionLocal()
 
     try:
+        include_hosted_routes = include_portal_origins and get_application().is_default and current_portal() is None
+        portal_origins: dict[str, str | None] = {}
+
+        def login_portal_origin(organization: Organization) -> str | None:
+            if not include_hosted_routes or independent_client(organization):
+                return None
+            agency_id = managing_agency_workspace_id(organization) or organization.owner_user_id
+            if agency_id not in portal_origins:
+                portal = portal_for_workspace(db, agency_id)
+                portal_origins[agency_id] = portal.origin if portal else None
+            return portal_origins[agency_id]
+
         invite_email = auth_context.email if auth_context.email_verified else None
         if not invite_email and auth_context.auth_provider == "clerk" and auth_context.external_user_id and get_auth_jwks_url():
             # The browser address is only a lookup hint, never proof of ownership.
@@ -1518,6 +1531,7 @@ def get_accessible_workspaces(
                     name=organization.name,
                     owner_user_id=current_external_user_id,
                     role="owner",
+                    portal_origin=login_portal_origin(organization),
                     logo_url=organization.logo_url,
                     primary_color=organization.primary_color,
                     accent_color=organization.accent_color,
@@ -1564,6 +1578,7 @@ def get_accessible_workspaces(
                     name=organization.name,
                     owner_user_id=owner_reference,
                     role=role,
+                    portal_origin=login_portal_origin(organization),
                     logo_url=organization.logo_url,
                     primary_color=organization.primary_color,
                     accent_color=organization.accent_color,

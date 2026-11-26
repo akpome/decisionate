@@ -36,7 +36,9 @@ the invited email address and verifies it. After sign-in, Decisionate accepts
 the pending invitation and opens the client workspace, not a new personal
 workspace. A client owner or client user signing in without the invitation link
 also defaults to their client workspace unless they already selected another
-accessible client workspace. On a hosted agency portal, an unrelated signed-in
+accessible workspace. An agency owner, team member, or client who signs in on
+Decisionate is sent to the active branded portal for the workspace they open.
+An unlinked workspace stays on Decisionate. On a hosted agency portal, an unrelated signed-in
 session leads to Accept your invitation. Choose Continue to sign in if you
 already have a login, or Create your login otherwise. If asked to continue,
 that action signs out the previous session and opens the chosen form. On the

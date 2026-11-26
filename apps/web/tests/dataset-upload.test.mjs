@@ -66,6 +66,7 @@ test("empty and oversized files are rejected before sending any bytes", async ()
   const client = api(() => { throw new Error("Should not upload") })
   await assert.rejects(client.uploadDataset(new File([], "empty.csv"), "owner"), /file is empty/)
   await assert.rejects(client.uploadDataset({ size: 100 * 1024 * 1024 + 1 }, "owner"), /100 MB/)
+  await assert.rejects(client.uploadDataset({ name: "Export.JSON", size: 20 * 1024 * 1024 + 1 }, "owner"), /20 MB/)
   assert.equal(client.requests.length, 0)
 })
 

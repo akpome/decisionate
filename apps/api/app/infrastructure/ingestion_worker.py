@@ -12,12 +12,15 @@ import subprocess
 import sys
 import time
 from datetime import timedelta
+from pathlib import Path
 
 from sqlalchemy import text
 
 from app.db.database import SessionLocal, engine
 from app.db.models import DataIngestionJob, DatasetAnalysis, IngestionWorkerHeartbeat, utc_now
+from app.infrastructure.analysis_resources import child_environment, process_memory
 from app.infrastructure.ingestion_jobs import cleanup_ingestion_staging
+from app.infrastructure.ingestion_limits import MIB
 
 
 logger = logging.getLogger(__name__)
@@ -140,11 +143,28 @@ def execute_job(job_id):
                 routes.run_connector_ingestion_job(job_id)
 
 
+def ingestion_memory_budget_bytes():
+    try:
+        configured_mb = int(os.getenv("INGESTION_JOB_RSS_MB", "1024"))
+    except ValueError:
+        configured_mb = 1024
+    limit = max(64, configured_mb) * MIB
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            container_bytes = int(Path(path).read_text().strip())
+        except (OSError, ValueError):
+            continue
+        if container_bytes > 0:
+            limit = min(limit, container_bytes * 65 // 100)
+    return limit
+
+
 def supervise_job(job_id, lock_connection, script):
     timeout = max(30, min(int(os.getenv("INGESTION_JOB_TIMEOUT_SECONDS", "900")), 7200))
+    memory_limit = ingestion_memory_budget_bytes()
     child = subprocess.Popen([
         sys.executable, "-B", script, "--job-id", str(job_id), "--parent-pid", str(os.getpid()),
-    ], start_new_session=True)
+    ], start_new_session=True, env=child_environment())
     deadline = time.monotonic() + timeout
     failure_reason = "Import worker stopped before completion. Please retry."
     try:
@@ -154,6 +174,12 @@ def supervise_job(job_id, lock_connection, script):
             record_heartbeat(job_id)
             if time.monotonic() >= deadline:
                 raise TimeoutError("Import exceeded its execution deadline. Please retry a smaller date range.")
+            memory = process_memory(child.pid)
+            if memory and memory["rss_bytes"] > memory_limit:
+                failure_reason = "Import exceeded its memory limit. Try a smaller file, a shorter date range, or fewer columns."
+                logger.warning("Ingestion memory limit exceeded: job_id=%s rss_bytes=%s limit_bytes=%s",
+                               job_id, memory["rss_bytes"], memory_limit)
+                break
             time.sleep(1)
     except TimeoutError as error:
         failure_reason = str(error)
@@ -204,7 +230,10 @@ def run_worker(script, once=False):
                         logger.exception("Workspace record retention failed; ingestion remains available")
                     last_retention = time.monotonic()
                 if job_id is not None:
-                    supervise_job(job_id, connection, script)
+                    try:
+                        supervise_job(job_id, connection, script)
+                    except TimeoutError:
+                        logger.warning("Ingestion deadline exceeded: job_id=%s", job_id)
                 elif time.monotonic() - last_marketing >= 10:
                     from app.modules.marketing.worker import process_batch
                     try:

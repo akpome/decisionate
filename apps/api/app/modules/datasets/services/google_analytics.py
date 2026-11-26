@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 from app.configuration import get_provider_setting
+from app.infrastructure.ingestion_limits import IngestionLimitExceeded, check_table_shape, count_connector_request
 
 
 DEFAULT_DIMENSIONS = ["date"]
@@ -265,6 +266,7 @@ def load_google_analytics_report(
         dimension_headers = None
         metric_headers = None
         while True:
+            count_connector_request()
             response = client.run_report(
                 RunReportRequest(
                     property=f"properties/{clean_property_id}",
@@ -290,11 +292,16 @@ def load_google_analytics_report(
                 dimension_headers = response.dimension_headers
                 metric_headers = response.metric_headers
 
+            reported_rows = getattr(response, "row_count", 0)
+            columns = len(clean_dimensions) + len(clean_metrics)
+            check_table_shape(max(len(rows) + len(response.rows), reported_rows), columns)
             page_rows = list(response.rows)
             rows.extend(page_rows)
             if len(page_rows) < REPORT_PAGE_SIZE:
                 break
             offset += len(page_rows)
+    except IngestionLimitExceeded:
+        raise
     except Exception as error:
         raise GoogleAnalyticsConnectorUnavailable(
             format_google_analytics_error(error)

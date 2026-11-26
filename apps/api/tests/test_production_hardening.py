@@ -153,7 +153,7 @@ class SignedFileSecurityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             for filename in ("a.parquet", "b.parquet"):
                 (Path(directory) / filename).touch()
-            metadata = SimpleNamespace(num_rows=600_000, num_row_groups=0, schema=SimpleNamespace(names=["value"]))
+            metadata = SimpleNamespace(num_rows=600_000, num_columns=1, num_row_groups=0, schema=SimpleNamespace(names=["value"]))
             with patch("pyarrow.parquet.read_metadata", return_value=metadata), patch.object(
                 file_loader.pd, "read_parquet"
             ) as read:
@@ -308,6 +308,7 @@ class ProductionQueueTests(unittest.TestCase):
 
     def test_retention_does_not_reauthorize_a_disconnected_connection(self):
         connection = SimpleNamespace(
+            user_id="user", workspace_id="workspace",
             status="draft", last_synced_at=None, connection_config='{"sync_enabled":false}',
             authorization_error="Access revoked", authorization_error_at=None,
         )
@@ -318,10 +319,14 @@ class ProductionQueueTests(unittest.TestCase):
             connection.authorization_error = None
             connection.connection_config = "{}"
             return dataset, {}, "new-file", "old-file"
-        with patch.object(routes, "connector_dataset_requires_retention_cleanup", return_value=True), patch.object(
+        db = Mock()
+        with patch.object(routes, "lock_workspace_queue") as lock, patch.object(
+            routes, "connector_dataset_requires_retention_cleanup", return_value=True
+        ), patch.object(
             routes, "cleanup_deleted_dataset_join_caches", return_value=["old-join"]
         ), patch.object(routes, "persist_connector_dataframe", side_effect=persist), patch.object(routes, "remove_dataset_file") as remove:
-            result = routes.purge_expired_connector_dataset(Mock(), connection, dataset)
+            result = routes.purge_expired_connector_dataset(db, connection, dataset)
+            lock.assert_called_once_with(db, "workspace")
             remove.assert_not_called()
             self.assertEqual(connection.status, "draft")
             self.assertEqual(connection.authorization_error, "Access revoked")

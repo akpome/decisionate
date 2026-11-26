@@ -194,6 +194,18 @@ test("a rejoined client syncs from the primary session and opens the same worksp
   assert.deepEqual(result.errors, [])
 })
 
+test("ordinary primary sign-in syncs a client to the requested page on the agency portal", async () => {
+  const workspace = { owner_user_id: "agency:client:one", role: "client_owner" }
+  const destination = "/business-analysis?draft=weekly&workspace_id=agency%3Aclient%3Aone#summary"
+  const returned = await authenticatedReturn(
+    destination,
+    types.getHostedWorkspaceReturnUrl(portal.origin, workspace.owner_user_id, "/business-analysis?draft=weekly#summary"),
+  )
+  const result = await openWorkspace(returned.auth, returned.completed, [workspace])
+  assert.deepEqual(result.destinations, [destination])
+  assert.deepEqual(result.errors, [])
+})
+
 test("a handshake with no signed session cannot grant access", async () => {
   const callback = new URL(types.getHostedAuthReturnUrl(portal.origin + "/auth/redirect"))
   callback.searchParams.set("__clerk_synced", "true")

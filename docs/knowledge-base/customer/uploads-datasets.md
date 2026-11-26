@@ -65,11 +65,16 @@ the file again. A timeout or lost confirmation does not prove the import failed:
 check the dataset list before uploading the same file again. A confirmed import
 failure still shows its error rather than being treated as success.
 
-Empty files, unsupported formats and files larger than 100 MB are rejected
-before the browser sends them. If the import worker is unavailable or five
-imports are already queued for the workspace, try again once it is available
-or the existing imports finish. After a confirmed import, the dataset list is
-refreshed so a recently cached list does not hide the new dataset.
+Files and signed links are limited to 100 MB per file. Ordinary JSON documents
+have a 20 MB limit; CSV, JSON Lines, and Parquet can be used for larger files.
+An import can contain up to 1 million rows, 500 columns and 10 million cells
+(rows times columns). The whole dataset must fit under all three limits. Small
+files can still be rejected if their contents expand beyond the processing limit.
+Remove unused columns, shorten long text, or import a smaller separate dataset.
+
+A workspace can start up to 50 file imports in 24 hours. If five imports are
+already queued or the worker is unavailable, wait before retrying. After a
+confirmed import, the dataset list is refreshed.
 
 For large CSVs, a Parquet copy can be substantially smaller while preserving the
 same rows and columns. Upload the actual data file, not a ZIP bundle. A daily

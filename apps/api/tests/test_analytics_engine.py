@@ -240,6 +240,7 @@ class AnalyticsEngineTests(unittest.TestCase):
         load_dataset_file.assert_called_once_with(
             "sales.csv",
             "sales.csv",
+            existing=True,
         )
         self.assertIs(
             result,

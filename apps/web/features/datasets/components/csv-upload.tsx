@@ -197,7 +197,7 @@ export function CsvUpload({
             id={uploadHelpId}
             className="text-sm text-gray-500"
           >
-            {acceptedFormatLabel}
+            {acceptedFormatLabel} · {t("Up to 100 MB per file")}
           </p>
         </div>
 

@@ -9,16 +9,18 @@ import sys
 import tempfile
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import BackgroundTasks, HTTPException, Request
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
 from app.db.models import DataIngestionJob, Dataset, DataSourceConnection, utc_now
+from app.modules.auth_context import AuthContext
 from app.modules.datasets import router as routes
 from app.modules.datasets.schemas import DataSourceConnectionSync
 
@@ -73,6 +75,41 @@ class DurableWorkerIntegrationTests(unittest.TestCase):
                 self.assertEqual(job.status, "succeeded", job.error_message)
                 dataset = db.query(Dataset).filter(Dataset.workspace_id == self.workspace).one()
                 self.assertEqual(dataset.row_count, 2)
+
+    def test_deletion_uses_the_committed_storage_reference_after_retention(self):
+        with self.sessions() as db:
+            dataset = Dataset(user_id=self.workspace, workspace_id=self.workspace, source_type="shopify",
+                              file_name="sales.parquet", file_path="old.parquet", row_count=2, column_count=2)
+            db.add(dataset)
+            db.add(DataIngestionJob(user_id=self.workspace, workspace_id=self.workspace,
+                                    job_type="file_upload", status="queued"))
+            db.commit()
+            dataset_id = dataset.id
+
+        first_read = threading.Event()
+        load_dataset = routes.load_dataset
+
+        def notify_after_read(db, identity):
+            result = load_dataset(db, identity)
+            first_read.set()
+            return result
+
+        request = Request({"type": "http", "headers": []})
+        request.state._decisionate_auth_context = AuthContext(self.workspace, self.workspace, "owner")
+        with self.sessions() as retention, patch.object(routes, "SessionLocal", self.sessions), patch.object(
+            routes, "load_dataset", side_effect=notify_after_read
+        ), patch.object(routes, "remove_dataset_file") as remove_file, ThreadPoolExecutor(1) as executor:
+            routes.lock_workspace_queue(retention, self.workspace)
+            retention.get(Dataset, dataset_id).file_path = "purged.parquet"
+            retention.flush()
+            result = executor.submit(routes.delete_dataset, request, dataset_id)
+            try:
+                self.assertTrue(first_read.wait(5))
+                self.assertFalse(result.done())
+            finally:
+                retention.commit()
+            self.assertEqual(result.result(timeout=10), {"message": "Dataset deleted"})
+            remove_file.assert_called_once_with("purged.parquet")
 
     def test_restart_fails_interrupted_job_instead_of_leaving_it_running(self):
         with self.sessions() as db:

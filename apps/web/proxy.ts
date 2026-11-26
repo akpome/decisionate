@@ -16,7 +16,7 @@ import { portalBrand } from "./lib/portal-brand"
 import { DECISIONATE_APPLICATION_ORIGIN, DECISIONATE_MARKETING_ORIGIN } from "./lib/decisionate-domains"
 import { canonicalWorkspacePathname, internalWorkspacePathname, isWorkspacePathname } from "./lib/application-routes"
 import { getHostedAddressForwardUrl, resolveHostedPortal, safeHostedReturn } from "./features/hosted-subdomains/server"
-import { hostedPrimaryOrigin, isHostedHostname, type HostedPortal } from "./features/hosted-subdomains/types"
+import { hostedPrimaryOrigin, isHostedHostname, isPrimaryOnlyPortalPath, type HostedPortal } from "./features/hosted-subdomains/types"
 import { unavailablePortalPage, unavailablePortalHeaders } from "./features/hosted-subdomains/unavailable-page"
 
 const isPublicDemoRoute = createRouteMatcher([
@@ -139,7 +139,7 @@ export default async function proxy(
       return new NextResponse(unavailablePortalPage, { status: 404, headers: unavailablePortalHeaders })
     }
     const canonical = canonicalWorkspacePathname(request.nextUrl.pathname)
-    if (["/platform-admin", "/white-label", "/hosted-portal", "/onboarding", "/demo"].some(path => canonical === path || canonical.startsWith(path + "/"))) {
+    if (isPrimaryOnlyPortalPath(canonical)) {
       return new NextResponse("Not found", { status: 404 })
     }
     if (["/privacy", "/terms", "/security"].includes(request.nextUrl.pathname)) {

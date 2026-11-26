@@ -35,3 +35,9 @@ expiry and backup copies still have separate rules.
 Check status, authorization, selected source account and dates. Wait for queued
 work to finish before retrying. If it remains stuck, provide the connection and
 workspace context through support, without tokens or raw private payloads.
+
+Volume limits can stop a sync even when the dates are valid. Try a shorter date
+range or request fewer fields or records from the provider. For a database query,
+filter the source query itself, not just the dashboard. If the saved dataset has
+reached its size limit, a smaller pull alone will not make room for more records.
+When a chunk exceeds the limit, it is not saved; previously committed data remains.

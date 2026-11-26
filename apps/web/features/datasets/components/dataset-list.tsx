@@ -5,6 +5,7 @@ import {
     useState,
 } from "react"
 import {
+    ApiError,
     deleteDataset,
 } from "@/lib/api"
 import Link from "next/link"
@@ -139,10 +140,9 @@ export function DatasetList({
                     ? error.message
                     : t("Failed to delete dataset")
             )
-            console.error(
-                "Failed to delete dataset",
-                error
-            )
+            if (!(error instanceof ApiError && error.status === 409)) {
+                console.error("Failed to delete dataset", error)
+            }
         } finally {
             setDeletingDatasetId(null)
         }

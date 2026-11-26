@@ -154,6 +154,19 @@ test("workspace status refresh bypasses cached records for agency-initiated remo
   assert.deepEqual(invalidated, ["organization-workspaces:client:client@example.test:true"])
 })
 
+test("sign-in portal discovery keeps its cache and query separate from ordinary workspace listings", async () => {
+  const queries = [], keys = []
+  const get = compile(declaration(api, "getOrganizationWorkspaces").replace("export ", "") + "\ngetOrganizationWorkspaces", {
+    getCachedRead: (key, load) => { keys.push(key); return load() },
+    organizationOwnerHeaders: async () => ({}), API_URL: "https://api.test",
+    fetchOrganizationRequest: async url => { queries.push(new URL(url).search); return { ok: true, json: async () => [] } },
+  })
+  await get("owner", undefined, { includeManagedClientWorkspaces: true })
+  await get("owner", undefined, { includeManagedClientWorkspaces: true, includePortalOrigins: true })
+  assert.deepEqual(queries, ["?include_managed_client_workspaces=true", "?include_managed_client_workspaces=true&include_portal_origins=true"])
+  assert.notEqual(keys[0], keys[1])
+})
+
 function accessRefreshHarness() {
   const window = new EventTarget(), apiReadCache = new ApiReadCache(), requests = []
   const records = [{ ...own }, { ...client, is_paused: true }]

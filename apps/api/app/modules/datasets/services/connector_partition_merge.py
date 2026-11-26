@@ -9,10 +9,11 @@ from pathlib import Path
 import pandas as pd
 import pyarrow.parquet as pq
 
+from app.infrastructure.ingestion_limits import check_table_shape
 from .retention import connector_retention_cutoff_month, filter_connector_dataframe_by_retention, filter_connector_summary_by_retention
 
 
-def merge_connector_partitions(connection, incoming, report_config, reference, storage, *, heartbeat=None):
+def merge_connector_partitions(connection, incoming, report_config, reference, storage, *, heartbeat=None, enforce_ingestion_limit=False):
     # Reuse the adapter-specific merge contracts (including complete line items
     # and Search Console fallback rows), rather than a second deduplication policy.
     from app.modules.datasets import router as routes
@@ -65,6 +66,8 @@ def merge_connector_partitions(connection, incoming, report_config, reference, s
                 merged = merged.drop(columns=[routes.CONNECTOR_PARTITION_MONTH_COLUMN], errors="ignore")
                 schema = pd.concat([schema, merged.head(0)], ignore_index=True, sort=False)
                 if not merged.empty:
+                    if enforce_ingestion_limit:
+                        check_table_shape(rows + len(merged), len(schema.columns))
                     merged.to_parquet(os.path.join(routes.build_connector_hot_dir(output), f"month={month}.parquet"), index=False, compression=routes.CONNECTOR_PARQUET_COMPRESSION)
                     rows += len(merged)
                     partition_count += 1

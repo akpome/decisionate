@@ -21,8 +21,8 @@ const workspaces = load("../features/auth/lib/auth-workspaces.ts", { "./auth-red
 const destination = "/dashboard?workspace_id=agency%3Aclient%3Aone"
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status } }
 
-async function resolveInvitation({ workspaceList = [], failure, returnTo = destination, portal = null } = {}) {
-  const effects = [], routes = [], errors = [], active = [], reads = []
+async function resolveInvitation({ workspaceList = [], failure, returnTo = destination, portal = null, origin, activeWorkspace, isAdmin = false } = {}) {
+  const effects = [], routes = [], hostedRoutes = [], errors = [], active = [], reads = []
   const Page = load("../app/auth/redirect/page.tsx", {
     "@/features/hosted-subdomains/provider": { useHostedPortal: () => ({ portal }) },
     "@/features/hosted-subdomains/types": hostedTypes,
@@ -30,17 +30,17 @@ async function resolveInvitation({ workspaceList = [], failure, returnTo = desti
     "@clerk/nextjs": { useUser: () => ({ isLoaded: true, isSignedIn: true, user: { id: "current", primaryEmailAddress: { emailAddress: "current@example.test" }, emailAddresses: [] } }), useClerk: () => ({ signOut() { throw new Error("Unexpected automatic logout") } }) },
     "next/navigation": { useRouter: () => ({ replace: route => routes.push(route) }) },
     "lucide-react": { LoaderCircle: () => null, LogOut: () => null, RefreshCw: () => null },
-    "@/lib/api": { ApiError, getPlatformAdminAccess: async () => false, getOrganizationWorkspaces: async (...args) => {
+    "@/lib/api": { ApiError, getPlatformAdminAccess: async () => isAdmin, getOrganizationWorkspaces: async (...args) => {
       reads.push(args); if (failure) throw failure; return workspaceList
     } },
     "@/features/auth/lib/auth-redirects": redirects, "@/features/auth/lib/auth-workspaces": workspaces,
     "@/features/auth/lib/signup-consent": { writeSignupConsent() {} }, "@/features/auth/lib/marketing-consent": { completeSignupMarketing: async () => {} },
-    "@/lib/workspace-context": { getActiveWorkspaceId: id => id, setActiveWorkspaceId: (_id, workspace) => active.push(workspace) },
+    "@/lib/workspace-context": { getActiveWorkspaceId: id => activeWorkspace ?? id, setActiveWorkspaceId: (_id, workspace) => active.push(workspace) },
     "@/app/use-decisionate-language": { useDecisionateText: () => ({ t: text => text }) },
-  }, { window: { location: { origin: portal?.origin ?? "https://app.example.test", search: `?redirect_url=${encodeURIComponent(returnTo)}` } } }).default
+  }, { window: { location: { origin: origin ?? portal?.origin ?? "https://app.example.test", search: `?redirect_url=${encodeURIComponent(returnTo)}`, replace: url => hostedRoutes.push(url) } } }).default
   Page(); effects.forEach(effect => effect())
   await new Promise(resolve => setImmediate(resolve))
-  return { routes, errors, active, reads }
+  return { routes, hostedRoutes, errors, active, reads }
 }
 
 test("a signed-in account without the invited workspace returns to login instead of access denied or personal onboarding", async () => {
@@ -52,6 +52,62 @@ test("a signed-in account without the invited workspace returns to login instead
 test("the invited account still opens its authorized workspace after login", async () => {
   const result = await resolveInvitation({ workspaceList: [{ owner_user_id: "agency:client:one", role: "client_owner" }] })
   assert.deepEqual(result.routes, [destination]); assert.deepEqual(result.active, ["agency:client:one"])
+})
+
+const agencyOrigin = "https://north.decisionate.app"
+const primaryOrigin = hostedTypes.hostedPrimaryOrigin
+const linked = { owner_user_id: "agency:client:one", role: "client_owner", portal_origin: agencyOrigin }
+
+test("ordinary Decisionate sign-in routes agency owners, members and clients to the branded workspace", async () => {
+  for (const workspace of [linked, { ...linked, role: "client_user" },
+    { owner_user_id: "agency", role: "member", portal_origin: agencyOrigin },
+    { owner_user_id: "current", role: "owner", portal_origin: agencyOrigin }]) {
+    const result = await resolveInvitation({ origin: primaryOrigin, returnTo: "/dashboard", workspaceList: [workspace] })
+    assert.deepEqual(result.routes, [])
+    assert.deepEqual(result.active, [workspace.owner_user_id])
+    assert.equal(result.reads[0][2].includePortalOrigins, true)
+    assert.equal(result.reads[0][2].forceRefresh, true)
+    const target = new URL(result.hostedRoutes[0])
+    assert.equal(target.origin, agencyOrigin)
+    assert.equal(target.pathname, "/auth/redirect")
+    assert.equal(target.searchParams.get("__clerk_synced"), "false")
+    assert.equal(target.searchParams.get("redirect_url"), `/dashboard?workspace_id=${encodeURIComponent(workspace.owner_user_id)}`)
+  }
+})
+
+test("agency routing preserves an authorized workspace page, search parameters and fragment", async () => {
+  const result = await resolveInvitation({ origin: primaryOrigin, returnTo: "/reports?draft=weekly#summary", workspaceList: [linked] })
+  const target = new URL(result.hostedRoutes[0])
+  assert.equal(target.searchParams.get("redirect_url"), "/business-analysis?draft=weekly&workspace_id=agency%3Aclient%3Aone#summary")
+  const denied = await resolveInvitation({ origin: primaryOrigin, workspaceList: [linked], returnTo: "/dashboard?workspace_id=other" })
+  assert.deepEqual(denied.hostedRoutes, [])
+  assert.match(denied.routes[0], /^\/sign-in/)
+})
+
+test("ordinary sign-in opens the active agency portal even for a platform administrator", async () => {
+  const result = await resolveInvitation({ origin: primaryOrigin, returnTo: "", workspaceList: [linked], isAdmin: true })
+  assert.equal(new URL(result.hostedRoutes[0]).origin, agencyOrigin)
+  assert.deepEqual(result.routes, [])
+  const noAgency = await resolveInvitation({ origin: primaryOrigin, returnTo: "", isAdmin: true })
+  assert.deepEqual(noAgency.routes, ["/platform-admin"])
+})
+
+test("unlinked workspaces, unavailable portals, other hosts and administration stay on their current host", async () => {
+  const portal = { origin: agencyOrigin, branding: { name: "Agency" } }
+  for (const [options, expected] of [
+    [{ workspaceList: [{ ...linked, role: "owner", agency_removed: true }], returnTo: "/settings" }, "/settings"],
+    [{ workspaceList: [{ ...linked, portal_origin: null }] }, "/dashboard"],
+    [{ workspaceList: [{ ...linked, portal_origin: "https://unrelated.example.test" }] }, "/dashboard"],
+    [{ workspaceList: [linked], origin: "https://other.example.test" }, "/dashboard"],
+    [{ workspaceList: [linked], portal, origin: agencyOrigin }, "/dashboard"],
+    [{ workspaceList: [linked], returnTo: "/dashboard/hosted-portal" }, "/hosted-portal"],
+    [{ workspaceList: [linked], returnTo: "/white-label" }, "/white-label"],
+    [{ workspaceList: [linked], isAdmin: true, returnTo: "/platform-admin?tab=users" }, "/platform-admin?tab=users"],
+  ]) {
+    const result = await resolveInvitation({ origin: primaryOrigin, returnTo: "/dashboard", ...options })
+    assert.deepEqual(result.hostedRoutes, [])
+    assert.deepEqual(result.routes, [expected])
+  }
 })
 
 test("invitation permission failures go to login but service failures and expired sessions keep their own recovery", async () => {

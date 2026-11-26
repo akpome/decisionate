@@ -1656,7 +1656,7 @@ class DatasetSharingTests(unittest.TestCase):
                 "app.modules.datasets.router.SessionLocal",
                 return_value=fake_db,
             ), patch(
-                "app.modules.datasets.router.ensure_workspace_queue_capacity",
+                "app.modules.datasets.router.ensure_workspace_file_import_capacity",
             ), patch(
                 "app.modules.datasets.router.ingestion_worker_ready", return_value=True,
             ):

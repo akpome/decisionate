@@ -181,6 +181,22 @@ class FileUploadPathTests(unittest.TestCase):
         with patch.object(routes, "get_workspace_id", return_value="other-workspace"):
             self.assertEqual(self.upload()["status"], "queued")
 
+    def test_uploads_and_signed_imports_share_a_workspace_daily_limit(self):
+        with self.sessions() as db:
+            db.add_all([
+                DataIngestionJob(user_id="owner", workspace_id="workspace", job_type=kind, status="failed")
+                for kind in ("file_upload", "signed_url_import")
+            ])
+            db.commit()
+        with patch("app.infrastructure.ingestion_jobs.MAX_WORKSPACE_FILE_IMPORTS_PER_DAY", 2):
+            with self.assertRaises(HTTPException) as error:
+                self.upload()
+            self.assertEqual(error.exception.status_code, 429)
+            self.assertIn("last 24 hours", error.exception.detail)
+            self.assertEqual(list(self.uploads.iterdir()), [])
+            with patch.object(routes, "get_workspace_id", return_value="other-workspace"):
+                self.assertEqual(self.upload()["status"], "queued")
+
     def test_unsupported_empty_and_malformed_files_never_create_usable_datasets(self):
         with self.assertRaises(HTTPException) as unsupported:
             self.upload(b"ZIP", "datasets.zip")

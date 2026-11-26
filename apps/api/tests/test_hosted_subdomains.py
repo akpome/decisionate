@@ -411,6 +411,25 @@ class HostedSubdomainTests(unittest.TestCase):
             self.assertEqual(result.status_code, 200, result.text)
             self.assertEqual([item["owner_user_id"] for item in result.json()], expected)
 
+    def test_primary_sign_in_discovery_routes_only_authorized_agency_workspaces_to_active_portals(self):
+        self.publish()
+        origin = "https://north-star.decisionate.app"
+        routes = "/organizations/workspaces?include_portal_origins=true"
+        for user, workspace in (("agency", "agency"), ("staff", "agency"), ("client", "agency:client:1")):
+            with self.subTest(user=user):
+                result = self.client.get(routes, headers=self.headers(user=user))
+                self.assertEqual(result.status_code, 200, result.text)
+                self.assertEqual(result.json()[0]["owner_user_id"], workspace)
+                self.assertEqual(result.json()[0]["portal_origin"], origin)
+        stranger = {**self.headers(user="another"), "X-User-Email": "client@example.test"}
+        self.assertIsNone(self.client.get(routes, headers=stranger).json()[0]["portal_origin"])
+        self.assertIsNone(self.client.get("/organizations/workspaces", headers=self.headers(user="client")).json()[0]["portal_origin"])
+        self.assertIsNone(self.client.get(routes, headers=self.headers(user="client", origin=origin)).json()[0]["portal_origin"])
+        with self.Session() as db:
+            db.get(HostedSubdomainPortal, self.portal_id).status = "suspended"
+            db.commit()
+        self.assertIsNone(self.client.get(routes, headers=self.headers(user="client")).json()[0]["portal_origin"])
+
     def test_removed_hosted_client_rejoins_through_primary_settings_without_weakening_portal_access(self):
         self.publish()
         origin, workspace = "https://north-star.decisionate.app", "agency:client:1"
@@ -427,10 +446,11 @@ class HostedSubdomainTests(unittest.TestCase):
         self.assertEqual((result.status_code, result.json()), (200, []))
         result = self.client.get("/organizations/me", headers=self.headers(user="client", origin=origin, workspace=workspace))
         self.assertEqual(result.status_code, 403, result.text)
-        result = self.client.get("/organizations/workspaces", headers=self.headers(user="client"))
+        result = self.client.get("/organizations/workspaces?include_portal_origins=true", headers=self.headers(user="client"))
         self.assertEqual(result.status_code, 200, result.text)
         self.assertEqual(result.json()[0]["owner_user_id"], workspace)
         self.assertTrue(result.json()[0]["agency_removed"])
+        self.assertIsNone(result.json()[0]["portal_origin"])
 
         with patch.object(agency_accounts, "SessionLocal", self.Session), patch.object(agency_accounts, "send_platform_system_email") as mail:
             result = self.client.post("/organizations/agency-invitations", headers=self.headers(origin=origin), json={"email": "client@example.test"})
@@ -473,6 +493,9 @@ class HostedSubdomainTests(unittest.TestCase):
         self.assertEqual(joined.status_code, 200, joined.text)
         self.assertEqual(joined.json()["workspace_id"], workspace)
         self.assertEqual(joined.json()["portal_origin"], new_origin)
+        primary = self.client.get("/organizations/workspaces?include_portal_origins=true", headers=self.headers(user="client"))
+        self.assertEqual(primary.status_code, 200, primary.text)
+        self.assertEqual(primary.json()[0]["portal_origin"], new_origin)
         old_portal = self.client.get("/organizations/workspaces", headers=self.headers(user="client", origin="https://north-star.decisionate.app"))
         self.assertEqual((old_portal.status_code, old_portal.json()), (200, []))
 

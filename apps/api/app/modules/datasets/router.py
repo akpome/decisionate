@@ -61,11 +61,14 @@ from app.infrastructure.object_storage import (
     get_dataset_storage_reference,
     get_object_storage,
 )
-from app.security.request_limits import UPLOAD_MAX_BYTES
+from app.infrastructure.ingestion_limits import (
+    MAX_JSON_DOCUMENT_BYTES, UPLOAD_MAX_BYTES, IngestionLimitExceeded, check_dataframe_size, check_table_shape, connector_fetch_budget,
+)
 from app.infrastructure.ingestion_jobs import (
     WorkspaceIngestionQueueFull,
     claim_ingestion_job,
     durable_ingestion_enabled,
+    ensure_workspace_file_import_capacity,
     ensure_workspace_jobs_idle,
     ensure_workspace_queue_capacity,
     lock_connection_for_enqueue,
@@ -423,7 +426,7 @@ def build_dataset_upload_path(
     )
 
 
-SIGNED_FILE_URL_MAX_BYTES = 100 * 1024 * 1024
+SIGNED_FILE_URL_MAX_BYTES = UPLOAD_MAX_BYTES
 SIGNED_FILE_URL_HOST_SUFFIXES = (
     "googleusercontent.com",
     "usercontent.google.com",
@@ -3472,7 +3475,7 @@ def enqueue_file_ingestion_job(
 ) -> int:
     if durable_ingestion_enabled() and not ingestion_worker_ready(db):
         raise HTTPException(503, "File imports are temporarily unavailable. Please try again shortly.")
-    ensure_workspace_queue_capacity(db, workspace_id)
+    ensure_workspace_file_import_capacity(db, workspace_id)
     job = DataIngestionJob(
         connection_id=None,
         user_id=user_id,
@@ -3737,16 +3740,20 @@ def upload_dataset(
 
     if not get_dataset_file_type(upload_filename):
         raise HTTPException(400, "Unsupported dataset file type.")
-    if file.size is not None and file.size > UPLOAD_MAX_BYTES:
-        raise HTTPException(413, "Uploaded file exceeds the 100 MB import limit.")
+    document_json = upload_filename.lower().endswith(".json")
+    upload_limit = min(UPLOAD_MAX_BYTES, MAX_JSON_DOCUMENT_BYTES) if document_json else UPLOAD_MAX_BYTES
+    size_error = ("JSON documents are limited to 20 MB. For larger files, use CSV, JSON Lines, or Parquet."
+                  if document_json else "Uploaded file exceeds the 100 MB import limit.")
+    if file.size is not None and file.size > upload_limit:
+        raise HTTPException(413, size_error)
 
     try:
         bytes_written = 0
         with open(file_path, "wb") as buffer:
             while chunk := file.file.read(1024 * 1024):
                 bytes_written += len(chunk)
-                if bytes_written > UPLOAD_MAX_BYTES:
-                    raise HTTPException(413, "Uploaded file exceeds the 100 MB import limit.")
+                if bytes_written > upload_limit:
+                    raise HTTPException(413, size_error)
                 buffer.write(chunk)
     except BaseException:
         remove_dataset_file(file_path)
@@ -3758,6 +3765,10 @@ def upload_dataset(
         db = SessionLocal()
         storage = get_object_storage()
         if durable_ingestion_enabled() and storage.is_remote:
+            # Reject over-quota workspaces before transferring to object storage.
+            # Enqueue rechecks after staging under the workspace queue lock.
+            ensure_workspace_file_import_capacity(db, workspace_id)
+            db.rollback()
             staged_reference = storage.put_file(
                 file_path,
                 key=f"ingestion/{normalize_analytics_identifier(workspace_id, 'workspace')}/{uuid.uuid4().hex}-{upload_filename}",
@@ -7197,13 +7208,14 @@ def write_connector_monthly_partitions(
     report_config: dict,
     existing_summary=None,
     partition_dir=None,
+    *,
+    enforce_ingestion_limit=False,
 ):
     partition_dir = partition_dir or build_connector_partition_dir(
         connection,
     )
     staging_dir = f"{partition_dir}.tmp-{uuid.uuid4().hex}"
     staging_hot_dir = build_connector_hot_dir(staging_dir)
-    os.makedirs(staging_hot_dir, exist_ok=True)
 
     partitioned_dataframe = normalize_connector_dataframe_for_parquet(
         dataframe
@@ -7286,10 +7298,14 @@ def write_connector_monthly_partitions(
         merged_summary,
         SUMMARY_MONTH_COLUMN,
     )
+    retained_columns = set(hot_dataframe.columns) | set(merged_summary.columns)
+    if enforce_ingestion_limit:
+        check_table_shape(len(hot_dataframe) + len(merged_summary), len(retained_columns))
 
     hot_partition_count = 0
     historical_partition_paths = []
     try:
+        os.makedirs(staging_hot_dir, exist_ok=True)
         for month, month_dataframe in hot_dataframe.groupby(
             partition_key,
             sort=True,
@@ -7374,10 +7390,7 @@ def write_connector_monthly_partitions(
                 else []
             )
         ],
-        "column_count": len(
-            set(hot_dataframe.columns)
-            | set(merged_summary.columns)
-        ),
+        "column_count": len(retained_columns),
     }
 
 
@@ -8219,6 +8232,8 @@ def persist_connector_dataframe(
     staged_partition_dir = None
     replaced_file_path = None
     try:
+        if retention_dataset is None:
+            check_dataframe_size(dataframe)
         report_config = report_config or {}
         sync_resource = str(
             report_config.get("resource")
@@ -8248,15 +8263,18 @@ def persist_connector_dataframe(
             try:
                 merged_dataframe, storage_result, schema_column_mapping, existing_row_count = merge_connector_partitions(
                     connection, dataframe, {**parse_source_connection_config(existing_dataset.source_config), **report_config}, existing_reference, storage,
-                    heartbeat=heartbeat,
+                    heartbeat=heartbeat, enforce_ingestion_limit=retention_dataset is None,
                 )
                 staged_partition_dir = storage_result["partition_dir"]
+                if retention_dataset is None:
+                    check_table_shape(storage_result["hot_row_count"] + storage_result["historical_summary_row_count"],
+                                      storage_result["column_count"])
             except HTTPException as error:
                 if error.status_code != 404:
                     raise
         elif existing_dataset:
             try:
-                _, existing_dataframe = load_dataset_file(existing_reference, existing_dataset.file_name)
+                _, existing_dataframe = load_dataset_file(existing_reference, existing_dataset.file_name, existing=True)
             except HTTPException as error:
                 if error.status_code != 404:
                     raise
@@ -8338,7 +8356,10 @@ def persist_connector_dataframe(
                     revision_dir = f"{build_connector_partition_dir(connection)}.revision-{uuid.uuid4().hex}"
                 storage_result = write_connector_monthly_partitions(
                     merged_dataframe, connection, report_config, existing_summary=existing_summary, partition_dir=revision_dir,
+                    enforce_ingestion_limit=retention_dataset is None,
                 )
+        except IngestionLimitExceeded:
+            raise
         except ImportError as error:
             raise ConnectorUnavailable(
                 "Connector dataset storage requires the pyarrow package"
@@ -8632,6 +8653,7 @@ def connector_dataset_requires_retention_cleanup(
             dataframe = load_dataset_file(
                 local_file_path,
                 dataset.file_name,
+                existing=True,
             )[1]
         except (FileNotFoundError, OSError, ValueError):
             return False
@@ -8667,6 +8689,8 @@ def purge_expired_connector_dataset(
         )
         if hasattr(connection, field)
     }
+    # Retention can remove joins shared with an otherwise unrelated dataset deletion.
+    lock_workspace_queue(db, connection.workspace_id or connection.user_id)
     derived_references = cleanup_deleted_dataset_join_caches(db, dataset)
     source_config = parse_source_connection_config(
         dataset.source_config
@@ -8745,6 +8769,11 @@ def run_data_source_sync(
     connection,
     payload: DataSourceConnectionSync,
 ):
+    with connector_fetch_budget():
+        return _run_data_source_sync(db, connection, payload)
+
+
+def _run_data_source_sync(db, connection, payload):
     require_source_connection_sync_config(connection)
 
     if connection.source_type == "google_analytics":
@@ -8941,7 +8970,10 @@ def _persist_ingestion_job_failure(
                 connection.last_synced_at = datetime.fromisoformat(recent)
 
     job.status = INGESTION_JOB_FAILED
-    job.error_message = str(error)[:1000]
+    job.error_message = (
+        "Import exceeded its memory limit. Try a smaller file, a shorter date range, or fewer columns."
+        if isinstance(error, MemoryError) else str(error)[:1000]
+    )
     job.completed_at = utc_now()
     db.commit()
 
@@ -11733,6 +11765,37 @@ async def stop_dataset_sharing(
         db.close()
 
 
+def ensure_dataset_ingestion_idle(db, dataset):
+    source_type = normalize_dataset_source_type(dataset.source_type)
+    source = get_dataset_source(source_type)
+    if source and source["connection_type"] == "upload":
+        # File uploads and link imports create new rows; they never rewrite a saved file dataset.
+        return
+    if source_type not in IMPLEMENTED_CONNECTOR_TYPES:
+        # Keep the conservative guard for derived or unrecognized data.
+        ensure_workspace_jobs_idle(db, [dataset.workspace_id or dataset.user_id], include_queued=True)
+        return
+
+    connections = db.query(DataSourceConnection.id).filter(
+        DataSourceConnection.workspace_id == dataset.workspace_id,
+        DataSourceConnection.source_type == dataset.source_type,
+    )
+    if dataset.workspace_id is None:
+        connections = connections.filter(DataSourceConnection.user_id == dataset.user_id)
+    dataset_connection_id = parse_source_connection_config(dataset.source_config).get("connection_id")
+    connection_ids = [
+        connection_id for (connection_id,) in connections
+        if not dataset_connection_id or str(connection_id) == str(dataset_connection_id)
+    ]
+    if not connection_ids:
+        return
+    if db.query(DataIngestionJob.id).filter(
+        DataIngestionJob.connection_id.in_(connection_ids),
+        DataIngestionJob.status.in_(ACTIVE_INGESTION_JOB_STATUSES),
+    ).first():
+        raise HTTPException(409, "This dataset's connection has a queued or running import or analysis. Wait for it to finish, then try deleting the dataset again.")
+
+
 @router.delete("/{dataset_id}")
 def delete_dataset(
     request: Request,
@@ -11750,7 +11813,6 @@ def delete_dataset(
     db = SessionLocal()
 
     try:
-        ensure_workspace_jobs_idle(db, [workspace_id], include_queued=True)
         dataset = load_dataset(
             db,
             dataset_id,
@@ -11761,6 +11823,12 @@ def delete_dataset(
             user_id,
             workspace_id,
         )
+        lock_workspace_queue(db, dataset.workspace_id or dataset.user_id)
+        # Read again after acquiring the lock in case retention changed the file reference.
+        db.expire(dataset)
+        dataset = load_dataset(db, dataset_id)
+        verify_dataset_owner(dataset, user_id, workspace_id)
+        ensure_dataset_ingestion_idle(db, dataset)
 
         dataset_reference = get_dataset_storage_reference(
             dataset

@@ -554,7 +554,9 @@ automated tests do not replace acceptance testing against the deployed services.
    rejects a second consumer. Production ingestion is always queued to this worker.
 5. Allow at least 2 GiB of job address space plus supervisor/container overhead.
    Tune `INGESTION_JOB_MEMORY_MB` and `INGESTION_JOB_TIMEOUT_SECONDS` for the
-   deployment. Each job runs in an isolated process with a deadline. A restart
+   deployment. `INGESTION_JOB_RSS_MB` defaults to 1024 MiB, capped at 65% of the
+   container's memory limit when available. It limits resident memory separately
+   from the hard address-space limit. Each job runs in an isolated process with a deadline. A restart
    marks interrupted work failed with a retry message; partial imports are not
    automatically replayed. Queued uploads are staged in shared object storage.
 6. Stop old in-process ingestion before the rollout. Start the API and worker

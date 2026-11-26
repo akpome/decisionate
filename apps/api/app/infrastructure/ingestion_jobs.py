@@ -3,6 +3,7 @@
 import json
 import hashlib
 import os
+from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import and_, or_
@@ -11,6 +12,9 @@ from sqlalchemy import text
 from app.configuration import get_runtime_configuration
 from app.db.models import DataIngestionJob, utc_now
 from app.infrastructure.object_storage import get_object_storage
+
+
+MAX_WORKSPACE_FILE_IMPORTS_PER_DAY = 50
 
 
 class WorkspaceIngestionQueueFull(HTTPException):
@@ -75,6 +79,17 @@ def ensure_workspace_queue_capacity(db, workspace_id: str):
     ).count()
     if count >= 5:
         raise WorkspaceIngestionQueueFull()
+
+
+def ensure_workspace_file_import_capacity(db, workspace_id: str):
+    ensure_workspace_queue_capacity(db, workspace_id)
+    count = db.query(DataIngestionJob.id).filter(
+        DataIngestionJob.workspace_id == workspace_id,
+        DataIngestionJob.job_type.in_(("file_upload", "signed_url_import")),
+        DataIngestionJob.created_at >= utc_now() - timedelta(days=1),
+    ).limit(MAX_WORKSPACE_FILE_IMPORTS_PER_DAY).count()
+    if count >= MAX_WORKSPACE_FILE_IMPORTS_PER_DAY:
+        raise HTTPException(429, "This workspace has reached its 50-file limit for the last 24 hours. Try again later.")
 
 
 def workspace_job_scope(workspace_ids):

@@ -94,6 +94,7 @@ class DuckDBAnalyticsAdapter(
                 return load_dataset_file(
                     materialized_path,
                     dataset.file_name,
+                    existing=True,
                 )[1]
 
             connection = self._open_connection()

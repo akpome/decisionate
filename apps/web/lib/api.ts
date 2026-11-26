@@ -1944,6 +1944,7 @@ export type OrganizationWorkspaceRecord = {
   name: string
   owner_user_id: string
   role: "owner" | "member" | "client" | "client_owner" | "client_user" | "managed_client" | string
+  portal_origin?: string | null
   logo_url?: string | null
   primary_color?: string | null
   accent_color?: string | null
@@ -3330,6 +3331,9 @@ export async function uploadDataset(
 ) {
   if (file.size === 0) throw new Error("This file is empty. Choose a file containing data.")
   if (file.size > datasetUploadMaxBytes) throw new Error("Uploaded file exceeds the 100 MB import limit.")
+  if (/\.json$/i.test(file.name.trim()) && file.size > 20 * 1024 * 1024) {
+    throw new Error("JSON documents are limited to 20 MB. For larger files, use CSV, JSON Lines, or Parquet.")
+  }
   const unconfirmedMessage = "The upload could not be confirmed. Check the dataset list before uploading this file again."
   const formData =
     new FormData()
@@ -6570,13 +6574,19 @@ export async function getOrganizationWorkspaces(
   userEmail?: string,
   options?: {
     includeManagedClientWorkspaces?: boolean
+    includePortalOrigins?: boolean
     forceRefresh?: boolean
   }
 ): Promise<OrganizationWorkspaceRecord[]> {
   const includeManagedClientWorkspaces =
     options?.includeManagedClientWorkspaces === true
+  const includePortalOrigins = options?.includePortalOrigins === true
+  const query = [
+    includeManagedClientWorkspaces && "include_managed_client_workspaces=true",
+    includePortalOrigins && "include_portal_origins=true",
+  ].filter(Boolean).join("&")
   const cacheKey =
-    `organization-workspaces:${userId.trim()}:${userEmail?.trim() || ""}:${includeManagedClientWorkspaces}`
+    `organization-workspaces:${userId.trim()}:${userEmail?.trim() || ""}:${includeManagedClientWorkspaces}${includePortalOrigins ? ":portal-origins" : ""}`
   if (options?.forceRefresh) {
     // A fresh read must not broadcast another access change to its own listeners.
     apiReadCache.invalidate([cacheKey])
@@ -6587,11 +6597,7 @@ export async function getOrganizationWorkspaces(
     async () => {
       const response =
         await fetchOrganizationRequest(
-          `${API_URL}/organizations/workspaces${
-            includeManagedClientWorkspaces
-              ? "?include_managed_client_workspaces=true"
-              : ""
-          }`,
+          `${API_URL}/organizations/workspaces${query ? `?${query}` : ""}`,
           {
             headers: await organizationOwnerHeaders(
               userId,

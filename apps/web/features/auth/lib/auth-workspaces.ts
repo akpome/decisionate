@@ -15,11 +15,15 @@ export function chooseAuthWorkspace(
     workspace.role !== "managed_client" || workspace.agency_owner_access_enabled === true
   )
   if (requestedWorkspaceId) return accessible.find(workspace => workspace.owner_user_id === requestedWorkspaceId)
+  const selected = accessible.find(workspace => workspace.owner_user_id === activeWorkspaceId)
+  if (selected?.portal_origin && !selected.agency_removed) return selected
+  const hosted = accessible.find(workspace => workspace.portal_origin && !workspace.agency_removed)
+  if (hosted) return hosted
   if (activeWorkspaceId === userId) {
     const client = accessible.find(workspace => isClientWorkspaceRole(workspace.role) || workspace.agency_removed)
     if (client) return client
   }
-  return accessible.find(workspace => workspace.owner_user_id === activeWorkspaceId)
+  return selected
     ?? accessible.find(workspace => workspace.owner_user_id === userId)
     ?? accessible[0]
 }

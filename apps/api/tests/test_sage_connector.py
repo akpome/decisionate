@@ -6,7 +6,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pandas as pd
 
@@ -34,15 +34,12 @@ class SageConnectorTests(unittest.TestCase):
 
     def test_sage_data_requests_use_browser_compatible_transport(self):
         curl = MagicMock()
-        curl.get.return_value = type(
-            "Response",
-            (),
-            {
-                "status_code": 200,
-                "text": '{"$items": []}',
-                "headers": {"x-request-id": "sage-request-1"},
-            },
-        )()
+
+        def respond(_url, *, content_callback, **_options):
+            content_callback(b'{"$items": []}')
+            return SimpleNamespace(status_code=200, headers={"x-request-id": "sage-request-1"})
+
+        curl.get.side_effect = respond
 
         with patch.object(connectors, "curl_requests", curl), patch.object(
             connectors,
@@ -67,6 +64,7 @@ class SageConnectorTests(unittest.TestCase):
             },
             timeout=30,
             impersonate="chrome",
+            content_callback=ANY,
         )
         urlopen.assert_not_called()
 
@@ -88,8 +86,8 @@ class SageConnectorTests(unittest.TestCase):
             def __exit__(self, *_args):
                 return False
 
-            def read(self):
-                return b'{"$items": []}'
+            def read(self, size=-1):
+                return BytesIO(b'{"$items": []}').read(size)
 
         with patch.object(
             connectors,
@@ -106,18 +104,13 @@ class SageConnectorTests(unittest.TestCase):
         mocked_sleep.assert_called_once_with(1)
 
     def test_sage_persistent_html_500_has_a_recoverable_message(self):
-        error = HTTPError(
-            "https://api.accounting.sage.com/v3.1/contacts",
-            500,
-            "Internal Server Error",
-            {},
-            BytesIO(b"<html>500 Internal Server Error</html>"),
-        )
-
         with patch.object(
             connectors,
             "urlopen",
-            side_effect=[error, error, error],
+            side_effect=[HTTPError(
+                "https://api.accounting.sage.com/v3.1/contacts", 500, "Internal Server Error", {},
+                BytesIO(b"<html>500 Internal Server Error</html>"),
+            ) for _ in range(connectors.SAGE_MAX_REQUEST_ATTEMPTS)],
         ), patch.object(connectors, "sleep"):
             with self.assertRaisesRegex(
                 connectors.ConnectorUnavailable,

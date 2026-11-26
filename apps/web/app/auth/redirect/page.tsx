@@ -17,7 +17,7 @@ import { completeSignupMarketing } from "@/features/auth/lib/marketing-consent"
 import { getActiveWorkspaceId, setActiveWorkspaceId } from "@/lib/workspace-context"
 import { useDecisionateText } from "@/app/use-decisionate-language"
 import { useHostedPortal } from "@/features/hosted-subdomains/provider"
-import { getHostedAuthUrl, hostedWorkspaceRecoveryUrl } from "@/features/hosted-subdomains/types"
+import { getHostedAuthUrl, getHostedWorkspaceReturnUrl, hostedPrimaryOrigin, hostedWorkspaceRecoveryUrl } from "@/features/hosted-subdomains/types"
 
 const redirectErrors = {
   session: ["Your session could not be verified.", "Sign in again to continue."],
@@ -68,6 +68,7 @@ export default function AuthRedirectPage() {
       )
     const returnTo = getSafeReturnTo(requestedRedirect, window.location.origin)
     const requestedWorkspaceId = getInvitedWorkspaceId(returnTo)
+    const canRouteToHostedPortal = !portal && window.location.origin === hostedPrimaryOrigin
 
     if (!isSignedIn || !user?.id) {
       if (!portal) router.replace(getSignInUrl(returnTo))
@@ -89,15 +90,19 @@ export default function AuthRedirectPage() {
         await Promise.allSettled([
           portal ? Promise.resolve(false) : getPlatformAdminAccess(authenticatedUserId),
           getOrganizationWorkspaces(authenticatedUserId, userEmail, {
-            forceRefresh: Boolean(requestedWorkspaceId) || attempt > 0,
+            forceRefresh: canRouteToHostedPortal || Boolean(requestedWorkspaceId) || attempt > 0,
+            includePortalOrigins: canRouteToHostedPortal,
           }),
         ])
 
       if (cancelled) return
 
       const isAdmin = adminResult.status === "fulfilled" && adminResult.value
-      if (isAdmin && !getDashboardReturnTo(returnTo)) {
-        router.replace(getAuthenticatedDestination(true, undefined, returnTo))
+      const adminDestination = isAdmin && !getDashboardReturnTo(returnTo)
+        ? getAuthenticatedDestination(true, undefined, returnTo)
+        : null
+      if (adminDestination && (!canRouteToHostedPortal || returnTo?.startsWith("/platform-admin") || workspaceResult.status === "rejected")) {
+        router.replace(adminDestination)
         return
       }
 
@@ -118,7 +123,12 @@ export default function AuthRedirectPage() {
         throw adminResult.reason
       }
       if (workspace) setActiveWorkspaceId(authenticatedUserId, workspace.owner_user_id)
-      router.replace(getAuthenticatedDestination(isAdmin, workspace, returnTo))
+      const destination = getAuthenticatedDestination(false, workspace, returnTo)
+      const hostedDestination = canRouteToHostedPortal && workspace && !workspace.agency_removed
+        ? getHostedWorkspaceReturnUrl(workspace.portal_origin, workspace.owner_user_id, destination)
+        : null
+      if (hostedDestination) window.location.replace(hostedDestination)
+      else router.replace(adminDestination ?? destination)
     }
 
     void routeAuthenticatedUser().catch((failure: unknown) => {

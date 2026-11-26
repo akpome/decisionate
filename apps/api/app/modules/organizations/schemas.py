@@ -76,6 +76,7 @@ class OrganizationWorkspaceResponse(BaseModel):
     name: str
     owner_user_id: str
     role: str
+    portal_origin: str | None = None
     logo_url: str | None = None
     primary_color: str | None = None
     accent_color: str | None = None
