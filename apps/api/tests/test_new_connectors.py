@@ -4,7 +4,7 @@ import unittest
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pandas as pd
 from fastapi import HTTPException
@@ -2069,16 +2069,13 @@ class NewConnectorTests(unittest.TestCase):
         )
 
     def test_lightspeed_data_requests_use_browser_compatible_transport(self):
+        def respond(_url, *, content_callback, **_options):
+            for chunk in (b'{"Sale": ', b'[]}'):
+                self.assertEqual(content_callback(chunk), len(chunk))
+            return MagicMock(status_code=200, headers={})
+
         curl = MagicMock()
-        curl.get.return_value = type(
-            "Response",
-            (),
-            {
-                "status_code": 200,
-                "text": '{"Sale": []}',
-                "headers": {},
-            },
-        )()
+        curl.get.side_effect = respond
 
         with patch.object(connectors, "curl_requests", curl), patch.object(
             connectors,
@@ -2099,6 +2096,7 @@ class NewConnectorTests(unittest.TestCase):
             },
             timeout=30,
             impersonate="chrome",
+            content_callback=ANY,
         )
         urlopen.assert_not_called()
 
