@@ -76,6 +76,9 @@ for the same metric in Compare Groups, the target value is shared.
 5. Use Share link to email the displayed comparison, or Save PDF where
    available. Recipients see the shared groups without adjustment controls.
 
+Done editing hides both editing tabs and keeps the selected chart visible.
+Open Edit dashboard again to switch between Select Metrics and Compare Groups.
+
 For joined data, choose an original dimension from the metric's own source to
 split its underlying records. If the dimension is from another source, the
 chart groups shared monthly totals only where each month has one known group.

@@ -3085,18 +3085,17 @@ export default function DashboardPage() {
     <>
       {dimensionControls}
 
-      {(dashboardEditMode || groupPreference || showGroupComparison) && (
-        <div role={dashboardEditMode ? "tablist" : "group"} aria-label={t("Dashboard view")}
+      {dashboardEditMode && <>
+        <div role="tablist" aria-label={t("Dashboard view")}
           className="flex flex-wrap gap-x-5 border-b border-gray-200 print:hidden">
           {([["dashboard-metrics-tab", "Select Metrics", false], ["dashboard-groups-tab", "Compare Groups", true]] as const)
             .map(([id, label, active]) => {
               const selected = active === groupTabActive
-              return <button key={id} id={id} type="button" role={dashboardEditMode ? "tab" : undefined}
-                aria-selected={dashboardEditMode ? selected : undefined} aria-pressed={!dashboardEditMode ? selected : undefined}
-                aria-controls={dashboardEditMode ? "dashboard-view-editor" : undefined} tabIndex={dashboardEditMode && !selected ? -1 : 0}
+              return <button key={id} id={id} type="button" role="tab"
+                aria-selected={selected} aria-controls="dashboard-view-editor" tabIndex={selected ? 0 : -1}
                 onClick={() => selectEditTab(active)}
                 onKeyDown={event => {
-                  if (!dashboardEditMode || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
                   event.preventDefault()
                   const next = event.key === "Home" ? false : event.key === "End" ? true : !active
                   selectEditTab(next)
@@ -3107,9 +3106,6 @@ export default function DashboardPage() {
               </button>
             })}
         </div>
-      )}
-
-      {dashboardEditMode && (
         <section id="dashboard-view-editor" role="tabpanel"
           aria-labelledby={groupTabActive ? "dashboard-groups-tab" : "dashboard-metrics-tab"}
           className="@container space-y-4 border-b border-gray-200 pb-4 print:hidden">
@@ -3138,7 +3134,7 @@ export default function DashboardPage() {
             </div>
           </>}
         </section>
-      )}
+      </>}
 
       {!canConfigureWorkspace && availableMetricColumns.length > 0 && (
         <section id="dashboard-member-metrics" aria-label={t("Select Metrics")} hidden={!memberMetricsOpen}

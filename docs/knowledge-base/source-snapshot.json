@@ -1,22 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-25",
-  "base_git_revision": "b4b9ba004c50ae77c2bc7ae29641fdd9921cfda2",
+  "base_git_revision": "caee464cd42b827c130b3c4e2a85a92eb66ab2f6",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/infrastructure/ingestion_worker.py",
-    "apps/api/app/modules/datasets/router.py",
-    "apps/api/app/modules/datasets/services/file_loader.py",
-    "apps/api/app/modules/organizations/router.py",
-    "apps/api/tests/test_hosted_subdomains.py",
-    "apps/web/app/auth/redirect/page.tsx",
-    "apps/web/app/share/dashboard/page.tsx",
-    "apps/web/app/share/report/page.tsx",
-    "apps/web/features/auth/lib/auth-workspaces.ts",
-    "apps/web/features/datasets/components/csv-upload.tsx",
-    "apps/web/features/hosted-subdomains/types.ts",
-    "apps/web/features/sharing/shared-link-location.ts",
-    "apps/web/lib/api.ts",
-    "apps/web/proxy.ts"
+    "apps/web/app/dashboard/page.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -152,7 +139,7 @@
     "apps/web/app/dashboard/entity-matching/page.tsx": "91fa627970d00b5e83471d9d13ded635e1a42fd99d3eebbd7ceef0eed18fbcd4",
     "apps/web/app/dashboard/forecasts/page.tsx": "35c64b06035e9b1a11b50787ae22a3a665f119b81f9e023ee5b5aba5c9fa9be0",
     "apps/web/app/dashboard/help/page.tsx": "d0497b90829401ec6b67f911544ae7896c583e206cfa738cc2234c1e21c8fe23",
-    "apps/web/app/dashboard/page.tsx": "4d99a81c6e2bf13d5650315a9ebff6bdc42c854445aa38cc6f51bdadc7da1539",
+    "apps/web/app/dashboard/page.tsx": "e2ae0b0c2c6d22260500e3ab856343dbaceabaea6a3d94316eb8cf4ed617d3bc",
     "apps/web/app/dashboard/relationships/page.tsx": "1ebef014f6c5cb4b5e0c70fb75aad6da4ec15d8b43e2e92d26ccded18ed89e86",
     "apps/web/app/dashboard/reports/combined/page.tsx": "3ef973956705f169c5d3b7d137bead3794cbe92859bfb798fbcee7cf3d2ae8b1",
     "apps/web/app/dashboard/reports/impact/page.tsx": "49cba3eb75f76ca7089029164210f50a5290cdbddf37ede2eaa65f73c2b5385b",
@@ -286,7 +273,7 @@
     "customer/metric-semantics.md": "7c8892897d2b7de88b91789e1d6827824b6ff37147995b12b9f6e4775149f3aa",
     "customer/time-aggregation.md": "57172293cd096a908344b7e2814928e08f3840cf4219cdd9361069c4495cf1d2",
     "customer/dimension-filters.md": "eb13f59b365e29c70ac8cc074c16d9553699415207c197c7d3cb8b0ebea0b5e0",
-    "customer/dashboards.md": "da88606b764ef136ea97eb4da3af5239d36aa1be408f33d5dd104a466161cf86",
+    "customer/dashboards.md": "888fbb8d2b56ba5882314e9fd39925a97581e44f90e0200dc0fa8374b05ddcd1",
     "customer/reports-build.md": "738d6f7c5c38161550d090fb886ed057301e973ca9ceea1586f4f651bc712b56",
     "customer/reports-read-save.md": "508a0d4542c4a4d5e80f8da3b09a66b98b1d742228d106a86ebdab631d0edc85",
     "customer/relationship-evidence.md": "af130694d213737c887265b46259708e8fff54091e8dd3c1597195b82368b1a0",

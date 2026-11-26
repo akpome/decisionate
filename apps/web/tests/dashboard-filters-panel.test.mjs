@@ -158,6 +158,31 @@ test("Compare Groups requests dimensions for the selected joined dataset", () =>
   assert.match(source, /groupAggregation = compareJoinedGroups \? "monthly" : aggregation/)
 })
 
+test("closing Edit dashboard hides both tabs, even with an active or saved group comparison", () => {
+  const panels = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "generalDashboardManagementPanels")
+  const { Editor } = load(`export function Editor({ dashboardEditMode, groupTabActive, groupPreference, showGroupComparison }) {
+    return (${panels.initializer.getText(ast)})
+  }`, {
+    dimensionControls: null, canCompareGroups: true, canConfigureWorkspace: true, showJoinPanel: false, t: text => text,
+    selectedDatasetId: 21, compareJoinedGroups: false, userId: "owner", activeWorkspaceId: "workspace", dimensionContext: "dataset:21",
+    availableMetricColumns: ["Revenue"], groupMetric: "Revenue", groupFilter: { column: "channel", values: ["Online", "Store"] },
+    groupMetricTarget: 0, updateMetricTarget() {}, selectGroupMetric() {}, CompareGroupsEditor: icon,
+    primaryMetricFields: null, metricDimensionFilter: null, metrics: [],
+  })
+  const saved = { filter: { column: "channel", values: ["Online", "Store"] }, metric: "Revenue" }
+  for (const [active, preference] of [[false, null], [false, saved], [true, null], [true, saved]]) {
+    const render = dashboardEditMode => renderToStaticMarkup(React.createElement(Editor, {
+      dashboardEditMode, groupTabActive: active, groupPreference: preference, showGroupComparison: active,
+    }))
+    assert.doesNotMatch(render(false), /Select Metrics|Compare Groups|dashboard-view-editor/)
+    const reopened = render(true)
+    assert.match(reopened, /role="tablist"/)
+    assert.match(reopened, /Select Metrics/)
+    assert.match(reopened, /Compare Groups/)
+    assert.match(reopened, new RegExp(`role="tabpanel" aria-labelledby="dashboard-${active ? "groups" : "metrics"}-tab"`))
+  }
+})
+
 test("Compare Groups never displays or exports the Select Metrics chart while its selection is incomplete", () => {
   const mode = find(node => ts.isVariableDeclaration(node) && node.name.getText(ast) === "showGroupComparison")
   const body = find(node => ts.isJsxExpression(node) && node.expression?.getText(ast).startsWith("dataset && !loading && showGroupComparison && ("))
