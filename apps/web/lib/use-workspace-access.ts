@@ -31,7 +31,8 @@ export type WorkspaceRole =
   | "unknown"
 
 export function useWorkspaceAccess(
-  userId: string | undefined
+  userId: string | undefined,
+  { backgroundRefresh = false }: { backgroundRefresh?: boolean } = {}
 ) {
   const { user } = useUser()
   const userEmail = user?.primaryEmailAddress?.emailAddress
@@ -41,7 +42,7 @@ export function useWorkspaceAccess(
   } = useActiveWorkspace(userId)
   const [workspaces, setWorkspaces] =
     useState<OrganizationWorkspaceRecord[]>([])
-  const [loadingWorkspaceAccess, setLoadingWorkspaceAccess] =
+  const [checkingWorkspaceAccess, setCheckingWorkspaceAccess] =
     useState(true)
   const workspaceAccessKey =
     `${userId ?? ""}:${activeWorkspaceId}`
@@ -84,13 +85,13 @@ export function useWorkspaceAccess(
         if (!ignoreResult) {
           setWorkspaces([])
           setLoadedWorkspaceAccessKey(workspaceAccessKey)
-          setLoadingWorkspaceAccess(false)
+          setCheckingWorkspaceAccess(false)
         }
 
         return
       }
 
-      setLoadingWorkspaceAccess(true)
+      setCheckingWorkspaceAccess(true)
       setWorkspaceAccessError("")
 
       try {
@@ -141,7 +142,7 @@ export function useWorkspaceAccess(
         }
       } finally {
         if (!ignoreResult) {
-          setLoadingWorkspaceAccess(false)
+          setCheckingWorkspaceAccess(false)
         }
       }
     }
@@ -184,6 +185,9 @@ export function useWorkspaceAccess(
       : "unknown"
   const workspaceAccessReady =
     loadedWorkspaceAccessKey === workspaceAccessKey
+  // A refresh can leave an existing form mounted, but never grant access to a new scope.
+  const loadingWorkspaceAccess =
+    !workspaceAccessReady || (checkingWorkspaceAccess && !backgroundRefresh)
   const workspaceRole: WorkspaceRole =
     workspaceAccessReady
       ? workspaceRoleFromData

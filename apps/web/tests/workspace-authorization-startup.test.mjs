@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import test from "node:test"
+import { setImmediate } from "node:timers/promises"
 import vm from "node:vm"
 
 const require = createRequire(import.meta.url), ts = require("typescript")
@@ -132,6 +133,73 @@ test("workspace ownership changes refresh the shell without changing the workspa
   assert.match(access, /addEventListener\("focus", handleWorkspaceAccessChanged\)/)
   assert.match(access, /removeEventListener\("focus", handleWorkspaceAccessChanged\)/)
   assert.match(access, /forceRefresh: accessRefreshKey > 0/)
+})
+
+test("refocusing a report keeps its builder mounted while rechecking access to the same workspace", async () => {
+  const window = new EventTarget(), state = [], effects = [], scheduled = [], reads = []
+  let activeWorkspaceId = "agency", stateIndex = 0, effectIndex = 0
+  const user = { id: "agency" }, ReportWorkspace = () => null
+  const clerk = { useUser: () => ({ user, isLoaded: true }) }
+  function load(path, imports) {
+    const loaded = { exports: {} }
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+    }).outputText, { module: loaded, exports: loaded.exports, require: name => imports[name] || require(name), window })
+    return loaded.exports
+  }
+  const access = load("../lib/use-workspace-access.ts", {
+    react: {
+      useState(initial) {
+        const index = stateIndex++
+        if (!(index in state)) state[index] = initial
+        return [state[index], value => { state[index] = typeof value === "function" ? value(state[index]) : value }]
+      },
+      useCallback: callback => callback,
+      useMemo: get => get(),
+      useEffect(run, deps) {
+        const index = effectIndex++, previous = effects[index]
+        if (!previous || deps.some((value, i) => value !== previous.deps[i])) {
+          scheduled.push(() => { previous?.cleanup?.(); effects[index] = { deps, cleanup: run() } })
+        }
+      },
+    },
+    "@clerk/nextjs": clerk,
+    "./workspace-ownership": { isAgencyManagedWorkspace: () => false },
+    "@/lib/api": { getOrganizationWorkspaces: (_, _email, options) => new Promise(resolve => reads.push({ options, resolve })) },
+    "@/lib/use-active-workspace": { useActiveWorkspace: () => ({ activeWorkspaceId }) },
+    "@/lib/workspace-context": { workspaceAccessChangedEvent: "decisionate:workspace-access-changed", setActiveWorkspaceId: assert.fail },
+  })
+  const { default: ReportPage } = load("../features/reports/report-page.tsx", {
+    "@clerk/nextjs": clerk, "@/lib/use-workspace-access": access,
+    "@/features/reports/report-workspace": { ReportWorkspace },
+  })
+  function render() {
+    stateIndex = effectIndex = 0
+    const element = ReportPage({})
+    for (const run of scheduled.splice(0)) run()
+    return element
+  }
+  assert.equal(render().props.children, "Loading workspace...")
+  reads.shift().resolve([own]); await setImmediate()
+  const initial = render()
+  assert.equal(initial.type, ReportWorkspace)
+  assert.equal(initial.props.canSave, true)
+
+  window.dispatchEvent(new Event("focus"))
+  render()
+  const pending = render()
+  assert.equal(pending.type, ReportWorkspace)
+  assert.equal(pending.key, initial.key)
+  assert.equal(pending.props.canManage, initial.props.canManage)
+  const refresh = reads.shift()
+  assert.equal(refresh.options.forceRefresh, true)
+  refresh.resolve([]); await setImmediate()
+  assert.equal(render().props.canSave, false)
+
+  activeWorkspaceId = "another-workspace"
+  assert.equal(render().props.children, "Loading workspace...")
+  reads.shift().resolve([{ ...own, owner_user_id: activeWorkspaceId }]); await setImmediate()
+  assert.notEqual(render().key, initial.key)
 })
 
 test("workspace status refresh bypasses cached records for agency-initiated removals", async () => {
