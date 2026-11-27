@@ -85,7 +85,7 @@ const gettingStartedItems = [
 const faqItems = [
   {
     question: "Which analysis tool should I use?",
-    answer: "In Business Analysis, choose Compare metrics for trends and relationships, Business impact to assess a recorded change, Return on spend for recorded revenue per dollar, Profitability for money left after costs, Customer retention for repeat purchases, Sales conversion for sales steps, or Cash flow planning for scheduled receipts and payments. Budget Planner is a separate page for future spending choices; Weekly Reports is for recurring monitoring. On smaller screens, use the Analysis tool dropdown.",
+    answer: "Start with the decision you need to make. To compare past ad results, Return on spend needs spending and recorded sales by channel; Budget Planner instead uses matching spending and outcome history to suggest a future mix to test. To investigate falling orders, Compare metrics shows what moved together, while Business impact checks a change you already made against an unaffected comparison. To understand whether you earned money, use Profitability; to see whether you can pay bills on time, use Cash flow planning. Open Workflow guides for the data you need, results to expect and examples for each tool.",
   },
   {
     question: "Where is Business impact now?",

@@ -285,11 +285,13 @@
         "Which advertising platform gave better value for my money?": [
           "Which channel gave me more revenue per dollar spent?",
           "Which advertising platform gave me more revenue per dollar spent?",
-          "Which ad platform gave me more bang for my dollar?"
+          "Which ad platform gave me more bang for my dollar?",
+          "Which tool can I use to see which ad channel earned more per dollar?"
         ],
         "Which products or services leave the most money?": [
           "Which products leave the most money after costs?",
-          "Which products or services leave the most money after costs?"
+          "Which products or services leave the most money after costs?",
+          "Which tool can I use to see which products leave the most money after costs?"
         ],
         "Does a return of 3 mean I made 3 dollars of profit?": [
           "Does a return of 3 mean I made 3 dollars of profit?",
@@ -324,7 +326,8 @@
           "How do I use the Customer retention tool?",
           "How do I use Customer retention under Business Analysis?",
           "How do I use Customer retention in Business Analysis?",
-          "What does Time to buy again mean in Customer retention?"
+          "What does Time to buy again mean in Customer retention?",
+          "Which tool can I use to see how soon customers buy again?"
         ],
         "Are customers coming back?": [
           "Are my customers coming back to buy again?"
@@ -337,7 +340,8 @@
           "How do I use Sales conversion in Business Analysis?"
         ],
         "Where are potential sales being lost?": [
-          "Where are potential sales being lost?"
+          "Where are potential sales being lost?",
+          "Which tool can I use to see where potential sales are lost?"
         ],
         "Can I combine advertising clicks and store orders into a sales funnel?": [
           "Can I combine advertising clicks and store orders into a sales funnel?"
@@ -361,6 +365,9 @@
         ],
         "When might cash run short?": [
           "When might cash run short?"
+        ],
+        "What if customers pay late or expenses rise?": [
+          "Which tool can I use to check if a late payment leaves me short of cash?"
         ]
       },
       "section_questions": {
@@ -461,7 +468,8 @@
           "How can I get a recommendation for dividing my advertising budget between channels?",
           "how can decisionate make recommedation for me on how to get the most value for my advertising spend, with Google ads and meta ads",
           "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store",
-          "How do I use the Budget Planner?"
+          "How do I use the Budget Planner?",
+          "Which tool can I use to decide where to spend next month?"
         ]
       }
     },
@@ -516,7 +524,11 @@
         ],
         "Which analysis tool should I use?": [
           "Which analysis tool should I use?",
-          "Which tools help me understand and improve my business?"
+          "Which tools help me understand and improve my business?",
+          "Which tool can I use?",
+          "Which tool should I use?",
+          "What analysis tool can I use?",
+          "How do I choose between the business analysis tools?"
         ],
         "What can Ask Decisionate do?": [
           "Can Ask Decisionate check my results or change my account?",
@@ -1274,7 +1286,8 @@
           "What are the steps to assess the impact of a decision?",
           "How do I use Business impact analysis?",
           "How do I use Business impact under Business Analysis?",
-          "How to use Business impact analysis?"
+          "How to use Business impact analysis?",
+          "Which tool can I use to see if a change I made helped?"
         ],
         "Build an analysis": [
           "How do I use Multi-dataset report?",
@@ -1286,7 +1299,8 @@
           "How do I use correlation analysis?",
           "How do I build a report across datasets?",
           "How do I create a multi dataset report?",
-          "How do I use the multi-dataset report?"
+          "How do I use the multi-dataset report?",
+          "Which tool can I use to compare sales and advertising over time?"
         ],
         "Analyze one dataset": [
           "How do I use Single dataset report?",
@@ -1501,7 +1515,8 @@
           "How do I use Relationships?",
           "How to use Relationships?",
           "How do I use the Relationships page?",
-          "How do I save a two-metric monitor?"
+          "How do I save a two-metric monitor?",
+          "Which tool can I use to save a relationship between two metrics?"
         ],
         "Read an opened saved relationship": [
           "How do I read a saved relationship?",
@@ -1559,7 +1574,8 @@
         ],
         "How can I estimate future sales for one store or product?": [
           "How can I estimate future sales for one store or product?",
-          "How do I forecast a segment?"
+          "How do I forecast a segment?",
+          "Which tool can I use to estimate future sales for one store?"
         ],
         "Can I trust a seasonal forecast for Christmas or a quiet season?": [
           "Can I trust a seasonal forecast for Christmas or a quiet season?"
@@ -1602,7 +1618,8 @@
         "Configure weekly analysis and sending separately": [
           "How do I use Weekly Reports?",
           "How to use Weekly Reports?",
-          "How do I set up a weekly report?"
+          "How do I set up a weekly report?",
+          "Which tool can I use to check results every week?"
         ],
         "Review the weekly report and follow up": [
           "How do I read the weekly report?",

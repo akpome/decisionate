@@ -1,12 +1,9 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-26",
-  "base_git_revision": "4ea54bd35b10bcb85ec81c71c678994b48fdc25e",
+  "base_git_revision": "9935640311fc33267ab1334cd65999a32873596f",
   "referenced_sources_modified_in_worktree": [
-    "apps/api/app/modules/support/guidance.py",
-    "apps/api/scripts/knowledge_repository.py",
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/features/support/workflow-guides.tsx"
+    "apps/web/app/dashboard/help/page.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
   "source_sha256": {
@@ -141,7 +138,7 @@
     "apps/web/app/dashboard/decisions/page.tsx": "f1086ea16c13974acc384d14090de10054f1bc6ba92243e9dd885c5be99e3758",
     "apps/web/app/dashboard/entity-matching/page.tsx": "91fa627970d00b5e83471d9d13ded635e1a42fd99d3eebbd7ceef0eed18fbcd4",
     "apps/web/app/dashboard/forecasts/page.tsx": "35c64b06035e9b1a11b50787ae22a3a665f119b81f9e023ee5b5aba5c9fa9be0",
-    "apps/web/app/dashboard/help/page.tsx": "8de3a3e6a15903f433aa2f09c8ec6eefde8e29e45fc1870c926463047c8b427d",
+    "apps/web/app/dashboard/help/page.tsx": "aa2ed90abf2cd791b4bd8daf53cfd40ebca61dae78c9712d105175980aaa4e1e",
     "apps/web/app/dashboard/page.tsx": "e2ae0b0c2c6d22260500e3ab856343dbaceabaea6a3d94316eb8cf4ed617d3bc",
     "apps/web/app/dashboard/relationships/page.tsx": "1ebef014f6c5cb4b5e0c70fb75aad6da4ec15d8b43e2e92d26ccded18ed89e86",
     "apps/web/app/dashboard/reports/combined/page.tsx": "3ef973956705f169c5d3b7d137bead3794cbe92859bfb798fbcee7cf3d2ae8b1",
@@ -265,9 +262,9 @@
   },
   "article_sha256": {
     "customer/hosted-portals.md": "e0e4cac1282c53e3bd1105be017da6233f44b587660340f0279dfca5ad1e14d8",
-    "customer/performance-analysis.md": "b4d1ec91b5cb00217bee1fa1f3cc695747a0945da0482ea1d415a61fc9b88257",
+    "customer/performance-analysis.md": "54ae0eacd8ac61522c1f348b9a4fa7b666097d84ae58b975d8750376627c3ab3",
     "customer/budget-planner.md": "89a14e3dd0470c15598cc2b0413edc63442cb11ae70085bbce28a9a74625660c",
-    "customer/product-overview.md": "9ca10473a957422e6283115ab07bdb6741753c0c70182de863b2505486b76c7f",
+    "customer/product-overview.md": "56b1694eedd74c645da1d3451554a9c7a07e7370699678013defc501758221e3",
     "customer/getting-started.md": "9dffdf2c9259ed76ccf67f8341034ecf87726f7b94276e4cd610418dd075cec6",
     "customer/workspaces-access.md": "e7ba7679d5c87acc4d9b5768c121f059f0b402ce6f6aaf0ebbd8d1429fc0576f",
     "customer/agencies-clients.md": "27f02bf23f04f65848e4f259c96498aead312e046bb497c4eb4330dc2a6b61b0",

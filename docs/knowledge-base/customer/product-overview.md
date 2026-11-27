@@ -73,30 +73,75 @@ service. Use the multi dataset report for current multi-metric analysis.
 
 ## Which analysis tool should I use?
 
-Open Business Analysis in the sidebar and select a tab along the top. On smaller
-screens, choose the same tool in the Analysis tool dropdown.
+Start with the question you need to answer, and choose a tool your records can
+support. For example, "Which ads earned more per dollar last month?" is about
+past results. "How should I split next month's budget?" is about what to test next.
 
-- [Compare metrics](/business-analysis): Use Multi-dataset report to compare
-  two or more sources. Use [Single dataset report](/business-analysis/dataset)
-  for one source. Choose metrics, filters and dates, then Preview analysis.
-- [Business impact](/business-analysis/impact): Under Assessment setup, select
-  an eligible decision, enter the implementation date and choose an unaffected
-  comparison. Choose Analyze business impact before saving to that decision.
-- [Return on spend](/business-analysis/returns): Select recorded revenue and
-  spending, then Compare results to check revenue per dollar already spent.
-- [Profitability](/business-analysis/profitability): Select revenue and the
-  costs you want to subtract, then Compare results to see money left.
-- [Customer retention](/business-analysis/retention): Choose dated purchase
-  records and a 30-, 60- or 90-day window, then Show results for repeat purchases.
-- [Sales conversion](/business-analysis/conversion): Select counts for ordered
-  sales steps, then Show results to see where the same potential customers stopped.
-- [Cash flow planning](/business-analysis/cash-flow): Choose expected payments,
-  set opening cash and preview where cash might run short.
+In Business Analysis, select one of these tabs. On smaller screens, choose it
+from the Analysis tool dropdown.
 
-Budget Planner is a separate page for future spending choices. Weekly Reports is
-for recurring monitoring of the last completed week. Forecasts projects a selected
-metric from its history. They do not replace the tools for measured past returns
-or assessing a recorded decision. No tool automatically changes spending or payments.
+- [Compare metrics](/business-analysis): "What changed, and did other numbers
+  move with it?" Use dates and metrics such as ad spend and orders. Choose
+  Multi-dataset report for two or more sources, or [Single dataset report](/business-analysis/dataset)
+  for one. Preview analysis shows totals, trends and unusual changes where
+  supported. Optional correlation shows whether metrics moved together and
+  whether one tended to move first. It doesn't show which ad earned a sale.
+- [Business impact](/business-analysis/impact): "Did the change I made help?"
+  For example, compare orders at a store that extended its hours with
+  orders at a similar store that kept its hours. You need an eligible saved
+  decision, its actual start date, an unaffected comparison and enough matching
+  history before and after. Analyze business impact estimates what changed
+  beyond the comparison, if the evidence supports it. It does not prove cause.
+- [Return on spend](/business-analysis/returns): "Which channel earned more
+  revenue per dollar I already spent?" Choose matched spending and recorded
+  sales by channel for the same dates and currency. Compare results divides
+  revenue by spending: $300 on $100 of spend is $3 per dollar. Count each sale
+  under one channel using the same rule for all channels. With only total store
+  sales, you can't fairly rank channels. This measures revenue, not profit.
+- [Profitability](/business-analysis/profitability): "Which product, service
+  or location leaves the most money after costs?" Select recorded revenue and
+  the total costs for those same sales. Compare results shows money left and
+  margin. A best seller can leave less money after fees, delivery or product
+  costs. The result isn't net profit unless you've included all relevant costs.
+- [Customer retention](/business-analysis/retention): "Do buyers come back,
+  and how soon?" Use completed purchases with dates, a customer ID and a
+  purchase ID. Choose 30, 60 or 90 days, then Show results to see how many
+  eligible buyers made a second purchase. Buyers without enough follow-up
+  time are too early to judge. Use the result to pick a reminder timing to test.
+- [Sales conversion](/business-analysis/conversion): "Where do I lose potential
+  sales?" Use counts for the same people or opportunities at each step, such
+  as 100 enquiries, 70 quotes and 20 sales. Show results displays conversion
+  rates and drop-offs. Here, 50 quotes didn't become sales, so that's a place
+  to investigate. Unrelated website clicks and shop orders aren't a sales funnel.
+- [Cash flow planning](/business-analysis/cash-flow): "Can I pay my bills if a
+  customer pays late?" Enter the cash available at the start and use schedules
+  of expected receipts and payments, from one or two datasets. Preview cash plan
+  shows weekly balances and the lowest point. Try a receipt delay to see when
+  cash might fall short even if the business is profitable. It does not verify
+  your bank balance or move money.
+
+Use these separate pages when you want to plan ahead or check the same numbers
+regularly:
+
+- [Budget Planner](/budget-planner): "How should I split a future budget?"
+  Choose a result such as orders and at least two spending options. With at
+  least 104 complete matching weeks and enough evidence, it suggests a mix to
+  test at the same total budget and estimates the possible difference. It does
+  not rate past ad returns or change budgets for you.
+- [Forecasts](/forecasts): "What might monthly orders look like next?" Choose
+  a metric with usable dated history and the right grouping. The projection
+  continues patterns in that history. Check the warnings, particularly if the
+  business has changed. To test a proposed payment delay instead, use Cash flow planning.
+- [Weekly Reports](/weekly-reports): "What needs my attention every week?"
+  Choose the metrics, date columns and optional targets once. Preview and save
+  to monitor last week's totals, missed targets and unusual changes where the
+  data supports them. It's a recurring review, not a forecast. Email delivery
+  needs usable data from at least two selected datasets in the completed week.
+- [Relationships](/relationships): "I want to revisit the same pair of numbers."
+  Choose two dated metrics from different datasets, such as ad spend and orders.
+  Preview and save their relationship. It gives a coefficient and observed delay
+  when there is enough matching data. Use Compare metrics instead to review
+  several pairs, totals and unusual changes in one report.
 
 ## Find links and actions inside pages
 

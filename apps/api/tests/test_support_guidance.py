@@ -51,6 +51,51 @@ class GuidanceTests(unittest.TestCase):
                 self.assertIn("In Assessment setup, use Decision to review", result.answer)
                 self.assertFalse(result.contact_support)
 
+    def test_choosing_an_analysis_tool_explains_inputs_results_and_limits(self):
+        for question in ("Which analysis tool should I use?", "Which tool can I use?"):
+            with self.subTest(question=question):
+                result = guidance.answer_guidance(GuidanceRequest(question=question))
+                self.assertEqual([item.route for item in result.sources], ["/business-analysis"])
+                self.assertFalse(result.contact_support)
+                for tool, details in (
+                    ("Compare metrics", ("ad spend and orders", "unusual changes", "doesn't show which ad earned a sale")),
+                    ("Business impact", ("extended its hours", "an unaffected comparison", "does not prove cause")),
+                    ("Return on spend", ("recorded sales by channel", "$3 per dollar", "not profit")),
+                    ("Profitability", ("total costs for those same sales", "money left and margin", "all relevant costs")),
+                    ("Customer retention", ("a customer ID and a purchase ID", "second purchase", "too early to judge")),
+                    ("Sales conversion", ("100 enquiries, 70 quotes and 20 sales", "conversion rates", "aren't a sales funnel")),
+                    ("Cash flow planning", ("expected receipts and payments", "weekly balances", "does not verify your bank balance")),
+                    ("Budget Planner", ("104 complete matching weeks", "same total budget", "does not rate past ad returns")),
+                    ("Forecasts", ("usable dated history", "continues patterns", "Check the warnings")),
+                    ("Weekly Reports", ("optional targets", "last week's totals", "not a forecast")),
+                    ("Relationships", ("two dated metrics from different datasets", "coefficient and observed delay", "enough matching data")),
+                ):
+                    entry = next(part for part in result.answer.split("\n- ") if part.startswith(f"{tool}:"))
+                    for detail in details:
+                        self.assertIn(detail, " ".join(entry.split()))
+
+    def test_a_specific_business_goal_returns_the_relevant_tool_and_instructions(self):
+        for goal, route, steps in (
+            ("see which ad channel earned more per dollar", "/business-analysis/returns", ("historical dates and currency", "total selected revenue divided by total spending")),
+            ("decide where to spend next month", "/budget-planner", ("Result to improve", "Choose Preview budget", "104 complete matching weeks")),
+            ("see if a change I made helped", "/business-analysis/impact", ("Decision to review", "unaffected", "Analyze business impact")),
+            ("check if a late payment leaves me short of cash", "/business-analysis/cash-flow", ("Receipts arrive later", "Compare the adjusted plan", "not a prediction")),
+            ("compare sales and advertising over time", "/business-analysis", ("Multi-dataset report", "Enable correlation analysis", "Preview analysis")),
+            ("see which products leave the most money after costs", "/business-analysis/profitability", ("Show separate results for", "revenue minus the selected costs")),
+            ("see how soon customers buy again", "/business-analysis/retention", ("Purchase ID column", "30, 60 or 90 days", "Too early to tell")),
+            ("see where potential sales are lost", "/business-analysis/conversion", ("Sales conversion", "step", "where to investigate")),
+            ("estimate future sales for one store", "/forecasts", ("Dimension column", "usable history", "does not predict the effect")),
+            ("check results every week", "/weekly-reports", ("Report setup", "Preview report", "Save changes")),
+            ("save a relationship between two metrics", "/relationships", ("Preview relationship", "Relationship direction", "Save relationship")),
+        ):
+            with self.subTest(goal=goal):
+                result = guidance.answer_guidance(GuidanceRequest(question=f"Which tool can I use to {goal}?"))
+                self.assertEqual([item.route for item in result.sources], [route])
+                self.assertFalse(result.contact_support)
+                answer = " ".join(result.answer.split())
+                for step in steps:
+                    self.assertIn(step, answer)
+
     def test_every_reviewed_direct_question_is_answered_first_and_without_provider(self):
         with patch.object(guidance, "retrieve", side_effect=AssertionError("Reviewed questions bypass search")):
             for section in knowledge.load_knowledge().sections:

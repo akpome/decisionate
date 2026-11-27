@@ -219,6 +219,8 @@ winner because the same sale may appear in more than one platform's report.
 This release does not infer attribution from total store revenue or estimate
 historical channel contributions from a model. Missing revenue links must be
 resolved in the source records before a fair return comparison is available.
+Choose Compare results and compare the recorded revenue per dollar across
+channels only when the source and coverage checks support a fair comparison.
 
 ## Can I compare channels with only ad spend and total store revenue?
 
@@ -243,7 +245,7 @@ All records combined for one overall result. Unit costs must first be converted 
 correct total cost for the recorded quantities. Do not include both a total cost
 and its component costs.
 
-Money left is revenue minus the selected costs. Margin is that amount divided
+Choose Compare results. Money left is revenue minus the selected costs. Margin is that amount divided
 by positive revenue, expressed as a percentage. Neither is presented as net
 profit unless all relevant costs have actually been included. Costs such as
 delivery, payment fees or advertising are not automatically invented or allocated.
@@ -313,8 +315,8 @@ individual purchase IDs are not included in results or decision evidence.
 
 ## Where are potential sales being lost?
 
-Choose Sales conversion and one dataset containing counts for the same group
-of people or sales opportunities at successive steps. Name and order two to
+Open Business Analysis > Sales conversion. Choose one dataset containing
+counts for the same group of people or sales opportunities. Name and order two to
 five steps, for example Enquiries, Quotes and Sales. Choose each step's count,
 the dates, and optionally compare a dimension such as channel or location.
 Daily and monthly counts need complete dates or full months respectively.
@@ -327,7 +329,7 @@ customers across systems in this tool. Confirm that the chosen counts belong
 together; a later step exceeding an earlier step is flagged, not forced into
 a percentage. Rates, money amounts, negative and fractional counts are rejected.
 
-The result shows the share reaching the final step and where the largest
+Choose Show results. The result shows the share reaching the final step and where the largest
 number did not continue. Across groups, the overall rate uses total final-step
 counts divided by total first-step counts, not an average of group percentages.
 A drop-off identifies where to investigate, not its cause or a guaranteed
@@ -457,8 +459,10 @@ Weekly closing cash can also miss a shortfall inside a week.
 
 ## What if customers pay late or expenses rise?
 
-In Cash flow planning, open Cash buffer and what-if changes. Receipts arrive
-later shifts expected money-in dates by up to 90 days. Money in adjustment and
+Open Business Analysis > Cash flow planning. Enter the cash available at the
+start and select the dates and amounts of expected receipts and payments. Then
+open Cash buffer and what-if changes. Receipts arrive later shifts expected
+money-in dates by up to 90 days. Money in adjustment and
 Money out adjustment change the selected amounts by a percentage; Minimum cash
 to keep sets the warning level. Compare the adjusted plan with the original
 payment schedule. Use 4, 8, 13 or 26 weeks, in one currency.

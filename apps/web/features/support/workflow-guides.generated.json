@@ -35,11 +35,15 @@
           {
             "id": "product-overview:which-analysis-tool-should-i-use",
             "title": "Which analysis tool should I use?",
-            "body": "Open Business Analysis in the sidebar and select a tab along the top. On smaller\nscreens, choose the same tool in the Analysis tool dropdown.\n\n- [Compare metrics](/business-analysis): Use Multi-dataset report to compare\n  two or more sources. Use [Single dataset report](/business-analysis/dataset)\n  for one source. Choose metrics, filters and dates, then Preview analysis.\n- [Business impact](/business-analysis/impact): Under Assessment setup, select\n  an eligible decision, enter the implementation date and choose an unaffected\n  comparison. Choose Analyze business impact before saving to that decision.\n- [Return on spend](/business-analysis/returns): Select recorded revenue and\n  spending, then Compare results to check revenue per dollar already spent.\n- [Profitability](/business-analysis/profitability): Select revenue and the\n  costs you want to subtract, then Compare results to see money left.\n- [Customer retention](/business-analysis/retention): Choose dated purchase\n  records and a 30-, 60- or 90-day window, then Show results for repeat purchases.\n- [Sales conversion](/business-analysis/conversion): Select counts for ordered\n  sales steps, then Show results to see where the same potential customers stopped.\n- [Cash flow planning](/business-analysis/cash-flow): Choose expected payments,\n  set opening cash and preview where cash might run short.\n\nBudget Planner is a separate page for future spending choices. Weekly Reports is\nfor recurring monitoring of the last completed week. Forecasts projects a selected\nmetric from its history. They do not replace the tools for measured past returns\nor assessing a recorded decision. No tool automatically changes spending or payments.",
+            "body": "Start with the question you need to answer, and choose a tool your records can\nsupport. For example, \"Which ads earned more per dollar last month?\" is about\npast results. \"How should I split next month's budget?\" is about what to test next.\n\nIn Business Analysis, select one of these tabs. On smaller screens, choose it\nfrom the Analysis tool dropdown.\n\n- [Compare metrics](/business-analysis): \"What changed, and did other numbers\n  move with it?\" Use dates and metrics such as ad spend and orders. Choose\n  Multi-dataset report for two or more sources, or [Single dataset report](/business-analysis/dataset)\n  for one. Preview analysis shows totals, trends and unusual changes where\n  supported. Optional correlation shows whether metrics moved together and\n  whether one tended to move first. It doesn't show which ad earned a sale.\n- [Business impact](/business-analysis/impact): \"Did the change I made help?\"\n  For example, compare orders at a store that extended its hours with\n  orders at a similar store that kept its hours. You need an eligible saved\n  decision, its actual start date, an unaffected comparison and enough matching\n  history before and after. Analyze business impact estimates what changed\n  beyond the comparison, if the evidence supports it. It does not prove cause.\n- [Return on spend](/business-analysis/returns): \"Which channel earned more\n  revenue per dollar I already spent?\" Choose matched spending and recorded\n  sales by channel for the same dates and currency. Compare results divides\n  revenue by spending: $300 on $100 of spend is $3 per dollar. Count each sale\n  under one channel using the same rule for all channels. With only total store\n  sales, you can't fairly rank channels. This measures revenue, not profit.\n- [Profitability](/business-analysis/profitability): \"Which product, service\n  or location leaves the most money after costs?\" Select recorded revenue and\n  the total costs for those same sales. Compare results shows money left and\n  margin. A best seller can leave less money after fees, delivery or product\n  costs. The result isn't net profit unless you've included all relevant costs.\n- [Customer retention](/business-analysis/retention): \"Do buyers come back,\n  and how soon?\" Use completed purchases with dates, a customer ID and a\n  purchase ID. Choose 30, 60 or 90 days, then Show results to see how many\n  eligible buyers made a second purchase. Buyers without enough follow-up\n  time are too early to judge. Use the result to pick a reminder timing to test.\n- [Sales conversion](/business-analysis/conversion): \"Where do I lose potential\n  sales?\" Use counts for the same people or opportunities at each step, such\n  as 100 enquiries, 70 quotes and 20 sales. Show results displays conversion\n  rates and drop-offs. Here, 50 quotes didn't become sales, so that's a place\n  to investigate. Unrelated website clicks and shop orders aren't a sales funnel.\n- [Cash flow planning](/business-analysis/cash-flow): \"Can I pay my bills if a\n  customer pays late?\" Enter the cash available at the start and use schedules\n  of expected receipts and payments, from one or two datasets. Preview cash plan\n  shows weekly balances and the lowest point. Try a receipt delay to see when\n  cash might fall short even if the business is profitable. It does not verify\n  your bank balance or move money.\n\nUse these separate pages when you want to plan ahead or check the same numbers\nregularly:\n\n- [Budget Planner](/budget-planner): \"How should I split a future budget?\"\n  Choose a result such as orders and at least two spending options. With at\n  least 104 complete matching weeks and enough evidence, it suggests a mix to\n  test at the same total budget and estimates the possible difference. It does\n  not rate past ad returns or change budgets for you.\n- [Forecasts](/forecasts): \"What might monthly orders look like next?\" Choose\n  a metric with usable dated history and the right grouping. The projection\n  continues patterns in that history. Check the warnings, particularly if the\n  business has changed. To test a proposed payment delay instead, use Cash flow planning.\n- [Weekly Reports](/weekly-reports): \"What needs my attention every week?\"\n  Choose the metrics, date columns and optional targets once. Preview and save\n  to monitor last week's totals, missed targets and unusual changes where the\n  data supports them. It's a recurring review, not a forecast. Email delivery\n  needs usable data from at least two selected datasets in the completed week.\n- [Relationships](/relationships): \"I want to revisit the same pair of numbers.\"\n  Choose two dated metrics from different datasets, such as ad spend and orders.\n  Preview and save their relationship. It gives a coefficient and observed delay\n  when there is enough matching data. Use Compare metrics instead to review\n  several pairs, totals and unusual changes in one report.",
             "route": "/business-analysis",
             "questions": [
               "Which analysis tool should I use?",
-              "Which tools help me understand and improve my business?"
+              "Which tools help me understand and improve my business?",
+              "Which tool can I use?",
+              "Which tool should I use?",
+              "What analysis tool can I use?",
+              "How do I choose between the business analysis tools?"
             ]
           },
           {
@@ -829,6 +833,7 @@
               "How do I use Business impact analysis?",
               "How do I use Business impact under Business Analysis?",
               "How to use Business impact analysis?",
+              "Which tool can I use to see if a change I made helped?",
               "How do I get started with Business impact analysis?",
               "What are the steps to assess the impact of a decision?"
             ]
@@ -908,7 +913,8 @@
               "How do I use correlation analysis?",
               "How do I build a report across datasets?",
               "How do I create a multi dataset report?",
-              "How do I use the multi-dataset report?"
+              "How do I use the multi-dataset report?",
+              "Which tool can I use to compare sales and advertising over time?"
             ]
           },
           {
@@ -1063,7 +1069,8 @@
               "How do I use the Customer retention tool?",
               "How do I use Customer retention under Business Analysis?",
               "How do I use Customer retention in Business Analysis?",
-              "What does Time to buy again mean in Customer retention?"
+              "What does Time to buy again mean in Customer retention?",
+              "Which tool can I use to see how soon customers buy again?"
             ]
           },
           {
@@ -1103,12 +1110,13 @@
           {
             "id": "performance-analysis:which-advertising-platform-gave-better-value-for-my-money",
             "title": "Which advertising platform gave better value for my money?",
-            "body": "For \"which channel gave me more bang for my dollar?\", open Business Analysis,\nthen Return on spend. This compares money already spent\nwith recorded revenue, not a future budget. It is available for any eligible\nsource, not only Meta, Google or Shopify.\n\nChoose the historical dates and currency. With Both in the same dataset, choose\nthe revenue and spending columns. Under Show separate results for, select a\nchannel or campaign column for individual results; All records combined gives\none overall result within the selected dates and filters.\nWith Revenue and spending in different datasets, name each comparison and select its own revenue and\nspending amounts. A dimension filter can select the channel's sales from a\nshared sales dataset. Do not assign the entire store's revenue to every channel.\n\nDaily totals need every date, including explicit zeros for no activity. Monthly\ntotals need complete months. Individual transactions may be sparse, but you must\nconfirm the selected period's records are complete. These controls are not time\ngroupings for a correlation analysis.\n\nRevenue per dollar is total selected revenue divided by total spending. It is\nnot an average of daily returns, a correlation coefficient, a profit margin or\nproof of incremental sales caused by advertising. Refunds and discounts should\nalready be accounted for in revenue, with tax excluded. All amounts must use\nthe same currency. Decisionate does not convert currencies here.\n\nChoose Sales records with one channel per sale when each sale belongs to only\none channel and every channel uses the same tracking method. With Each ad\nplatform's own sales figures, returns are displayed separately without an overall\nwinner because the same sale may appear in more than one platform's report.\nThis release does not infer attribution from total store revenue or estimate\nhistorical channel contributions from a model. Missing revenue links must be\nresolved in the source records before a fair return comparison is available.",
+            "body": "For \"which channel gave me more bang for my dollar?\", open Business Analysis,\nthen Return on spend. This compares money already spent\nwith recorded revenue, not a future budget. It is available for any eligible\nsource, not only Meta, Google or Shopify.\n\nChoose the historical dates and currency. With Both in the same dataset, choose\nthe revenue and spending columns. Under Show separate results for, select a\nchannel or campaign column for individual results; All records combined gives\none overall result within the selected dates and filters.\nWith Revenue and spending in different datasets, name each comparison and select its own revenue and\nspending amounts. A dimension filter can select the channel's sales from a\nshared sales dataset. Do not assign the entire store's revenue to every channel.\n\nDaily totals need every date, including explicit zeros for no activity. Monthly\ntotals need complete months. Individual transactions may be sparse, but you must\nconfirm the selected period's records are complete. These controls are not time\ngroupings for a correlation analysis.\n\nRevenue per dollar is total selected revenue divided by total spending. It is\nnot an average of daily returns, a correlation coefficient, a profit margin or\nproof of incremental sales caused by advertising. Refunds and discounts should\nalready be accounted for in revenue, with tax excluded. All amounts must use\nthe same currency. Decisionate does not convert currencies here.\n\nChoose Sales records with one channel per sale when each sale belongs to only\none channel and every channel uses the same tracking method. With Each ad\nplatform's own sales figures, returns are displayed separately without an overall\nwinner because the same sale may appear in more than one platform's report.\nThis release does not infer attribution from total store revenue or estimate\nhistorical channel contributions from a model. Missing revenue links must be\nresolved in the source records before a fair return comparison is available.\nChoose Compare results and compare the recorded revenue per dollar across\nchannels only when the source and coverage checks support a fair comparison.",
             "route": "/business-analysis/returns",
             "questions": [
               "Which channel gave me more revenue per dollar spent?",
               "Which advertising platform gave me more revenue per dollar spent?",
               "Which ad platform gave me more bang for my dollar?",
+              "Which tool can I use to see which ad channel earned more per dollar?",
               "Which ad platform gave me more bang for my dollar?",
               "How do I compare recorded Meta and Google revenue per dollar for Shopify?"
             ]
@@ -1128,11 +1136,12 @@
           {
             "id": "performance-analysis:which-products-or-services-leave-the-most-money",
             "title": "Which products or services leave the most money?",
-            "body": "Open Business Analysis, then Profitability. Select recorded revenue and one or\nmore non-overlapping total cost columns. Under Show separate results for, choose\na product, service, customer or location column to see each one's result, or\nAll records combined for one overall result. Unit costs must first be converted into the\ncorrect total cost for the recorded quantities. Do not include both a total cost\nand its component costs.\n\nMoney left is revenue minus the selected costs. Margin is that amount divided\nby positive revenue, expressed as a percentage. Neither is presented as net\nprofit unless all relevant costs have actually been included. Costs such as\ndelivery, payment fees or advertising are not automatically invented or allocated.\nNegative results remain visible. The leading group is based on money left,\nnot automatically the highest margin or highest sales.",
+            "body": "Open Business Analysis, then Profitability. Select recorded revenue and one or\nmore non-overlapping total cost columns. Under Show separate results for, choose\na product, service, customer or location column to see each one's result, or\nAll records combined for one overall result. Unit costs must first be converted into the\ncorrect total cost for the recorded quantities. Do not include both a total cost\nand its component costs.\n\nChoose Compare results. Money left is revenue minus the selected costs. Margin is that amount divided\nby positive revenue, expressed as a percentage. Neither is presented as net\nprofit unless all relevant costs have actually been included. Costs such as\ndelivery, payment fees or advertising are not automatically invented or allocated.\nNegative results remain visible. The leading group is based on money left,\nnot automatically the highest margin or highest sales.",
             "route": "/business-analysis/profitability",
             "questions": [
               "Which products leave the most money after costs?",
               "Which products or services leave the most money after costs?",
+              "Which tool can I use to see which products leave the most money after costs?",
               "Which products leave the most money after costs?",
               "Which products or services leave the most money after costs?"
             ]
@@ -1168,10 +1177,11 @@
           {
             "id": "performance-analysis:where-are-potential-sales-being-lost",
             "title": "Where are potential sales being lost?",
-            "body": "Choose Sales conversion and one dataset containing counts for the same group\nof people or sales opportunities at successive steps. Name and order two to\nfive steps, for example Enquiries, Quotes and Sales. Choose each step's count,\nthe dates, and optionally compare a dimension such as channel or location.\nDaily and monthly counts need complete dates or full months respectively.\nOne count per group accepts separate cohort summaries with confirmed coverage.\n\nEach person or opportunity must be counted once at each step, under the same\nfollow-up window. Independent counts of sessions, orders and customers do not\nautomatically describe the same group. Decisionate does not link individual\ncustomers across systems in this tool. Confirm that the chosen counts belong\ntogether; a later step exceeding an earlier step is flagged, not forced into\na percentage. Rates, money amounts, negative and fractional counts are rejected.\n\nThe result shows the share reaching the final step and where the largest\nnumber did not continue. Across groups, the overall rate uses total final-step\ncounts divided by total first-step counts, not an average of group percentages.\nA drop-off identifies where to investigate, not its cause or a guaranteed\nnumber of recoverable sales. Incomplete groups do not produce an overall conclusion.",
+            "body": "Open Business Analysis > Sales conversion. Choose one dataset containing\ncounts for the same group of people or sales opportunities. Name and order two to\nfive steps, for example Enquiries, Quotes and Sales. Choose each step's count,\nthe dates, and optionally compare a dimension such as channel or location.\nDaily and monthly counts need complete dates or full months respectively.\nOne count per group accepts separate cohort summaries with confirmed coverage.\n\nEach person or opportunity must be counted once at each step, under the same\nfollow-up window. Independent counts of sessions, orders and customers do not\nautomatically describe the same group. Decisionate does not link individual\ncustomers across systems in this tool. Confirm that the chosen counts belong\ntogether; a later step exceeding an earlier step is flagged, not forced into\na percentage. Rates, money amounts, negative and fractional counts are rejected.\n\nChoose Show results. The result shows the share reaching the final step and where the largest\nnumber did not continue. Across groups, the overall rate uses total final-step\ncounts divided by total first-step counts, not an average of group percentages.\nA drop-off identifies where to investigate, not its cause or a guaranteed\nnumber of recoverable sales. Incomplete groups do not produce an overall conclusion.",
             "route": "/business-analysis/conversion",
             "questions": [
-              "Where are potential sales being lost?"
+              "Where are potential sales being lost?",
+              "Which tool can I use to see where potential sales are lost?"
             ]
           },
           {
@@ -1241,9 +1251,11 @@
           {
             "id": "performance-analysis:what-if-customers-pay-late-or-expenses-rise",
             "title": "What if customers pay late or expenses rise?",
-            "body": "In Cash flow planning, open Cash buffer and what-if changes. Receipts arrive\nlater shifts expected money-in dates by up to 90 days. Money in adjustment and\nMoney out adjustment change the selected amounts by a percentage; Minimum cash\nto keep sets the warning level. Compare the adjusted plan with the original\npayment schedule. Use 4, 8, 13 or 26 weeks, in one currency.\n\nFor example, a payment pushed beyond the plan's last day no longer counts as\ncash received during that plan. This is a scenario, not a prediction of which\ncustomer will pay late. The controls do not change source records, invoice due\ndates or payment instructions. Include all relevant obligations before drawing\nconclusions; a missing payment is not automatically zero.",
+            "body": "Open Business Analysis > Cash flow planning. Enter the cash available at the\nstart and select the dates and amounts of expected receipts and payments. Then\nopen Cash buffer and what-if changes. Receipts arrive later shifts expected\nmoney-in dates by up to 90 days. Money in adjustment and\nMoney out adjustment change the selected amounts by a percentage; Minimum cash\nto keep sets the warning level. Compare the adjusted plan with the original\npayment schedule. Use 4, 8, 13 or 26 weeks, in one currency.\n\nFor example, a payment pushed beyond the plan's last day no longer counts as\ncash received during that plan. This is a scenario, not a prediction of which\ncustomer will pay late. The controls do not change source records, invoice due\ndates or payment instructions. Include all relevant obligations before drawing\nconclusions; a missing payment is not automatically zero.",
             "route": "/business-analysis/cash-flow",
-            "questions": []
+            "questions": [
+              "Which tool can I use to check if a late payment leaves me short of cash?"
+            ]
           }
         ]
       },
@@ -1476,6 +1488,7 @@
               "how can decisionate make recommedation for me on how to get the most value for my advertising spend, with Google ads and meta ads",
               "how do i get recommendation on what i should spend money on meta ads or google ads with respect to my shopify store",
               "How do I use the Budget Planner?",
+              "Which tool can I use to decide where to spend next month?",
               "How do I plan next month's spending mix?",
               "How should I spend money on Meta Ads or Google Ads for my Shopify store?"
             ]
@@ -1556,7 +1569,8 @@
             "questions": [
               "How do I use Weekly Reports?",
               "How to use Weekly Reports?",
-              "How do I set up a weekly report?"
+              "How do I set up a weekly report?",
+              "Which tool can I use to check results every week?"
             ]
           },
           {
@@ -1700,6 +1714,7 @@
               "How to use Relationships?",
               "How do I use the Relationships page?",
               "How do I save a two-metric monitor?",
+              "Which tool can I use to save a relationship between two metrics?",
               "How do I choose metrics on the Relationships page?",
               "How do I save a two-metric monitor?"
             ]
@@ -1773,7 +1788,8 @@
             "route": "/forecasts",
             "questions": [
               "How can I estimate future sales for one store or product?",
-              "How do I forecast a segment?"
+              "How do I forecast a segment?",
+              "Which tool can I use to estimate future sales for one store?"
             ]
           },
           {
