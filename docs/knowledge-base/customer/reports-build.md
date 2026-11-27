@@ -16,8 +16,12 @@ dataset metrics, date policies, anomaly detection and report snapshots.
 Open Business Analysis in the sidebar. In the Compare metrics tab (or Analysis
 tool dropdown on a smaller screen), choose one of two report tabs:
 
-- Multi-dataset report: select metrics from at least two datasets to review totals,
-  trends and unusual changes. Enable correlation analysis is checked by default
+- Multi-dataset report: choose Add dataset, search by name, and select each
+  original dataset you want to use. Only added datasets are shown, and their
+  metrics and dates load as you add them. Select metrics from at least two
+  datasets to review totals, trends and unusual changes. Remove dataset clears
+  that dataset's choices from the report without deleting the source. Saved
+  reports reopen with the datasets used in the calculation. Enable correlation analysis is checked by default
   under Relationship analysis. Clear it to skip correlation and timing calculations
   and hide their controls and findings, while keeping summaries, charts and anomaly checks.
 - Single dataset report: choose exactly one dataset, then its metrics, date column
@@ -52,9 +56,9 @@ a source is joined.
 
 ## Set up relationship analysis
 
-1. Open Business Analysis > Compare metrics > Multi-dataset report. Choose
-   dated metrics from at least two original datasets, then set the dates and
-   grouping. Both sources need usable data in matching periods.
+1. Open Business Analysis > Compare metrics > Multi-dataset report. Use
+   Add dataset to add at least two original datasets, then choose dated metrics,
+   the date range and grouping. Both sources need usable data in matching periods.
 2. In Relationship analysis, leave Enable correlation analysis checked to
    test relationships. Under Metric pairs, remove the pairs you don't want
    to test and review Relationship direction for the rest. Use Automatic

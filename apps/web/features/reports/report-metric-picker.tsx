@@ -40,7 +40,7 @@ export function filterReportDatasets(datasets: CatalogDataset[], search: string)
   })
 }
 
-export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, onDatasetSearch, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric, weeklyTargets = [], onWeeklyTargetChange }: {
+export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMetric, onDateColumnChange, loading = false, error = false, onRetry, onRetryDataset, retryingDataset = null, footer, singleDataset = false, selectedDatasetId = metrics[0]?.dataset_id ?? null, onDatasetChange, onDatasetSearch, datasetAdder, onRemoveDataset, selectionDisabled = false, userId, workspaceId, dimensionFilters = [], onDimensionFilterChange, lockedMetric, weeklyTargets = [], onWeeklyTargetChange }: {
   datasets: CatalogDataset[]
   metrics: MetricRef[]
   dateColumns: Record<number, string>
@@ -56,6 +56,8 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
   selectedDatasetId?: number | null
   onDatasetChange?: (datasetId: number | null) => void
   onDatasetSearch?: (search: string) => void
+  datasetAdder?: ReactNode
+  onRemoveDataset?: (datasetId: number) => void
   selectionDisabled?: boolean
   userId?: string
   workspaceId?: string
@@ -79,10 +81,14 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
     return result
   }, [metrics])
   const issueText = (issue: CatalogMetricIssue) => t(issueLabels[issue.code] || "Metric unavailable for this analysis.")
+  const heading = <h2 className="text-base font-semibold">{t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")}</h2>
 
   return <section aria-label={t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")} className="report-builder-section">
     <div className="mb-4 shrink-0 space-y-4">
-      <h2 className="text-base font-semibold">{t(singleDataset ? "Dataset and metrics" : "Datasets and metrics")}</h2>
+      {datasetAdder ? <div className="flex flex-wrap items-start justify-between gap-3">
+        {heading}
+        {datasetAdder}
+      </div> : heading}
       {singleDataset && <div className="w-full max-w-xl">
         <SearchableSelect id="report-dataset" label={t("Dataset")} placeholder={t("Choose or search datasets")} value={selectedDatasetId === null ? null : String(selectedDatasetId)}
           selectedLabel={selectedDatasetId === null ? "" : t("Selected dataset unavailable.")} disabled={selectionDisabled} loading={loading} loadingLabel={t("Loading datasets...")} emptyLabel={t("No matching datasets.")}
@@ -93,7 +99,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
           onDatasetChange?.(identity)
         }} />
       </div>}
-      {!singleDataset && <div className="w-full max-w-sm">
+      {!singleDataset && !datasetAdder && <div className="w-full max-w-sm">
         <label className="block text-xs font-medium text-gray-600" htmlFor="report-metric-search">{t("Search datasets and metrics")}</label>
         <div className="relative mt-1 flex items-center">
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 text-gray-400" />
@@ -116,8 +122,12 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
         const showDimension = dataset.metrics.length > 0 && Boolean(userId && onDimensionFilterChange)
         const unavailable = Boolean(dataset.error_code)
         const pending = dataset.catalog_status === "pending" || retryingDataset === dataset.dataset_id
-        return <fieldset key={dataset.dataset_id} className="min-w-0 border-b border-gray-200 py-4">
-          <legend className="max-w-full break-words text-sm font-semibold">{dataset.dataset_label}<span className="ml-2 text-xs font-normal text-gray-500">{dataset.connector}</span></legend>
+        const datasetName = <>{dataset.dataset_label}<span className="ml-2 text-xs font-normal text-gray-500">{dataset.connector}</span></>
+        return <fieldset key={dataset.dataset_id} aria-label={onRemoveDataset ? dataset.dataset_label : undefined} className="min-w-0 border-b border-gray-200 py-4">
+          <legend className={`${onRemoveDataset ? "w-full " : ""}max-w-full break-words text-sm font-semibold`}>{onRemoveDataset ? <span className="flex items-center justify-between gap-3">
+            <span className="min-w-0">{datasetName}</span>
+            <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50" disabled={selectionDisabled} aria-label={`${t("Remove dataset")}: ${dataset.dataset_label}`} title={t("Remove dataset")} onClick={() => onRemoveDataset(dataset.dataset_id)}><X size={16} aria-hidden="true" /></button>
+          </span> : datasetName}</legend>
           {pending ? <p role={retryingDataset === dataset.dataset_id ? "status" : undefined} className="mt-2 flex items-center gap-2 text-sm text-gray-600"><LoaderCircle size={16} className="animate-spin" aria-hidden="true" />{t("Loading metrics...")}</p> : unavailable ? <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><p className="text-amber-800">{t("Dataset temporarily unavailable.")}</p>{(onRetryDataset || onRetry) && <button type="button" disabled={loading || retryingDataset !== null} onClick={() => onRetryDataset ? onRetryDataset(dataset) : onRetry?.()} aria-label={`${t("Retry")}: ${dataset.dataset_label}`} className="inline-flex min-h-10 items-center gap-2 font-medium text-blue-700 underline disabled:opacity-50"><RefreshCw size={16} aria-hidden="true" />{t("Retry")}</button>}</div> : <>
             {(showDate || showDimension) && <div className="@container mt-3 min-w-0">
               <div className={`grid min-w-0 items-start gap-3 ${showDate && showDimension ? "@min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]" : ""}`}>
@@ -169,7 +179,7 @@ export function ReportMetricPicker({ datasets, metrics, dateColumns, onToggleMet
           {!pending && (unavailable || !dataset.metrics.length || !usableDate || metricIssues.length > 0) && <Link href={`/datasets/${dataset.dataset_id}`} className="mt-2 inline-flex min-h-10 items-center text-sm font-medium text-blue-700 underline">{t("Review dataset")}</Link>}
         </fieldset>
       })}
-      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(!datasets.length ? "No datasets available." : singleDataset ? selectedDatasetId === null ? "No dataset selected." : "Selected dataset unavailable." : "No matching datasets or metrics.")}</p>{datasets.length === 0 && <Link href="/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
+      {visible.length === 0 && (datasets.length > 0 || !loading && !error) && <div className="border-y border-gray-200 py-8 text-sm text-gray-600"><p role="status">{t(datasetAdder ? "No datasets added yet." : !datasets.length ? "No datasets available." : singleDataset ? selectedDatasetId === null ? "No dataset selected." : "Selected dataset unavailable." : "No matching datasets or metrics.")}</p>{!datasetAdder && datasets.length === 0 && <Link href="/datasets" className="mt-2 inline-flex min-h-10 items-center font-medium text-blue-700 underline">{t("Open datasets")}</Link>}</div>}
     </div>
     {!singleDataset && footer && <div className="mt-3 shrink-0">{footer}</div>}
   </section>

@@ -9,7 +9,7 @@ const loaded = { exports: {} }
 const source = readFileSync(new URL("../features/reports/report-catalog-loading.ts", import.meta.url), "utf8")
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   { module: loaded, exports: loaded.exports, Promise })
-const { loadReportCatalogPage, loadReportCatalogDataset, mergeReportCatalog, isJoinedReportDataset } = loaded.exports
+const { loadReportCatalogPage, loadReportCatalogDataset, mergeReportCatalog, isJoinedReportDataset, requestReportDatasetNames } = loaded.exports
 const entry = id => ({ dataset_id: id, dataset_label: `Source ${id}`, connector: "csv", metrics: [], date_columns: [], availability: {}, catalog_status: "pending" })
 const ready = id => ({ ...entry(id), catalog_status: undefined, metrics: [{ metric_key: "spend" }] })
 const page = ids => ({ datasets: ids.map(entry), next_offset: null })
@@ -36,6 +36,16 @@ test("multi report catalog scope follows metadata pages, file reads and retries"
   await loadReportCatalogPage(request, 0, new AbortController().signal, () => {}, () => assert.fail("No file reads"), { scope: "single", metadataOnly: true })
   await loadReportCatalogDataset(request, entry(26), new AbortController().signal, "single")
   assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=0&scope=single", "/catalog?dataset_id=26&scope=single"])
+})
+
+test("the Add dataset picker can search names without reading any dataset until one is added", async () => {
+  const paths = [], signal = new AbortController().signal
+  const request = async path => { paths.push(path); return path.includes("metadata_only") ? page([1, 2]) : { datasets: [ready(2)] } }
+  const choices = await requestReportDatasetNames(request, 0, signal, "multi", "Ads & orders")
+  assert.deepEqual(paths, ["/catalog?metadata_only=true&offset=0&search=Ads%20%26%20orders&scope=multi"])
+  const selected = await loadReportCatalogDataset(request, choices.datasets[1], signal, "multi")
+  assert.equal(selected.dataset_id, 2)
+  assert.deepEqual(paths.slice(1), ["/catalog?dataset_id=2&scope=multi"])
 })
 
 test("dataset names arrive before scans; a slow source does not delay healthy metric results", async () => {

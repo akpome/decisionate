@@ -402,6 +402,18 @@ test("report builder uses the picker and still clears calculated results on edit
   assert.doesNotMatch(report, /Review dataset metric selection/)
 })
 
+test("the explicit multi-dataset picker starts empty and offers a remove control for each added source", () => {
+  const datasetAdder = React.createElement("button", { type: "button" }, "Add dataset")
+  const empty = render({ datasets: [], datasetAdder })
+  assert.match(empty, /Add dataset/)
+  assert.match(empty, /No datasets added yet/)
+  assert.doesNotMatch(empty, /No datasets available|report-metric-search|type="checkbox"/)
+  const added = render({ datasetAdder, onRemoveDataset() {}, metrics: [reference()] })
+  assert.match(added, /aria-label="Remove dataset: Advertising\.csv"/)
+  assert.match(added, /type="checkbox"[^>]*checked=""/)
+  assert.doesNotMatch(added, /report-metric-search|No datasets added yet/)
+})
+
 test("dataset search forwards the query without choosing, and only approved choices change the selected source", () => {
   const searches = [], changes = []
   render({ singleDataset: true, onDatasetSearch: value => searches.push(value), onDatasetChange: value => changes.push(value) })

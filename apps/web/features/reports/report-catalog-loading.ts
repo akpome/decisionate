@@ -30,10 +30,14 @@ export async function loadReportCatalogDataset(request: CatalogRequest, dataset:
   return { ...dataset, catalog_status: undefined, error_code: "dataset_unavailable" }
 }
 
+export function requestReportDatasetNames(request: CatalogRequest, offset: number, signal: AbortSignal, scope?: CatalogScope, search = "") {
+  signal.throwIfAborted()
+  return request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}${search ? `&search=${encodeURIComponent(search)}` : ""}${scope ? `&scope=${scope}` : ""}`, { signal })
+}
+
 export async function loadReportCatalogPage(request: CatalogRequest, offset: number, signal: AbortSignal,
   onPage: (page: CatalogPage) => void, onDataset: (dataset: CatalogDataset) => void, options: { metadataOnly?: boolean; search?: string; scope?: CatalogScope } = {}) {
-  signal.throwIfAborted()
-  const page = await request<CatalogPage>(`/catalog?metadata_only=true&offset=${offset}${options.search ? `&search=${encodeURIComponent(options.search)}` : ""}${options.scope ? `&scope=${options.scope}` : ""}`, { signal })
+  const page = await requestReportDatasetNames(request, offset, signal, options.scope, options.search)
   if (signal.aborted) return
   onPage(page)
   if (options.metadataOnly) return
