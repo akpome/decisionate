@@ -761,7 +761,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail
     {deliveryNotStarted && <p role="status" className="text-sm leading-6 text-amber-900">Report preparation stopped before email delivery started. No email was sent. Generate a new preview, then try sending again.</p>}
 
     <section role="tabpanel" id="report-explore" aria-labelledby="tab-explore" hidden={view !== "explore"} className="space-y-6 print:hidden">
-      <form onSubmit={event => { event.preventDefault(); void calculate() }}>
+      <form className="@container" onSubmit={event => { event.preventDefault(); void calculate() }}>
         <fieldset disabled={busy || weekly && !canManage || weekly && !weeklySettings} className="min-w-0 space-y-5">
           {joinedSelection && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-amber-500 pl-3 text-sm text-amber-900">
             <p>{t("Joined datasets are not available in these reports.")}</p>
@@ -775,7 +775,7 @@ export function ReportWorkspace({ userId, workspaceId, canManage, canManageEmail
             actions={previewButton} loading={catalogBusy} catalogError={catalogError} retryingDataset={retryingDataset} footer={catalogFooter}
             onChange={edit} onStudyChange={editImpact} onRetry={refreshCatalog} onRetryDataset={dataset => void retryDataset(dataset)} /> : <>
           {!weekly && reportDetails}
-          <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid min-w-0 items-start gap-6 border-y border-gray-200 py-5 @min-[36rem]:grid-cols-[minmax(0,1fr)_clamp(17rem,33%,20rem)]">
             <ReportMetricPicker key={single ? `single-${singleDatasetId ?? "none"}` : "multi"} userId={userId} workspaceId={workspaceId} selectedDatasetId={singleDatasetId} onDatasetChange={chooseSingleDataset} onDatasetSearch={searchSingleDatasets} selectionDisabled={busy} dimensionFilters={definition.dimension_filters} onDimensionFilterChange={(identity, filter) => edit({ dimension_filters: [
               ...(definition.dimension_filters || []).filter(item => item.dataset_id !== identity), ...(filter ? [{ dataset_id: identity, ...filter }] : []),
             ] })} datasetAdder={addDatasetsManually ? <ReportDatasetAdder userId={userId} workspaceId={workspaceId} addedIds={reportDatasetIds} disabled={busy} onAdd={addReportDataset} /> : undefined}

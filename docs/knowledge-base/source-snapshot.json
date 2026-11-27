@@ -1,12 +1,8 @@
 {
   "schema_version": 1,
   "reviewed_on": "2026-11-26",
-  "base_git_revision": "f3c7ebf78c00682f010ebeba0d7cbd17942974b3",
+  "base_git_revision": "a7cf148a6b2fdffcc2513cf4dd60e0b0ccd02f40",
   "referenced_sources_modified_in_worktree": [
-    "apps/web/app/dashboard/help/page.tsx",
-    "apps/web/features/reports/report-catalog-loading.ts",
-    "apps/web/features/reports/report-dataset-adder.tsx",
-    "apps/web/features/reports/report-metric-picker.tsx",
     "apps/web/features/reports/report-workspace.tsx"
   ],
   "deployment_verification": "Not performed; snapshot describes source, including listed local modifications",
@@ -231,7 +227,7 @@
     "apps/web/features/reports/report-pair-directions.tsx": "e00bbb3fc04f12905c910a7ca3d9427b79a3af1b735fe1fd86e67deac763a37e",
     "apps/web/features/reports/report-takeaways.tsx": "12a3451cb69fe38670f834e7807c9e1ae468a56fdebe091809b80cd5b95029aa",
     "apps/web/features/reports/report-workflow.ts": "4ef151a9b5ed4971933c3bcee4e465ccd317b6e04d507347ce1d9532bcd75cbb",
-    "apps/web/features/reports/report-workspace.tsx": "0133e806c5db3c3a5296e6a6aada48f9fcddba27551368535091a0a9e864957e",
+    "apps/web/features/reports/report-workspace.tsx": "d50b6e3536f0ba2cfb9bc78db8809a2759247a6b77665a214afd64ee97953bbc",
     "apps/web/features/reports/types.ts": "c990cfcf5c468ca0856ebaf661f5de6681871f6c8e752ad8d5a22a1e2bcfb744",
     "apps/web/features/reports/weekly-decision-update.tsx": "818e381a93883c9bd269341c36f48766ce59e4dd641295a779e1cbd2bfe74600",
     "apps/web/features/reports/weekly-intelligence.tsx": "7269eec883846e65690a66e5b40ce61399f161cfcba4706da27e490afe3a80c1",

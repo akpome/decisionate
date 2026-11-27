@@ -178,6 +178,11 @@ test("the dataset heading has its own top row above search to align with Analysi
   assert.doesNotMatch(html, /items-end justify-between/)
 })
 
+test("report settings use the builder width to sit beside datasets rather than waiting for the desktop viewport breakpoint", () => {
+  const report = readFileSync(new URL("../features/reports/report-workspace.tsx", import.meta.url), "utf8")
+  assert.match(report, /<form className="@container"[\s\S]*?@min-\[36rem\]:grid-cols-\[minmax\(0,1fr\)_clamp\(17rem,33%,20rem\)\][\s\S]*?<ReportMetricPicker[\s\S]*?aria-label="Analysis settings"/)
+})
+
 test("empty states remain in the scroll area rather than being pushed to the bottom", () => {
   const html = render({ datasets: [] })
   assert.match(html, /class="report-builder-scroll [^"]*"><div[^>]*><p role="status">No datasets available\./)
