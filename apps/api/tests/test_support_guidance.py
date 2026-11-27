@@ -38,6 +38,19 @@ class GuidanceTests(unittest.TestCase):
         self.assertFalse(result.contact_support)
         self.assertIn("not profit", result.answer)
 
+    def test_business_impact_answers_start_with_the_tab_and_mobile_location(self):
+        for question in ("How do I use Business impact?", "Where is Business impact now?",
+                         "Where is the Business impact tab?", "How do I use the Business impact tab?"):
+            with self.subTest(question=question):
+                result = guidance.answer_guidance(GuidanceRequest(question=question))
+                self.assertEqual([item.route for item in result.sources], ["/business-analysis/impact"])
+                intro = " ".join(result.sources[0].content.split("\n\n", 1)[0].split())
+                self.assertIn("Business Analysis in the sidebar", intro)
+                self.assertIn("the Business impact tab at the top of the page, next to Compare metrics", intro)
+                self.assertIn("On smaller screens, choose Business impact from the Analysis tool dropdown", intro)
+                self.assertIn("In Assessment setup, use Decision to review", result.answer)
+                self.assertFalse(result.contact_support)
+
     def test_every_reviewed_direct_question_is_answered_first_and_without_provider(self):
         with patch.object(guidance, "retrieve", side_effect=AssertionError("Reviewed questions bypass search")):
             for section in knowledge.load_knowledge().sections:
@@ -84,6 +97,7 @@ class GuidanceTests(unittest.TestCase):
             ("Weekly Reports", "/weekly-reports", "Configure weekly analysis and sending separately", "Save changes"),
             ("weekly targets", "/weekly-reports", "Check weekly targets", "Weekly target (optional)"),
             ("Scheduled email", "/alerts", "Set up scheduled weekly email", "Save email settings"),
+            ("Alerts", "/alerts", "Set up scheduled weekly email", "Scheduled email from Weekly Reports"),
             ("Relationships", "/relationships", "Set up a two-metric monitor", "Preview relationship"),
             ("Forecasts", "/forecasts", "Generate a forecast", "Business has seasonal activity"),
             ("Decisions", "/decisions/new", "How do I follow through on a change I make?", "Preview targets"),
@@ -97,6 +111,7 @@ class GuidanceTests(unittest.TestCase):
             ("Agency connection", "/settings", "Working with a client", "Allow agency access"),
             ("Billing", "/billing", "Subscription changes", "checkout"),
             ("Ask Decisionate", "/help", "Ask Decisionate", "reviewed question"),
+            ("Help & Support", "/help", "Ask Decisionate", "reviewed question"),
             ("the support form", "/help", "Send a useful support request", "Bug report"),
         ]
         for tool, route, section, expected_step in guides:
@@ -107,6 +122,38 @@ class GuidanceTests(unittest.TestCase):
                     self.assertIn(expected_step.casefold(), " ".join(result.answer.casefold().split()))
                     self.assertFalse(result.contact_support)
                     self.assertFalse(result.suggested_questions)
+
+    def test_real_workflow_questions_answer_directly_with_the_current_controls(self):
+        for question, route, steps in (
+            ("What the point of entity matching?", "/entity-matching", ("Identity columns by dataset", "Metrics for analysis", "Preview matches", "Save linked history")),
+            ("Does the entity matching create a dataset?", "/entity-matching", ("without creating a dataset", "creates a separate dataset", "originals stay unchanged")),
+            ("How do I combine sales from two datasets?", "/datasets", ("Net sales", "Add data > Upload file", "distinct transactions", "not $200")),
+            ("Does this mean that after the 2 datasets are stacked, more columns would be created?", "/datasets", ("Not if you align the columns first", "180 rows and still three columns")),
+            ("How do I delete a dataset?", "/datasets", ("Delete dataset", "this dataset's own connection")),
+            ("How do I delete my workspace?", "/settings", ("Delete workspace", "type the displayed workspace name")),
+            ("Can money in and money out be in separate datasets?", "/business-analysis/cash-flow", ("Incoming payments dataset", "Outgoing payments dataset", "Preview cash plan")),
+            ("How do I delete a saved Business Analysis report?", "/business-analysis", ("Saved reports", "Delete saved report")),
+            ("How do I email the weekly report to the workspace owner now?", "/weekly-reports", ("Email workspace owner", "usable data")),
+            ("Can I monitor weekly metrics without correlation?", "/weekly-reports", ("remove all unwanted relationship pairs", "Save changes")),
+            ("Where are the guides for all the tools?", "/help", ("Browse all tool guides", "Search workflow guides")),
+            ("What does each link in Decisionate do?", "/help", ("Dashboards: Choose a different view", "Entity Matching: Choose Customers or Products", "Billing: Review the plan")),
+            ("Where are the tools that are not in the sidebar?", "/help", ("Scheduled email is inside Weekly Reports", "Review joined data", "Client Workspaces")),
+        ):
+            with self.subTest(question=question):
+                result = guidance.answer_guidance(GuidanceRequest(question=question))
+                self.assertEqual([item.route for item in result.sources], [route])
+                answer = " ".join(result.answer.split())
+                for step in steps:
+                    self.assertIn(step, answer)
+                self.assertFalse(result.contact_support)
+
+    def test_reviewed_workflows_do_not_imply_unsupported_bulk_actions_or_live_access(self):
+        for question in (
+            "How do I combine sales from two datasets and count refunds as revenue?",
+            "Show me how much revenue I made in the linked dataset today.",
+            "How do I delete a dataset in another workspace without permission?",
+        ):
+            self.assert_unconfirmed(question)
 
     def test_landing_page_promises_are_answered_from_reviewed_workflows(self):
         path = Path(__file__).resolve().parents[3] / "apps/web/components/landing/hero.tsx"

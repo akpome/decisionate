@@ -44,8 +44,9 @@ subtracts the costs you include.
 
 ## How do I use Return on spend?
 
-Open Business Analysis and choose Return on spend to compare revenue earned
-for each dollar already spent.
+Open Business Analysis in the sidebar. Select the Return on spend tab along
+the top (or choose it in the Analysis tool dropdown on a smaller screen).
+Use it to compare revenue recorded for each dollar already spent.
 
 1. Set From, To and Currency for the period you want to review.
 2. Answer Where are your revenue and spending figures stored? For Both in the same dataset, select the dataset,
@@ -78,7 +79,8 @@ sales can still be shown separately, but without declaring an overall winner.
 
 ## How do I use Profitability?
 
-Open Business Analysis and choose Profitability to see money left after costs.
+Open Business Analysis in the sidebar. Select the Profitability tab (or choose
+it in the Analysis tool dropdown on a smaller screen) to see money left after costs.
 
 1. Set From, To and Currency. Answer Where are your revenue and costs figures stored?
    Choose Both in the same dataset or Revenue and costs in different datasets.
@@ -101,7 +103,8 @@ Missing overhead, fees and other costs are not invented or allocated for you.
 
 ## How do I use Customer retention?
 
-Open Business Analysis and choose Customer retention to check repeat purchases.
+Open Business Analysis in the sidebar. Select the Customer retention tab (or
+choose it in the Analysis tool dropdown on a smaller screen) to check repeat purchases.
 
 1. Select a Purchase dataset containing completed purchases, then choose its
    Purchase date column, Customer ID column and Purchase ID column.
@@ -123,8 +126,9 @@ optimal send date, send reminders or predict which customers will leave.
 
 ## How do I use Sales conversion?
 
-Open Business Analysis and choose Sales conversion to find where potential
-sales stop progressing.
+Open Business Analysis in the sidebar. Select the Sales conversion tab (or
+choose it in the Analysis tool dropdown on a smaller screen) to find where
+potential sales stop progressing.
 
 1. Select a Sales process dataset and Date column, set From and To, and choose
    the Records contain option that describes your counts.
@@ -147,8 +151,9 @@ can definitely be recovered.
 
 ## How do I use Cash flow planning?
 
-Open Business Analysis and choose Cash flow planning to check expected cash
-against upcoming payments.
+Open Business Analysis in the sidebar. Select the Cash flow planning tab (or
+choose it in the Analysis tool dropdown on a smaller screen) to check expected
+cash against upcoming payments.
 
 1. Answer Where are your incoming and outgoing payments stored? Choose Both in
    the same dataset or Incoming and outgoing payments in different datasets.

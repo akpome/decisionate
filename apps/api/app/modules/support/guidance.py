@@ -45,6 +45,7 @@ def enforce_guidance_limits(auth):
 
 def source(record):
     content = re.sub(r"(?m)^#{1,6} ", "", record["content"]).replace("`", "")
+    content = re.sub(r"\[([^\]\n]+)\]\((/[a-z0-9-]+(?:/[a-z0-9-]+)*)\)", r"\1", content)
     return GuidanceSource(chunk_id=record["chunk_id"], title=record["title"],
                           section=record["section"], content=content,
                           route=record["routes"][0], reviewed_on=record["reviewed_on"])

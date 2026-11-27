@@ -116,11 +116,12 @@ reports and older saved reports; opening one does not change the active setup.
 
 ## Delete versus remove weekly settings
 
-Delete saved report removes that snapshot, not its source datasets or linked
-decisions. Independent weekly settings and delivery are unchanged. On Weekly Reports,
-Remove weekly settings keeps saved snapshots and linked decisions while clearing
-the weekly configuration and pausing delivery. Read the confirmation and use only
-actions allowed by your workspace role.
+In Business Analysis, open Saved reports and choose the report. Select the
+trash button labelled Delete saved report and confirm. This removes the snapshot,
+not its source datasets, linked decisions or independent weekly delivery settings.
+In Weekly Reports > Report setup, open Report options and choose Remove weekly
+report setup to clear the weekly configuration and pause delivery while keeping
+saved snapshots and linked decisions. Only authorized workspace users can delete.
 For an older setup that still relies only on the deleted report as its weekly
 template, deleting that report also removes the template and pauses delivery.
 The deletion confirmation identifies that case; current independent weekly

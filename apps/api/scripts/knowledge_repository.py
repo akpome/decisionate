@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 KB = Path("docs/knowledge-base")
 PACKAGED_CUSTOMER = Path("apps/api/app/modules/support/knowledge/customer.jsonl")
+WEB_GUIDES = Path("apps/web/features/support/workflow-guides.generated.json")
 SOURCE_REGISTRY = "apps/api/app/modules/datasets/services/sources.py"
 AUDIENCES = {"customer", "operator"}
 
@@ -206,6 +207,35 @@ def jsonl(manifest, documents, audience="customer"):
     return "".join(json.dumps(item, ensure_ascii=True, sort_keys=True) + "\n" for item in export_records(manifest, documents, audience))
 
 
+def workflow_guides(manifest, documents):
+    articles = {}
+    for record in export_records(manifest, documents):
+        article = articles.setdefault(record["article_id"], {"id": record["article_id"], "title": record["title"], "sections": []})
+        article["sections"].append({
+            "id": record["chunk_id"], "title": record["section"], "body": record["content"],
+            "route": record["routes"][0], "questions": record["direct_questions"] + record["section_questions"],
+        })
+    groups = manifest.get("guide_groups")
+    if not isinstance(groups, list) or not groups:
+        raise KnowledgeError("Customer guides need article groups")
+    used, group_ids, guides = set(), set(), []
+    for group in groups:
+        if not isinstance(group, dict):
+            raise KnowledgeError("Invalid guide group")
+        key, label = group.get("id"), group.get("label")
+        if not isinstance(key, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", key) or key in group_ids or not isinstance(label, str) or not label.strip():
+            raise KnowledgeError("Invalid guide group")
+        ids = text_list(group.get("articles"), f"guide_groups.{key}")
+        if any(identity not in articles or identity in used for identity in ids):
+            raise KnowledgeError("Guide groups must reference customer articles only, without duplicates")
+        used.update(ids)
+        group_ids.add(key)
+        guides.append({"id": key, "label": label, "articles": [articles[identity] for identity in ids]})
+    if used != articles.keys():
+        raise KnowledgeError("Every customer article must be included in the guides")
+    return guides
+
+
 def source_hashes(root, manifest):
     sources = sorted({source for article in manifest["articles"] for source in article["sources"]})
     return {source: sha256(safe_file(root, source)) for source in sources}
@@ -266,6 +296,8 @@ def check(root=ROOT):
         raise KnowledgeError("Customer export is stale; regenerate after review")
     if safe_file(root, str(PACKAGED_CUSTOMER)).read_text(encoding="utf-8") != exported:
         raise KnowledgeError("Packaged customer knowledge is stale; export it for the API image")
+    if read_json(safe_file(root, str(WEB_GUIDES))) != workflow_guides(manifest, documents):
+        raise KnowledgeError("Help & Support guides are stale; run export-guides")
     return {"articles": len(manifest["articles"]),
             "customer_articles": sum(item["audience"] == "customer" for item in manifest["articles"]),
             "operator_articles": sum(item["audience"] == "operator" for item in manifest["articles"]),
@@ -301,6 +333,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("check")
+    commands.add_parser("export-guides")
     freeze = commands.add_parser("snapshot")
     freeze.add_argument("--reviewed-on", required=True, help="Explicit source review date, YYYY-MM-DD")
     export = commands.add_parser("export")
@@ -321,6 +354,10 @@ def main():
                 raise KnowledgeError("Source snapshot is stale; review before exporting")
             if snapshot_data.get("article_sha256") != {item["path"]: sha256(safe_file(ROOT / KB, item["path"])) for item in manifest["articles"]}:
                 raise KnowledgeError("Article review snapshot is stale")
+            if args.command == "export-guides":
+                write_json(ROOT / WEB_GUIDES, workflow_guides(manifest, documents))
+                print(f"Exported reviewed workflow guides to {WEB_GUIDES}")
+                return
             result = jsonl(manifest, documents, args.audience)
             if args.output:
                 output = args.output.resolve()

@@ -22,6 +22,18 @@ file or connector output, not from a generic example shown in a conversation.
 If Add data is unavailable in your workspace, ask its owner to check your
 permissions. A file import is not a scheduled provider sync.
 
+## Delete a dataset
+
+1. Open Datasets in the correct workspace. Check the dataset name and source so
+   you do not remove a similarly named file or the wrong connector dataset.
+2. Select the trash icon labelled Delete dataset on that row, then confirm.
+   Deletion is permanent. An import from an unrelated connection should not
+   block deletion; if this dataset's own connection is importing, wait for it
+   to finish before retrying.
+3. Update dashboards, reports or scheduled setups that used the dataset. A
+   linked connector can import the data again on its next sync. To stop future
+   pulls, turn off automatic sync or remove that connection from Connections.
+
 ## Prepare a useful file
 
 Use stable column names and a header row for CSV. Include a genuine date or
@@ -80,3 +92,17 @@ For large CSVs, a Parquet copy can be substantially smaller while preserving the
 same rows and columns. Upload the actual data file, not a ZIP bundle. A daily
 summary is not the same as the original order-level or line-level dataset;
 choose the level of detail needed for your analysis.
+
+## Can I import a million rows?
+
+One million rows is an upper limit, not a promise of speed. The table must also
+fit within 500 columns, 10 million cells, and 512 MiB of measured table memory.
+A million rows with ten columns can qualify. With twenty columns the cell limit
+drops to 500,000 rows. File size limits still apply to uploads. Connector and
+read-only database imports also have processing limits.
+
+Large imports run in a worker in production, but may take longer, cause other
+imports to wait, or affect shared services. Fast dashboards are not guaranteed
+by a successful import. Start with the dates and columns your analysis needs.
+For database imports, filter in the query rather than relying on Decisionate
+to limit the work done by the source database.

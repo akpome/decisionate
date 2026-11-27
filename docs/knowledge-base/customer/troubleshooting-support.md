@@ -25,6 +25,17 @@ start fresh. Usage limits can require you to wait.
 Contact support opens the normal support form with the latest question for you
 to review. It does not send an email automatically or attach the entire chat.
 
+## Browse tool and workflow guides
+
+In Help & Support, open Workflow guides and choose Browse all tool guides.
+Use Search workflow guides or narrow Topic to find a task such as setting a
+weekly target, comparing sales groups, or inviting a client. Expand a guide to
+read its steps, examples and limits. Open page takes you to the relevant tool
+when a link is shown. Your normal workspace permissions still apply.
+
+These are the same reviewed guides Ask Decisionate cites. Browsing lets you
+read every section, even when your particular question has no reviewed answer.
+
 ## Common checks
 
 - No datasets: verify account/workspace and import status. A failed list request

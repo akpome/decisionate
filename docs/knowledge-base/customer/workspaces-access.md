@@ -77,6 +77,19 @@ and reopen the relevant page rather than assuming an old link proves access.
 A missing control does not mean the workspace or its data has been removed.
 Check your selected workspace and permissions first.
 
+## Delete your workspace
+
+1. Sign in as the workspace owner and switch to the workspace you want to
+   remove. This does not delete your sign-in or other workspaces.
+2. If you are an agency client and only have the unlink option, unlink from the
+   agency first. If you own an agency workspace, remove or unlink its client
+   workspaces first. Accepted clients keep their own workspaces and data.
+3. Cancel an active workspace subscription in Billing and wait for the
+   cancellation to take effect before deleting the workspace.
+4. In Settings, choose Delete workspace, type the displayed workspace name,
+   and confirm. This permanently removes that workspace's datasets, dashboards,
+   reports, connections and decisions. Only the owner can confirm the deletion.
+
 ## Invite a teammate
 
 In an eligible owner workspace, open Settings > Workspace Members. Under

@@ -40,12 +40,31 @@ with joined sources must remove them before running again.
 
 ## Match customer or product identities
 
-Entity Matching selects source datasets, customer or product type, matching-key
-columns and analytical measures. The current resolver uses exact normalized
-identifiers, emails, phones, SKUs and names; it is not a general fuzzy or
-AI-inferred identity service. Choose the record date column for each source,
-preview the matches, then save linked history. Each original row is retained,
-including unmatched rows. Original source datasets are not modified.
+Use Entity Matching when two systems record the same customers or products.
+For example, a shopper may have different IDs online and in-store but the same
+email. For products, a shared SKU (product code) can link both sets of records.
+If you only want to compare ad spend with orders by date, use Business Analysis
+> Compare metrics instead. You do not need to match identities first.
+
+1. Open Entity Matching in the sidebar. Under Choose source datasets, choose
+   Customers or Products in Entity type and select at least two sources.
+2. In Identity columns by dataset, choose the fields that identify the same
+   person or product across sources. Select each Record date column, then check
+   the amounts or counts you need under Metrics for analysis.
+3. Select Preview matches. Check the proposed groups and unmatched counts.
+   Under Matches needing confirmation, approve only groups you know are the
+   same entity. Exact shared identifiers are stronger than matching names.
+4. Choose Save linked history. This creates a separate dataset with every
+   original row, including unmatched rows. The source datasets are unchanged.
+   Include entity summary by source is optional; it adds a summary to the
+   results, not another dataset.
+5. Find the linked dataset in Datasets. For a report, open Business Analysis
+   > Compare metrics > Single dataset report and choose it. Use its shared
+   record date and approved metrics. Saving linked history makes a snapshot;
+   rerun matching to include new source records.
+
+Decisionate matches exact values after standardizing their format. It does not
+guess that two different spellings, names or local IDs are the same person.
 
 Preview matches shows any missing identity or metric selections before a run.
 If dataset columns cannot be loaded, Retry dataset columns keeps the chosen
@@ -94,3 +113,48 @@ Two unrelated source systems can reuse a local customer or product ID. Confirm
 that a selected key really denotes the same entity across sources rather than
 assuming equal strings prove an identity. Do not submit personal identifiers to
 a public chatbot for matching; use authorized workspace controls.
+
+## Does Entity Matching create a dataset?
+
+Yes. In Entity Matching, Preview matches lets you check the proposed links
+without creating a dataset. Save linked history creates a separate dataset
+in Datasets. The originals stay unchanged, and every original row is kept.
+
+The linked dataset keeps separate columns for each source and adds shared
+fields such as the customer or product ID, record date and where the row came
+from. You can use it in Business Analysis > Compare metrics > Single dataset
+report once it has usable dates and selected metrics. It is not a live sync;
+rerun matching and save again to include newer source records.
+
+## Combine sales from two datasets
+
+If you want one sales total, put distinct transactions from both systems into
+one table with the same columns, for example Date, Order ID, Channel and Net
+sales. This is stacking rows. If both sources are mapped to those four columns,
+stacking 100 and 80 rows gives 180 rows and still four columns. If you keep extra
+columns from either source, the stacked table can have more columns.
+
+1. Prepare the combined CSV, Parquet file or read-only database query upstream.
+   Match the column meanings and currency, and handle discounts, refunds and
+   taxes the same way in each source. Use a reliable transaction key to avoid
+   counting the same sale twice.
+2. For a file, use Datasets > Add data > Upload file. For a database query, set
+   it up through Connections. Check the imported dates and sales column.
+3. In Business Analysis > Compare metrics > Single dataset report, select the
+   combined dataset and Net sales with Sum aggregation. To show totals separately
+   by channel in the dashboard, use Edit dashboard > Compare Groups with Net sales
+   as the metric and Channel as the dimension.
+
+A $100 online purchase and a separate $80 in-store purchase can total $180.
+A $100 sale and its $100 accounting invoice are one sale, not $200. Entity
+Matching links customer or product identities; it does not merge sales columns,
+standardize amounts, or deduplicate transactions for you.
+
+## Does stacking rows add columns?
+
+Not if you align the columns first. If both sources use Date, Channel and Net
+sales, stacking 100 and 80 rows gives 180 rows and still three columns. Keeping
+extra fields from just one source can add columns, with blanks for other rows.
+Entity Matching is different: it keeps each source's fields separate and adds
+shared identity and source fields. For a combined sales total, use an aligned
+stack of distinct transactions instead.

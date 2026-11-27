@@ -25,6 +25,9 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         packaged = self.root / knowledge.PACKAGED_CUSTOMER
         packaged.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / knowledge.PACKAGED_CUSTOMER, packaged)
+        guides = self.root / knowledge.WEB_GUIDES
+        guides.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / knowledge.WEB_GUIDES, guides)
         self.manifest = knowledge.read_json(self.root / knowledge.KB / "manifest.json")
         sources = {source for article in self.manifest["articles"] for source in article["sources"]}
         for source in sources:
@@ -66,6 +69,28 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         self.assertEqual(len({row["article_id"] for row in rows}), 6)
         with self.assertRaises(knowledge.KnowledgeError):
             list(knowledge.export_records(manifest, documents, "all"))
+
+    def test_workflow_guides_cover_every_customer_section_with_the_same_text_and_route(self):
+        manifest, documents = knowledge.read_repository(self.root)
+        groups = knowledge.workflow_guides(manifest, documents)
+        sections = {section["id"]: (section["body"], section["route"])
+                    for group in groups for article in group["articles"] for section in article["sections"]}
+        self.assertEqual(sections, {row["chunk_id"]: (row["content"], row["routes"][0])
+                                    for row in knowledge.export_records(manifest, documents)})
+        self.assertNotIn("operator-", json.dumps(groups))
+
+    def test_workflow_guides_fail_closed_for_missing_duplicates_operator_content_or_stale_exports(self):
+        manifest, documents = knowledge.read_repository(self.root)
+        originals = manifest["guide_groups"][0]["articles"]
+        for entries in (originals[1:], originals + [manifest["guide_groups"][1]["articles"][0]],
+                        originals + ["operator-architecture"]):
+            with self.subTest(entries=entries):
+                manifest["guide_groups"][0]["articles"] = entries
+                with self.assertRaises(knowledge.KnowledgeError):
+                    knowledge.workflow_guides(manifest, documents)
+        knowledge.write_json(self.root / knowledge.WEB_GUIDES, [])
+        with self.assertRaisesRegex(knowledge.KnowledgeError, "guides are stale"):
+            knowledge.check(self.root)
 
     def test_customer_export_is_deterministic_jsonl(self):
         manifest, documents = knowledge.read_repository(self.root)
@@ -125,7 +150,7 @@ class KnowledgeRepositoryTests(unittest.TestCase):
         portal = rows["hosted-portals:how-do-i-set-up-my-portal"]
         self.assertIn("How do I set up a white-label portal?", portal["direct_questions"])
         self.assertEqual(portal["routes"][0], "/settings")
-        self.assertEqual(rows["performance-analysis:can-i-compare-channels-with-only-ad-spend-and-total-store-revenue"]["direct_questions"], [])
+        self.assertEqual(rows["performance-analysis:can-a-profitable-business-still-run-out-of-cash"]["direct_questions"], [])
         article = self.manifest["articles"][0]
         for questions in [[], {"Unknown heading": ["How do I use this?"]},
                           {"Are customers coming back?": ["How do I use Return on spend?", "HOW DO I USE RETURN ON SPEND"]},

@@ -10,7 +10,8 @@ chart.
    enables owner delivery by default when the report has sufficient data.
    You do not need to add the workspace owner's email again.
 2. Open Scheduled email from Weekly Reports. This is the page older links
-   may call Alerts. To add recipients, enter Additional email addresses and
+   may call Alerts; you do not need to find a separate sidebar tab. To add
+   recipients, enter Additional email addresses and
    choose the Delivery day. The owner is always included.
 3. Use Send automatically each week to enable or pause automatic delivery,
    then choose Save email settings. This does not change what the report

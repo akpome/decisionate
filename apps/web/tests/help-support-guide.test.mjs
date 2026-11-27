@@ -71,7 +71,8 @@ test("all business tools have focused setup guidance and current decision entry 
   assert.match(chapter("decisions"), /Create decision opens the form/)
   assert.match(chapter("decisions"), /Continue decision reopens an unfinished decision/)
   assert.doesNotMatch(source, /Decision draft link|Decision draft opens/)
-  assert.match(JSON.stringify(faqItems), /It is no longer a separate sidebar page/)
+  assert.match(JSON.stringify(faqItems), /Business Analysis in the sidebar, then select the Business impact tab next to Compare metrics/)
+  assert.match(text, /Business impact tab next to Compare metrics\. On smaller screens, choose Business impact from the Analysis tool dropdown/)
 })
 
 test("report timing guidance matches the 30-observation daily default and pair-specific calendar lags", () => {

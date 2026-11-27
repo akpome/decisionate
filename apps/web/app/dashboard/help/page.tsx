@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useUser } from "@clerk/nextjs"
 import {
   ArrowRight,
@@ -30,6 +31,10 @@ import { submitSupportRequest } from "@/lib/api"
 import { useActiveWorkspace } from "@/lib/use-active-workspace"
 
 type SupportRequestType = "support" | "bug" | "feature"
+
+const WorkflowGuides = dynamic(() => import("@/features/support/workflow-guides"), {
+  loading: () => <p role="status" className="mt-3 text-sm text-gray-600">Loading workflow guides...</p>,
+})
 
 const supportRequestSubjects: Record<SupportRequestType, string> = {
   support: "Decisionate support request",
@@ -84,7 +89,7 @@ const faqItems = [
   },
   {
     question: "Where is Business impact now?",
-    answer: "Open Business Analysis and choose Business impact. It is no longer a separate sidebar page. Select an eligible decision, enter when its action was implemented, and choose an unaffected comparison. Review Assessment preview before Save assessment to decision. Existing links, saved assessments and decision history remain available. This evaluates an existing decision; it does not create another decision or change Weekly Reports.",
+    answer: "Open Business Analysis in the sidebar, then select the Business impact tab next to Compare metrics. On smaller screens, use the Analysis tool dropdown. Select an eligible decision, enter when you made the change, and choose an unaffected comparison. Review Assessment preview before Save assessment to decision. This evaluates an existing decision and does not change Weekly Reports.",
   },
   {
     question: "Can Ask Decisionate check my results or change my account?",
@@ -529,7 +534,8 @@ const referenceChapters: ReferenceChapter[] = [
       {
         title: "Assess a recorded business change",
         steps: [
-          "Open Business Analysis and choose Business impact, or open a decision and choose Assess business impact. The tool has Assessment setup, Assessment preview and Saved assessments. Weekly Reports stays separate. Its action and outcome metric are reused. The outcome Date column is beside Outcome metric, preselected from the saved evidence. Enter the actual implementation date, then choose one unaffected comparison dataset and its result. The comparison Date column is beside Dimension column and one Unique value. History starts from the decision's source evidence or the start of shared data, whichever is later, and extends through the latest available date in both date columns, no later than yesterday in the reporting timezone. Grouping follows the source analysis; quarterly sources use weekly impact periods without changing the original lag units. If source metadata is missing, matching assessment history or outcome availability supplies the start, and timing or assessment grouping falls back to daily. The analysis period and grouping are read-only, with no editable Analysis settings. Minimum history requirements and unavailable-data warnings remain visible. Opening a saved snapshot does not change it; returning to Assessment setup prepares a new calculation with current shared dates. Weekly Reports has no assessment tab or setup form. The comparison provides the baseline for normal ups and downs; earlier records determine whether an extra yearly adjustment is supported, without a seasonal-business checkbox. Explain why the comparison was unaffected and check for other major changes. Save assessment to decision attaches the result to that same decision, without creating another decision or overwriting its recorded outcome or lessons.",
+          "Open Business Analysis in the sidebar and select the Business impact tab next to Compare metrics. On smaller screens, choose Business impact from the Analysis tool dropdown.",
+          "You can also open an existing decision and choose Assess business impact. The tool has Assessment setup, Assessment preview and Saved assessments. Weekly Reports stays separate. The decision's action and outcome metric are reused. The outcome Date column is beside Outcome metric, preselected from the saved evidence. Enter the actual implementation date, then choose one unaffected comparison dataset and its result. The comparison Date column is beside Dimension column and one Unique value. History starts from the decision's source evidence or the start of shared data, whichever is later, and extends through the latest available date in both date columns, no later than yesterday in the reporting timezone. Grouping follows the source analysis; quarterly sources use weekly impact periods without changing the original lag units. If source metadata is missing, matching assessment history or outcome availability supplies the start, and timing or assessment grouping falls back to daily. The analysis period and grouping are read-only, with no editable Analysis settings. Minimum history requirements and unavailable-data warnings remain visible. Opening a saved snapshot does not change it; returning to Assessment setup prepares a new calculation with current shared dates. Weekly Reports has no assessment tab or setup form. The comparison provides the baseline for normal ups and downs; earlier records determine whether an extra yearly adjustment is supported, without a seasonal-business checkbox. Explain why the comparison was unaffected and check for other major changes. Save assessment to decision attaches the result to that same decision, without creating another decision or overwriting its recorded outcome or lessons.",
           "Timing from earlier analysis reuses reliable driver-to-outcome timing from the decision's original saved correlation. It must pass separate earlier-history checks, end before implementation, and match the outcome's date, aggregation, dimension filter and timezone. Choose the relevant earlier relationship if more than one qualifies; no arbitrary numeric delay is requested. Unknown timing does not become an assumed zero delay. The actual implementation date stays fixed, and early results count in the total. Early and later estimates are shown separately. Weekly impact needs at least 52 complete weeks before implementation and 8 complete later weeks after the timing reference date; daily needs 90 before and 28 later, monthly 24 before and 6 later. Too little later history says Waiting for enough results. These are model-based estimates, not a guaranteed causal delay. Weekly emails retain the timing and phase results.",
           "The Edit decision pencil beside Decision to review opens the selected decision's details to update its action or outcome metric. Missing comparison or timing evidence stays visible as a warning; there are no relationship shortcuts inside the assessment form. Use the tool selector to change analysis tools. Open the earlier analysis is retained only when a specific evidence report is linked.",
           "Decision to review lists only active decisions with a recorded action and saved multi-dataset analysis evidence. The original selected metrics must span at least two datasets. Single-dataset decisions and decisions without that source evidence are not offered. Existing decisions and saved assessments remain unchanged; reliable timing and a fair comparison are still required for an impact estimate.",
@@ -933,6 +939,7 @@ export default function HelpSupportPage() {
   const { activeWorkspaceId } = useActiveWorkspace(user?.id)
   const [completedItems, setCompletedItems] =
     useState<Record<string, boolean>>({})
+  const [guidesOpen, setGuidesOpen] = useState(false)
   const [supportFormOpen, setSupportFormOpen] =
     useState(false)
   const [supportRequestType, setSupportRequestType] =
@@ -1079,7 +1086,7 @@ export default function HelpSupportPage() {
       <DashboardPageHeader
         eyebrow="Support"
         title="Help & Support"
-        description="A concise guide to getting value from Decisionate, resolving issues, and turning evidence into better decisions."
+        description="Product guides, step-by-step workflows, and support for your workspace."
       />
 
       <ProductGuidance
@@ -1091,6 +1098,15 @@ export default function HelpSupportPage() {
           if (message) setSupportMessage(message)
         }}
       />
+
+      <section aria-labelledby="workflow-guides-title" className="border-b border-gray-200 pb-5">
+        <h2 id="workflow-guides-title" className="text-lg font-semibold">Workflow guides</h2>
+        <button type="button" aria-expanded={guidesOpen} aria-controls="workflow-guides" onClick={() => setGuidesOpen(open => !open)}
+          className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-300 px-3 text-sm font-medium">
+          <BookOpen size={16} aria-hidden="true" />{guidesOpen ? "Hide guides" : "Browse all tool guides"}
+        </button>
+        <div id="workflow-guides" hidden={!guidesOpen}>{guidesOpen && <WorkflowGuides />}</div>
+      </section>
 
       <section
         id="quick-start"

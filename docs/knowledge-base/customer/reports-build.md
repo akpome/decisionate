@@ -13,7 +13,8 @@ dataset metrics, date policies, anomaly detection and report snapshots.
 
 ## Which report should I choose?
 
-Under Business Analysis > Compare metrics, choose one of two tabs:
+Open Business Analysis in the sidebar. In the Compare metrics tab (or Analysis
+tool dropdown on a smaller screen), choose one of two report tabs:
 
 - Multi-dataset report: select metrics from at least two datasets to review totals,
   trends and unusual changes. Enable correlation analysis is checked by default
@@ -81,7 +82,7 @@ decision creation or decision review on the Decisions page.
 
 ## Analyze one dataset
 
-Open Business Analysis and choose Single dataset report. Under Dataset and
+Open Business Analysis > Compare metrics > Single dataset report. Under Dataset and
 metrics, use the searchable Dataset dropdown to choose one source. Type its name
 or connector to filter choices, including sources on later catalog pages. Search
 does not select a dataset or load its data files. Before choosing, no source's
@@ -106,29 +107,28 @@ trends and any unusual changes, then choose Save report to keep the result.
 
 ## Where is Business impact and how do I use it?
 
-Open Business Analysis, then choose Business impact from the tool links or the
-Analysis tool dropdown. It is no longer a separate sidebar page. Old links
-redirect here, and saved assessments and decision history are kept.
+Open Business Analysis in the sidebar. Select the Business impact tab at the top
+of the page, next to Compare metrics. On smaller screens, choose Business impact
+from the Analysis tool dropdown instead.
 
-1. Choose Decision to review. Type in this dropdown to find an eligible decision.
-   Its recorded action and outcome metric are reused; readiness notes explain
-   missing evidence. The decision's original evidence and available dates set the
-   analysis period, rather than a second editable date range.
-2. Enter When did you implement the change? This is when the real action began,
-   not when its decision record was created. Supported timing from the earlier
-   analysis is reused; the tool does not run a new correlation or guess a delay.
-3. Choose one unaffected comparison dataset and its metric. Review the date column
-   and optional dimension value. Explain why it was unaffected and confirm whether
-   other major changes happened. A comparison needs to reflect similar conditions.
-4. Choose Analyze business impact to open Assessment preview. Read the estimated
-   difference, uncertainty and checks. If evidence is insufficient, no reliable
-   impact amount is given. An estimate is not a guarantee of cause and effect.
-5. Choose Save assessment to decision only after reviewing the preview. It adds
-   an assessment to that existing decision without overwriting its actual outcome,
-   completing it, or creating another decision. Reopen it from Saved assessments.
+1. In Assessment setup, use Decision to review to search for and select an
+   eligible decision. Its recorded action and outcome metric are filled in for you.
+2. Fill in When did you implement the change? Use the date you actually made the
+   change, not the date you recorded the decision. Select whether success means
+   an increase or decrease in Desired improvement. Decisionate sets the analysis
+   period from the saved evidence and available dates. It uses reliable timing
+   from the earlier analysis without running a new correlation or guessing a delay.
+3. Choose a Comparison dataset and Comparison metric from a similar store, region
+   or business line that was unaffected. Check the Date column and any optional
+   dimension filter. Explain why the comparison was unaffected and say whether
+   anything else major changed at the same time.
+4. Select Analyze business impact. In Assessment preview, review what the result
+   suggests and how certain it is. If the data does not support a reliable estimate,
+   the preview explains why. An estimate does not prove what caused the result.
+5. Select Save assessment to decision to attach the preview to the original
+   decision without changing its recorded outcome. Reopen it from Saved assessments.
 
-Business impact settings do not change Weekly Reports. For relationships without
-an implemented action to assess, use Compare metrics in Business Analysis.
+Old Business impact links still work. This workflow does not change Weekly Reports.
 
 ## Did my business change help?
 

@@ -6,12 +6,19 @@ A projection is not a commitment that the business will achieve that outcome.
 
 ## Generate a forecast
 
-1. Open Forecasts and choose or search for the intended dataset, then select its metric.
+1. Open Forecasts in the sidebar. In Forecast setup, choose a Dataset and a
+   Metric you want to project, for example weekly orders.
 2. Review Date column beside Dimension column. Select Unique values if the
    forecast should cover a segment rather than all eligible rows.
-3. Choose the history range, grouping and aggregation appropriate to the source.
+3. Set Start date and Period for the history to use. Up to 3 years lets the
+   forecast use the latest available history within that limit when no start
+   date is set. Choose Group by and Aggregate, for example Weekly and Sum for
+   weekly orders. These change the historical input, not the length of the
+   future projection. Reset range restores the default history controls.
 4. Enable Business has seasonal activity when recurring calendar patterns matter.
-5. Review the forecast, historical series, model basis, validation and warnings.
+5. The results load as you change the setup. Review both the observed history
+   and the forecast. Check the model basis, validation and warnings before
+   using the projection to plan. Use Retry forecast if the request fails.
 
 The forecast uses the selected date field and dimension filter. Dashboard period
 defaults do not silently define a forecast's history. A filter can leave too

@@ -6,15 +6,18 @@ multiple metrics, period movements, anomalies and cross-source findings.
 
 ## Set up a two-metric monitor
 
-Choose the left and right datasets and their metrics. Review both Date columns
-and apply each side's Dimension column and Unique values independently when
-needed. Set the period and aggregation to fit the business question, then check
-the actual overlapping source dates.
-
-Preview relationship first, review the evidence, then choose Save relationship
-below the result. Changing a dataset, metric, date column, dimension filter or
-analysis setting clears the old preview; preview again before saving. An opened
-saved relationship does not need to be saved again unless its setup changes.
+1. Open Relationships from the sidebar. Pick the two datasets and the one
+   metric to compare from each, for example ad spend and orders.
+2. Review both Date columns. Use Dimension column and Unique values on either
+   side if you want only a store, channel or other group. Check the data actually
+   overlaps after filtering. Choose a grouping and aggregation that fit both metrics.
+3. Choose Preview relationship. Read the coefficient, matched observations
+   and observed delay. Keep Relationship direction on Automatic (recommended)
+   or choose the metric expected to lead and review the recalculated result.
+4. Choose Save relationship below the result to keep the setup in Saved
+   relationships. Changing a dataset, metric, date column, filter or setting
+   clears the old preview; preview again before saving. An opened saved
+   relationship does not need to be saved again unless its setup changes.
 Missing selections appear beside the preview action. Refresh reloads available
 datasets and saved relationships without resetting valid selections. If columns
 fail to load, use Retry dataset columns.

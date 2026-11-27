@@ -9,10 +9,19 @@ setup and Report preview; Business Analysis uses Build analysis and Analysis pre
 
 ## Configure weekly analysis and sending separately
 
-Open Analysis -> Weekly Reports. Select metrics, date columns, dimension filters,
-seasonal setting and relationship pairs. Report details contains the editable
-name and optional business question. If the question is blank, the report asks
-what changed last week and what needs attention next. Choose Preview report.
+1. Open Weekly Reports from the sidebar and select Report setup. Pick the
+   datasets and metrics to monitor. Check each Date column and any optional
+   dimension filters. For email delivery, at least two selected datasets need
+   usable data in the last completed week.
+2. Check the reporting timezone, seasonal setting, weekly targets and any
+   relationship pairs to test. In Report details, edit the name or add a
+   Business question. If it is blank, the report asks what changed last week
+   and what needs attention next.
+3. Select Preview report. In Report preview, check coverage and findings, then
+   choose Save changes to make this the workspace's current weekly report.
+4. After saving, use Email workspace owner for a one-time send, or open
+   Scheduled email to manage the automatic send or add recipients.
+
 Previewing calculates the draft without changing the saved weekly setup or sending email.
 After a successful preview, choose Save changes. Each workspace has one current
 weekly report. Saving replaces that report and its setup for future weeks,
@@ -37,6 +46,8 @@ workspace owner every Monday when the report has sufficient data. No recipient
 configuration is needed. Explicitly paused schedules remain paused when the
 report is edited; saving never sends an immediate email or changes additional addresses.
 
+## Review the weekly report and follow up
+
 In the preview, This week at a glance is followed by What deserves attention,
 before the detailed charts. Each priority finding includes its supported next
 step and result to track. Create decision opens the central form with that
@@ -52,8 +63,12 @@ editable copy, not a live link. Non-weekly timing choices reset to same-period
 comparison, with a default maximum of 12 weeks; a three-day lag is not converted
 to three weeks. Preview and save the independent weekly setup before use.
 
-In Weekly Reports, use Scheduled email to add optional additional addresses, change the delivery day,
-timezone, email readiness and delivery history. Save email settings updates only
+## Send or schedule the weekly report
+
+In Weekly Reports, use Scheduled email to add optional additional addresses,
+change the delivery day, and check email readiness and delivery history. Change
+the reporting timezone in Report setup, where it defines the report week.
+Save email settings updates only
 delivery preferences, not report selections. The status reflects the saved
 schedule; unsaved changes are labeled separately. The workspace owner is always
 included, including the client owner in a managed client workspace. An owner
@@ -76,7 +91,7 @@ Only authorized workspace managers can use it. If the owner's account has no
 usable email address, sending is blocked rather than using another recipient.
 
 Sending requires usable data from at least two selected datasets in the last
-completed week. If the preview has insufficient coverage, Send report now is
+completed week. If the preview has insufficient coverage, Email workspace owner is
 disabled and shows the exact dates needed. Sync or upload data for that week,
 then preview again. Historical demo files belong in Business Analysis; weekly
 reports do not shift to the most recent dates in an old file. Saved weekly

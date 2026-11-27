@@ -34,6 +34,10 @@ checking that the approved answer directly addresses them.
 ## Step-by-step tool guides
 
 Open a guide below or try its question in Ask Decisionate in Help & Support.
+In the app, choose **Browse all tool guides** under **Workflow guides** to search
+or browse all customer articles, including steps that have no reviewed chatbot
+question yet. The web guide and chatbot corpus are generated from the same
+reviewed sections and page routes.
 For the tools listed here, both `How do I use ...?` and `How to use ...?`
 return the reviewed steps.
 These guides explain how to use the tools; they do not inspect your workspace.
@@ -221,6 +225,7 @@ evaluation cases, then regenerate the source snapshot and customer export:
 python -B apps/api/scripts/knowledge_repository.py snapshot --reviewed-on 2026-10-26
 python -B apps/api/scripts/knowledge_repository.py export --audience customer --output docs/knowledge-base/generated/customer.jsonl
 python -B apps/api/scripts/knowledge_repository.py export --audience customer --output apps/api/app/modules/support/knowledge/customer.jsonl
+python -B apps/api/scripts/knowledge_repository.py export-guides
 python -B apps/api/scripts/knowledge_repository.py check
 ```
 
